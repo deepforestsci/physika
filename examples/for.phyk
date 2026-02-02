@@ -1,0 +1,28 @@
+# For loop examples in Physika
+# Syntax: for <var> in range(<n>):
+#           ... 
+#         end
+# Note: Don't use 'i' as loop variable (reserved for imaginary unit)
+
+# Example 1: Simple counter
+count: R = 0.0
+for k in range(5):
+    count = count + 1.0
+end
+count
+
+
+# Example 2: Sum using loop variable (0+1+2+3+4 = 10)
+sum: R = 0.0
+for k in range(5):
+    sum = sum + k
+    print(sum)
+end
+sum
+
+# Example 3: Factorial of 5 (1*2*3*4*5 = 120)
+fact: R = 1.0
+for j in range(5):
+    fact = fact * (j + 1.0)
+end
+fact

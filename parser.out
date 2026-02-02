@@ -1,0 +1,166 @@
+Created by PLY version 3.11 (http://www.dabeaz.com/ply)
+
+Grammar
+
+Rule 0     S' -> program
+Rule 1     program -> statements
+Rule 2     statements -> statements statement
+Rule 3     statements -> statement
+Rule 4     type_spec -> TYPE
+Rule 5     type_spec -> TYPE ARROW TYPE
+Rule 6     type_spec -> TANGENT ID TYPE
+Rule 7     type_spec -> TYPE LBRACKET dimension_list RBRACKET
+Rule 8     dimension_list -> dimension_spec
+Rule 9     dimension_list -> dimension_spec COMMA dimension_list
+Rule 10    dimension_spec -> PLUS NUMBER
+Rule 11    dimension_spec -> MINUS NUMBER
+Rule 12    dimension_spec -> NUMBER
+Rule 13    statement -> DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE RETURN func_expr
+Rule 14    statement -> DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE func_body_stmts RETURN func_expr
+Rule 15    func_body_stmts -> func_body_stmt
+Rule 16    func_body_stmts -> func_body_stmts func_body_stmt
+Rule 17    func_body_stmt -> ID EQUALS func_expr NEWLINE
+Rule 18    func_body_stmt -> ID COLON type_spec EQUALS func_expr NEWLINE
+Rule 19    func_body_stmt -> ID COMMA ID EQUALS func_expr NEWLINE
+Rule 20    func_body_stmt -> ID COMMA ID COMMA ID EQUALS func_expr NEWLINE
+Rule 21    func_body_stmt -> NEWLINE
+Rule 22    statement -> DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE func_init FOR ID IN RANGE LPAREN ID RPAREN COLON NEWLINE func_loop_body END NEWLINE RETURN func_expr
+Rule 23    func_init -> <empty>
+Rule 24    func_init -> func_init func_init_stmt
+Rule 25    func_init_stmt -> ID EQUALS func_expr NEWLINE
+Rule 26    func_init_stmt -> NEWLINE
+Rule 27    func_loop_body -> <empty>
+Rule 28    func_loop_body -> func_loop_body func_loop_stmt
+Rule 29    func_loop_stmt -> ID EQUALS func_expr NEWLINE
+Rule 30    func_loop_stmt -> ID PLUSEQ func_expr NEWLINE
+Rule 31    func_loop_stmt -> NEWLINE
+Rule 32    statement -> CLASS ID LPAREN params RPAREN COLON NEWLINE DEF LAMBDA LPAREN params RPAREN ARROW type_spec COLON NEWLINE RETURN func_expr
+Rule 33    statement -> CLASS ID LPAREN params RPAREN COLON NEWLINE DEF LAMBDA LPAREN params RPAREN ARROW type_spec COLON NEWLINE RETURN func_expr NEWLINE DEF ID LPAREN params RPAREN ARROW type_spec COLON NEWLINE RETURN func_expr
+Rule 34    statement -> CLASS ID LPAREN params RPAREN COLON NEWLINE DEF LAMBDA LPAREN params RPAREN ARROW type_spec COLON NEWLINE FOR ID IN RANGE LPAREN ID RPAREN COLON NEWLINE lambda_loop_body END NEWLINE RETURN func_expr
+Rule 35    statement -> CLASS ID LPAREN params RPAREN COLON NEWLINE DEF LAMBDA LPAREN params RPAREN ARROW type_spec COLON NEWLINE FOR ID IN RANGE LPAREN ID RPAREN COLON NEWLINE lambda_loop_body END NEWLINE RETURN func_expr NEWLINE DEF ID LPAREN params RPAREN ARROW type_spec COLON NEWLINE RETURN func_expr
+Rule 36    lambda_loop_body -> <empty>
+Rule 37    lambda_loop_body -> lambda_loop_body lambda_loop_stmt
+Rule 38    lambda_loop_stmt -> ID EQUALS func_expr NEWLINE
+Rule 39    lambda_loop_stmt -> NEWLINE
+Rule 40    statement -> ID COLON type_spec EQUALS expr
+Rule 41    statement -> ID EQUALS expr
+Rule 42    statement -> expr
+Rule 43    statement -> NEWLINE
+Rule 44    statement -> FOR ID IN RANGE LPAREN NUMBER RPAREN COLON NEWLINE for_body END
+Rule 45    for_body -> <empty>
+Rule 46    for_body -> for_body for_statement
+Rule 47    for_statement -> ID EQUALS func_expr NEWLINE
+Rule 48    for_statement -> ID LPAREN func_args RPAREN NEWLINE
+Rule 49    for_statement -> NEWLINE
+Rule 50    params -> <empty>
+Rule 51    params -> ID COLON type_spec
+Rule 52    params -> ID COLON type_spec COMMA params
+Rule 53    func_expr -> func_expr PLUS func_term
+Rule 54    func_expr -> func_expr MINUS func_term
+Rule 55    func_expr -> func_term
+Rule 56    func_term -> func_term TIMES func_factor
+Rule 57    func_term -> func_term DIVIDE func_factor
+Rule 58    func_term -> func_term MATMUL func_factor
+Rule 59    func_term -> func_term POWER func_factor
+Rule 60    func_term -> func_factor
+Rule 61    func_factor -> NUMBER
+Rule 62    func_factor -> ID
+Rule 63    func_factor -> LPAREN func_expr RPAREN
+Rule 64    func_factor -> ID LPAREN func_args RPAREN
+Rule 65    func_factor -> ID LBRACKET func_expr RBRACKET
+Rule 66    func_factor -> ID LPAREN func_args RPAREN LBRACKET func_expr RBRACKET
+Rule 67    func_factor -> LBRACKET func_elements RBRACKET
+Rule 68    func_factor -> STRING
+Rule 69    func_factor -> IMAGINARY
+Rule 70    func_elements -> func_expr
+Rule 71    func_elements -> func_expr COMMA func_elements
+Rule 72    func_args -> <empty>
+Rule 73    func_args -> func_expr
+Rule 74    func_args -> func_expr COMMA func_args
+Rule 75    expr -> expr PLUS term
+Rule 76    expr -> expr MINUS term
+Rule 77    expr -> term
+Rule 78    term -> term TIMES factor
+Rule 79    term -> term DIVIDE factor
+Rule 80    term -> term MATMUL factor
+Rule 81    term -> term POWER factor
+Rule 82    factor -> ID LPAREN args RPAREN
+Rule 83    factor -> NUMBER
+Rule 84    factor -> MINUS factor
+Rule 85    factor -> ID
+Rule 86    factor -> LPAREN expr RPAREN
+Rule 87    factor -> LBRACKET elements RBRACKET
+Rule 88    elements -> expr
+Rule 89    elements -> expr COMMA elements
+Rule 90    elements -> NEWLINE elements
+Rule 91    elements -> elements NEWLINE
+Rule 92    factor -> ID LBRACKET NUMBER RBRACKET
+Rule 93    factor -> ID LBRACKET NUMBER COLON NUMBER RBRACKET
+Rule 94    args -> <empty>
+Rule 95    args -> expr
+Rule 96    args -> expr COMMA args
+
+Terminals, with rules where they appear
+
+ARROW                : 5 32 33 33 34 35 35
+CLASS                : 32 33 34 35
+COLON                : 13 13 14 14 18 22 22 22 32 32 33 33 33 34 34 34 35 35 35 35 40 44 51 52 93
+COMMA                : 9 19 20 20 52 71 74 89 96
+DEF                  : 13 14 22 32 33 33 34 35 35
+DIVIDE               : 57 79
+END                  : 22 34 35 44
+EQUALS               : 17 18 19 20 25 29 38 40 41 47
+FOR                  : 22 34 35 44
+ID                   : 6 13 14 17 18 19 19 20 20 20 22 22 22 25 29 30 32 33 33 34 34 34 35 35 35 35 38 40 41 44 47 48 51 52 62 64 65 66 82 85 92 93
+IMAGINARY            : 69
+IN                   : 22 34 35 44
+LAMBDA               : 32 33 34 35
+LBRACKET             : 7 65 66 67 87 92 93
+LPAREN               : 13 14 22 22 32 32 33 33 33 34 34 34 35 35 35 35 44 48 63 64 66 82 86
+MATMUL               : 58 80
+MINUS                : 11 54 76 84
+NEWLINE              : 13 14 17 18 19 20 21 22 22 22 25 26 29 30 31 32 32 33 33 33 33 34 34 34 34 35 35 35 35 35 35 38 39 43 44 47 48 49 90 91
+NUMBER               : 10 11 12 44 61 83 92 93 93
+PLUS                 : 10 53 75
+PLUSEQ               : 30
+POWER                : 59 81
+RANGE                : 22 34 35 44
+RBRACKET             : 7 65 66 67 87 92 93
+RETURN               : 13 14 22 32 33 33 34 35 35
+RPAREN               : 13 14 22 22 32 32 33 33 33 34 34 34 35 35 35 35 44 48 63 64 66 82 86
+STRING               : 68
+TANGENT              : 6
+TIMES                : 56 78
+TYPE                 : 4 5 5 6 7
+error                : 
+
+Nonterminals, with rules where they appear
+
+args                 : 82 96
+dimension_list       : 7 9
+dimension_spec       : 8 9
+elements             : 87 89 90 91
+expr                 : 40 41 42 75 76 86 88 89 95 96
+factor               : 78 79 80 81 84
+for_body             : 44 46
+for_statement        : 46
+func_args            : 48 64 66 74
+func_body_stmt       : 15 16
+func_body_stmts      : 14 16
+func_elements        : 67 71
+func_expr            : 13 14 17 18 19 20 22 25 29 30 32 33 33 34 35 35 38 47 53 54 63 65 66 70 71 73 74
+func_factor          : 56 57 58 59 60
+func_init            : 22 24
+func_init_stmt       : 24
+func_loop_body       : 22 28
+func_loop_stmt       : 28
+func_term            : 53 54 55 56 57 58 59
+lambda_loop_body     : 34 35 37
+lambda_loop_stmt     : 37
+params               : 13 14 22 32 32 33 33 33 34 34 35 35 35 52
+program              : 0
+statement            : 2 3
+statements           : 1 2
+term                 : 75 76 77 78 79 80 81
+type_spec            : 13 14 18 22 32 33 33 34 35 35 40 51 52
+

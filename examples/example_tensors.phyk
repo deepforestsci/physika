@@ -1,0 +1,49 @@
+# Contravariant vector v^α (like a column vector in standard basis)
+v: R[+3] = [1.0, 2.0, 3.0]
+v
+
+# Covariant vector ωα (like a row vector, dual space)
+omega: R[-3] = [1.0, 2.0, 3.0]
+omega
+
+# Linear map: T^α_β applied to vector v^β
+T: R[+3,-3] = [[2.0, 0.0, 0.0],
+                [0.0, 3.0, 0.0],
+                [0.0, 0.0, 4.0]]
+
+v: R[+3] = [1.0, 2.0, 3.0]
+
+# Contraction: T^α_β v^β = w^α
+w: R[+3] = T @ v
+w
+
+# Works - single line
+#A: R[2,2] = [[1.0, 2.0], [3.0, 4.0]]
+
+# Also works - multi-line
+#B: R[2,2] = [
+#    [1.0, 2.0],
+#    [3.0, 4.0]
+#]
+
+# Also works - with tensor variance
+#T: R[+3,-3] = [
+#    [1.0, 0.0, 0.0],
+#    [0.0, 2.0, 0.0],
+#    [0.0, 0.0, 3.0]
+#]
+
+#T
+
+# Linear map: T^α_β applied to vector v^β
+T: R[+3,-3] = [[2.0, 0.0, 0.0], # Add support for ten
+               [0.0, 3.0, 0.0],
+               [0.0, 0.0, 4.0]]
+
+v: R[+3] = [1.0, 2.0, 3.0]
+
+# Contraction: T^α_β v^β = w^α
+w: R[+3] = T @ v
+w
+
+T
