@@ -39,6 +39,7 @@ class TypeChecker:
 
     Examples
     --------
+    >>> from type_checker import TypeChecker
     >>> unified_ast = {
     ...     "functions": {},
     ...     "classes": {},
@@ -306,6 +307,7 @@ class TypeChecker:
 
         Examples
         --------
+        >>> from type_checker import TypeChecker
         >>> unified_ast = {
         ...     "functions": {},
         ...     "classes": {},

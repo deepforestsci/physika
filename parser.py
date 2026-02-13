@@ -1,18 +1,18 @@
 import ply.yacc as yacc
 from lexer import tokens # noqa: F401
-from utils.ast_utils import ASTNode # noqa: F401
+# from utils.ast_utils import ASTNode # noqa: F401
 from utils.parser_utils import find_indexed_arrays
 
 symbol_table: dict[str, dict] = {}
 print_separator: bool = False
-parsing_function_body: bool = False
-
+# parsing_function_body: bool = False
+#Commented for now, until enabling printing of unified AST in execute.py
 # Collect all statements as AST, evaluate after parsing
-program_ast: list[ASTNode] = []  # List of AST statements
-AST_MODE: bool = True   # When True, build AST instead of immediate evaluation
+# program_ast: list[ASTNode] = []  # List of AST statements
+# AST_MODE: bool = True   # When True, build AST instead of immediate evaluation
 
-# Flag to enable AST printing (set via --ast flag)
-PRINT_AST: bool = False
+# # Flag to enable AST printing (set via --ast flag)
+# PRINT_AST: bool = False
 
 
 # PARSER
