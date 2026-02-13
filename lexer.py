@@ -134,7 +134,7 @@ class IndentLexer:
                 tok.value = "i"
             self.after_for = False
 
-        # Track bracket/paren nesting
+        # Track bracket/parenthesis nesting
         if tok and tok.type in ("LPAREN", "LBRACKET"):
             self.bracket_depth += 1
         elif tok and tok.type in ("RPAREN", "RBRACKET"):

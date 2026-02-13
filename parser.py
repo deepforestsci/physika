@@ -1,89 +1,18 @@
 import ply.yacc as yacc
+from lexer import tokens # noqa: F401
+from utils.ast_utils import ASTNode # noqa: F401
+from utils.parser_utils import find_indexed_arrays
 
-from lexer import tokens, lexer
-
-from utils import is_torch_tensor, from_torch
-
-try:
-    import torch
-    import torch.nn as nn
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
-
-
-symbol_table = {}
-print_separator = False
-parsing_function_body = False
+symbol_table: dict[str, dict] = {}
+print_separator: bool = False
+parsing_function_body: bool = False
 
 # Collect all statements as AST, evaluate after parsing
-program_ast = []  # List of AST statements
-AST_MODE = True   # When True, build AST instead of immediate evaluation
+program_ast: list[ASTNode] = []  # List of AST statements
+AST_MODE: bool = True   # When True, build AST instead of immediate evaluation
 
 # Flag to enable AST printing (set via --ast flag)
-PRINT_AST = False
-
-
-# AST PRINTING HELPER FUNCTIONS
-def print_ast(node, indent=0):
-    """Pretty-print an AST node"""
-    prefix = "  " * indent
-    if node is None:
-        print(f"{prefix}None")
-    elif isinstance(node, tuple):
-        print(f"{prefix}({node[0]}")
-        for child in node[1:]:
-            print_ast(child, indent + 1)
-        print(f"{prefix})")
-    elif isinstance(node, list):
-        print(f"{prefix}[")
-        for item in node:
-            print_ast(item, indent + 1)
-        print(f"{prefix}]")
-    elif isinstance(node, dict):
-        print(f"{prefix}{{")
-        for k, v in node.items():
-            print(f"{prefix}  {k}:")
-            print_ast(v, indent + 2)
-        print(f"{prefix}}}")
-    else:
-        print(f"{prefix}{repr(node)}")
-
-def print_symbol_ast(name, entry):
-    """Print the AST for a symbol table entry"""
-    print(f"\n--- {name} ---")
-    if entry["type"] == "function":
-        print(f"Type: function")
-        print(f"Params: {entry['value']['params']}")
-        print(f"Return type: {entry['value']['return_type']}")
-        print(f"Body AST:")
-        print_ast(entry['value']['body'], 1)
-    elif entry["type"] == "class":
-        print(f"Type: class")
-        print(f"Class params: {entry['value']['class_params']}")
-        print(f"Lambda params: {entry['value']['lambda_params']}")
-        print(f"Return type: {entry['value']['return_type']}")
-        if entry['value'].get('has_loop'):
-            print(f"Loop var: {entry['value'].get('loop_var')}")
-            print(f"Loop body AST:")
-            print_ast(entry['value'].get('loop_body'), 1)
-        print(f"Body AST:")
-        print_ast(entry['value']['body'], 1)
-        if entry['value'].get('has_loss'):
-            print(f"Loss params: {entry['value'].get('loss_params')}")
-            print(f"Loss body AST:")
-            print_ast(entry['value'].get('loss_body'), 1)
-    else:
-        print(f"Type: {entry['type']}")
-        if 'value' in entry:
-            val = entry['value']
-            # Don't print large tensor values
-            if hasattr(val, 'shape'):
-                print(f"Value: <tensor shape={val.shape}>")
-            elif isinstance(val, list) and len(str(val)) > 100:
-                print(f"Value: <list len={len(val)}>")
-            else:
-                print(f"Value: {val}")
+PRINT_AST: bool = False
 
 
 # PARSER
@@ -479,42 +408,6 @@ def p_statement_empty(p):
         print_separator = True
     p[0] = None
 
-
-# Helpers
-def find_indexed_arrays(ast, loop_var):
-    """Find array names that are indexed by the loop variable in an AST."""
-    arrays = []
-
-    def visit(node):
-        if node is None:
-            return
-        if isinstance(node, tuple):
-            # Check for array index pattern: ("index", array_name, index_var)
-            if len(node) >= 3 and node[0] == "index":
-                array_name = node[1]
-                index_expr = node[2]
-                # Check if index is the loop variable
-                # Handle various AST representations of the index
-                is_loop_var = (
-                    index_expr == ("var", loop_var) or
-                    index_expr == loop_var or
-                    (loop_var == "i" and index_expr == ("imaginary",))  # 'i' can be IMAGINARY token
-                )
-                if is_loop_var:
-                    if isinstance(array_name, str):
-                        arrays.append(array_name)
-                    elif isinstance(array_name, tuple) and array_name[0] == "var":
-                        arrays.append(array_name[1])
-            # Recurse into tuple elements
-            for item in node:
-                visit(item)
-        elif isinstance(node, list):
-            for item in node:
-                visit(item)
-
-    visit(ast)
-    return arrays
-
 def p_statement_for(p):
     """statement : FOR ID COLON NEWLINE INDENT for_body DEDENT"""
     loop_var = p[2]
@@ -556,47 +449,6 @@ def p_for_statement_call(p):
 def p_for_statement_empty(p):
     """for_statement : NEWLINE"""
     p[0] = None
-
-def execute_for_statement(stmt):
-    """Execute a statement inside a for loop"""
-    if stmt is None:
-        return
-
-    op = stmt[0]
-
-    if op == "for_assign":
-        _, name, ast_expr = stmt
-        # Evaluate the AST expression with current symbol table
-        value = evaluate_ast(ast_expr, {})
-        if name in symbol_table:
-            symbol_table[name]["value"] = value
-        else:
-            symbol_table[name] = {"type": "ℝ", "value": value}
-
-    elif op == "for_pluseq":
-        _, name, ast_expr = stmt
-        # x += expr means x = x + expr
-        rhs_value = evaluate_ast(ast_expr, {})
-        if name in symbol_table:
-            current = symbol_table[name]["value"]
-            symbol_table[name]["value"] = current + rhs_value
-        else:
-            raise NameError(f"Variable '{name}' not defined for +=")
-
-    elif op == "for_call":
-        _, func_name, arg_asts = stmt
-        # Evaluate arguments
-        args = [evaluate_ast(arg, {}) for arg in arg_asts]
-        execute_for_call(func_name, args)
-
-def execute_for_call(func_name, args):
-    """Execute a function call inside a for loop"""
-    if func_name == "print":
-        if len(args) == 1:
-            value = args[0]
-            display_value = from_torch(value) if is_torch_tensor(value) else value
-            print(f"  {display_value}")
-
 
 # Parameters
 def p_params_empty(p):
@@ -702,66 +554,6 @@ def p_func_args_single(p):
 def p_func_args_multi(p):
     """func_args : func_expr COMMA func_args"""
     p[0] = [p[1]] + p[3]
-
-# Expressions (evaluated immediately)
-def execute_statement(stmt):
-    """Execute a statement tuple from for loop body"""
-    if stmt[0] == "assign":
-        _, name, value = stmt
-        if name in symbol_table:
-            symbol_table[name]["value"] = value
-        else:
-            symbol_table[name] = {"type": "ℝ", "value": value}
-    elif stmt[0] == "decl":
-        _, name, type_spec, value = stmt
-        symbol_table[name] = {"type": type_spec, "value": value}
-
-def create_pytorch_model(class_def):
-    """Create a PyTorch nn.Module from class definition"""
-    if not HAS_TORCH:
-        raise RuntimeError("PyTorch required")
-
-    class DynamicModel(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.layers = nn.ModuleDict()
-
-            # Build layers from class body
-            for stmt in class_def["body"]:
-                if stmt[0] == "layer":
-                    layer_name, layer_spec = stmt[1], stmt[2]
-                    self.layers[layer_name] = build_layer(layer_spec)
-
-        def forward(self, x):
-            # Execute forward pass through sequential layers
-            for layer in self.layers.values():
-                x = layer(x)
-            return x
-
-    return DynamicModel()
-
-def build_layer(layer_spec):
-    """Build a PyTorch layer from specification"""
-    layer_type = layer_spec[0]
-
-    if layer_type == "linear":
-        in_features, out_features = layer_spec[1], layer_spec[2]
-        return nn.Linear(in_features, out_features)
-
-    elif layer_type == "sequential":
-        layers = [build_layer(spec) for spec in layer_spec[1]]
-        return nn.Sequential(*layers)
-
-    elif layer_type == "tanh":
-        return nn.Tanh()
-
-    elif layer_type == "relu":
-        return nn.ReLU()
-
-    elif layer_type == "sigmoid":
-        return nn.Sigmoid()
-
-    raise ValueError(f"Unknown layer type: {layer_type}")
 
 def p_expr_plus(p):
     """expr : expr PLUS term"""
@@ -880,8 +672,3 @@ def p_error(p):
 
 parser = yacc.yacc()
 
-
-# Only used by the legacy execute_for_statement path
-# which is not called in the main pipeline (AST → type_check → codegen → exec).
-def evaluate_ast(node, local_scope):
-    raise NotImplementedError("evaluate_ast is legacy code; use codegen pipeline instead")
