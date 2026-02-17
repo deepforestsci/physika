@@ -1,0 +1,2 @@
+def f(x: ℝ): ℝ:
+    return x

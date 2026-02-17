@@ -8,7 +8,7 @@ def find_indexed_arrays(ast: ASTNode, loop_var: str) -> list[str]:
 
     Recursively walks an AST subtree looking for ``("index", name, idx)``
     nodes where *idx* resolves to *loop_var*.  This function is called during parse
-    time to infer the iteration count of ``for`` loops: the generated code
+    to infer the iteration count of ``for`` loops: the generated code
     iterates ``range(len(arr))`` where *arr* is the first array found.
 
     The index expression is matched against three representations the

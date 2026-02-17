@@ -4,13 +4,11 @@ import re
 from typing import Any, Literal, Union # TYPECHECKING
 from utils.print_utils import print_unified_ast
 
-# ======================================================
+
 # AST TYPE DEFINITIONS
-# ======================================================
-#
 # The parser produces a tree of tagged tuples.  Every non-leaf node is a
-# tuple whose first element is a string (tag) and whose remaining elements
-# are children (other nodes, lists of nodes, or scalar leaves).
+# tuple whose first element is a string (tag) and whose remaining elements are
+# other nodes, lists of nodes, or scalar leaves.
 #
 # The type aliases below make the tag vocabulary explicit so that mypy
 # can flag typos, missing branches, and wrong argument types.
@@ -107,9 +105,8 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
     """Check whether an AST subtree contains a call to *func_name*.
 
     Recursively walks *node* looking for both ``("call", func_name, ...)``
-    and ``("call_index", func_name, ..., idx)`` nodes.  Used during the
-    analysis pass of ``from_ast_to_torch`` to decide which runtime helpers
-    need to be imported.
+    and ``("call_index", func_name, ..., idx)`` nodes.  Used during calling of 
+    ``from_ast_to_torch`` to decide which runtime helpers need to be imported.
 
     Parameters
     ----------
@@ -418,8 +415,9 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
     """Generate a Python/PyTorch function definition from a function AST.
 
     Translates a Physika function (params, body statements, return
-    expression) into a ``def name(...): ...`` code string.  If the
-    function body contains a ``solve()`` call, local known-variable
+    expression) into a valid Python function definition string. 
+     
+    If the function body contains a ``solve()`` call, local known-variable
     tracking is used to pass all in-scope variables as keyword
     arguments to ``solve``.
 

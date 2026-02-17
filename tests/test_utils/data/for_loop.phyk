@@ -1,0 +1,4 @@
+arr : ℝ[3] = [1, 2, 3]
+total : ℝ = 0.0
+for i:
+    total += arr[i]

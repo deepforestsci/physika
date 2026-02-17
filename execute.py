@@ -14,9 +14,9 @@ if __name__ == "__main__":
     with open(args[0], "r", encoding="utf-8") as f:
         source = f.read()
 
-    # Parse from tokens to AST
+    # Parse tokens to AST
     local_program_ast = parser.parse(source, lexer=lexer)
-    # Build unified AST (I think this can be done in parser, to have just one AST/step to simplify)
+    # Build unified AST (I think this can be done in parser)
     unified_ast = build_unified_ast(local_program_ast, symbol_table, print_ast=False)
     
     # Type checking
