@@ -9,6 +9,7 @@ from utils.ast_utils import build_unified_ast
 
 if __name__ == "__main__":
     print_code = "--print-code" in sys.argv
+    print_ast = "--print-ast" in sys.argv
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
 
     with open(args[0], "r", encoding="utf-8") as f:
@@ -17,7 +18,7 @@ if __name__ == "__main__":
     # Parse tokens to AST
     local_program_ast = parser.parse(source, lexer=lexer)
     # Build unified AST (I think this can be done in parser)
-    unified_ast = build_unified_ast(local_program_ast, symbol_table, print_ast=False)
+    unified_ast = build_unified_ast(local_program_ast, symbol_table, print_ast=print_ast)
     
     # Type checking
     type_status = type_check(unified_ast)
