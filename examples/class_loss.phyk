@@ -1,5 +1,0 @@
-class M(w: ℝ):
-    def λ(x: ℝ) → ℝ:
-        return w * x
-    def loss(y: ℝ, t: ℝ) → ℝ:
-        return (y - t) ** 2

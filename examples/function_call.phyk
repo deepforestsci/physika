@@ -1,3 +1,0 @@
-def f(x: ℝ): ℝ:
-    return x
-f(1.0)

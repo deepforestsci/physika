@@ -1,3 +1,0 @@
-def g(a: ℝ, b: ℝ): ℝ:
-    c = a + b
-    return c

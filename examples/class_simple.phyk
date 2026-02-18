@@ -1,3 +1,0 @@
-class Net(w: ℝ):
-    def λ(x: ℝ) → ℝ:
-        return w * x
