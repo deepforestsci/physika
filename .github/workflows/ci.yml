@@ -1,8 +1,6 @@
 name: Pytests and Doctests
 
 on:
-  push:
-    branches: ["**"]
   pull_request:
 
 jobs:
@@ -16,11 +14,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set commit range (pull request)
-        if: github.event_name == 'pull_request'
-        run: |
-          git fetch master
-          echo "COMMIT_RANGE=master..." >> $GITHUB_ENV
 
       - uses: actions/setup-python@v5
         with:
