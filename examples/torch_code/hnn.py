@@ -22,7 +22,7 @@ class HamiltonianNet(nn.Module):
 
     def forward(self, x):
         x = torch.as_tensor(x).float()
-        h = ((self.w2 @ tanh(((self.W1 @ x) + self.b1))) + self.b2)
+        h = ((self.w2 @ torch.tanh(((self.W1 @ x) + self.b1))) + self.b2)
         return h
 
     def loss(self, H, target, x):

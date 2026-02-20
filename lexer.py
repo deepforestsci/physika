@@ -2,12 +2,13 @@ import ply.lex as lex
 
 tokens = (
     "ID", "NUMBER", "TYPE", "STRING",
-    "PLUS", "MINUS", "TIMES", "DIVIDE", "MATMUL", "POWER",
-    "EQUALS", "PLUSEQ", "COLON", "COMMA", "ARROW",
+    "PLUS", "MINUS", "TIMES", "DIVIDE", "INTDIV", "MATMUL", "POWER",
+    "EQUALS", "EQEQ", "NEQ", "LT", "GT", "LEQ", "GEQ",
+    "PLUSEQ", "COLON", "COMMA", "ARROW",
     "LPAREN", "RPAREN",
     "LBRACKET", "RBRACKET",
     "NEWLINE", "INDENT", "DEDENT",
-    "DEF", "RETURN", "FOR",
+    "DEF", "RETURN", "FOR", "IF", "ELSE",
     "CLASS", "LAMBDA",
     "TANGENT",
     "IMAGINARY",
@@ -18,6 +19,8 @@ reserved = {
     "return": "RETURN",
     "for": "FOR",
     "class": "CLASS",
+    "if": "IF",
+    "else": "ELSE",
 }
 
 t_POWER    = r"\*\*"
@@ -26,8 +29,16 @@ t_ARROW    = r"→"
 t_PLUS     = r"\+"
 t_MINUS    = r"-"
 t_TIMES    = r"\*"
+t_INTDIV   = r"//"   # must come before t_DIVIDE so // matches before /
 t_DIVIDE   = r"/"
 t_MATMUL   = r"@"
+# Comparison operators (longer patterns first so PLY matches them before single-char tokens)
+t_EQEQ     = r"=="
+t_NEQ      = r"!="
+t_LEQ      = r"<="
+t_GEQ      = r">="
+t_LT       = r"<"
+t_GT       = r">"
 t_EQUALS   = r"="
 t_COLON    = r":"
 t_COMMA    = r","

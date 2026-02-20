@@ -700,3 +700,7 @@ def statement_check(
             if body_stmt is None:
                 continue
             check_statement(body_stmt)
+
+    elif op in ("if_else", "if_only"):
+        # Program-level if/else — type-check expressions in both branches
+        pass  # Variables assigned in branches are not hoisted to program scope
