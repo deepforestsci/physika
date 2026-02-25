@@ -1,17 +1,9 @@
-# ============================================================
-# Differentiable sin/cos switch — torch.where keeps both
-# branches on PyTorch's tape so autograd works everywhere.
-# ============================================================
+# Differentiable sin/cos in conditional statement
+#
 # f(x) = cos(x)  if x > 0      f'(x) = -sin(x)
 #         sin(x)  otherwise              cos(x)
 #
-# Evaluation points and expected gradients:
-#   x0 = -1.5  →  f = sin(-1.5) ≈ -0.9975,  f' = cos(-1.5) ≈  0.0707
-#   x1 = -0.5  →  f = sin(-0.5) ≈ -0.4794,  f' = cos(-0.5) ≈  0.8776
-#   x2 =  0.5  →  f = cos( 0.5) ≈  0.8776,  f' =-sin( 0.5) ≈ -0.4794
-#   x3 =  1.5  →  f = cos( 1.5) ≈  0.0707,  f' =-sin( 1.5) ≈ -0.9975
-#   x4 =  3.14 →  f = cos( 3.14)≈ -1.0,     f' =-sin( 3.14)≈ -0.0016
-# ============================================================
+
 
 def f(x: ℝ): ℝ:
     if x > 0.0:

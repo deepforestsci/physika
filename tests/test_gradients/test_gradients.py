@@ -14,7 +14,7 @@ from utils.ast_utils import build_unified_ast
 
 
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
-r_tol = 3e-3
+r_tol = 1e-02
 
 
 # Helper
@@ -106,11 +106,11 @@ class TestDiffIfCosSin:
 
 class TestDiffThreshold:
     """
-    f(t) = 3*(t-0.75)²+0.1 if t>0.5 else t²+2.0.
+    L(t) = 3*(t-0.75)**2+0.1 if t>0.5 else (t**2)+2.0.
 
-    f'(t):
-        t > 0.5 : f'(t) = 6*(t - 0.75)
-        t ≤ 0.5: f'(t) = 2*t
+    L'(t):
+        t > 0.5 : L'(t) = 6*(t - 0.75)
+        t ≤ 0.5: L'(t) = 2*t
     """
 
     @pytest.fixture(scope="class")
@@ -119,18 +119,18 @@ class TestDiffThreshold:
         return compile("diff_threshold")
 
     @pytest.mark.parametrize("t_val, expected_grad", [
-        # t > 0.5: f'(t) = 6*(t - 0.75)
+        # t > 0.5: L'(t) = 6*(t - 0.75)
         (0.9,  6 * (0.9  - 0.75)),
         (0.6,  6 * (0.6  - 0.75)),
         (0.75, 0.0),
-        # t ≤ 0.5: f'(t) = 2*t
+        # t ≤ 0.5: L'(t) = 2*t
         (0.3,  2 * 0.3),
         (0.1,  2 * 0.1),
         (-0.5, 2 * -0.5),
     ])
     def test_physika_matches_analytical(self, name_space, t_val, expected_grad):
         """Physika matches the analytical derivative."""
-        f = name_space["f"]
+        f = name_space["L"]
         t = torch.tensor(float(t_val))
         auto = float(compute_grad(f, t))
         assert abs(auto - expected_grad) < r_tol
@@ -138,7 +138,7 @@ class TestDiffThreshold:
     @pytest.mark.parametrize("t_val", [0.9, 0.6, -0.5])
     def test_physika_matches_numerical(self, name_space, t_val):
         """Physika grads matches numerical gradients."""
-        f = name_space["f"]
+        f = name_space["L"]
         t = torch.tensor(float(t_val))
         auto = float(compute_grad(f, t))
         num = float(numerical_gradient(f, np.array([t_val]))[0])

@@ -1,25 +1,9 @@
-# ============================================================
-# Threshold Optimisation: Gradient Descent on a Piecewise Loss
-# ============================================================
+# Threshold Optimisation:
 # A relay amplifier switches between two energy regimes
 # at threshold t = 0.5:
 #
 #   L(t) = if t > 0.5:  3·(t - 0.75)² + 0.1   ← HIGH regime
 #           else:        t²  + 2.0              ← LOW regime
-#
-# The HIGH regime has a global minimum at t* = 0.75 (cost 0.1).
-# The LOW regime has a local minimum at  t  = 0.0  (cost 2.0).
-#
-# Source-level AD generates:
-#   _diff_L_wrt_t(t):
-#     if t > 0.5:  return 6·(t - 0.75)   (gradient in HIGH)
-#     else:        return 2·t              (gradient in LOW)
-#
-# This callable is evaluated at t₁, t₂, ... (non-leaf values).
-# OLD Physika cannot do this — compute_grad requires leaf tensors.
-#
-# Gradient-descent rule:  t_{n+1} = t_n − α · L'(t_n)   (α = 0.2)
-# ============================================================
 
 def L(t: ℝ): ℝ:
     if t > 0.5:
@@ -27,7 +11,7 @@ def L(t: ℝ): ℝ:
     else:
         return t * t + 2.0
 
-# ── Trajectory A: HIGH regime start (t₀ = 0.9) ────────────
+# Trajectory A: High regime
 # Converges to the global minimum t* = 0.75
 t0 : ℝ = 0.9
 L(t0)
@@ -44,8 +28,7 @@ grad(L(t2), t2)
 t3 : ℝ = t2 - 0.2 * grad(L(t2), t2)
 L(t3)
 
-# ── Trajectory B: LOW regime start (s₀ = 0.3) ────────────
-# Trapped in the local minimum at s = 0.0  (cost 2.0)
+# Trajectory B: LOW regime start (s₀ = 0.3)
 s0 : ℝ = 0.3
 L(s0)
 grad(L(s0), s0)
