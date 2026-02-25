@@ -68,7 +68,7 @@ def t_TYPE(t):
     return t
 
 def t_NUMBER(t):
-    r"\d+(\.\d+)?"
+    r"\d+(\.\d+)?([eE][+-]?\d+)?"
     t.value = float(t.value)
     return t
 

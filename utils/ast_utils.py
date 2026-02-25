@@ -591,7 +591,7 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
     # Convert inputs to tensors
     for pname, ptype in lambda_params:
         if ptype == "\u211d" or ptype == "\u2115" or (isinstance(ptype, tuple) and ptype[0] == "tensor"):
-            lines.append(f"        {pname} = torch.as_tensor({pname}).float()")
+            lines.append(f"        {pname} = torch.as_tensor({pname}).float().requires_grad_(True)")
 
     # Generate forward body statements (multi-statement lambda body)
     for stmt in statements:
@@ -716,7 +716,7 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
     --------
     >>> from utils.ast_utils import generate_statement
     >>> generate_statement(("decl", "x", "ℝ", ("num", 3.0), 1), set())
-    'x = 3.0'
+    'x = torch.tensor(3.0, requires_grad=True)'
     >>> generate_statement(("decl", "t", "ℝ", ("num", 0.0), 2), {"t"})
     't = torch.tensor(0.0, requires_grad=True)'
     >>> generate_statement(("expr", ("var", "x"), 0), set())
@@ -733,7 +733,7 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
         expr = stmt[3]
         expr_code = ast_to_torch_expr(expr)
         # Variables used as grad targets need to be tensors with requires_grad
-        if name in grad_target_vars and type_spec == "\u211d":
+        if name in grad_target_vars or type_spec == "\u211d":
             return f"{name} = torch.tensor({expr_code}, requires_grad=True)"
         return f"{name} = {expr_code}"
 
