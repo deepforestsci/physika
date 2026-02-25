@@ -1,0 +1,40 @@
+# ============================================================
+# Differentiable sin/cos switch — torch.where keeps both
+# branches on PyTorch's tape so autograd works everywhere.
+# ============================================================
+# f(x) = cos(x)  if x > 0      f'(x) = -sin(x)
+#         sin(x)  otherwise              cos(x)
+#
+# Evaluation points and expected gradients:
+#   x0 = -1.5  →  f = sin(-1.5) ≈ -0.9975,  f' = cos(-1.5) ≈  0.0707
+#   x1 = -0.5  →  f = sin(-0.5) ≈ -0.4794,  f' = cos(-0.5) ≈  0.8776
+#   x2 =  0.5  →  f = cos( 0.5) ≈  0.8776,  f' =-sin( 0.5) ≈ -0.4794
+#   x3 =  1.5  →  f = cos( 1.5) ≈  0.0707,  f' =-sin( 1.5) ≈ -0.9975
+#   x4 =  3.14 →  f = cos( 3.14)≈ -1.0,     f' =-sin( 3.14)≈ -0.0016
+# ============================================================
+
+def f(x: ℝ): ℝ:
+    if x > 0.0:
+        return cos(x)
+    else:
+        return sin(x)
+
+x0 : ℝ = - 1.5
+f(x0)
+grad(f(x0), x0)
+
+x1 : ℝ = - 0.5
+f(x1)
+grad(f(x1), x1)
+
+x2 : ℝ = 0.5
+f(x2)
+grad(f(x2), x2)
+
+x3 : ℝ = 1.5
+f(x3)
+grad(f(x3), x3)
+
+x4 : ℝ = 3.14
+f(x4)
+grad(f(x4), x4)

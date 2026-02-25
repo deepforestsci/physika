@@ -578,7 +578,8 @@ def p_lambda_loop_stmt_empty(p):
     p[0] = None
 
 def p_statement_decl(p):
-    """statement : ID COLON type_spec EQUALS expr"""
+    """statement : ID COLON type_spec EQUALS expr NEWLINE"""
+    # NEWLINE forces to parse the full expression on one line before reducing the statement.
     name = p[1]
     type_spec = p[3]
     expr_ast = p[5]  # This is now an AST, not an evaluated value

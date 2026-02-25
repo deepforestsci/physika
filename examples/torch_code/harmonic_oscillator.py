@@ -10,6 +10,11 @@ from runtime import animate
 
 # === Functions ===
 def U(k, m, t, x0, v0):
+    k = torch.as_tensor(k).float()
+    m = torch.as_tensor(m).float()
+    t = torch.as_tensor(t).float()
+    x0 = torch.as_tensor(x0).float()
+    v0 = torch.as_tensor(v0).float()
     omega = ((k / m) ** 0.5)
     eq1 = 'x0 = a + b'
     eq2 = 'v0 = i * omega * a - i * omega * b'

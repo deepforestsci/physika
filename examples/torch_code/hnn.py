@@ -9,6 +9,7 @@ from runtime import compute_grad
 
 # === Functions ===
 def tanh(x):
+    x = torch.as_tensor(x).float()
     return ((torch.exp(x) - torch.exp((0.0 - x))) / (torch.exp(x) + torch.exp((0.0 - x))))
 
 # === Classes ===

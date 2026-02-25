@@ -39,6 +39,7 @@ BodyStmtTag = Literal[
     "body_assign",       # x = expr          inside function body
     "body_decl",         # x : T = expr      inside function body
     "body_tuple_unpack", # a, b = expr       inside function body
+    "body_for",          # for k: ...        inside function body
     "loop_assign",       # x = expr          inside for-loop body
     "loop_pluseq",       # x += expr         inside for-loop body
     "init_assign",       # x = expr          pre-loop initialisation
@@ -146,38 +147,56 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
 
 
 def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
-    """Collect variable names used as differentiation targets in ``grad()`` calls.
+    """Collect variable names that need ``requires_grad=True`` from ``grad()`` calls.
 
     Recursively walks *node* looking for ``("call", "grad", [output, input])``
-    patterns and extracts the second argument (the differentiation variable)
-    when it is a ``("var", name)`` node.  The collected names are added to
-    *targets* so that ``generate_statement`` can initialise those variables
-    with ``requires_grad=True``.
+    patterns. Simple calls (``grad(f(x), x)``) use ``compute_grad`` which creates
+    a new leaf internally, so ``requires_grad`` on the variable is not needed there.
+
+    For nested calls, like ``grad(real(U(k, m, t, ...)), t)``, the variable
+    ``t`` must be declared with ``requires_grad=True`` so that the
+    pre-evaluated expression passed to ``compute_grad(expr, t)`` retains a
+    gradient tape back to ``t``.
 
     Parameters
     ----------
     node : ASTNode
         A tagged tuple, list, or scalar leaf of an AST.
     targets : set[str]
-        Mutable set to add target variable names into.  Modified in
-        place; not returned.
+        Mutable set to add target variable names into. `targets` is modified in place.
 
     Examples
     --------
     >>> from utils.ast_utils import collect_grad_targets
     >>> targets = set()
-    >>> stmt = ("expr", ("call", "grad", [("var", "H"), ("var", "t")]))
+    >>> # Nested: real(U(k, t))
+    >>> stmt = ("expr", ("call", "grad", [
+    ...     ("call", "real", [("call", "U", [("var", "k"), ("var", "t")])]),
+    ...     ("var", "t")]))
     >>> collect_grad_targets(stmt, targets)
     >>> targets
     {'t'}
+    >>> # Simple: grad(f(x), x)
+    >>> targets2 = set()
+    >>> stmt2 = ("expr", ("call", "grad", [("call", "f", [("var", "x")]), ("var", "x")]))
+    >>> collect_grad_targets(stmt2, targets2)
+    >>> targets2
+    set()
     """
     if not isinstance(node, (tuple, list)):
         return
     if isinstance(node, tuple) and len(node) >= 2:
-        if node[0] == "call" and node[1] == "grad" and len(node) >= 3:
-            args = node[2]
-            if len(args) >= 2 and isinstance(args[1], tuple) and args[1][0] == "var":
-                targets.add(args[1][1])
+        if node[0] == "call" and node[1] == "grad" and len(node[2]) >= 2:
+            output_ast, input_ast = node[2][0], node[2][1]
+            if isinstance(input_ast, tuple) and input_ast[0] == "var":
+                is_simple = (
+                    isinstance(output_ast, tuple) and
+                    output_ast[0] == "call" and
+                    len(output_ast[2]) == 1 and
+                    output_ast[2][0] == input_ast
+                )
+                if not is_simple:
+                    targets.add(input_ast[1])
         for child in node[1:]:
             if isinstance(child, (tuple, list)):
                 collect_grad_targets(child, targets)
@@ -408,7 +427,24 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({', '.join(arg_strs)})"
         elif func_name == "grad":
-            # grad(output, input) -> compute_grad(output, input)
+            output_ast = args[0]
+            input_str = ast_to_torch_expr(args[1], indent, current_loop_var)
+            if output_ast[0] == "call":
+                called_func = output_ast[1]
+                call_args = output_ast[2]
+                param_strs_inner = [ast_to_torch_expr(a, indent, current_loop_var) for a in call_args]
+                if len(call_args) == 1 and param_strs_inner[0] == input_str:
+                    # simple case: grad(f(x), x) → compute_grad(f, x)
+                    return f"compute_grad({called_func}, {input_str})"
+                else:
+                    # nested case.
+                    # For example, grad(real(U(k,m,t,...)), t) or grad(H(q, p), q).  
+                    # Emit the expression as is.
+                    # The wrt variable must have
+                    # requires_grad=True so the tape flows through it.
+                    output_str = ast_to_torch_expr(output_ast, indent, current_loop_var)
+                    return f"compute_grad({output_str}, {input_str})"
+            # Fallback: shouldn't normally be reached
             return f"compute_grad({', '.join(arg_strs)})"
         elif func_name == "len":
             return f"len({arg_strs[0]})"
@@ -427,7 +463,13 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
         idx = ast_to_torch_expr(index_ast, indent, current_loop_var)
 
         if func_name == "grad":
-            # grad(output, input)[i] -> compute_grad(output, input)[i]
+            # for call index
+            # grad(f(x), x)[i] is compute_grad(f, x)[int(i)]
+            output_ast_ci = args[0]
+            input_str_ci = ast_to_torch_expr(args[1], indent, current_loop_var)
+            if output_ast_ci[0] == "call":
+                called_ci = output_ast_ci[1]
+                return f"compute_grad({called_ci}, {input_str_ci})[int({idx})]"
             return f"compute_grad({', '.join(arg_strs)})[int({idx})]"
         else:
             return f"{func_name}({', '.join(arg_strs)})[int({idx})]"
@@ -534,6 +576,11 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
 
     lines = [f"def {name}({', '.join(param_strs)}):"]
 
+    # Convert scalar R parameters to tensors so autograd can differentiate and use torch's built-in functions.
+    for param_name, param_type in params:
+        if param_type == "\u211d":
+            lines.append(f"    {param_name} = torch.as_tensor({param_name}).float()")
+
     # Track known variables (params + locals)
     known_vars = list(param_names)
 
@@ -599,10 +646,8 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
                 cond_code = condition_to_expr(cond)
                 then_code = ast_to_torch_expr(then_expr)
                 else_code = ast_to_torch_expr(else_expr)
-                lines.append(f"{prefix}if {cond_code}:")
-                lines.append(f"{prefix}    return {then_code}")
-                lines.append(f"{prefix}else:")
-                lines.append(f"{prefix}    return {else_code}")
+                # Use torch.where so PyTorch's tape differentiates through both branches
+                lines.append(f"{prefix}return torch.where({cond_code}, torch.as_tensor({then_code}).float(), torch.as_tensor({else_code}).float())")
             elif stmt_op == "body_if_else":
                 _, cond, then_stmts, else_stmts = stmt
                 cond_code = condition_to_expr(cond)
