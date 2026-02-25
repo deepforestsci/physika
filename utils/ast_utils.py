@@ -561,6 +561,7 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
     ... }
     >>> print(generate_function("f", func_def))
     def f(x):
+        x = torch.as_tensor(x).float()
         return torch.exp(x)
     """
     params = func_def["params"]

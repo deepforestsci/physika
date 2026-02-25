@@ -91,6 +91,7 @@ def from_ast_to_torch(
     <BLANKLINE>
     # === Functions ===
     def f(x):
+        x = torch.as_tensor(x).float()
         return torch.exp(x)
     <BLANKLINE>
     # === Program ===
