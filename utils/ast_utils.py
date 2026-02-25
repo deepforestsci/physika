@@ -591,7 +591,7 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
     # Convert inputs to tensors
     for pname, ptype in lambda_params:
         if ptype == "\u211d" or ptype == "\u2115" or (isinstance(ptype, tuple) and ptype[0] == "tensor"):
-            lines.append(f"        {pname} = torch.as_tensor({pname}).float()")
+            lines.append(f"        {pname} = torch.as_tensor({pname}).float().requires_grad_(True)")
 
     # Generate forward body statements (multi-statement lambda body)
     for stmt in statements:
