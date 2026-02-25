@@ -758,17 +758,12 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
         return None  # Already generated
 
     elif op == "for_loop":
-        # For loop: ("for_loop", loop_var, body_statements, indexed_arrays[, lineno])
+        # For loop: ("for_loop", loop_var, bound, body_statements, lineno)
         loop_var = stmt[1]
-        body_statements = stmt[2]
-        indexed_arrays = stmt[3]
+        bound = stmt[2]
+        body_statements = stmt[3]
         lines = []
-        # Use first indexed array to get length
-        if indexed_arrays:
-            arr_name = indexed_arrays[0]
-            lines.append(f"for {loop_var} in range(len({arr_name})):")
-        else:
-            lines.append(f"for {loop_var} in range(n):  # TODO: determine n")
+        lines.append(f"for {loop_var} in range(int({bound})):")
 
         for body_stmt in body_statements:
             if body_stmt is None:
@@ -786,6 +781,10 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
                 _, func_name, arg_asts = body_stmt
                 arg_strs = [ast_to_torch_expr(arg, current_loop_var=loop_var) for arg in arg_asts]
                 lines.append(f"    {func_name}({', '.join(arg_strs)})")
+            elif body_op == "for_loop":
+                nested_code = generate_statement(body_stmt, grad_target_vars)
+                for line in nested_code.split("\n"):
+                    lines.append(f"    {line}")
 
         return "\n".join(lines)
 
