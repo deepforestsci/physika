@@ -547,42 +547,38 @@ def p_statement_empty(p):
         print_separator = True
     p[0] = None
 
-def p_statement_for(p):
-    """statement : FOR ID COLON NEWLINE INDENT for_body DEDENT"""
+
+# for loop
+def p_for_loop(p):
+    """for_loop : FOR ID IN ID COLON NEWLINE INDENT for_body DEDENT"""
     loop_var = p[2]
-    body_statements = p[6]
+    bound = p[4]
+    body_statements = p[8]
+    p[0] = ("for_loop", loop_var, bound, body_statements, p.lineno(1))
 
-    # Find arrays indexed by loop variable to determine iteration count at eval time
-    indexed_arrays = []
-    for stmt in body_statements:
-        if stmt:
-            indexed_arrays.extend(find_indexed_arrays(stmt, loop_var))
-
-    # Return AST node - iteration count will be determined during evaluation
-    # Include line number for error reporting
-    p[0] = ("for_loop", loop_var, body_statements, indexed_arrays, p.lineno(1))
+def p_statement_for(p):
+    """statement : for_loop"""
+    p[0] = p[1]
 
 def p_for_body_empty(p):
     """for_body : """
     p[0] = []
 
 def p_for_body_multi(p):
-    """for_body : for_body for_statement"""
+    """for_body : for_body for_statement
+                | for_body for_loop"""
     p[0] = p[1] + ([p[2]] if p[2] is not None else [])
 
 def p_for_statement_assign(p):
     """for_statement : ID EQUALS func_expr NEWLINE"""
-    # Store as AST to be evaluated later
     p[0] = ("for_assign", p[1], p[3])
 
 def p_for_statement_pluseq(p):
     """for_statement : ID PLUSEQ func_expr NEWLINE"""
-    # Store as AST: x += expr becomes x = x + expr
     p[0] = ("for_pluseq", p[1], p[3])
 
 def p_for_statement_call(p):
     """for_statement : ID LPAREN func_args RPAREN NEWLINE"""
-    # Store function call as AST
     p[0] = ("for_call", p[1], p[3])
 
 def p_for_statement_empty(p):

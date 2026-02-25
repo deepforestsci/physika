@@ -11,6 +11,7 @@ tokens = (
     "CLASS", "LAMBDA",
     "TANGENT",
     "IMAGINARY",
+    "IN",
 )
 
 reserved = {
@@ -18,6 +19,7 @@ reserved = {
     "return": "RETURN",
     "for": "FOR",
     "class": "CLASS",
+    "in": "IN"
 }
 
 t_POWER    = r"\*\*"
