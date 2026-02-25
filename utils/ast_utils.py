@@ -716,7 +716,7 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
     --------
     >>> from utils.ast_utils import generate_statement
     >>> generate_statement(("decl", "x", "ℝ", ("num", 3.0), 1), set())
-    'x = 3.0'
+    'x = torch.tensor(3.0, requires_grad=True)'
     >>> generate_statement(("decl", "t", "ℝ", ("num", 0.0), 2), {"t"})
     't = torch.tensor(0.0, requires_grad=True)'
     >>> generate_statement(("expr", ("var", "x"), 0), set())
