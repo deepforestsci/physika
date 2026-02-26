@@ -243,6 +243,8 @@ def replace_class_params(code: str, class_params: list[tuple[str, ASTNode]]) -> 
         code = re.sub(rf'\(({cp_name})\s', r'(self.\1 ', code)
         code = re.sub(rf'\s({cp_name})\)', r' self.\1)', code)
         code = re.sub(rf'\(({cp_name})\)', r'(self.\1)', code)
+        # Catch-all: any remaining bare occurrence not already prefixed
+        code = re.sub(rf'(?<!self\.)\b{cp_name}\b', f'self.{cp_name}', code)
     return code
 
 
@@ -673,6 +675,87 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
 
     return "\n".join(lines)
 
+def emit_class_body_stmts(
+    stmts: list[ASTNode],
+    indent_level: int,
+    lines: list[str],
+    class_params: list[tuple[str, ASTNode]],
+) -> None:
+    """Emit Python code lines for a class method body.
+
+    Converts ``func_body_stmt`` AST node into indented Python code
+    and appends them to *lines*.  Each generated expression string is
+    passed through `replace_class_params` so that
+    bare class parameter names are rewritten to their
+    ``self.`` form. For example:
+        - ``loss`` -> ``self.loss``
+
+    Parameters
+    ----------
+    stmts : list[ASTNode]
+        Sequence of ``func_body_stmt`` AST nodes to emit.
+    indent_level : int
+        Current indentation depth; each level adds four spaces.
+        Pass ``2`` for a top-level method body inside a class (8 spaces).
+    lines : list[str]
+        List that receives the generated source lines in-place. This list
+        will be modified.
+    class_params : list[tuple[str, ASTNode]]
+        Class parameter ``(name, type)`` pairs used by
+        `replace_class_params` to rewrite bare names to ``self.name``.
+
+    Examples
+    --------
+    >>> from utils.ast_utils import emit_class_body_stmts
+    >>> stmts = [("body_assign","y",("mul", ("var", "w"),("var", "x")))]
+    >>> lines = []
+    >>> emit_class_body_stmts(stmts, 2, lines, [("w", "ℝ")])
+    >>> lines
+    ['        y = (self.w * x)']
+    """
+    blank_space = 4 * " "
+    prefix = blank_space * indent_level
+    for stmt in stmts:
+        if stmt is None:
+            continue
+        stmt_op = stmt[0]
+        if stmt_op == "body_decl":
+            _, var_name, var_type, expr = stmt
+            expr_code = replace_class_params(ast_to_torch_expr(expr), class_params)
+            lines.append(f"{prefix}{var_name} = {expr_code}")
+        elif stmt_op == "body_assign":
+            _, var_name, expr = stmt
+            expr_code = replace_class_params(ast_to_torch_expr(expr), class_params)
+            lines.append(f"{prefix}{var_name} = {expr_code}")
+        elif stmt_op == "body_tuple_unpack":
+            _, var_names, expr = stmt
+            expr_code = replace_class_params(ast_to_torch_expr(expr), class_params)
+            lines.append(f"{prefix}{', '.join(var_names)} = {expr_code}")
+        elif stmt_op == "body_if_return":
+            _, cond, return_expr = stmt
+            cond_code = replace_class_params(condition_to_expr(cond), class_params)
+            return_code = replace_class_params(ast_to_torch_expr(return_expr), class_params)
+            lines.append(f"{prefix}if {cond_code}:")
+            lines.append(f"{prefix}    return {return_code}")
+        elif stmt_op == "body_if_else_return":
+            _, cond, then_expr, else_expr = stmt
+            cond_code = replace_class_params(condition_to_expr(cond), class_params)
+            then_code = replace_class_params(ast_to_torch_expr(then_expr), class_params)
+            else_code = replace_class_params(ast_to_torch_expr(else_expr), class_params)
+            lines.append(f"{prefix}return torch.where({cond_code}, torch.as_tensor({then_code}).float(), torch.as_tensor({else_code}).float())")
+        elif stmt_op == "body_if_else":
+            _, cond, then_stmts, else_stmts = stmt
+            cond_code = replace_class_params(condition_to_expr(cond), class_params)
+            lines.append(f"{prefix}if {cond_code}:")
+            emit_class_body_stmts(then_stmts, indent_level + 1, lines, class_params)
+            lines.append(f"{prefix}else:")
+            emit_class_body_stmts(else_stmts, indent_level + 1, lines, class_params)
+        elif stmt_op == "body_if":
+            _, cond, then_stmts = stmt
+            cond_code = replace_class_params(condition_to_expr(cond), class_params)
+            lines.append(f"{prefix}if {cond_code}:")
+            emit_class_body_stmts(then_stmts, indent_level + 1, lines, class_params)
+
 
 def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
     """Generate an ``nn.Module`` subclass from a class AST entry.
@@ -758,25 +841,7 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
             lines.append(f"        {pname} = torch.as_tensor({pname}).float()")
 
     # Generate forward body statements (multi-statement lambda body)
-    for stmt in statements:
-        if stmt is None:
-            continue
-        stmt_op = stmt[0]
-        if stmt_op == "body_decl":
-            _, var_name, var_type, expr = stmt
-            expr_code = ast_to_torch_expr(expr)
-            expr_code = replace_class_params(expr_code, class_params)
-            lines.append(f"        {var_name} = {expr_code}")
-        elif stmt_op == "body_assign":
-            _, var_name, expr = stmt
-            expr_code = ast_to_torch_expr(expr)
-            expr_code = replace_class_params(expr_code, class_params)
-            lines.append(f"        {var_name} = {expr_code}")
-        elif stmt_op == "body_tuple_unpack":
-            _, var_names, expr = stmt
-            expr_code = ast_to_torch_expr(expr)
-            expr_code = replace_class_params(expr_code, class_params)
-            lines.append(f"        {', '.join(var_names)} = {expr_code}")
+    emit_class_body_stmts(statements, 2, lines, class_params)
 
     # Generate loop if present
     if has_loop and loop_body:
@@ -819,25 +884,7 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
             lines.append(f"    def loss(self, {', '.join(loss_param_names)}):")
 
         # Emit loss body statements
-        for stmt in loss_stmts:
-            if stmt is None:
-                continue
-            stmt_op = stmt[0]
-            if stmt_op == "body_decl":
-                _, var_name, var_type, expr = stmt
-                expr_code = ast_to_torch_expr(expr)
-                expr_code = replace_class_params(expr_code, class_params)
-                lines.append(f"        {var_name} = {expr_code}")
-            elif stmt_op == "body_assign":
-                _, var_name, expr = stmt
-                expr_code = ast_to_torch_expr(expr)
-                expr_code = replace_class_params(expr_code, class_params)
-                lines.append(f"        {var_name} = {expr_code}")
-            elif stmt_op == "body_tuple_unpack":
-                _, var_names, expr = stmt
-                expr_code = ast_to_torch_expr(expr)
-                expr_code = replace_class_params(expr_code, class_params)
-                lines.append(f"        {', '.join(var_names)} = {expr_code}")
+        emit_class_body_stmts(loss_stmts, 2, lines, class_params)
 
         loss_code = ast_to_torch_expr(loss_body)
         loss_code = replace_class_params(loss_code, class_params)

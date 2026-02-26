@@ -1,0 +1,82 @@
+# Examples of if-else in different contexts
+
+# 1. Inside a function 
+# if x > 0:
+#   f(x) = x**2
+# else:
+#   f(x) = -x
+def f(x: ℝ): ℝ:
+    if x > 0:
+        return x * x
+    else:
+        return - x
+
+a : ℝ = 2
+b : ℝ = -1.5
+f(a)
+grad(f(a), a)
+f(b)
+grad(f(b), b)
+
+# 2. if-else with assignments inside a function
+def clamp(x: ℝ): ℝ:
+    if x > 1:
+        y = 1
+    else:
+        y = x
+    if y < - 1:
+        y = - 1
+    return y
+
+clamp(3)
+clamp(0.5)
+clamp(-5)
+
+# 3. Nested if-else inside a function
+# ``classify`` returns -1, 0, 1, or 2 based on four regions
+def classify(x: ℝ): ℝ:
+    if x > 0.5:
+        if x > 1.5:
+            return 2
+        else:
+            return 1
+    else:
+        if x < - 0.5:
+            return - 1
+        else:
+            return 0
+
+classify(2)
+classify(0)
+classify(-1)
+
+
+# 4. if-else inside a class method body 
+# PiecewiseNet: y = x**2 if x > 0 else -x
+class PiecewiseNet(threshold: ℝ):
+    def λ(x: ℝ) -> ℝ:
+        if x > threshold:
+            y = x * x
+        else:
+            y = - x
+        return y
+    def loss(pred: ℝ, target: ℝ) -> ℝ:
+        return (pred - target)**2
+
+net = PiecewiseNet(0)
+a : ℝ = 2
+net(a)
+grad(net(a), a)
+b : ℝ = -1.5
+net(b)
+grad(net(b), b)
+
+
+# 5. At top-level
+x : ℝ = 0.3
+if x > 0.5:
+    y = 3 * (x - 0.75)**2
+else:
+    y = x**2 + 2
+
+y

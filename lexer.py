@@ -25,7 +25,7 @@ reserved = {
 
 t_POWER    = r"\*\*"
 t_PLUSEQ   = r"\+="
-t_ARROW    = r"→"
+t_ARROW    = r"→|->"
 t_PLUS     = r"\+"
 t_MINUS    = r"-"
 t_TIMES    = r"\*"

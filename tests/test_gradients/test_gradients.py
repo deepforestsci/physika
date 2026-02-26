@@ -27,7 +27,7 @@ def compile(phyk_name: str) -> dict:
     unified = build_unified_ast(program_ast, symbol_table)
     code = from_ast_to_torch(unified, print_code=False)
     name_space: dict = {}
-    exec(code, name_space)  # noqa: S102
+    exec(code, name_space)
     return name_space
 
 
@@ -38,11 +38,11 @@ class TestDiffIfElse:
         return compile("diff_ifelse")
 
     @pytest.mark.parametrize("x_val, expected_grad", [
-        # x > 0: f(x) = x**2  → f'(x) = 2x
+        # x > 0: f(x) = x**2  -> f'(x) = 2x
         (3.0,  6.0),
         (1.0,  2.0),
         (0.5,  1.0),
-        # x <=0: f(x) = −x  → f'(x) = −1
+        # x <=0: f(x) = −x  -> f'(x) = −1
         (-2.0, -1.0),
         (-1.0, -1.0),
         (-0.5, -1.0),
@@ -50,19 +50,19 @@ class TestDiffIfElse:
     def test_physika_matches_analytical(self, name_space, x_val, expected_grad):
         """Physika grad matches the analytical derivative"""
         f = name_space["f"]
-        x = torch.tensor(float(x_val))
-        auto = float(compute_grad(f, x))
-        assert abs(auto - expected_grad) < r_tol
+        x = torch.tensor(x_val)
+        physika_grad = compute_grad(f, x)
+        assert abs(physika_grad - expected_grad) < r_tol
 
     @pytest.mark.parametrize("x_val", [3.0, 1.0, 0.5, -2.0, -1.0, -0.5])
     def test_physika_matches_numerical(self, name_space, x_val):
         """Physika grad matches numerical gradient"""
         f = name_space["f"]
-        x = torch.tensor(float(x_val))
+        x = torch.tensor(x_val)
 
-        auto = float(compute_grad(f, x))
-        num = float(numerical_gradient(f, np.array([x_val]))[0])
-        assert abs(auto - num) < r_tol
+        physika_grad = compute_grad(f, x)
+        num_grad = numerical_gradient(f, np.array([x_val]))[0]
+        assert abs(physika_grad - num_grad) < r_tol
 
 
 class TestDiffIfCosSin:
@@ -90,18 +90,18 @@ class TestDiffIfCosSin:
     def test_physika_matches_analytical(self, name_space, x_val, expected_grad):
         """physika grad matches the analytical derivative"""
         f = name_space["f"]
-        x = torch.tensor(float(x_val))
-        auto = float(compute_grad(f, x))
-        assert abs(auto - expected_grad) < r_tol
+        x = torch.tensor(x_val)
+        physika_grad = compute_grad(f, x)
+        assert abs(physika_grad - expected_grad) < r_tol
 
     @pytest.mark.parametrize("x_val", [-0.5, 0.5, 1.5])
     def test_physika_matches_numerical(self, name_space, x_val):
-        """Test for numerical and physika autograd solutions"""
+        """Test for numerical and physika gradient solutions"""
         f = name_space["f"]
-        x = torch.tensor(float(x_val))
-        auto = float(compute_grad(f, x))
-        num = float(numerical_gradient(f, np.array([x_val]))[0])
-        assert abs(auto - num) < r_tol
+        x = torch.tensor(x_val)
+        physika_grad = compute_grad(f, x)
+        num_grad = numerical_gradient(f, np.array([x_val]))[0]
+        assert abs(physika_grad - num_grad) < r_tol
 
 
 class TestDiffThreshold:
@@ -131,15 +131,56 @@ class TestDiffThreshold:
     def test_physika_matches_analytical(self, name_space, t_val, expected_grad):
         """Physika matches the analytical derivative."""
         f = name_space["L"]
-        t = torch.tensor(float(t_val))
-        auto = float(compute_grad(f, t))
-        assert abs(auto - expected_grad) < r_tol
+        t = torch.tensor(t_val)
+        physika_grad = compute_grad(f, t)
+        assert abs(physika_grad - expected_grad) < r_tol
 
     @pytest.mark.parametrize("t_val", [0.9, 0.6, -0.5])
     def test_physika_matches_numerical(self, name_space, t_val):
         """Physika grads matches numerical gradients."""
         f = name_space["L"]
-        t = torch.tensor(float(t_val))
-        auto = float(compute_grad(f, t))
-        num = float(numerical_gradient(f, np.array([t_val]))[0])
-        assert abs(auto - num) < r_tol
+        t = torch.tensor(t_val)
+        physika_grad = compute_grad(f, t)
+        num_grad = numerical_gradient(f, np.array([t_val]))[0]
+        assert abs(physika_grad - num_grad) < r_tol
+
+
+
+class TestDiffIfElseClasses:
+    """Gradients of PiecewiseNet.
+    
+    PiecewiseNet implements 
+    forward(x) = x**2 if x > 0 else -x.
+        x > 0:  forward'(x) = 2x
+        x ≤ 0:  forward'(x) = -1
+    """
+
+    @pytest.fixture(scope="class")
+    def name_space(self):
+        return compile("if_else_contexts")
+
+    @pytest.mark.parametrize("x_val, expected_grad", [
+        # x > 0: forward'(x) = 2x
+        (2.0,  4.0),
+        (1.0,  2.0),
+        (0.5,  1.0),
+        # x ≤ 0: forward'(x) = -1
+        (-1.5, -1.0),
+        (-1.0, -1.0),
+        (-0.5, -1.0),
+    ])
+    def test_class_matches_analytical(self, name_space, x_val, expected_grad):
+        """Class ifelse gradient matches the analytical derivative."""
+        net = name_space["net"]
+        x = torch.tensor(x_val)
+        physika_grad = compute_grad(net, x)
+        assert abs(physika_grad - expected_grad) < r_tol
+
+    @pytest.mark.parametrize("x_val", [2.0, 1.0, -1.5, -0.5])
+    def test_class_matches_numerical(self, name_space, x_val):
+        """Class ifelse gradient matches the numerical gradient."""
+        net = name_space["net"]
+        x = torch.tensor(x_val)
+        physika_grad = compute_grad(net, x)
+        num_grad = numerical_gradient(net, np.array([x_val]))[0]
+        assert abs(physika_grad - num_grad) < r_tol

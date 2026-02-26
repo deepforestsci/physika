@@ -689,24 +689,33 @@ def p_func_expr_term(p):
     p[0] = p[1]
 
 def p_func_term_times(p):
-    """func_term : func_term TIMES func_factor
-                 | func_term DIVIDE func_factor
-                 | func_term INTDIV func_factor
-                 | func_term MATMUL func_factor
-                 | func_term POWER func_factor"""
+    """func_term : func_term TIMES func_power
+                 | func_term DIVIDE func_power
+                 | func_term INTDIV func_power
+                 | func_term MATMUL func_power"""
     if p[2] == "*":
         p[0] = ("mul", p[1], p[3])
     elif p[2] == "/":
         p[0] = ("div", p[1], p[3])
     elif p[2] == "//":
         p[0] = ("intdiv", p[1], p[3])
-    elif p[2] == "**":
-        p[0] = ("pow", p[1], p[3])
     else:  # @
         p[0] = ("matmul", p[1], p[3])
 
-def p_func_term_factor(p):
-    """func_term : func_factor"""
+def p_func_term_power(p):
+    """func_term : func_power"""
+    p[0] = p[1]
+
+def p_func_power_pow(p):
+    """func_power : func_factor POWER func_power"""
+    p[0] = ("pow", p[1], p[3])
+
+def p_func_power_neg(p):
+    """func_power : MINUS func_power"""
+    p[0] = ("neg", p[2])
+
+def p_func_power_factor(p):
+    """func_power : func_factor"""
     p[0] = p[1]
 
 def p_func_factor_number(p):

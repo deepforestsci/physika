@@ -8,7 +8,7 @@ from runtime import compute_grad
 # === Functions ===
 def f(x):
     x = torch.as_tensor(x).float()
-    return torch.where(x > 0.0, torch.as_tensor((x * x)).float(), torch.as_tensor((0.0 - x)).float())
+    return torch.where(x > 0.0, torch.as_tensor((x * x)).float(), torch.as_tensor((-x)).float())
 
 # === Program ===
 a = 3.0

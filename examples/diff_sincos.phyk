@@ -1,12 +1,12 @@
 # Differentiable sin/cos in conditional statement
-#
-# f(x) = cos(x)  if x > 0      f'(x) = -sin(x)
-#         sin(x)  otherwise              cos(x)
-#
+# if x > 0:
+#     f(x) = cos(x) -> f'(x) = -sin(x)
+# else:
+#     f(x) = sin(x) -> f'(x) = -cos(x)
 
 
 def f(x: ℝ): ℝ:
-    if x > 0.0:
+    if x > 0:
         return cos(x)
     else:
         return sin(x)
