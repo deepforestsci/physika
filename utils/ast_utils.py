@@ -566,8 +566,8 @@ def emit_body_stmts(
 
     Examples
     --------
-    >>> from physika.utils.ast_utils import emit_body_stmts
-    >>> from physika.utils.ast_utils import ast_to_torch_expr
+    >>> from utils.ast_utils import emit_body_stmts
+    >>> from utils.ast_utils import ast_to_torch_expr
     >>> lines = []
     >>> known_vars = ["x"]
     >>> equation_vars = set()
@@ -820,7 +820,7 @@ def emit_for_stmts(
 
     Examples
     --------
-    >>> from physika.utils.ast_utils import emit_for_stmts
+    >>> from utils.ast_utils import emit_for_stmts
     >>> stmts = [("for_assign", "z", ("mul", ("var", "a"), ("var", "b")))]
     >>> emit_for_stmts(stmts, 4)
     ['    z = (a * b)']

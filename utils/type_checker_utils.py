@@ -651,7 +651,7 @@ def check_branch(
 
     Examples
     --------
-    >>> from physika.utils.type_checker_utils import check_branch
+    >>> from utils.type_checker_utils import check_branch
     >>> inferred = []
     >>> check_branch(
     ...     [("for_assign", "z", ("num", 1.0))],
