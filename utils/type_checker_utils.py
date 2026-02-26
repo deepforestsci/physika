@@ -628,6 +628,51 @@ def type_infer(
     return None
 
 
+def check_branch(
+    branch_stmts: list[ASTExpr],
+    infer_type: InferFn,
+) -> None:
+    """Type-check the expressions inside a if/else branch.
+
+    Iterates over ``for_assign``, ``for_pluseq``, and ``for_call`` AST nodes,
+    calling *infer_type* on every expression so that shape mismatches and
+    unknown-variable errors are catched.
+
+    Variables assigned inside the branch are not added to the
+    type environment.
+
+    Parameters
+    ----------
+    branch_stmts:
+        List of ``for_assign``, ``for_pluseq``, or ``for_call`` AST tuples
+        from an ``if_else`` or ``if_only`` program statement.
+    infer_type:
+        Type inference callback.
+
+    Examples
+    --------
+    >>> from physika.utils.type_checker_utils import check_branch
+    >>> inferred = []
+    >>> check_branch(
+    ...     [("for_assign", "z", ("num", 1.0))],
+    ...     lambda expr, le=None: inferred.append(expr) or "ℝ",
+    ... )
+    >>> inferred
+    [('num', 1.0)]
+    """
+    for s in branch_stmts:
+        if s is None:
+            continue
+        branch_op = s[0]
+        if branch_op == "for_assign":
+            infer_type(s[2])
+        elif branch_op == "for_pluseq":
+            infer_type(s[2])
+        elif branch_op == "for_call":
+            for arg in s[2]:
+                infer_type(arg)
+
+
 def statement_check(
     op: str,
     stmt: ASTExpr,
@@ -702,5 +747,14 @@ def statement_check(
             check_statement(body_stmt)
 
     elif op in ("if_else", "if_only"):
-        # Program-level if/else — type-check expressions in both branches
-        pass  # Variables assigned in branches are not hoisted to program scope
+        cond = stmt[1]
+        then_stmts = stmt[2]
+        else_stmts = stmt[3] if op == "if_else" else []
+
+        # Type-check both sides of the condition
+        if isinstance(cond, tuple) and len(cond) == 3:
+            infer_type(cond[1])
+            infer_type(cond[2])
+
+        check_branch(then_stmts, infer_type)
+        check_branch(else_stmts, infer_type)

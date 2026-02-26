@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Literal, Union # TYPECHECKING
+from typing import Any, Callable, Literal, Union
 from utils.print_utils import print_unified_ast
 
 
@@ -527,6 +527,106 @@ def condition_to_expr(cond: ASTNode) -> str:
 
 
 # Code generators (function / class / statement)
+def emit_body_stmts(
+    stmts: list[ASTNode],
+    indent_level: int,
+    lines: list[str],
+    known_vars: list[str],
+    equation_vars: set[str],
+    generate_solve_call: Callable[[ASTNode], str],
+) -> None:
+    """Recursively emit Python code lines for a function body.
+
+    Converts a sequence of ``body_decl``, ``body_assign``, ``body_tuple_unpack``,
+    ``body_if_return``, ``body_if_else_return``, ``body_if_else``, or
+    ``body_if`` AST nodes into indented Python source lines and appends them to `lines`.
+
+
+    Parameters
+    ----------
+    stmts: list[ASTNode]
+        Sequence of ``body_decl``, ``body_assign``, ``body_tuple_unpack``,
+        ``body_if_return``, ``body_if_else_return``, ``body_if_else``, or
+        ``body_if`` AST tuples to emit.  ``None`` entries are skipped.
+    indent_level: int
+        Nesting depth. 1 if directly inside the function body,
+        `indent_level` is 2 if inside an if/else branch, etc.).
+        Each level adds four spaces.
+    lines: list[str]
+        Output list; generated source lines are appended here.
+    known_vars: list[str]
+        Running list of variable names in scope.
+        Extended in place when new locals are declared.
+    equation_vars: set[str]
+        Set of variable names bound to equation strings (used to exclude
+        them from ``solve()`` keyword arguments).  Updated in place.
+    generate_solve_call: Callable[[ASTNode], str]
+        Callable that converts an expression AST to a Python string,
+        expanding ``solve(...)`` calls with the current `known_vars`.
+
+    Examples
+    --------
+    >>> from physika.utils.ast_utils import emit_body_stmts
+    >>> from physika.utils.ast_utils import ast_to_torch_expr
+    >>> lines = []
+    >>> known_vars = ["x"]
+    >>> equation_vars = set()
+    >>> emit_body_stmts(
+    ...     [("body_assign", "y", ("mul", ("var", "x"), ("num", 2.0)))],
+    ...     1, lines, known_vars, equation_vars, ast_to_torch_expr,
+    ... )
+    >>> lines
+    ['    y = (x * 2.0)']
+    """
+    prefix = "    " * indent_level
+    for stmt in stmts:
+        if stmt is None:
+            continue
+        stmt_op = stmt[0]
+        if stmt_op == "body_decl":
+            _, var_name, var_type, expr = stmt
+            if isinstance(expr, tuple) and expr[0] == "string":
+                equation_vars.add(var_name)
+            expr_code = generate_solve_call(expr)
+            lines.append(f"{prefix}{var_name} = {expr_code}")
+            known_vars.append(var_name)
+        elif stmt_op == "body_assign":
+            _, var_name, expr = stmt
+            expr_code = generate_solve_call(expr)
+            lines.append(f"{prefix}{var_name} = {expr_code}")
+            known_vars.append(var_name)
+        elif stmt_op == "body_tuple_unpack":
+            _, var_names, expr = stmt
+            expr_code = generate_solve_call(expr)
+            lines.append(f"{prefix}{', '.join(var_names)} = {expr_code}")
+            known_vars.extend(var_names)
+        elif stmt_op == "body_if_return":
+            _, cond, return_expr = stmt
+            cond_code = condition_to_expr(cond)
+            return_code = ast_to_torch_expr(return_expr)
+            lines.append(f"{prefix}if {cond_code}:")
+            lines.append(f"{prefix}    return {return_code}")
+        elif stmt_op == "body_if_else_return":
+            _, cond, then_expr, else_expr = stmt
+            cond_code = condition_to_expr(cond)
+            then_code = ast_to_torch_expr(then_expr)
+            else_code = ast_to_torch_expr(else_expr)
+            # Use torch.where so PyTorch's tape differentiates through both branches
+            lines.append(f"{prefix}return torch.where({cond_code}, torch.as_tensor({then_code}).float(), torch.as_tensor({else_code}).float())")
+        elif stmt_op == "body_if_else":
+            _, cond, then_stmts, else_stmts = stmt
+            cond_code = condition_to_expr(cond)
+            lines.append(f"{prefix}if {cond_code}:")
+            emit_body_stmts(then_stmts, indent_level + 1, lines, known_vars, equation_vars, generate_solve_call)
+            lines.append(f"{prefix}else:")
+            emit_body_stmts(else_stmts, indent_level + 1, lines, known_vars, equation_vars, generate_solve_call)
+        elif stmt_op == "body_if":
+            _, cond, then_stmts = stmt
+            cond_code = condition_to_expr(cond)
+            lines.append(f"{prefix}if {cond_code}:")
+            emit_body_stmts(then_stmts, indent_level + 1, lines, known_vars, equation_vars, generate_solve_call)
+
+
 def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
     """Generate a Python/PyTorch function definition from a function AST.
 
@@ -601,71 +701,8 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
             return f"solve({', '.join(arg_strs)}, {', '.join(kw_strs)})"
         return ast_to_torch_expr(expr)
 
-    def emit_body_stmts(stmts: list[ASTNode], indent_level: int) -> None:
-        """Recursively emit body statements at a given indentation level.
-
-        Appends generated Python source lines to the ``lines``
-        list from ``generate_function``.
-
-        Parameters
-        ----------
-        stmts : list[ASTNode]
-            Sequence of body-statement AST tuples to emit.
-        indent_level : int
-            Nesting depth (1 = directly inside the function body,
-            2 = inside an if/else branch, etc.).  Each level adds
-            four spaces of indentation.
-        """
-        prefix = "    " * indent_level
-        for stmt in stmts:
-            if stmt is None:
-                continue
-            stmt_op = stmt[0]
-            if stmt_op == "body_decl":
-                _, var_name, var_type, expr = stmt
-                if isinstance(expr, tuple) and expr[0] == "string":
-                    equation_vars.add(var_name)
-                expr_code = generate_solve_call(expr)
-                lines.append(f"{prefix}{var_name} = {expr_code}")
-                known_vars.append(var_name)
-            elif stmt_op == "body_assign":
-                _, var_name, expr = stmt
-                expr_code = generate_solve_call(expr)
-                lines.append(f"{prefix}{var_name} = {expr_code}")
-                known_vars.append(var_name)
-            elif stmt_op == "body_tuple_unpack":
-                _, var_names, expr = stmt
-                expr_code = generate_solve_call(expr)
-                lines.append(f"{prefix}{', '.join(var_names)} = {expr_code}")
-                known_vars.extend(var_names)
-            elif stmt_op == "body_if_return":
-                _, cond, return_expr = stmt
-                cond_code = condition_to_expr(cond)
-                return_code = ast_to_torch_expr(return_expr)
-                lines.append(f"{prefix}if {cond_code}:")
-                lines.append(f"{prefix}    return {return_code}")
-            elif stmt_op == "body_if_else_return":
-                _, cond, then_expr, else_expr = stmt
-                cond_code = condition_to_expr(cond)
-                then_code = ast_to_torch_expr(then_expr)
-                else_code = ast_to_torch_expr(else_expr)
-                # Use torch.where so PyTorch's tape differentiates through both branches
-                lines.append(f"{prefix}return torch.where({cond_code}, torch.as_tensor({then_code}).float(), torch.as_tensor({else_code}).float())")
-            elif stmt_op == "body_if_else":
-                _, cond, then_stmts, else_stmts = stmt
-                cond_code = condition_to_expr(cond)
-                lines.append(f"{prefix}if {cond_code}:")
-                emit_body_stmts(then_stmts, indent_level + 1)
-                lines.append(f"{prefix}else:")
-                emit_body_stmts(else_stmts, indent_level + 1)
-            elif stmt_op == "body_if":
-                _, cond, then_stmts = stmt
-                cond_code = condition_to_expr(cond)
-                lines.append(f"{prefix}if {cond_code}:")
-                emit_body_stmts(then_stmts, indent_level + 1)
-
     # Generate body statements
-    emit_body_stmts(statements, 1)
+    emit_body_stmts(statements, 1, lines, known_vars, equation_vars, generate_solve_call)
 
     # Generate return statement only when there is a final expression
     # (body-only functions have body=None; their returns live inside if/else branches)
@@ -755,6 +792,57 @@ def emit_class_body_stmts(
             cond_code = replace_class_params(condition_to_expr(cond), class_params)
             lines.append(f"{prefix}if {cond_code}:")
             emit_class_body_stmts(then_stmts, indent_level + 1, lines, class_params)
+
+
+
+def emit_for_stmts(
+    stmts: list[ASTNode],
+    indent: int =4,
+) -> list[str]:
+    """Emit Python code for the body of a top-level physika if-else branch.
+
+    Each statement in `stmts` is one of the flat ``for_assign``, ``for_pluseq``,
+    or ``for_call`` AST nodes that appear inside an ``if_else`` or ``if_only`` program statement.
+    The function converts each node into a single line of Python code
+    and returns the collected lines.
+
+    Parameters
+    ----------
+    stmts: list[ASTNode]
+        List of ``for_assign``, ``for_pluseq``, or ``for_call`` AST nodes.
+    indent: int
+        Integer representing the whitespace in emitted line.
+
+    Returns
+    -------
+    list[str]
+        Python code lines.
+
+    Examples
+    --------
+    >>> from physika.utils.ast_utils import emit_for_stmts
+    >>> stmts = [("for_assign", "z", ("mul", ("var", "a"), ("var", "b")))]
+    >>> emit_for_stmts(stmts, 4)
+    ['    z = (a * b)']
+    """
+    prefix = " " * indent
+    result = []
+    for s in stmts:
+        if s is None:
+            continue
+        body_op = s[0]
+        if body_op == "for_assign":
+            _, var_name, expr = s
+            result.append(f"{prefix}{var_name} = {ast_to_torch_expr(expr)}")
+        elif body_op == "for_pluseq":
+            _, var_name, expr = s
+            result.append(f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr)}")
+        elif body_op == "for_call":
+            _, func_name, arg_asts = s
+            arg_strs = [ast_to_torch_expr(arg) for arg in arg_asts]
+            result.append(f"{prefix}{func_name}({', '.join(arg_strs)})")
+    return result
+
 
 
 def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
@@ -1005,31 +1093,13 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
         then_stmts = stmt[2]
         cond_code = condition_to_expr(cond)
 
-        def emit_for_stmts(stmts, prefix):
-            result = []
-            for s in stmts:
-                if s is None:
-                    continue
-                body_op = s[0]
-                if body_op == "for_assign":
-                    _, var_name, expr = s
-                    result.append(f"{prefix}{var_name} = {ast_to_torch_expr(expr)}")
-                elif body_op == "for_pluseq":
-                    _, var_name, expr = s
-                    result.append(f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr)}")
-                elif body_op == "for_call":
-                    _, func_name, arg_asts = s
-                    arg_strs = [ast_to_torch_expr(arg) for arg in arg_asts]
-                    result.append(f"{prefix}{func_name}({', '.join(arg_strs)})")
-            return result
-
         branch_lines = [f"if {cond_code}:"]
-        branch_lines.extend(emit_for_stmts(then_stmts, "    "))
+        branch_lines.extend(emit_for_stmts(then_stmts))
 
         if op == "if_else":
             else_stmts = stmt[3]
             branch_lines.append("else:")
-            branch_lines.extend(emit_for_stmts(else_stmts, "    "))
+            branch_lines.extend(emit_for_stmts(else_stmts))
 
         return "\n".join(branch_lines)
 
