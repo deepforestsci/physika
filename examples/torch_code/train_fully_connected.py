@@ -8,6 +8,7 @@ from runtime import evaluate
 
 # === Functions ===
 def sigma(x):
+    x = torch.as_tensor(x).float()
     return (1.0 / (1.0 + torch.exp((0.0 - x))))
 
 # === Classes ===

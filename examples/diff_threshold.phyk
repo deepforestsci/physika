@@ -1,0 +1,53 @@
+# Threshold Optimisation:
+# A piecewise loss with two regimes separated at t = 0.5:
+#  L(t) =  if t > 0.5:  
+#               3·(t - 0.75)² + 0.1   -> HIGH regime, global min at t = 0.75
+#          else:
+#               t**2  + 2             -> LOW regime,  local  min at t= 0.0
+
+def L(t: ℝ): ℝ:
+    if t > 0.5:
+        return 3 * (t - 0.75) **2 + 0.1
+    else:
+        return t**2 + 2
+
+# Trajectory A: High regime (t > 0.5)
+# Converges to the global minimum t* = 0.75
+t0 : ℝ = 0.9
+L(t0)
+grad(L(t0), t0)
+
+t1 : ℝ = t0 - 0.2 * grad(L(t0), t0)
+L(t1)
+grad(L(t1), t1)
+
+t2 : ℝ = t1 - 0.2 * grad(L(t1), t1)
+L(t2)
+grad(L(t2), t2)
+
+t3 : ℝ = t2 - 0.2 * grad(L(t2), t2)
+L(t3)
+grad(L(t3), t3)
+t3
+
+# Trajectory B: LOW regime (t <= 0.5)
+s0 : ℝ = 0.3
+L(s0)
+grad(L(s0), s0)
+
+s1 : ℝ = s0 - 0.2 * grad(L(s0), s0)
+L(s1)
+grad(L(s1), s1)
+
+s2 : ℝ = s1 - 0.2 * grad(L(s1), s1)
+L(s2)
+grad(L(s2), s2)
+
+s3 : ℝ = s2 - 0.2 * grad(L(s2), s2)
+L(s3)
+grad(L(s3), s3)
+
+s4 : ℝ = s3 - 0.2 * grad(L(s3), s3)
+L(s4)
+grad(L(s4), s4)
+s4

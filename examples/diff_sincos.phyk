@@ -1,0 +1,32 @@
+# Differentiable sin/cos in conditional statement
+# if x > 0:
+#     f(x) = cos(x) -> f'(x) = -sin(x)
+# else:
+#     f(x) = sin(x) -> f'(x) = -cos(x)
+
+
+def f(x: ℝ): ℝ:
+    if x > 0:
+        return cos(x)
+    else:
+        return sin(x)
+
+x0 : ℝ = - 1.5
+f(x0)
+grad(f(x0), x0)
+
+x1 : ℝ = - 0.5
+f(x1)
+grad(f(x1), x1)
+
+x2 : ℝ = 0.5
+f(x2)
+grad(f(x2), x2)
+
+x3 : ℝ = 1.5
+f(x3)
+grad(f(x3), x3)
+
+x4 : ℝ = 3.14
+f(x4)
+grad(f(x4), x4)

@@ -91,6 +91,7 @@ def from_ast_to_torch(
     <BLANKLINE>
     # === Functions ===
     def f(x):
+        x = torch.as_tensor(x).float()
         return torch.exp(x)
     <BLANKLINE>
     # === Program ===
@@ -112,8 +113,15 @@ def from_ast_to_torch(
 
     # Collect variables used as differentiation targets in grad() calls
     grad_target_vars = set()
+    # Collect from top-level program statements
     for stmt in unified_ast["program"]:
         collect_grad_targets(stmt, grad_target_vars)
+
+    # Collect from function bodies and statements
+    for func_def in unified_ast["functions"].values():
+        collect_grad_targets(func_def.get("body"), grad_target_vars)
+        for s in func_def.get("statements", []):
+            collect_grad_targets(s, grad_target_vars)
 
     # Check for grad usage in classes and program statements
     needs_grad = False
