@@ -284,10 +284,10 @@ def compute_grad(
     Examples
     --------
     >>> from runtime import compute_grad
-    >>> # callable form — generated for grad(f(x), x)
+    >>> # callable form for grad(f(x), x)
     >>> compute_grad(lambda t: t * t, torch.tensor(3.0))
     tensor(6.)
-    >>> # pre-evaluated form — generated for grad(real(U(..., t, ...)), t)
+    >>> # pre-evaluated form for grad(real(U(..., t, ...)), t)
     >>> x = torch.tensor(3.0, requires_grad=True)
     >>> compute_grad(x * x, x)
     tensor(6.)

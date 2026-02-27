@@ -145,13 +145,45 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
         return any(ast_uses_func(item, func_name) for item in node)
     return False
 
+def _is_numeric_literal(e: ASTNode) -> bool:
+    """Check whether an AST node is a number.
+
+    Returns ``True`` for ``("num", value)`` nodes and for
+    ``("neg", ("num", value))``.
+
+    Parameters
+    ----------
+    e : ASTNode
+        An AST expression node (array element).
+
+    Returns
+    -------
+    bool
+        ``True`` if *e* is a numeric literal or a negated
+        numeric literal. ``False`` otherwise.
+
+    Examples
+    --------
+    >>> from utils.ast_utils import _is_numeric_literal
+    >>> _is_numeric_literal(("num", 3.0))
+    True
+    >>> _is_numeric_literal(("neg", ("num", 1.5)))
+    True
+    >>> _is_numeric_literal(("var", "x"))
+    False
+    """
+    if isinstance(e, tuple) and e[0] == "num":
+        return True
+    if isinstance(e, tuple) and e[0] == "neg":
+        return _is_numeric_literal(e[1])
+    return False
 
 def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
     """Collect variable names that need ``requires_grad=True`` from ``grad()`` calls.
 
     Recursively walks *node* looking for ``("call", "grad", [output, input])``
     patterns. Simple calls (``grad(f(x), x)``) use ``compute_grad`` which creates
-    a new leaf internally, so ``requires_grad`` on the variable is not needed there.
+    a new leaf, so ``requires_grad`` on the variable is not needed there.
 
     For nested calls, like ``grad(real(U(k, m, t, ...)), t)``, the variable
     ``t`` must be declared with ``requires_grad=True`` so that the
@@ -183,23 +215,40 @@ def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
     >>> targets2
     set()
     """
+    # base case: if node is a scalar leaf (ints, floats, Noe), return (no children)
     if not isinstance(node, (tuple, list)):
         return
-    if isinstance(node, tuple) and len(node) >= 2:
-        if node[0] == "call" and node[1] == "grad" and len(node[2]) >= 2:
-            output_ast, input_ast = node[2][0], node[2][1]
+    # case 1: node is a tagged tuple.
+    # Check if it's a grad() call with the right pattern ("call", "grad", [...]),
+    # then recurse on children
+    if isinstance(node, tuple):
+        if node[0] == "call" and node[1] == "grad":
+            output_ast = node[2][0] # differentiated expression
+            input_ast = node[2][1] # with respect to (wrt) variable
             if isinstance(input_ast, tuple) and input_ast[0] == "var":
-                is_simple = (
-                    isinstance(output_ast, tuple) and
-                    output_ast[0] == "call" and
-                    len(output_ast[2]) == 1 and
-                    output_ast[2][0] == input_ast
+                # simple pattern: The form grad(f(x), x) calls compute_grad(f, x)
+                # that doesn't require requires_grad on x
+                is_simple = ( 
+                    isinstance(output_ast, tuple) and # is indexable
+                    output_ast[0] == "call" and #output is a function call
+                    len(output_ast[2]) == 1 and # function is called with one argument
+                    output_ast[2][0] == input_ast # Unique argument is same variable as the wrt variable
                 )
+                # If is_simple, `targets` args is unchanged since the variable
+                # doesn't need to retain a tape
+
+                # If not is_simple, wrt variable is added to `targets` so that 
+                # is declared with requires_grad=True and retains a tape.
                 if not is_simple:
                     targets.add(input_ast[1])
+
         for child in node[1:]:
+            # recurse into all children of this node
+            # avoids node[0] because they are tags ("call", 'add', 'var'), not sub-ASTs
             if isinstance(child, (tuple, list)):
                 collect_grad_targets(child, targets)
+    # case 2: node is a list ("[output_ast, input_ast]" in "call", "grad", [output_ast, input_ast]).
+    # Recurse on each argument.
     elif isinstance(node, list):
         for item in node:
             collect_grad_targets(item, targets)
@@ -355,28 +404,7 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
             inner_lists = [array_to_list(e) for e in elements]
             return f"torch.tensor([{', '.join(inner_lists)}])"
         else:
-            def _is_numeric_literal(e: ASTNode) -> bool:
-                """Check whether an AST node is a number.
-
-                Returns ``True`` for ``("num", value)`` nodes and for
-                ``("neg", ("num", value))``.
-
-                Parameters
-                ----------
-                e : ASTNode
-                    An AST expression node (array element).
-
-                Returns
-                -------
-                bool
-                    ``True`` if *e* is a numeric literal or a negated
-                    numeric literal; ``False`` otherwise.
-                """
-                if isinstance(e, tuple) and e[0] == "num":
-                    return True
-                if isinstance(e, tuple) and e[0] == "neg":
-                    return _is_numeric_literal(e[1])
-                return False
+            
             all_numeric = all(_is_numeric_literal(e) for e in elements)
             elem_strs = [ast_to_torch_expr(e, indent, current_loop_var) for e in elements]
             if all_numeric:
@@ -423,36 +451,32 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
             "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
-            "arange": "torch.arange",
         }
 
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({', '.join(arg_strs)})"
         elif func_name == "grad":
-            output_ast = args[0]
-            input_str = ast_to_torch_expr(args[1], indent, current_loop_var)
-            if output_ast[0] == "call":
-                called_func = output_ast[1]
-                call_args = output_ast[2]
+            output_ast = args[0] # expression being differentiated
+            input_str = ast_to_torch_expr(args[1], indent, current_loop_var) # wrt variable as str
+            if output_ast[0] == "call":  #Checks if the output expression is a function call
+                called_func = output_ast[1] # function name
+                call_args = output_ast[2] # function arguments
+                # Convert each argument of the inner call to a string
+                # example: [("var","x")] into ["x"].
                 param_strs_inner = [ast_to_torch_expr(a, indent, current_loop_var) for a in call_args]
+                # Simple case: grad(f(x), x) is compute_grad(f, x).
+                # One argument in the inner call, and it's the same as the wrt variable.
                 if len(call_args) == 1 and param_strs_inner[0] == input_str:
-                    # simple case: grad(f(x), x) → compute_grad(f, x)
                     return f"compute_grad({called_func}, {input_str})"
                 else:
-                    # nested case.
+                    # Non-simple (nested) case
                     # For example, grad(real(U(k,m,t,...)), t) or grad(H(q, p), q).  
-                    # Emit the expression as is.
-                    # The wrt variable must have
-                    # requires_grad=True so the tape flows through it.
+                    # output_ast gets converted to a string and
+                    # will be executed before compute_grad is called.
+                    # The wrt variable must have requires_grad=True
                     output_str = ast_to_torch_expr(output_ast, indent, current_loop_var)
                     return f"compute_grad({output_str}, {input_str})"
-            # Fallback: shouldn't normally be reached
             return f"compute_grad({', '.join(arg_strs)})"
-        elif func_name == "len":
-            return f"len({arg_strs[0]})"
-        elif func_name == "cat":
-            # cat(a, b) -> torch.cat([a, b])
-            return f"torch.cat([{', '.join(arg_strs)}])"
         else:
             return f"{func_name}({', '.join(arg_strs)})"
 
@@ -705,7 +729,6 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
     emit_body_stmts(statements, 1, lines, known_vars, equation_vars, generate_solve_call)
 
     # Generate return statement only when there is a final expression
-    # (body-only functions have body=None; their returns live inside if/else branches)
     if body is not None:
         body_code = ast_to_torch_expr(body)
         lines.append(f"    return {body_code}")

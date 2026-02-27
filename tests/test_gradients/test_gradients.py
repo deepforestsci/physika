@@ -32,7 +32,7 @@ def compile(phyk_name: str) -> dict:
 
 
 class TestDiffIfElse:
-    @pytest.fixture(scope="class")
+    @pytest.fixture()
     def name_space(self):
         """Call examples/diff_ifelse.phyk file"""
         return compile("diff_ifelse")
@@ -73,7 +73,7 @@ class TestDiffIfCosSin:
         x ≤ 0: f'(x) =  cos(x)
     """
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture()
     def name_space(self):
         """Call examples/diff_sincos.phyk file"""
         return compile("diff_sincos")
@@ -113,7 +113,7 @@ class TestDiffThreshold:
         t ≤ 0.5: L'(t) = 2*t
     """
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture()
     def name_space(self):
         """Call examples/diff_threshold.phyk file"""
         return compile("diff_threshold")
@@ -155,7 +155,7 @@ class TestDiffIfElseClasses:
         x ≤ 0:  forward'(x) = -1
     """
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture()
     def name_space(self):
         return compile("if_else_contexts")
 
