@@ -27,4 +27,4 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run doctests
-        run: pytest --doctest-modules codegen.py type_checker.py utils/ -v --tb=short
+        run: pytest --doctest-modules codegen.py type_checker.py utils/ tests/test_gradients/ -v --tb=short
