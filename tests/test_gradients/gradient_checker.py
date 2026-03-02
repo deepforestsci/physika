@@ -42,8 +42,7 @@ def numerical_gradient(
     >>> #Scalar case: f(x) = x^2  -> grad = 2x
     >>> f = lambda x: float(x[0] ** 2)
     >>> grad = numerical_gradient(f, np.array([3.0]))
-    >>> abs(grad[0] - 6.0) < 1e-5
-    True
+    >>> assert abs(grad[0] - 6.0) < 1e-5
     """
     grad = np.zeros_like(x, dtype=float)
     for i in range(len(x)):
