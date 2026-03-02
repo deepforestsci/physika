@@ -124,7 +124,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     for stmt in unified_ast["program"]:
         collect_grad_targets(stmt, grad_target_vars)
 
-    # Check for grad usage in classes and program statements
+    # Check for grad usage in classes, functions and program statements
     needs_grad = False
     for class_def in unified_ast["classes"].values():
         if ast_uses_func(class_def.get("loss_body"), "grad"):
@@ -141,6 +141,13 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
         if any(
                 ast_uses_func(s, "grad")
                 for s in class_def.get("loss_statements", [])):
+            needs_grad = True
+            break
+    for func_def in unified_ast["functions"].values():
+        if ast_uses_func(func_def.get("body"), "grad"):
+            needs_grad = True
+            break
+        if any(ast_uses_func(s, "grad") for s in func_def.get("statements", [])):
             needs_grad = True
             break
     if not needs_grad:
