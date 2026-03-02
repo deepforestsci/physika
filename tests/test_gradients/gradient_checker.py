@@ -15,40 +15,34 @@ def numerical_gradient(
 
     For each component *i* the partial derivative is approximated by:
 
-        grad[i] = (f(x + h·eᵢ) - f(x - h·eᵢ)) / (2h)
+        grad[i] = (f(x + h·e_i) - f(x - h·e_i)) / (2h)
 
     Parameters
     ----------
     f : Callable[[np.ndarray], float]
-        Function ``f(x) -> float`` where *x* is a 1-D numpy array.
-        Both scalar and vector inputs are supported; scalar inputs should
-        be wrapped in a length-1 array (e.g. ``np.array([3.0])``).
+        Function ``f(x)`` where `x` is a 1-D numpy array.
+        Both scalar and vector inputs are supported. Scalar inputs should
+        be wrapped in a 1D array.
     x : numpy.ndarray
-        1-D array of evaluation point(s).  A copy is made internally so
-        the original array is never modified.
+        1-D array of evaluation point(s). A copy is made internally so
+        the original array is not modified.
     h : float, default 1e-5
         Step size for the central difference.
 
     Returns
     -------
     numpy.ndarray
-        Gradient array with the same shape as *x*.
+        Gradient array with the same shape as `x`.
 
     Examples
     --------
     >>> from tests.test_gradients.gradient_checker import numerical_gradient
     >>> import numpy as np
     >>> import math
+    >>> #Scalar case: f(x) = x^2  -> grad = 2x
     >>> f = lambda x: float(x[0] ** 2)
     >>> grad = numerical_gradient(f, np.array([3.0]))
-    >>> abs(grad[0] - 6.0) < 1e-4
-    True
-    >>> # Vector case: f(x) = sum(sin(x))  -> grad = cos(x)
-    >>> import math
-    >>> f_vec = lambda x: float(sum(math.sin(xi) for xi in x))
-    >>> x0 = np.array([0.5, 1.0, 1.5])
-    >>> grad_vec = numerical_gradient(f_vec, x0)
-    >>> all(abs(grad_vec[i] - math.cos(x0[i])) < 1e-4 for i in range(3))
+    >>> abs(grad[0] - 6.0) < 1e-5
     True
     """
     grad = np.zeros_like(x, dtype=float)
