@@ -127,8 +127,23 @@ def p_statement_function_with_body(p):
 
 def p_statement_function_body_only(p):
     """statement : DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts DEDENT"""
-    # def funcname(params): return_type:
-    #     body_stmts  (returns live inside if/else branches)
+    # Function with return statements that live inside if/else branches.
+    # Used when every code path ends with a return inside a conditional
+    # Example:
+    #   def f(x: ℝ) : ℝ:
+    #       if x > 0:
+    #           return x
+    #       else:
+    #           return -x
+
+    # Parameters:
+    # p[2]  — function name (ID)
+    # p[4]  — parameter list [(name, type)]
+    # p[7]  — return type
+    # p[11] — list of func_body_stmt nodes (body_assign, body_if_else_return, etc.)
+    # Returns:
+    #  ("func_def", name) + symbol_table entry
+
     name = p[2]
     params = p[4]
     return_type = p[7]
@@ -179,53 +194,115 @@ def p_func_body_stmt_empty(p):
 
 def p_func_body_stmt_if_return(p):
     """func_body_stmt : IF condition COLON NEWLINE INDENT RETURN func_expr NEWLINE DEDENT"""
-    # Early return: if cond: return expr  (no else — falls through if cond is false)
+    # Early-return, no else branch. 
+    # if cond:
+    #   return expr
+
+    # Parameters:
+    # p[2]  — condition node (cond_gt, cond_lt, …)
+    # p[7]  — return expression
+    # Returns:
+    #  ("body_if_return", cond, return_expr)
     p[0] = ("body_if_return", p[2], p[7])
 
 def p_func_body_stmt_if_else_return(p):
     """func_body_stmt : IF condition COLON NEWLINE INDENT RETURN func_expr NEWLINE DEDENT ELSE COLON NEWLINE INDENT RETURN func_expr NEWLINE DEDENT"""
-    # if cond:
-    #     return then_expr
-    # else:
-    #     return else_expr
+    # Both branches return immediately.
+
+    # Parameters:
+    # p[2]  — condition node
+    # p[7]  — then-branch return expression
+    # p[15] — else-branch return expression
+    # Returns:
+    #  ("body_if_else_return", cond, then_expr, else_expr)
     p[0] = ("body_if_else_return", p[2], p[7], p[15])
 
 def p_func_body_stmt_if_else(p):
     """func_body_stmt : IF condition COLON NEWLINE INDENT func_body_stmts DEDENT ELSE COLON NEWLINE INDENT func_body_stmts DEDENT"""
-    # if cond:
-    #     then_stmts
-    # else:
-    #     else_stmts
+    # if/else block with statements in both branches.
+    # Used when branches assign to a variable and the return is at the end of the function
+    # Example:
+    #   if x > 0:
+    #       y = x * x
+    #   else:
+    #       y = -x
+
+    # Parameters:
+    # p[2]  — condition node
+    # p[6]  — then-branch statement list
+    # p[12] — else-branch statement list
+    # Returns:
+    #  ("body_if_else", cond, then_stmts, else_stmts)
     p[0] = ("body_if_else", p[2], p[6], p[12])
 
 def p_func_body_stmt_if_only(p):
     """func_body_stmt : IF condition COLON NEWLINE INDENT func_body_stmts DEDENT"""
-    # if cond:
-    #     then_stmts
+    # One-sided conditional: executes then_stmts only when cond is True.
+    # Example:
+    #   if y < -1:
+    #       y = -1
+    # Parameters:
+    # p[2] — condition node
+    # p[6] — then-branch statement list
+    # Returns:
+    #  ("body_if", cond, then_stmts)
     p[0] = ("body_if", p[2], p[6])
+
+# Conditions:
+#   Boolean comparisons between two func_expr values.
+#   Each rule produces a 3-tuple: (tag, left_expr, right_expr).
+#   condition_to_expr() in ast_utils.py converts these to Python operator strings.
+
+# Parameters:
+#   p[1] — left-hand expression
+#   p[3] — right-hand expression.
 
 def p_condition_eq(p):
     """condition : func_expr EQEQ func_expr"""
+    # Example:
+    # left == right
+    # Returns:
+    #   ("cond_eq", left, right)
     p[0] = ("cond_eq", p[1], p[3])
 
 def p_condition_neq(p):
     """condition : func_expr NEQ func_expr"""
+    # Example:
+    # left != right
+    # Returns:
+    #   ("cond_neq", left, right)
     p[0] = ("cond_neq", p[1], p[3])
 
 def p_condition_lt(p):
     """condition : func_expr LT func_expr"""
+    # Example:
+    # left < right
+    # Returns:
+    #   ("cond_lt", left, right)
     p[0] = ("cond_lt", p[1], p[3])
 
 def p_condition_gt(p):
     """condition : func_expr GT func_expr"""
+    # Example:
+    # left > right
+    # Returns:
+    #   ("cond_gt", left, right)
     p[0] = ("cond_gt", p[1], p[3])
 
 def p_condition_leq(p):
     """condition : func_expr LEQ func_expr"""
+    # Example:
+    # left <= right
+    # Returns:
+    #   ("cond_leq", left, right)
     p[0] = ("cond_leq", p[1], p[3])
 
 def p_condition_geq(p):
     """condition : func_expr GEQ func_expr"""
+    # Example:
+    # left >= right
+    # Returns:
+    #   ("cond_geq", left, right)
     p[0] = ("cond_geq", p[1], p[3])
 
 def p_statement_function_with_loop(p):
