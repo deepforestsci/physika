@@ -5,7 +5,8 @@ import pytest
 
 from lexer import lexer
 from parser import parser, symbol_table
-from utils.ast_utils import build_unified_ast, ExprTag, StmtTag, BodyStmtTag, TypeTag
+from utils.ast_utils import build_unified_ast, ExprTag, StmtTag, BodyStmtTag, TypeTag, ast_to_torch_expr, condition_to_expr, emit_body_stmts, emit_for_stmts
+
 
 
 VALID_TAGS = set(
@@ -31,6 +32,22 @@ def load_expected_ast(stem: str) -> dict:
     ns = {}
     exec((AST_DIR / f"{stem}.py").read_text(), ns)
     return ns["EXPECTED"]
+
+
+def _run_emit_body(stmts, indent_level=1, known_vars=None, scalar_only=False):
+    """Call emit_body_stmts and return the generated lines."""
+    lines = []
+    emit_body_stmts(
+        stmts,
+        indent_level,
+        lines,
+        known_vars if known_vars is not None else [],
+        set(),
+        ast_to_torch_expr,
+        scalar_only=scalar_only,
+    )
+    return lines
+
 
 
 def is_ast_node(node) -> bool:
@@ -76,8 +93,6 @@ def is_unified_ast(ast) -> bool:
     if not isinstance(ast["program"], list):
         return False
     return all(is_ast_node(stmt) for stmt in ast["program"])
-
-
 
 
 @pytest.mark.parametrize("phyk_file", PHYK_FILES, ids=PHYK_IDS)
@@ -129,3 +144,301 @@ def test_ast_matches_expected(phyk_file):
     actual = build_unified_ast(program_ast, sym_tb)
     expected = load_expected_ast(phyk_file.stem)
     assert actual == expected
+
+
+class TestConditionToExpr:
+    def test_condition_to_expr_ints(self):
+        expected_eq = "n == 0"
+        physika_expr_eq = condition_to_expr(("cond_eq", ("var", "n"), ("num", 0)))
+        assert physika_expr_eq == expected_eq
+
+        expected_neq = "x != 1"
+        physika_expr_neq = condition_to_expr(("cond_neq", ("var", "x"), ("num", 1)))
+        assert physika_expr_neq == expected_neq
+
+        expected_lt = "x < 1"
+        physika_expr_lt = condition_to_expr(("cond_lt", ("var", "x"), ("num", 1)))
+        assert physika_expr_lt == expected_lt
+
+        expected_gt = "x > 1"
+        physika_expr_gt = condition_to_expr(("cond_gt", ("var", "x"), ("num", 1)))
+        assert physika_expr_gt == expected_gt
+
+        expected_leq = "y <= -1"
+        physika_expr_leq = condition_to_expr(("cond_leq", ("var", "y"), ("num", -1)))
+        assert physika_expr_leq == expected_leq
+
+        expected_geq = "z >= 2"
+        physika_expr_geq = condition_to_expr(("cond_geq", ("var", "z"), ("num", 2)))
+        assert physika_expr_geq == expected_geq
+
+        # numbers and variables can be on both sides of the operator
+        assert condition_to_expr(("cond_lt", ("num", 0), ("var", "x"))) == "0 < x"
+
+        # Both sides can be arbitrary expressions, not just vars/nums
+        expected_cond = "(x + 1) > (0 - y)"
+        physika_cond = ("cond_gt", ("add", ("var", "x"), ("num", 1))
+                         , ("sub", ("num", 0), ("var", "y")))
+        assert condition_to_expr(physika_cond) == expected_cond
+    
+    def test_condition_to_expr_floats(self):
+        expected_eq = "n == 0.4"
+        physika_expr_eq = condition_to_expr(("cond_eq", ("var", "n"), ("num", 0.4)))
+        assert physika_expr_eq == expected_eq
+
+        expected_neq = "x != 1.1"
+        physika_expr_neq = condition_to_expr(("cond_neq", ("var", "x"), ("num", 1.1)))
+        assert physika_expr_neq == expected_neq
+
+        expected_lt = "x < 1.0"
+        physika_expr_lt = condition_to_expr(("cond_lt", ("var", "x"), ("num", 1.0)))
+        assert physika_expr_lt == expected_lt
+
+        expected_gt = "x > 1.9"
+        physika_expr_gt = condition_to_expr(("cond_gt", ("var", "x"), ("num", 1.9)))
+        assert physika_expr_gt == expected_gt
+
+        expected_leq = "y <= -1.2"
+        physika_expr_leq = condition_to_expr(("cond_leq", ("var", "y"), ("num", -1.2)))
+        assert physika_expr_leq == expected_leq
+
+        expected_geq = "z >= 2.5"
+        physika_expr_geq = condition_to_expr(("cond_geq", ("var", "z"), ("num", 2.5)))
+        assert physika_expr_geq == expected_geq
+
+        # numbers and variables can be on both sides of the operator
+        expected_first_number = "0.0 < x"
+        physika_expr_first_number = condition_to_expr(("cond_lt", ("num", 0.0), ("var", "x")))
+        assert physika_expr_first_number == expected_first_number
+
+
+class TestEmitBodyStmts:
+
+    def test_body_assign_decl_tuple_unpack(self):
+        """
+        Verify `emit_body_stmts` produce correct code lines for physika's parsed AST 
+        `body_assign`, `body_decl`, and `body_tuple_unpack` nodes.
+        """
+        stmt_assign = ("body_assign", "y",  ("mul", ("var", "x"), ("num", 2)))
+        lines_assign = _run_emit_body([stmt_assign], known_vars=["x"])
+        assert lines_assign == ["    y = (x * 2)"]
+
+        stmt_decl = ("body_decl", "z", "ℝ", ("add", ("var", "x"), ("num", 1)))
+        lines_decl = _run_emit_body([stmt_decl], known_vars=["x"])
+        assert lines_decl == ["    z = (x + 1)"]
+
+        stmt_tuple_unpack = ("body_tuple_unpack", ["a", "b"], ("var", "pair"))
+        lines_tuple_unpack = _run_emit_body([stmt_tuple_unpack])
+        assert lines_tuple_unpack == ["    a, b = pair"]
+
+    def test_body_assign_extends_known_vars(self):
+        """
+        Verify `emit_body_stmts` extends the `known_vars` set after a
+        `body_assign`, `body_decl`, or `body_tuple_unpack` statement.
+        """
+        known_assign = ["x"]
+        _run_emit_body([("body_assign", "y", ("var", "x"))], known_vars=known_assign)
+        assert "y" in known_assign
+        assert "x" in known_assign
+        assert len(known_assign) == 2
+
+        known_decl = ["x"]
+        _run_emit_body([("body_decl", "z", "ℝ", ("var", "x"))], known_vars=known_decl)
+        assert "z" in known_decl
+        assert "x" in known_decl
+        assert len(known_decl) == 2
+
+        known_tuple_unpack = []
+        _run_emit_body([("body_tuple_unpack", ["a", "b"], ("var", "p"))], known_vars=known_tuple_unpack)
+        assert "a" in known_tuple_unpack and "b" in known_tuple_unpack
+        assert len(known_tuple_unpack) == 2
+
+
+    def test_indent_level(self):
+        """
+        Checks that the generated code lines are indented according to the `indent_level` arg.
+        """
+        # checks for `body_assgin`
+        for i in range(4):
+            stmt = ("body_assign", "y", ("num", 0))
+            lines = _run_emit_body([stmt], indent_level=i)
+            assert lines == [f"{' ' * (4 * i)}y = 0"]
+            assert lines[0].startswith(" " * (4 * i))
+        
+        # checks for `body_decl`
+        for i in range(4):
+            stmt = ("body_decl", "y", "ℝ", ("num", 3.14))
+            lines = _run_emit_body([stmt], indent_level=i)
+            assert lines == [f"{' ' * (4 * i)}y = 3.14"]
+            assert lines[0].startswith(" " * (4 * i))
+        
+        # checks for `body_decl`
+        for i in range(4):
+            stmt = ("body_tuple_unpack", ["a", "b"], ("var", "p"))
+            lines = _run_emit_body([stmt], indent_level=i)
+            assert lines == [f"{' ' * (4 * i)}a, b = p"]
+            assert lines[0].startswith(" " * (4 * i))
+
+class TestEmitBodyIfElseStmts:
+    """
+    Test suite for `emit_body_stmts` handling of if/else statements, including:
+        - `body_if_return`
+        - `body_if_else_return`
+        - `body_if_else`.
+    
+    These tests verify that the generated code lines are correct for the given
+    Physika AST statements, and that the `scalar_only` flag correctly controls
+    whether `torch.where` or Python if/else is used for `body_if_else_return`
+    statements.
+    """
+    def test_body_if_return(self):
+        cond = ("cond_eq", ("var", "n"), ("num", 0))
+        stmt = ("body_if_return", cond, ("num", 1))
+        lines = _run_emit_body([stmt])
+        assert lines == ["    if n == 0:", 
+                         "        return 1"]
+
+    def test_body_if_else_return(self):
+        """
+        Verify `body_if_else_return` produces correct code for both
+        `scalar_only=False` (torch.where) and `scalar_only=True` (Python if/else).
+        """
+        # `body_if_else_return` case scalar_only=False uses torch.where
+        cond = ("cond_gt", ("var", "x"), ("num", 0))
+        stmt = ("body_if_else_return", cond, ("var", "x"), ("neg", ("var", "x")))
+        lines = _run_emit_body([stmt], scalar_only=False)
+        assert len(lines) == 1
+        assert lines[0].startswith("    return torch.where(")
+        assert "x > 0" in lines[0]
+
+        # `body_if_else_return` case scalar_only=True
+        cond = ("cond_gt", ("var", "x"), ("num", 0))
+        stmt = ("body_if_else_return", cond, ("var", "x"), ("neg", ("var", "x")))
+        lines = _run_emit_body([stmt], scalar_only=True)
+        assert lines == ["    if x > 0:",
+                         "        return x",
+                         "    else:",
+                         "        return (-x)",
+                        ]
+        
+        # scalar_only=True must propagate into nested emit calls
+        # if x > 0.0:
+        #     if y < 0.0:
+        #         return 1
+        #     else:
+        #         return -1
+        # else:
+        #     y = 0.0
+        
+        cond = ("cond_gt", ("var", "x"), ("num", 0))
+        inner_cond = ("cond_lt", ("var", "y"), ("num", 0))
+        then_stmts = [("body_if_else_return", inner_cond, ("num", 1), ("num", -1))]
+        else_stmts = [("body_assign", "y", ("num", 0))]
+        stmt = ("body_if_else", cond, then_stmts, else_stmts)
+        lines = _run_emit_body([stmt], scalar_only=True)
+        print(lines)
+        # The nested body_if_else_return should use if/else (scalar_only=True)
+        assert "torch.where" not in "\n".join(lines)
+        assert lines == [
+            "    if x > 0:",
+            "        if y < 0:",
+            "            return 1",
+            "        else:",
+            "            return -1",
+            "    else:",
+            "        y = 0",
+        ]
+
+    def test_body_if_else_and_if_only_assignment(self):
+        """
+        Verify `body_if_else` and `body_if` produce correct code for an if/else `body_assign`
+        statement.
+        """
+        cond = ("cond_gt", ("var", "x"), ("num", 1))
+        then_stmts = [("body_assign", "y", ("num", 1))]
+        else_stmts = [("body_assign", "y", ("var", "x"))]
+        stmt = ("body_if_else", cond, then_stmts, else_stmts)
+        lines = _run_emit_body([stmt])
+        assert lines == [
+            "    if x > 1:",
+            "        y = 1",
+            "    else:",
+            "        y = x",
+        ]
+
+        cond = ("cond_lt", ("var", "y"), ("num", -1))
+        then_stmts = [("body_assign", "y", ("neg", ("num", 1)))]
+        stmt = ("body_if", cond, then_stmts)
+        lines = _run_emit_body([stmt])
+        assert lines == [
+            "    if y < -1:",
+            "        y = (-1)",
+        ]        
+
+
+class TestEmitForStmts:
+    """
+    Test suite for `emit_for_stmts` handling of for loop statements, including:
+    - `for_assign`
+    - `for_pluseq`
+    - `for_call`
+    These tests verify that the generated code lines are correct for the given
+    Physika AST statements, and that the `indent_level` arg correctly controls the indentation of
+    """
+
+    def test_for_assign(self):
+        """
+        Checks that `for_assign` statements produce correct code lines, and have correct indentation.
+        """
+        stmts = [("for_assign", "z", ("mul", ("var", "a"), ("var", "b")))]
+        assert emit_for_stmts(stmts, 4) == ["    z = (a * b)"]
+
+        # None statements should be ignored and not cause errors
+        stmts = [None, ("for_assign", "z", ("num", 1.0)), None]
+        assert emit_for_stmts(stmts, 4) == ["    z = 1.0"]
+
+        # custom indent level
+        stmts = [("for_assign", "z", ("num", 0.0))]
+        assert emit_for_stmts(stmts, 8) == ["        z = 0.0"]
+
+        # zero indent level
+        stmts = [("for_assign", "z", ("num", 0.0))]
+        assert emit_for_stmts(stmts, 0) == ["z = 0.0"]
+
+
+    def test_for_pluseq(self):
+        """
+        Verify `for_pluseq` produces correct code lines and indentation of the generated lines.
+        """
+        stmts = [("for_pluseq", "acc", ("var", "x"))]
+        assert emit_for_stmts(stmts, 4) == ["    acc = acc + x"]
+
+    def test_for_call(self):
+        """
+        Checks that `for_call` statements produce correct code lines and have correct indentation.
+        """
+        # Normal function call
+        stmts = [("for_call", "f", [("var", "x"), ("var", "y")])]
+        assert emit_for_stmts(stmts, 4) == ["    f(x, y)"]
+
+        # Empty args in a function call should still produce a valid line of code
+        stmts = [("for_call", "step", [])]
+        assert emit_for_stmts(stmts, 4) == ["    step()"]
+
+    def test_multiple_stmts(self):
+        """
+        Checks that multiple `for_assign` and `for_pluseq` statements produce correct
+        code lines, and have correct indentation.
+        """
+        stmts = [
+            ("for_assign", "a", ("num", 1)),
+            ("for_pluseq", "s", ("var", "a")),
+        ]
+        lines = emit_for_stmts(stmts, 4)
+        assert lines == ["    a = 1", "    s = s + a"]
+
+    def test_empty_stmts(self):
+        """
+        Checks that empty statement lists produce no code lines.
+        """
+        assert emit_for_stmts([], 4) == []
