@@ -3,6 +3,7 @@ from typing import Dict, Union, List
 from utils.ast_utils import (
     ast_uses_solve, ast_uses_func, collect_grad_targets,
     generate_function, generate_class, generate_statement,
+    ast_uses_sympy
 )
 
 
@@ -109,6 +110,7 @@ def from_ast_to_torch(
     needs_evaluate = any(ast_uses_func(stmt, "evaluate") for stmt in unified_ast["program"])
     needs_simulate = any(ast_uses_func(stmt, "simulate") for stmt in unified_ast["program"])
     needs_animate = any(ast_uses_func(stmt, "animate") for stmt in unified_ast["program"])
+    needs_sympy = any(ast_uses_sympy(stmt) for stmt in unified_ast["program"])
 
     # Collect variables used as differentiation targets in grad() calls
     grad_target_vars = set()
@@ -167,6 +169,8 @@ def from_ast_to_torch(
         imports.append("from runtime import simulate")
     if needs_animate:
         imports.append("from runtime import animate")
+    if needs_sympy:
+        imports.append("import sympy as sp")
     code_lines.append("\n".join(imports))
     code_lines.append("")
 
