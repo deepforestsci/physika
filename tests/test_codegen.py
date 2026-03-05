@@ -62,3 +62,17 @@ def test_codegen_matches_reference(phyk_file):
     assert HEADER in code_phyk
     assert HEADER in code_torch
     assert code_phyk == code_torch
+
+
+def test_grad_calls_in_function_statements():
+    """compute_grad must be imported when grad is used in function statements"""
+    src = """
+def f(x: ℝ) : ℝ:
+    g = grad(x, x)
+    return g
+
+v: R = 3.0
+f(v)
+"""
+    code_phyk = from_ast_to_torch(parse_source_to_ast(src), print_code=False)
+    assert "from runtime import compute_grad" in code_phyk
