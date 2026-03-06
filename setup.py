@@ -20,6 +20,6 @@ setup(name="physika",
         ],
     },
     extras_require={
-        "dev": ["pytest>=7"],
+        "dev": ["pytest>=7", "yapf", "toml", "mypy", "flake8"],
     },
 )

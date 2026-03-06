@@ -1,0 +1,37 @@
+name: code formatting
+
+on:
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: yapf (formatting)
+        run: |
+          yapf -i --recursive .
+          git diff --exit-code
+
+      - name: flake8 (code style)
+        run: flake8 .
+
+      - name: mypy (type annotations)
+        run: mypy . --ignore-missing-imports --exclude examples/

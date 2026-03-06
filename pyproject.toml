@@ -1,3 +1,14 @@
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.yapf]
+based_on_style = "pep8"
+column_limit = 79
+
+[tool.yapfignore]
+ignore_patterns = [
+    "examples/**",
+    "parsetab.py",
+    "parser.out",
+]
