@@ -8,7 +8,7 @@ column_limit = 79
 
 [tool.yapfignore]
 ignore_patterns = [
-    "examples/**"
+    "examples/**",
     "parsetab.py",
     "parser.out",
 ]
