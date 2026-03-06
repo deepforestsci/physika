@@ -61,7 +61,7 @@ class TestDiffIfElse:
         x = torch.tensor(x_val)
 
         physika_grad = compute_grad(f, x)
-        num_grad = numerical_gradient(f, np.array([x_val]))[0]
+        num_grad = numerical_gradient(f, x)[0]
         assert abs(physika_grad - num_grad) < r_tol
 
 
@@ -100,7 +100,7 @@ class TestDiffIfCosSin:
         f = name_space["f"]
         x = torch.tensor(x_val)
         physika_grad = compute_grad(f, x)
-        num_grad = numerical_gradient(f, np.array([x_val]))[0]
+        num_grad = numerical_gradient(f, x)[0]
         assert abs(physika_grad - num_grad) < r_tol
 
 
@@ -141,7 +141,7 @@ class TestDiffThreshold:
         f = name_space["L"]
         t = torch.tensor(t_val)
         physika_grad = compute_grad(f, t)
-        num_grad = numerical_gradient(f, np.array([t_val]))[0]
+        num_grad = numerical_gradient(f, t)[0]
         assert abs(physika_grad - num_grad) < r_tol
 
 
@@ -182,5 +182,5 @@ class TestDiffIfElseClasses:
         net = name_space["net"]
         x = torch.tensor(x_val)
         physika_grad = compute_grad(net, x)
-        num_grad = numerical_gradient(net, np.array([x_val]))[0]
+        num_grad = numerical_gradient(net, x)[0]
         assert abs(physika_grad - num_grad) < r_tol
