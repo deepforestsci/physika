@@ -393,6 +393,15 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
             return f"{expr_code}.subs([{sub_pairs}])"
         elif func_name == "diff":
             return f"sp.diff({', '.join(arg_strs)})"
+        elif func_name == "lambdify":
+            args0 = args[0]
+            if isinstance(args0, tuple) and args0[0] == "array":
+                sym_names = [e[1] for e in args0[1]]
+                vars_code = "[" + ", ".join(sym_names) + "]"
+            else:
+                vars_code = arg_strs[0]
+            expr_code = arg_strs[1]
+            return f"sp.lambdify({vars_code}, {expr_code}, modules={torch_funcs})"
         else:
             return f"{func_name}({', '.join(arg_strs)})"
 
