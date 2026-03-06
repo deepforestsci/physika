@@ -1,0 +1,19 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+from runtime import physika_print
+import sympy as sp
+
+# === Program ===
+x = sp.Symbol('x')
+y = sp.Symbol('y')
+u = sp.Function('u')
+physika_print(x)
+f = ((x ** 2.0) + (y ** 2.0))
+physika_print(f)
+expr = u(x, y)
+physika_print(expr)
+physika_print(f.subs([(x, 3.0), (y, 4.0)]))
+f = (((x ** 3.0) + ((2.0 * x) ** 2.0)) + x)
+physika_print(sp.diff(f, x))
