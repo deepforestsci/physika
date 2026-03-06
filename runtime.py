@@ -1,7 +1,7 @@
 import re
 import copy
 import inspect
-from typing import Any, Sequence, Union
+from typing import Any, Sequence, Union, Callable
 
 import torch
 import torch.nn as nn
@@ -256,47 +256,59 @@ def evaluate(model: nn.Module, X: torch.Tensor, y: torch.Tensor) -> float:
 
 
 def compute_grad(
-    output: Union[torch.Tensor, float],
-    input: Union[torch.Tensor, float]
+    f: Union[Callable, torch.Tensor],
+    x: Union[float, torch.Tensor],
 ) -> torch.Tensor:
-    """Compute the gradient of ``output`` with respect to ``input``.
+    """Compute the scalar gradient of a Physika expression with respect to *x*, where
+    x is the function's argument.
 
-    Wraps ``torch.autograd.grad`` with automatic tensor conversion and
-    ``requires_grad`` handling.  Both ``create_graph`` and
-    ``retain_graph`` are set to ``True`` so that higher-order
-    derivatives remain available.
+    The first argument is overloaded: pass a **callable** when Physika
+    uses a simple ``grad(f(x), x)`` pattern, or a **pre-evaluated
+    tensor** when the expression is nested (e.g. ``grad(real(U(k,m,t,...)), t)``).
 
     Parameters
     ----------
-    output : torch.Tensor or float
-        The scalar output whose gradient is computed.
-    input : torch.Tensor or float
-        The variable to differentiate with respect to.  If a plain
-        ``float`` is given it is wrapped in a ``torch.tensor`` with
-        ``requires_grad=True``.
+    f_or_output : callable or torch.Tensor
+        A Physika function ``f`` or a computed output tensor
+        ``f(x)`` whose gradient is requested.
+    x : float or torch.Tensor
+        The scalar point at which to differentiate ``f``.  When ``f`` is
+        a tensor, *x* must be a leaf with ``requires_grad=True`` that was
+        used when the output was computed.
 
     Returns
     -------
     torch.Tensor
-        The gradient ``∂output/∂input``.
+        Detached scalar ``df/dx`` evaluated at *x*.
 
     Examples
     --------
     >>> from runtime import compute_grad
-    >>> x = torch.tensor(2.0, requires_grad=True)
-    >>> y = x ** 2
-    >>> compute_grad(y, x)
-    tensor(4., grad_fn=<MulBackward0>)
+    >>> # callable form for grad(f(x), x)
+    >>> compute_grad(lambda t: t * t, torch.tensor(3.0))
+    tensor(6.)
+    >>> # pre-evaluated form for grad(real(U(..., t, ...)), t)
+    >>> x = torch.tensor(3.0, requires_grad=True)
+    >>> compute_grad(x * x, x)
+    tensor(6.)
     """
-    if not isinstance(input, torch.Tensor):
-        input = torch.tensor(float(input), requires_grad=True)
-    if not input.requires_grad:
-        input = input.clone().requires_grad_(True)
-    if not isinstance(output, torch.Tensor):
-        output = torch.tensor(output, dtype=torch.float32)
-    grads = torch.autograd.grad(output, input, create_graph=True, retain_graph=True)
-    return grads[0]
-
+    if callable(f):
+        # Evaluate f on a fresh leaf so the tape is always clean.
+        x_val = x.item() if isinstance(x, torch.Tensor) else float(x)
+        x_leaf = torch.tensor(x_val, requires_grad=True)
+        out = f(x_leaf)
+        if not isinstance(out, torch.Tensor):
+            out = torch.tensor(float(out))
+        (grad,) = torch.autograd.grad(out, x_leaf)
+        return grad.detach()
+    else:
+        # f(x) was already evaluated with x as a requires_grad leaf.
+        # Call autograd.grad directly on the pre-built graph.
+        out = f
+        if not isinstance(out, torch.Tensor):
+            out = torch.tensor(float(out))
+        (grad,) = torch.autograd.grad(out, x)
+        return grad.detach()
 
 def simulate(
     model: nn.Module,
