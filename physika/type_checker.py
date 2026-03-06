@@ -39,7 +39,7 @@ class TypeChecker:
 
     Examples
     --------
-    >>> from type_checker import TypeChecker
+    >>> from physika.type_checker import TypeChecker
     >>> unified_ast = {
     ...     "functions": {},
     ...     "classes": {},
@@ -100,7 +100,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> checker = TypeChecker({"functions": {}, "classes": {}, "program": []})
         >>> checker.infer_type(("num", 3.0))
         'ℝ'
@@ -133,7 +133,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> checker = TypeChecker({"functions": {}, "classes": {}, "program": []})
         >>> checker.check_statement(("decl", "x", "ℝ", ("num", 3.0), 1))
         >>> checker.errors
@@ -170,7 +170,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> checker = TypeChecker({"functions": {}, "classes": {}, "program": []})
         >>> func_def = {
         ...     "params": [("x", "ℝ")],
@@ -249,7 +249,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> checker = TypeChecker({"functions": {}, "classes": {}, "program": []})
         >>> class_def = {
         ...     "class_params": [("w", "ℝ")],
@@ -356,7 +356,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> unified_ast = {
         ...     "functions": {},
         ...     "classes": {},
