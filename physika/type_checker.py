@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Dict, Union, List
 
-from utils.type_checker_utils import (
+from physika.utils.type_checker_utils import (
     type_to_str,
     types_compatible,
     get_line_info,
