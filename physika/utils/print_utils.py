@@ -23,7 +23,7 @@ def print_type_check_results(type_errors: list[str]) -> None:
 
     Examples
     --------
-    >>> from utils.print_utils import print_type_check_results
+    >>> from physika.utils.print_utils import print_type_check_results
     >>> print_type_check_results([])
       ✓ No type errors found
     """
@@ -60,7 +60,7 @@ def _pformat(value: Any, indent: int = 0) -> str:
 
     Examples
     --------
-    >>> from utils.print_utils import _pformat
+    >>> from physika.utils.print_utils import _pformat
     >>> _pformat(("num", 3.0))
     "('num', 3.0)"
     >>> _pformat({"x": 1}, indent=1)
@@ -148,7 +148,7 @@ def print_unified_ast(unified_ast: dict[str, Any]) -> str:
 
     Examples
     --------
-    >>> from utils.ast_utils import build_unified_ast
+    >>> from physika.utils.ast_utils import build_unified_ast
     >>> ast = {"functions": {}, "classes": {}, "program": [("expr", ("num", 1.0), 1)]}
     >>> print(print_unified_ast(ast))
     Functions:
@@ -223,7 +223,7 @@ def _from_torch(v: Any) -> Any:
 
     Examples
     --------
-    >>> from utils.print_utils import _from_torch
+    >>> from physika.utils.print_utils import _from_torch
     >>> _from_torch(torch.tensor(3.0))
     3.0
     >>> _from_torch(torch.tensor([1.0, 2.0]))
@@ -267,7 +267,7 @@ def _infer_type(v: Any) -> str:
 
     Examples
     --------
-    >>> from utils.print_utils import _infer_type
+    >>> from physika.utils.print_utils import _infer_type
     >>> _infer_type(3.0)
     'ℝ'
     >>> _infer_type(torch.tensor([1.0, 2.0, 3.0]))

@@ -1,4 +1,4 @@
-from utils.ast_utils import (ASTNode
+from physika.utils.ast_utils import (ASTNode
                              , ast_uses_solve
                              , ast_uses_func
                              , collect_grad_targets
@@ -8,9 +8,9 @@ from utils.ast_utils import (ASTNode
                              , generate_class
                              , generate_statement
                              , build_unified_ast)
-from utils.parser_utils import find_indexed_arrays
-from utils.print_utils import print_unified_ast, print_type_check_results, _pformat, _from_torch, _infer_type 
-from utils.type_checker_utils import (type_to_str
+from physika.utils.parser_utils import find_indexed_arrays
+from physika.utils.print_utils import print_unified_ast, print_type_check_results, _pformat, _from_torch, _infer_type 
+from physika.utils.type_checker_utils import (type_to_str
                                       , get_shape
                                       , make_tensor_type
                                       , types_compatible

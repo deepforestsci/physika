@@ -1,6 +1,6 @@
 from typing import Dict, Union, List
 
-from utils.ast_utils import (
+from physika.utils.ast_utils import (
     ast_uses_solve, ast_uses_func, collect_grad_targets,
     generate_function, generate_class, generate_statement,
 )

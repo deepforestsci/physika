@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Dict, Union, List
 
-from utils.type_checker_utils import (
+from physika.utils.type_checker_utils import (
     type_to_str,
     types_compatible,
     get_line_info,
@@ -39,7 +39,7 @@ class TypeChecker:
 
     Examples
     --------
-    >>> from type_checker import TypeChecker
+    >>> from physika.type_checker import TypeChecker
     >>> unified_ast = {
     ...     "functions": {},
     ...     "classes": {},
@@ -100,7 +100,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> checker = TypeChecker({"functions": {}, "classes": {}, "program": []})
         >>> checker.infer_type(("num", 3.0))
         'ℝ'
@@ -133,7 +133,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> checker = TypeChecker({"functions": {}, "classes": {}, "program": []})
         >>> checker.check_statement(("decl", "x", "ℝ", ("num", 3.0), 1))
         >>> checker.errors
@@ -170,7 +170,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> checker = TypeChecker({"functions": {}, "classes": {}, "program": []})
         >>> func_def = {
         ...     "params": [("x", "ℝ")],
@@ -249,7 +249,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> checker = TypeChecker({"functions": {}, "classes": {}, "program": []})
         >>> class_def = {
         ...     "class_params": [("w", "ℝ")],
@@ -356,7 +356,7 @@ class TypeChecker:
 
         Examples
         --------
-        >>> from type_checker import TypeChecker
+        >>> from physika.type_checker import TypeChecker
         >>> unified_ast = {
         ...     "functions": {},
         ...     "classes": {},
@@ -397,7 +397,7 @@ def type_check(unified_ast: UnifiedAST) -> list[str]:
 
     Examples
     --------
-    >>> from type_checker import type_check
+    >>> from physika.type_checker import type_check
     >>> type_check({"functions": {}, "classes": {}, "program": []})
     []
     >>> # I need to add more robust examples
