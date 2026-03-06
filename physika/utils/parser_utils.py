@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from utils.ast_utils import ASTNode
+from physika.utils.ast_utils import ASTNode
 
 
 def find_indexed_arrays(ast: ASTNode, loop_var: str) -> list[str]:

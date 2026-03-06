@@ -3,9 +3,9 @@ from typing import get_args
 
 import pytest
 
-from lexer import lexer
-from parser import parser, symbol_table
-from utils.ast_utils import build_unified_ast, ExprTag, StmtTag, BodyStmtTag, TypeTag, ast_to_torch_expr, condition_to_expr, emit_body_stmts, emit_for_stmts
+from physika.lexer import lexer
+from physika.parser import parser, symbol_table
+from physika.utils.ast_utils import build_unified_ast, ExprTag, StmtTag, BodyStmtTag, TypeTag, ast_to_torch_expr, condition_to_expr, emit_body_stmts, emit_for_stmts
 
 
 

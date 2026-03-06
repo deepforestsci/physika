@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Callable, Literal, Union
-from utils.print_utils import print_unified_ast
+from physika.utils.print_utils import print_unified_ast
 
 
 # AST TYPE DEFINITIONS
