@@ -1,0 +1,9 @@
+# Byte-compiled
+__pycache__/
+parser.out
+parsetab.py
+
+
+# Distribution / packaging
+*.egg-info/
+*.egg
