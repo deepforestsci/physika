@@ -391,6 +391,8 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
             expr_code = arg_strs[0]
             sub_pairs = ", ".join(f"({arg_strs[i]}, {arg_strs[i+1]})" for i in range(1, len(arg_strs)-1, 2))
             return f"{expr_code}.subs([{sub_pairs}])"
+        elif func_name == "diff":
+            return f"sp.diff({', '.join(arg_strs)})"
         else:
             return f"{func_name}({', '.join(arg_strs)})"
 

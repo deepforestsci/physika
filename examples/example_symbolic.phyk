@@ -15,3 +15,7 @@ expr
 
 # substitution
 subs(f, x, 3.0, y, 4.0)
+
+# diff
+f = x**3 + 2*x**2 + x
+diff(f, x)
