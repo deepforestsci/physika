@@ -36,7 +36,7 @@ def find_indexed_arrays(ast: ASTNode, loop_var: str) -> list[str]:
 
     Examples
     --------
-    >>> from utils.parser_utils import find_indexed_arrays
+    >>> from physika.utils.parser_utils import find_indexed_arrays
     >>> stmt = ("loop_assign", "total",
     ...         ("add", ("var", "total"),
     ...                 ("index", "arr", ("var", "i"))))

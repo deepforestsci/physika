@@ -397,7 +397,7 @@ def type_check(unified_ast: UnifiedAST) -> list[str]:
 
     Examples
     --------
-    >>> from type_checker import type_check
+    >>> from physika.type_checker import type_check
     >>> type_check({"functions": {}, "classes": {}, "program": []})
     []
     >>> # I need to add more robust examples
