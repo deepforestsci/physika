@@ -84,7 +84,7 @@ def ast_uses_solve(node: ASTNode) -> bool:
 
     Examples
     --------
-    >>> from utils.ast_utils import ast_uses_solve
+    >>> from physika.utils.ast_utils import ast_uses_solve
     >>> ast_uses_solve(("call", "solve", [("var", "eq1"), ("var", "eq2")]))
     True
     >>> ast_uses_solve(("add", ("num", 1.0), ("var", "x")))
@@ -124,7 +124,7 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
 
     Examples
     --------
-    >>> from utils.ast_utils import ast_uses_func
+    >>> from physika.utils.ast_utils import ast_uses_func
     >>> ast_uses_func(("call", "train", [("var", "model")]), "train")
     True
     >>> ast_uses_func(("call_index", "grad", [("var", "H")], ("num", 0.0)), "grad")
@@ -164,7 +164,7 @@ def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
 
     Examples
     --------
-    >>> from utils.ast_utils import collect_grad_targets
+    >>> from physika.utils.ast_utils import collect_grad_targets
     >>> targets = set()
     >>> stmt = ("expr", ("call", "grad", [("var", "H"), ("var", "t")]))
     >>> collect_grad_targets(stmt, targets)
@@ -211,7 +211,7 @@ def replace_class_params(code: str, class_params: list[tuple[str, ASTNode]]) -> 
 
     Examples
     --------
-    >>> from utils.ast_utils import replace_class_params
+    >>> from physika.utils.ast_utils import replace_class_params
     >>> replace_class_params("(W @ x + b)", [("W", "ℝ"), ("b", "ℝ")])
     '(self.W @ x + self.b)'
     """
@@ -260,7 +260,7 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
 
     Examples
     --------
-    >>> from utils.ast_utils import ast_to_torch_expr
+    >>> from physika.utils.ast_utils import ast_to_torch_expr
     >>> ast_to_torch_expr(("add", ("num", 1.0), ("var", "x")))
     '(1.0 + x)'
     >>> ast_to_torch_expr(("call", "sin", [("var", "theta")]))
@@ -427,7 +427,7 @@ def condition_to_expr(cond: ASTNode) -> str:
 
     Examples
     --------
-    >>> from utils.ast_utils import condition_to_expr
+    >>> from physika.utils.ast_utils import condition_to_expr
     >>> condition_to_expr(("cond_eq", ("var", "n"), ("num", 0.0)))
     'n == 0.0'
     >>> condition_to_expr(("cond_lt", ("var", "x"), ("num", 1.0)))
@@ -485,8 +485,8 @@ def emit_body_stmts(
 
     Examples
     --------
-    >>> from utils.ast_utils import emit_body_stmts
-    >>> from utils.ast_utils import ast_to_torch_expr
+    >>> from physika.utils.ast_utils import emit_body_stmts
+    >>> from physika.utils.ast_utils import ast_to_torch_expr
     >>> lines = []
     >>> known_vars = ["x"]
     >>> equation_vars = set()
@@ -581,7 +581,7 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
 
     Examples
     --------
-    >>> from utils.ast_utils import generate_function
+    >>> from physika.utils.ast_utils import generate_function
     >>> func_def = {
     ...     "params": [("x", "ℝ")],
     ...     "body": ("call", "exp", [("var", "x")]),
@@ -660,7 +660,7 @@ def emit_for_stmts(
 
     Examples
     --------
-    >>> from utils.ast_utils import emit_for_stmts
+    >>> from physika.utils.ast_utils import emit_for_stmts
     >>> stmts = [("for_assign", "z", ("mul", ("var", "a"), ("var", "b")))]
     >>> emit_for_stmts(stmts, 4)
     ['    z = (a * b)']
@@ -717,7 +717,7 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
 
     Examples
     --------
-    >>> from utils.ast_utils import generate_class
+    >>> from physika.utils.ast_utils import generate_class
     >>> class_def = {
     ...     "class_params": [("w", "ℝ")],
     ...     "lambda_params": [("x", "ℝ")],
@@ -878,7 +878,7 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
 
     Examples
     --------
-    >>> from utils.ast_utils import generate_statement
+    >>> from physika.utils.ast_utils import generate_statement
     >>> generate_statement(("decl", "x", "ℝ", ("num", 3.0), 1), set())
     'x = 3.0'
     >>> generate_statement(("decl", "t", "ℝ", ("num", 0.0), 2), {"t"})
@@ -1005,7 +1005,7 @@ def build_unified_ast(
 
     Examples
     --------
-    >>> from utils.ast_utils import build_unified_ast
+    >>> from physika.utils.ast_utils import build_unified_ast
     >>> ast = [("expr", ("num", 42.0), 1)]
     >>> sym = {}
     >>> unified = build_unified_ast(ast, sym)
