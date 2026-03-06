@@ -27,4 +27,4 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run doctests
-        run: pytest --doctest-modules physika/physikacodegen.py physika/type_checker.py physika/utils/ tests/test_gradients/ -v --tb=short
+        run: pytest --doctest-modules physika/codegen.py physika/type_checker.py physika/utils/ tests/test_gradients/ -v --tb=short
