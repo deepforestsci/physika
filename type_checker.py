@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Dict, Union, List
 
-from utils.type_checker_utils import (
+from utils import (
     type_to_str,
     types_compatible,
     get_line_info,
@@ -221,14 +221,40 @@ class TypeChecker:
                 _, var_names, expr = stmt
                 for var_name in var_names:
                     local_env[var_name] = None  # Type unknown from unpack
+            elif stmt_op == "body_if_return":
+                _, _cond, return_expr = stmt
+                ret_type = self.infer_type(return_expr, local_env)
+                if return_type and ret_type and not types_compatible(return_type, ret_type):
+                    self.errors.append(
+                        f"In function '{name}': if-return type mismatch: "
+                        f"declared {type_to_str(return_type)}, got {type_to_str(ret_type)}"
+                    )
+            elif stmt_op == "body_if_else_return":
+                _, _cond, then_expr, else_expr = stmt
+                then_type = self.infer_type(then_expr, local_env)
+                else_type = self.infer_type(else_expr, local_env)
+                if return_type:
+                    if then_type and not types_compatible(return_type, then_type):
+                        self.errors.append(
+                            f"In function '{name}': if-branch return type mismatch: "
+                            f"declared {type_to_str(return_type)}, got {type_to_str(then_type)}"
+                        )
+                    if else_type and not types_compatible(return_type, else_type):
+                        self.errors.append(
+                            f"In function '{name}': else-branch return type mismatch: "
+                            f"declared {type_to_str(return_type)}, got {type_to_str(else_type)}"
+                        )
+            elif stmt_op in ("body_if_else", "body_if"):
+                pass  # Variables declared in branches are not hoisted to outer scope
 
-        # Check return expression
-        body_type = self.infer_type(body, local_env)
-        if return_type and body_type and not types_compatible(return_type, body_type):
-            self.errors.append(
-                f"Function '{name}' return type mismatch: declared {type_to_str(return_type)}, "
-                f"but body has type {type_to_str(body_type)}"
-            )
+        # Check return expression (body may be None for body-only functions)
+        if body is not None:
+            body_type = self.infer_type(body, local_env)
+            if return_type and body_type and not types_compatible(return_type, body_type):
+                self.errors.append(
+                    f"Function '{name}' return type mismatch: declared {type_to_str(return_type)}, "
+                    f"but body has type {type_to_str(body_type)}"
+                )
 
     def check_class(self, name: str, class_def: dict[str, Any]) -> None:
         """Check a class definition for type errors.
