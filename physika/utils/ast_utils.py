@@ -657,9 +657,7 @@ def ast_to_torch_expr(node: ASTNode,
                 vars_code = arg_strs[0]
             expr_code = arg_strs[1]
             return f"sp.lambdify({vars_code}, {expr_code}, modules={torch_funcs})"
-        elif func_name == "Eq":
-            return f"sp.Eq({', '.join(arg_strs)})"
-        elif func_name == "sympy_solve":
+        elif func_name == "symbolic_solve":
             return f"sp.solve({', '.join(arg_strs)})"
         else:
             return f"{func_name}({', '.join(arg_strs)})"
@@ -1531,6 +1529,12 @@ def generate_statement(stmt: ASTNode,
     elif op == "function_decl":
         name = stmt[1]
         return f"{name} = sp.Function('{name}')"
+    
+    elif op == "equation_decl":
+        name = stmt[1]
+        lhs = ast_to_torch_expr(stmt[2])
+        rhs = ast_to_torch_expr(stmt[3])
+        return f"{name} = sp.Eq({lhs}, {rhs})"
 
     elif op == "func_def":
         return None  # Already generated
