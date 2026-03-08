@@ -31,7 +31,6 @@ expr = x**2 + y**2
 f = lambdify([x, y], expr)
 f(3.0, 4.0)
 
-# solve a linear equation using "Eq" and "solve" method from solve 
-# "solve" -> "sympy_solve"
-eq = Eq(2.0*x + 3.0, 7.0)
-sympy_solve(eq, x)
+# solve a linear equation
+eq: Equation := 2.0*x + 3.0 = 7.0
+symbolic_solve(eq, x)
