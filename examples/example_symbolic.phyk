@@ -1,9 +1,12 @@
+#-----------------------------------------------
+# Basic use case of symbolic maths with physika
+#-----------------------------------------------
+
 # declaration
 x : Symbol
 y : Symbol
 u : Function
 x
-
 
 # create expression
 f = x**2 + y**2
@@ -27,3 +30,8 @@ y : Symbol
 expr = x**2 + y**2
 f = lambdify([x, y], expr)
 f(3.0, 4.0)
+
+# solve a linear equation using "Eq" and "solve" method from solve 
+# "solve" -> "sympy_solve"
+eq = Eq(2.0*x + 3.0, 7.0)
+sympy_solve(eq, x)

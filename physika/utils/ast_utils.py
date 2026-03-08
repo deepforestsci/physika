@@ -657,6 +657,10 @@ def ast_to_torch_expr(node: ASTNode,
                 vars_code = arg_strs[0]
             expr_code = arg_strs[1]
             return f"sp.lambdify({vars_code}, {expr_code}, modules={torch_funcs})"
+        elif func_name == "Eq":
+            return f"sp.Eq({', '.join(arg_strs)})"
+        elif func_name == "sympy_solve":
+            return f"sp.solve({', '.join(arg_strs)})"
         else:
             return f"{func_name}({', '.join(arg_strs)})"
 
