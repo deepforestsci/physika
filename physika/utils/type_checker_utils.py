@@ -708,3 +708,7 @@ def statement_check(
     elif op == "function_decl":
         name = stmt[1]
         type_env[name] = "Function"
+
+    elif op == "equation_decl":
+        name = stmt[1]
+        type_env[name] = "Equation"
