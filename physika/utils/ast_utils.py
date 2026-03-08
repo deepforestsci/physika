@@ -149,6 +149,33 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
     return False
 
 def ast_uses_sympy(node: ASTNode) -> bool:
+    """Check whether an AST subtree contains a Symbol or Function declaration.
+
+    Recursively walks *node* looking for ``("symbol_decl", ...)``` or
+    ``("function_decl", ...)`` nodes, which indicate that sympy is needed
+    as a backed for symbolic math
+
+    Parameters
+    ----------
+    node : ASTNode
+        A tagged tuple, list, or scalar leaf of an AST.
+    
+    Returns
+    -------
+    bool
+        ``True`` if a ``("symbol_decl", ...)``` or ```("function_decl", ...)``
+        node exists anywhere in the subtree, ``False`` otherwise.
+
+    Examples
+    --------
+    >>> from utils.ast_utils import ast_uses_sympy
+    >>> ast_uses_sympy(("symbol_decl", "x"))
+    True
+    >>> ast_uses_sympy(("function_decl", "u"))
+    True
+    >>> ast_uses_sympy(("num", "1.0"))
+    False
+    """
     if not isinstance(node, (tuple, list)):
         return False
     if isinstance(node, tuple) and len(node) >= 1:
