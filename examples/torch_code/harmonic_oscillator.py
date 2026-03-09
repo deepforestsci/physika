@@ -3,10 +3,10 @@ import torch.nn as nn
 import torch.optim as optim
 import re
 
-from runtime import physika_print
-from runtime import solve
-from runtime import compute_grad
-from runtime import animate
+from physika.runtime import physika_print
+from physika.runtime import solve
+from physika.runtime import compute_grad
+from physika.runtime import animate
 
 # === Functions ===
 def U(k, m, t, x0, v0):

@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from runtime import physika_print
-from runtime import compute_grad
+from physika.runtime import physika_print
+from physika.runtime import compute_grad
 
 # === Functions ===
 def f(x):

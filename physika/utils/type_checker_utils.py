@@ -28,7 +28,7 @@ def type_to_str(t: TypeSpec) -> str:
 
     Examples
     --------
-    >>> from utils.type_checker_utils import type_to_str
+    >>> from physika.utils.type_checker_utils import type_to_str
     >>> type_to_str("ℝ")
     'ℝ'
     >>> type_to_str(("tensor", [(3, "invariant")]))
@@ -71,7 +71,7 @@ def get_shape(t: TypeSpec) -> List[int] | None:
 
     Examples
     --------
-    >>> from utils.type_checker_utils import get_shape
+    >>> from physika.utils.type_checker_utils import get_shape
     >>> get_shape(("tensor", [(3, "invariant")]))
     [3]
     >>> get_shape(("tensor", [(2, "invariant"), (3, "invariant")]))
@@ -103,7 +103,7 @@ def make_tensor_type(shape: list[int] | None) -> TypeSpec:
 
     Examples
     --------
-    >>> from utils.type_checker_utils import make_tensor_type
+    >>> from physika.utils.type_checker_utils import make_tensor_type
     >>> make_tensor_type(None)
     'ℝ'
     >>> make_tensor_type([3])
@@ -136,7 +136,7 @@ def dims_compatible(d1: int | str, d2: int | str) -> bool:
 
     Examples
     --------
-    >>> from utils.type_checker_utils import dims_compatible
+    >>> from physika.utils.type_checker_utils import dims_compatible
     >>> dims_compatible(3, 3)
     True
     >>> dims_compatible("M", 16)
@@ -174,7 +174,7 @@ def types_compatible(t1: TypeSpec, t2: TypeSpec) -> bool:
 
     Examples
     --------
-    >>> from utils.type_checker_utils import types_compatible
+    >>> from physika.utils.type_checker_utils import types_compatible
     >>> types_compatible("ℝ", "ℝ")
     True
     >>> types_compatible("ℝ", "ℕ")
@@ -225,7 +225,7 @@ def shapes_broadcast_compatible(
 
     Examples
     --------
-    >>> from utils.type_checker_utils import shapes_broadcast_compatible
+    >>> from physika.utils.type_checker_utils import shapes_broadcast_compatible
     >>> shapes_broadcast_compatible([3], [3])
     ([3], True)
     >>> shapes_broadcast_compatible(None, [3], allow_scalar_broadcast=True)
@@ -273,7 +273,7 @@ def get_line_info(stmt: ASTExpr) -> int | None:
 
     Examples
     --------
-    >>> from utils.type_checker_utils import get_line_info
+    >>> from physika.utils.type_checker_utils import get_line_info
     >>> get_line_info(("decl", "x", "ℝ", ("num", 3.0), 7))
     7
     >>> get_line_info(("expr", ("num", 1.0), 3))
@@ -342,7 +342,7 @@ def type_infer(
 
     Examples
     --------
-    >>> from utils.type_checker_utils import type_infer
+    >>> from physika.utils.type_checker_utils import type_infer
     >>> type_infer("num", ("num", 3.0), {}, {}, lambda m: None,
     ...            lambda e, le=None: "ℝ", {}, {})
     'ℝ'
@@ -662,7 +662,7 @@ def statement_check(
 
     Examples
     --------
-    >>> from utils.type_checker_utils import statement_check
+    >>> from physika.utils.type_checker_utils import statement_check
     >>> env = {}
     >>> statement_check("decl", ("decl", "x", "ℝ", ("num", 3.0), 1),
     ...                 lambda e, le=None: "ℝ", lambda m: None, env,

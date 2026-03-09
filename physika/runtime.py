@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from utils.print_utils import _from_torch, _infer_type
+from physika.utils.print_utils import _from_torch, _infer_type
 
 
 def physika_print(value: Any) -> None:
@@ -66,7 +66,7 @@ def solve(*equations: str, **known_vars: float) -> tuple[torch.Tensor, ...]:
 
     Examples
     --------
-    >>> from runtime import solve
+    >>> from physika.runtime import solve
     >>> x, = solve("y = 2 * x", y=6.0)
     >>> float(x)
     3.0
@@ -157,7 +157,7 @@ def train(
 
     Example
     --------
-    >>> from runtime import train
+    >>> from physika.runtime import train
     >>> trained = train(model, X, y, 100, 0.01)
     """
     trained_model = copy.deepcopy(model)
@@ -224,7 +224,7 @@ def evaluate(model: nn.Module, X: torch.Tensor, y: torch.Tensor) -> float:
 
     Examples
     --------
-    >>> from runtime import evaluate
+    >>> from physika.runtime import evaluate
     >>> avg_loss = evaluate(trained_model, X_test, y_test)
     """
     loss_takes_input = False
@@ -283,7 +283,7 @@ def compute_grad(
 
     Examples
     --------
-    >>> from runtime import compute_grad
+    >>> from physika.runtime import compute_grad
     >>> # callable form for grad(f(x), x)
     >>> compute_grad(lambda t: t * t, torch.tensor(3.0))
     tensor(6.)
@@ -342,7 +342,7 @@ def simulate(
 
     Examples
     --------
-    >>> from runtime import simulate
+    >>> from physika.runtime import simulate
     >>> simulate(pendulum_model, [0.5, 0.0], 1000, 0.01)
     """
     import matplotlib.pyplot as plt
@@ -585,7 +585,7 @@ def animate(func: Any, *args: Any) -> None:
 
     Examples
     --------
-    >>> from runtime import animate
+    >>> from physika.runtime import animate
     >>> animate(harmonic_oscillator, 1.0, 0.0, 0.0, 10.0)
     """
     import numpy as np

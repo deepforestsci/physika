@@ -1,6 +1,6 @@
 from typing import Dict, Union, List
 
-from utils.ast_utils import (
+from physika.utils.ast_utils import (
     ast_uses_solve, ast_uses_func, collect_grad_targets,
     generate_function, generate_class, generate_statement,
 )
@@ -65,7 +65,7 @@ def from_ast_to_torch(
     import torch.nn as nn
     import torch.optim as optim
     <BLANKLINE>
-    from runtime import physika_print
+    from physika.runtime import physika_print
     <BLANKLINE>
     # === Program ===
     physika_print(42.0)
@@ -87,7 +87,7 @@ def from_ast_to_torch(
     import torch.nn as nn
     import torch.optim as optim
     <BLANKLINE>
-    from runtime import physika_print
+    from physika.runtime import physika_print
     <BLANKLINE>
     # === Functions ===
     def f(x):
@@ -147,19 +147,19 @@ def from_ast_to_torch(
     code_lines.append("")
 
     # Import helpers from runtime.py
-    imports = ["from runtime import physika_print"]
+    imports = ["from physika.runtime import physika_print"]
     if needs_solve:
-        imports.append("from runtime import solve")
+        imports.append("from physika.runtime import solve")
     if needs_train:
-        imports.append("from runtime import train")
+        imports.append("from physika.runtime import train")
     if needs_evaluate:
-        imports.append("from runtime import evaluate")
+        imports.append("from physika.runtime import evaluate")
     if needs_grad:
-        imports.append("from runtime import compute_grad")
+        imports.append("from physika.runtime import compute_grad")
     if needs_simulate:
-        imports.append("from runtime import simulate")
+        imports.append("from physika.runtime import simulate")
     if needs_animate:
-        imports.append("from runtime import animate")
+        imports.append("from physika.runtime import animate")
     code_lines.append("\n".join(imports))
     code_lines.append("")
 

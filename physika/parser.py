@@ -1,6 +1,6 @@
 import ply.yacc as yacc
-from lexer import tokens # noqa: F401
-from utils.parser_utils import find_indexed_arrays
+from physika.lexer import tokens # noqa: F401
+from physika.utils.parser_utils import find_indexed_arrays
 
 symbol_table: dict[str, dict] = {}
 print_separator: bool = False

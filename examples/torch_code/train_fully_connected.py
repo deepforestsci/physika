@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from runtime import physika_print
-from runtime import train
-from runtime import evaluate
+from physika.runtime import physika_print
+from physika.runtime import train
+from physika.runtime import evaluate
 
 # === Functions ===
 def sigma(x):

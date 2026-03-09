@@ -1,11 +1,11 @@
 import sys
 
-from lexer import lexer
-from parser import parser, symbol_table
-from type_checker import type_check
-from codegen import from_ast_to_torch
-from utils.print_utils import print_type_check_results
-from utils.ast_utils import build_unified_ast
+from physika.lexer import lexer
+from physika.parser import parser, symbol_table
+from physika.type_checker import type_check
+from physika.codegen import from_ast_to_torch
+from physika.utils.print_utils import print_type_check_results
+from physika.utils.ast_utils import build_unified_ast
 
 if __name__ == "__main__":
     print_code = "--print-code" in sys.argv
