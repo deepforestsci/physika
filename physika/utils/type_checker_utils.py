@@ -722,3 +722,11 @@ def statement_check(
             if body_stmt is None:
                 continue
             check_statement(body_stmt)
+
+    elif op == "symbol_decl":
+        name = stmt[1]
+        type_env[name] = "Symbol"
+    
+    elif op == "function_decl":
+        name = stmt[1]
+        type_env[name] = "Function"
