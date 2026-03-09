@@ -148,6 +148,16 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
         return any(ast_uses_func(item, func_name) for item in node)
     return False
 
+def ast_uses_sympy(node: ASTNode) -> bool:
+    if not isinstance(node, (tuple, list)):
+        return False
+    if isinstance(node, tuple) and len(node) >= 1:
+        if node[0] in ("symbol_decl", "function_decl"):
+            return True
+        return any(ast_uses_sympy(child) for child in node[1:] if isinstance(child, (tuple, list)))
+    if isinstance(node, list):
+        return any(ast_uses_sympy(item) for item in node)
+    return False
 
 def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
     """Collect variable names used as differentiation targets in ``grad()`` calls.
@@ -578,6 +588,10 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
             if isinstance(first_arg, tuple) and first_arg[0] == "call" and isinstance(first_arg[1], str):
                 return f"compute_grad({first_arg[1]}, {arg_strs[1]})"
             return f"compute_grad({', '.join(arg_strs)})"
+        elif func_name == "subs":
+            expr_code = arg_strs[0]
+            sub_pairs = ", ".join(f"({arg_strs[i]}, {arg_strs[i+1]})" for i in range(1, len(arg_strs)-1, 2))
+            return f"{expr_code}.subs([{sub_pairs}])"
         else:
             return f"{func_name}({', '.join(arg_strs)})"
 
@@ -1284,6 +1298,14 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
         if isinstance(expr, tuple) and expr[0] == "call" and expr[1] in ("simulate", "animate"):
             return expr_code
         return f"physika_print({expr_code})"
+    
+    elif op == "symbol_decl":
+        name = stmt[1]
+        return f"{name} = sp.Symbol('{name}')"
+    
+    elif op == "function_decl":
+        name = stmt[1]
+        return f"{name} = sp.Function('{name}')"
 
     elif op == "func_def":
         return None  # Already generated
@@ -1342,7 +1364,7 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
             branch_lines.extend(emit_for_stmts(else_stmts))
 
         return "\n".join(branch_lines)
-
+    
     return f"# Unknown: {stmt}"
 
 

@@ -1226,6 +1226,14 @@ def p_error(p):
     else:
         raise SyntaxError("Syntax error at EOF")
 
+# symbolic types
+def p_statement_symbol_decl(p):
+    """statement : ID COLON SYMBOL NEWLINE"""
+    p[0] = ('symbol_decl', p[1])
+
+def p_statement_function_decl(p):
+    """statement : ID COLON FUNCTION NEWLINE"""
+    p[0] = ('function_decl', p[1])
 
 parser = yacc.yacc()
 
