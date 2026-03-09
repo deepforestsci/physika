@@ -1,14 +1,13 @@
 import math
 from pathlib import Path
 
-import numpy as np
 import pytest
 import torch
 
 from physika.codegen import from_ast_to_torch
 from gradient_checker import numerical_gradient
 from physika.lexer import lexer
-from parser import parser, symbol_table
+from physika.parser import parser, symbol_table
 from physika.runtime import compute_grad
 from physika.utils.ast_utils import build_unified_ast
 
