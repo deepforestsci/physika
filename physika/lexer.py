@@ -39,6 +39,7 @@ tokens = (
     "LAMBDA",
     "TANGENT",
     "IMAGINARY",
+    "SYMBOL", "FUNCTION"
 )
 
 reserved = {
@@ -48,6 +49,8 @@ reserved = {
     "class": "CLASS",
     "if": "IF",
     "else": "ELSE",
+    "Symbol": "SYMBOL",
+    "Function": "FUNCTION"
 }
 
 t_POWER = r"\*\*"
