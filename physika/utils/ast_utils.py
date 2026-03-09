@@ -546,7 +546,7 @@ def ast_to_torch_expr(node: ASTNode,
                 for e in elements
             ]
             if all_numeric:
-                return f"torch.tensor([{', '.join(elem_strs)}])"
+                return f"torch.tensor([{', '.join(elem_strs)}], requires_grad=True)"
             else:
                 # Elements may be tensors (e.g., x[1], sin(x[0]))
                 # use torch.stack
@@ -1456,7 +1456,9 @@ def generate_statement(stmt: ASTNode,
         type_spec = stmt[2]
         expr = stmt[3]
         expr_code = ast_to_torch_expr(expr)
-        return f"{name} = torch.tensor({expr_code}, requires_grad=True)"
+        if name in grad_target_vars and type_spec == "\u211d":
+            return f"{name} = torch.tensor({expr_code}, requires_grad=True)"
+        return f"{name} = {expr_code}"
 
     elif op == "assign":
         name = stmt[1]
