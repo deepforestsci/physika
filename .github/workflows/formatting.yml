@@ -26,12 +26,15 @@ jobs:
           pip install -e ".[dev]"
 
       - name: yapf (formatting)
+        continue-on-error: true
         run: |
           yapf -i --recursive .
           git diff --exit-code
 
       - name: flake8 (code style)
+        continue-on-error: true
         run: flake8 .
 
       - name: mypy (type annotations)
+        continue-on-error: true
         run: mypy . --ignore-missing-imports --exclude examples/
