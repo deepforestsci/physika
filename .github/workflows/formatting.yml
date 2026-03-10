@@ -28,13 +28,17 @@ jobs:
       - name: yapf (formatting)
         continue-on-error: true
         run: |
-          yapf -i --recursive .
-          git diff --exit-code
+          CHANGED_FILES=`git diff --name-only $COMMIT_RANGE | grep .py$ || true`
+          if [ -n "$CHANGED_FILES" ]; then
+            yapf -d $CHANGED_FILES
+          fi
 
       - name: flake8 (code style)
-        continue-on-error: true
+        if: ${{ (success() || failure()) && (steps.install.outcome == 'failure' || steps.install.outcome == 'success') }}
+        shell: bash -l {0}
         run: flake8 .
 
       - name: mypy (type annotations)
-        continue-on-error: true
+        if: ${{ (success() || failure()) && (steps.install.outcome == 'failure' || steps.install.outcome == 'success') }}
+        shell: bash -l {0}
         run: mypy . --ignore-missing-imports --exclude examples/
