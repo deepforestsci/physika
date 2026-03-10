@@ -78,3 +78,7 @@ def test_grad_calls_in_function_statements():
     src = phyk_file.read_text()
     code_phyk = from_ast_to_torch(parse_source_to_ast(src), print_code=False)
     assert "from runtime import compute_grad" in code_phyk
+
+    # check grad calls inside function statements
+    func_section = code_phyk.split("# === Functions ===")[1].split("# === Program ===")[0]
+    assert "compute_grad" in func_section
