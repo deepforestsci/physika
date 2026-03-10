@@ -1,4 +1,4 @@
-from typing import Dict, Union, List
+from typing import Dict, List, Set, Any
 
 from physika.utils.ast_utils import (
     ast_uses_solve, ast_uses_func, collect_grad_targets,
@@ -6,7 +6,7 @@ from physika.utils.ast_utils import (
 )
 
 
-def from_ast_to_torch(unified_ast: Dict[str, Union[Dict, List]],
+def from_ast_to_torch(unified_ast: Dict[str, Any],
                       print_code: bool = True) -> str:
     """Convert a unified AST into a complete, executable Python/PyTorch source string.
 
@@ -25,7 +25,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Union[Dict, List]],
 
     Parameters
     ----------
-    unified_ast : Dict[str, Union[Dict, List]]
+    unified_ast : Dict[str, Any]
         The unified AST dict produced by ``build_unified_ast()``, with keys:
 
         * ``"functions"`` — ``Dict[str, dict]`` mapping function names to
@@ -114,7 +114,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Union[Dict, List]],
         ast_uses_func(stmt, "animate") for stmt in unified_ast["program"])
 
     # Collect variables used as differentiation targets in grad() calls
-    grad_target_vars = set()
+    grad_target_vars: Set[str] = set()
     for stmt in unified_ast["program"]:
         collect_grad_targets(stmt, grad_target_vars)
 
