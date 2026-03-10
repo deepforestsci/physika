@@ -17,6 +17,6 @@ setup(
         ],
     },
     extras_require={
-        "dev": ["pytest>=7", "yapf", "toml", "mypy", "flake8", "flake8-pyproject"],
+        "dev": ["pytest>=7", "yapf", "toml", "mypy", "flake8"],
     },
 )

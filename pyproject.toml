@@ -6,16 +6,6 @@ build-backend = "setuptools.build_meta"
 based_on_style = "pep8"
 column_limit = 79
 
-[tool.flake8]
-exclude = [
-    "examples",
-    "parsetab.py",
-    "parser.out",
-    "*.egg-info",
-    "build",
-    ".git",
-]
-
 [tool.yapfignore]
 ignore_patterns = [
     "examples/**",
