@@ -21,17 +21,25 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
+        id: install
         run: |
           pip install --upgrade pip
           pip install -e ".[dev]"
 
       - name: yapf (formatting)
         run: |
-          yapf -i --recursive .
-          git diff --exit-code
+          DIFF=$(yapf -d --recursive . || true)
+          if [ -n "$DIFF" ]; then
+            echo "$DIFF"
+            echo "--- $(echo "$DIFF" | grep -c '^---') file(s) need reformatting"
+            exit 1
+          fi
 
       - name: flake8 (code style)
-        run: flake8 .
+        if: success() || failure()
+        run: |
+          flake8 . --exclude examples,parsetab.py,parser.out,*.egg-info --statistics --count
 
       - name: mypy (type annotations)
+        if: success() || failure()
         run: mypy . --ignore-missing-imports --exclude examples/

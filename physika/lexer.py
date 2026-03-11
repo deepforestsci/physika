@@ -1,15 +1,42 @@
 import ply.lex as lex
 
 tokens = (
-    "ID", "NUMBER", "TYPE", "STRING",
-    "PLUS", "MINUS", "TIMES", "DIVIDE", "INTDIV", "MATMUL", "POWER",
-    "EQUALS", "EQEQ", "NEQ", "LT", "GT", "LEQ", "GEQ",
-    "PLUSEQ", "COLON", "COMMA", "ARROW",
-    "LPAREN", "RPAREN",
-    "LBRACKET", "RBRACKET",
-    "NEWLINE", "INDENT", "DEDENT",
-    "DEF", "RETURN", "FOR", "IF", "ELSE",
-    "CLASS", "LAMBDA",
+    "ID",
+    "NUMBER",
+    "TYPE",
+    "STRING",
+    "PLUS",
+    "MINUS",
+    "TIMES",
+    "DIVIDE",
+    "INTDIV",
+    "MATMUL",
+    "POWER",
+    "EQUALS",
+    "EQEQ",
+    "NEQ",
+    "LT",
+    "GT",
+    "LEQ",
+    "GEQ",
+    "PLUSEQ",
+    "COLON",
+    "COMMA",
+    "ARROW",
+    "LPAREN",
+    "RPAREN",
+    "LBRACKET",
+    "RBRACKET",
+    "NEWLINE",
+    "INDENT",
+    "DEDENT",
+    "DEF",
+    "RETURN",
+    "FOR",
+    "IF",
+    "ELSE",
+    "CLASS",
+    "LAMBDA",
     "TANGENT",
     "IMAGINARY",
 )
@@ -23,40 +50,46 @@ reserved = {
     "else": "ELSE",
 }
 
-t_POWER    = r"\*\*"
-t_PLUSEQ   = r"\+="
-t_ARROW    = r"→|->"
-t_PLUS     = r"\+"
-t_MINUS    = r"-"
-t_TIMES    = r"\*"
-t_INTDIV   = r"//"   # must come before t_DIVIDE so // matches before /
-t_DIVIDE   = r"/"
-t_MATMUL   = r"@"
-# Comparison operators (longer patterns first so PLY matches them before single-char tokens)
-t_EQEQ     = r"=="
-t_NEQ      = r"!="
-t_LEQ      = r"<="
-t_GEQ      = r">="
-t_LT       = r"<"
-t_GT       = r">"
-t_EQUALS   = r"="
-t_COLON    = r":"
-t_COMMA    = r","
+t_POWER = r"\*\*"
+t_PLUSEQ = r"\+="
+t_ARROW = r"→|->"
+t_PLUS = r"\+"
+t_MINUS = r"-"
+t_TIMES = r"\*"
+t_INTDIV = r"//"  # must come before t_DIVIDE so // matches before /
+t_DIVIDE = r"/"
+t_MATMUL = r"@"
+# Comparison operators:
+# (longer patterns first so PLY matches them before single-char tokens)
+t_EQEQ = r"=="
+t_NEQ = r"!="
+t_LEQ = r"<="
+t_GEQ = r">="
+t_LT = r"<"
+t_GT = r">"
+t_EQUALS = r"="
+t_COLON = r":"
+t_COMMA = r","
+
 
 def t_LAMBDA(t):
     r"λ"
     return t
-t_LPAREN   = r"\("
-t_RPAREN   = r"\)"
+
+
+t_LPAREN = r"\("
+t_RPAREN = r"\)"
 t_LBRACKET = r"\["
 t_RBRACKET = r"\]"
-t_TANGENT  = r"T"
+t_TANGENT = r"T"
 
 t_ignore = ""  # handle whitespace manually
+
 
 def t_COMMENT(t):
     r"\#[^\n]*"
     pass  # Ignore comments
+
 
 def t_STRING(t):
     r"'[^']*'|\"[^\"]*\""
@@ -64,12 +97,14 @@ def t_STRING(t):
     t.value = t.value[1:-1]
     return t
 
+
 def t_IMAGINARY(t):
     r"(?<![a-zA-Z0-9_])i(?![a-zA-Z0-9_])"
     return t
 
+
 def t_TYPE(t):
-    r"(ℝ|\\mathbb\{R\}|\\R|ℤ|ℕ|R(?![a-zA-Z0-9_])|Z(?![a-zA-Z0-9_])|N(?![a-zA-Z0-9_]))"
+    r"(ℝ|\\mathbb\{R\}|\\R|ℤ|ℕ|R(?![a-zA-Z0-9_])|Z(?![a-zA-Z0-9_])|N(?![a-zA-Z0-9_]))"  # noqa: E501
     if t.value in ("ℤ", "Z"):
         t.value = "ℤ"
     elif t.value in ("ℕ", "N"):
@@ -78,10 +113,12 @@ def t_TYPE(t):
         t.value = "ℝ"
     return t
 
+
 def t_NUMBER(t):
     r"\d+(\.\d+)?"
     t.value = float(t.value)
     return t
+
 
 def t_NEWLINE(t):
     r"\n[ \t]*"
@@ -92,17 +129,21 @@ def t_NEWLINE(t):
     t.value = ("NEWLINE", indent)
     return t
 
+
 def t_WHITESPACE(t):
     r"[ \t]+"
     pass  # Ignore whitespace within lines
+
 
 def t_ID(t):
     r"[a-zA-Z_][a-zA-Z0-9_]*"
     t.type = reserved.get(t.value, "ID")
     return t
 
+
 def t_error(t):
     raise SyntaxError(f"Illegal character '{t.value[0]}'")
+
 
 _raw_lexer = lex.lex()
 
@@ -113,10 +154,10 @@ class IndentLexer:
     def __init__(self, lexer):
         self.lexer = lexer
         self.indent_stack = [0]  # Stack of indentation levels
-        self.token_queue = []    # Queue for pending tokens
+        self.token_queue = []  # Queue for pending tokens
         self.pending_newline = None  # Store NEWLINE to emit before DEDENT
-        self.after_for = False   # Track if we just saw FOR keyword
-        self.bracket_depth = 0   # Track nesting of brackets/parens
+        self.after_for = False  # Track if we just saw FOR keyword
+        self.bracket_depth = 0  # Track nesting of brackets/parens
 
     def input(self, data):
         # Ensure file ends with newline for proper DEDENT handling
@@ -198,5 +239,6 @@ class IndentLexer:
                 return tok  # Return NEWLINE first, DEDENTs are queued
 
         return tok
+
 
 lexer = IndentLexer(_raw_lexer)

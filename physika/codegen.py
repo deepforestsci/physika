@@ -1,16 +1,19 @@
-from typing import Dict, Union, List
+from typing import Dict, Set, Any
 
 from physika.utils.ast_utils import (
-    ast_uses_solve, ast_uses_func, collect_grad_targets,
-    generate_function, generate_class, generate_statement,
+    ast_uses_solve,
+    ast_uses_func,
+    collect_grad_targets,
+    generate_function,
+    generate_class,
+    generate_statement,
 )
 
 
-def from_ast_to_torch(
-    unified_ast: Dict[str, Union[Dict, List]],
-    print_code: bool = True
-) -> str:
-    """Convert a unified AST into a complete, executable Python/PyTorch source string.
+def from_ast_to_torch(unified_ast: Dict[str, Any],
+                      print_code: bool = True) -> str:
+    """Convert a unified AST into a complete, executable Python/PyTorch
+    source string.
 
     This conversion is done in two passes:
 
@@ -27,7 +30,7 @@ def from_ast_to_torch(
 
     Parameters
     ----------
-    unified_ast : Dict[str, Union[Dict, List]]
+    unified_ast : Dict[str, Any]
         The unified AST dict produced by ``build_unified_ast()``, with keys:
 
         * ``"functions"`` — ``Dict[str, dict]`` mapping function names to
@@ -72,7 +75,8 @@ def from_ast_to_torch(
     >>> # Example #2: function definition and call
     >>> unified_ast = {
     ...     "functions": {
-    ...         "f": {"params": [("x", "ℝ")], "body": ("call", "exp", [("var", "x")]), "statements": []},
+    ...         "f": {"params": [("x", "ℝ")], "body": ("call", "exp",
+    ...         [("var", "x")]), "statements": []},
     ...     },
     ...     "classes": {},
     ...     "program": [("expr", ("call", "f", [("num", 1.0)]), 2)],
@@ -101,17 +105,22 @@ def from_ast_to_torch(
     # Analysis pass: determine which helpers are needed
     needs_solve = any(ast_uses_solve(stmt) for stmt in unified_ast["program"])
     for func_def in unified_ast["functions"].values():
-        if ast_uses_solve(func_def.get("body")) or any(ast_uses_solve(s) for s in func_def.get("statements", [])):
+        if ast_uses_solve(func_def.get("body")) or any(
+                ast_uses_solve(s) for s in func_def.get("statements", [])):
             needs_solve = True
             break
 
-    needs_train = any(ast_uses_func(stmt, "train") for stmt in unified_ast["program"])
-    needs_evaluate = any(ast_uses_func(stmt, "evaluate") for stmt in unified_ast["program"])
-    needs_simulate = any(ast_uses_func(stmt, "simulate") for stmt in unified_ast["program"])
-    needs_animate = any(ast_uses_func(stmt, "animate") for stmt in unified_ast["program"])
+    needs_train = any(
+        ast_uses_func(stmt, "train") for stmt in unified_ast["program"])
+    needs_evaluate = any(
+        ast_uses_func(stmt, "evaluate") for stmt in unified_ast["program"])
+    needs_simulate = any(
+        ast_uses_func(stmt, "simulate") for stmt in unified_ast["program"])
+    needs_animate = any(
+        ast_uses_func(stmt, "animate") for stmt in unified_ast["program"])
 
     # Collect variables used as differentiation targets in grad() calls
-    grad_target_vars = set()
+    grad_target_vars: Set[str] = set()
     for stmt in unified_ast["program"]:
         collect_grad_targets(stmt, grad_target_vars)
 
@@ -124,10 +133,14 @@ def from_ast_to_torch(
         if ast_uses_func(class_def.get("body"), "grad"):
             needs_grad = True
             break
-        if any(ast_uses_func(s, "grad") for s in class_def.get("statements", [])):
+        if any(
+                ast_uses_func(s, "grad")
+                for s in class_def.get("statements", [])):
             needs_grad = True
             break
-        if any(ast_uses_func(s, "grad") for s in class_def.get("loss_statements", [])):
+        if any(
+                ast_uses_func(s, "grad")
+                for s in class_def.get("loss_statements", [])):
             needs_grad = True
             break
     if not needs_grad:
@@ -136,7 +149,7 @@ def from_ast_to_torch(
                 needs_grad = True
                 break
 
-    # Code generation 
+    # Code generation
 
     # Header
     code_lines.append("import torch")

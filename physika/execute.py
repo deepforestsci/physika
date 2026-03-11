@@ -18,8 +18,10 @@ if __name__ == "__main__":
     # Parse tokens to AST
     local_program_ast = parser.parse(source, lexer=lexer)
     # Build unified AST (I think this can be done in parser)
-    unified_ast = build_unified_ast(local_program_ast, symbol_table, print_ast=print_ast)
-    
+    unified_ast = build_unified_ast(local_program_ast,
+                                    symbol_table,
+                                    print_ast=print_ast)
+
     # Type checking
     type_status = type_check(unified_ast)
     print_type_check_results(type_status)
