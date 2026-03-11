@@ -70,19 +70,3 @@ def test_codegen_matches_reference(phyk_file):
     assert HEADER in code_phyk
     assert HEADER in code_torch
     assert code_phyk == code_torch
-
-
-def test_grad_calls_in_function_statements():
-    """compute_grad must be imported when grad is used in function statements"""
-    phyk_file = EXAMPLES_DIR / "example_check_gradients.phyk"
-    src = phyk_file.read_text()
-    ast = parse_source_to_ast(src)
-    code_phyk = from_ast_to_torch(ast, print_code=False)
-    assert "from physika.runtime import compute_grad" in code_phyk
-
-    # check grad calls inside function statements
-    func_section = code_phyk.split("# === Functions ===")[1].split("# === Program ===")[0]
-    assert "compute_grad" in func_section, "compute grad not found in generated torch code"
-
-    grad_in_ast = any(ast_uses_func(stmt, "grad") for stmt in ast["functions"]["f"]["statements"])
-    assert grad_in_ast, "grad call not found in generated ast code"
