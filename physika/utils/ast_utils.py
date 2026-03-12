@@ -39,8 +39,12 @@ BodyStmtTag = Literal[
     "body_assign",       # x = expr          inside function body
     "body_decl",         # x : T = expr      inside function body
     "body_tuple_unpack", # a, b = expr       inside function body
+    "body_for",          # for k: ...        for-loop inside function body
+    "body_zeros_decl",   # C : ℝ[n,o]        type annotation for an accumulation target
+    "body_for_accum",    # for i j k: ...    accumulation loop. emits torch.stack per target
     "loop_assign",       # x = expr          inside for-loop body
     "loop_pluseq",       # x += expr         inside for-loop body
+    "loop_index_pluseq", # C[i,...] += expr  nD accumulation inside for-loop body
     "init_assign",       # x = expr          pre-loop initialisation
     "for_assign",        # x = expr          program-level for body
     "for_pluseq",        # x += expr         program-level for body
@@ -229,6 +233,182 @@ def replace_class_params(code: str, class_params: list[tuple[str, ASTNode]]) -> 
     return code
 
 
+def _is_loop_var(expr: ASTNode, var: str) -> bool:
+    """Return True if `expr` represents the loop variable.
+
+    Handles both the ``("var", name)`` form and the special
+    ``("imaginary",)`` form, which is used when the loop variable is
+    named ``"i"`` (since the lexer emits ``IMAGINARY`` for the token ``i``).
+
+    Parameters
+    ----------
+    expr : ASTNode
+        An AST expression node to test.
+    var : str
+        The loop variable name to match against.
+
+    Returns
+    -------
+    bool
+        ``True`` if *expr* refers to the loop variable *var*.
+
+    Examples
+    --------
+    from physika.utils.ast_utils import _is_loop_var
+    >>> _is_loop_var(("var", "k"), "k")
+    True
+    >>> _is_loop_var(("imaginary",), "i")
+    True
+    >>> _is_loop_var(("var", "j"), "k")
+    False
+    """
+    return (
+        (isinstance(expr, tuple) and expr[0] == "var" and expr[1] == var) or
+        (var == "i" and isinstance(expr, tuple) and expr[0] == "imaginary")
+    )
+
+
+def _decompose_chain(expr: ASTNode) -> tuple[str | None, list[ASTNode]]:
+    """Decompose a chain-index or 1-D index node into (array_name, [idx_expr, ...]).
+
+    Recursively walks left-associative ``("chain_index", base, idx)``
+    nodes back to the underlying array name and collects all index
+    expressions in order. The base case is 1-D indexing ``("index", arr, idx)``.
+
+    Parameters
+    ----------
+    expr : ASTNode
+        A ``("chain_index", ...)`` or ``("index", ...)`` node, or any
+        other node (returns ``(None, [])`` for unrecognised shapes).
+
+    Returns
+    -------
+    array_name : str or None
+        The name of the array being indexed, or ``None`` if the
+        expression is not a recognised index form.
+    idx_exprs : list of ASTNode
+        Index expressions in outermost-to-innermost order, matching the
+        dimension order of the underlying array.
+
+    Examples
+    --------
+    >>> from physika.utils.ast_utils import _decompose_chain
+    >>> _decompose_chain(("index", "A", ("var", "i")))
+    ('A', [('var', 'i')])
+    >>> _decompose_chain(("chain_index", ("index", "A", ("var", "i")), ("var", "k")))
+    ('A', [('var', 'i'), ('var', 'k')])
+    """
+    if not isinstance(expr, tuple):
+        return None, []
+    if expr[0] == "index":
+        _, arr, idx = expr
+        if isinstance(arr, str):
+            return arr, [idx]
+        return None, []
+    if expr[0] == "chain_index":
+        base_name, base_idxs = _decompose_chain(expr[1])
+        return base_name, base_idxs + [expr[2]]
+    return None, []
+
+
+def _infer_range(var: str, expr: ASTNode, skip: str) -> str | None:
+    """Walk an AST expression and return a ``shape`` string for *var*.
+
+    Searches the expression tree for array-index nodes where *var*
+    appears as a subscript, then returns the corresponding
+    shape as string.  The array named *skip* is excluded from
+    the search as it is the accumulation target being defined.
+
+    Handles ``("indexN", arr, [idx, ...])``,
+    ``("index", arr, idx)`` (1-D indexing), and
+    ``("chain_index", ...)`` (chained bracket indexing A[i][k]).
+
+    Parameters
+    ----------
+    var : str
+        The loop variable whose range we want to determine.
+    expr : ASTNode
+        The RHS AST expression to search.
+    skip : str
+        Name of the tensor being accumulated into.
+
+    Returns
+    -------
+    str or None
+        A Python expression such as ``"A.shape[0]"`` giving the loop
+        range, or ``None`` if no suitable index access was found.
+
+    Examples
+    --------
+    >>> from physika.utils.ast_utils import _infer_range
+    >>> rhs = ("indexN", "A", [("var", "i"), ("var", "k")])
+    >>> _infer_range("i", rhs, "C")
+    'A.shape[0]'
+    >>> _infer_range("k", rhs, "C")
+    'A.shape[1]'
+    """
+    if not isinstance(expr, tuple):
+        return None
+    op = expr[0]
+    if op == "indexN":
+        arr = expr[1]
+        if arr != skip:
+            for dim, ie in enumerate(expr[2]):
+                if _is_loop_var(ie, var):
+                    return f"{arr}.shape[{dim}]"
+    elif op == "index":
+        _, arr, ie = expr
+        if isinstance(arr, str) and arr != skip:
+            if _is_loop_var(ie, var):
+                return f"{arr}.shape[0]"
+    elif op == "chain_index":
+        base_name, idx_exprs = _decompose_chain(expr)
+        if base_name and base_name != skip:
+            for dim, ie in enumerate(idx_exprs):
+                if _is_loop_var(ie, var):
+                    return f"{base_name}.shape[{dim}]"
+    for child in expr[1:]:
+        if isinstance(child, tuple):
+            r = _infer_range(var, child, skip)
+            if r is not None:
+                return r
+    return None
+
+
+def _lhs_var_name(expr: ASTNode) -> str | None:
+    """Extract the loop-variable name from an LHS index expression.
+
+    Used to classify which loop variables appear as output dimensions
+    (LHS indices of ``T[i, j]``).
+
+    Parameters
+    ----------
+    expr : ASTNode
+        An index expression from the LHS of a ``loop_index_pluseq``
+        node.
+
+    Returns
+    -------
+    str or None
+        The variable name, or
+        ``None`` if the expression is not a plain variable reference.
+
+    Examples
+    --------
+    >>> form physika.utils.ast_utils import _lhs_var_name
+    >>> _lhs_var_name(("var", "j"))
+    'j'
+    >>> _lhs_var_name(("imaginary",))
+    'i'
+    >>> _lhs_var_name(("num", 0.0))
+    """
+    if isinstance(expr, tuple) and expr[0] == "var":
+        return expr[1]
+    if isinstance(expr, tuple) and expr[0] == "imaginary":
+        return "i"
+    return None
+
+
 def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | None = None) -> str:
     """Convert an AST expression node to a PyTorch source code string.
 
@@ -331,7 +511,13 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
             inner_lists = [array_to_list(e) for e in elements]
             return f"torch.tensor([{', '.join(inner_lists)}])"
         else:
-            all_numeric = all(isinstance(e, tuple) and e[0] == "num" for e in elements)
+            all_numeric = all(
+                isinstance(e, tuple) and (
+                    e[0] == "num" or
+                    (e[0] == "neg" and isinstance(e[1], tuple) and e[1][0] == "num")
+                )
+                for e in elements
+            )
             elem_strs = [ast_to_torch_expr(e, indent, current_loop_var) for e in elements]
             if all_numeric:
                 return f"torch.tensor([{', '.join(elem_strs)}])"
@@ -353,6 +539,16 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
         start_int = f"int({start})" if "." in start else start
         end_int = f"int({end})+1" if "." in end else f"{end}+1"
         return f"{var_name}[{start_int}:{end_int}]"
+
+    elif op == "chain_index":
+        obj = ast_to_torch_expr(node[1], indent, current_loop_var)
+        idx = ast_to_torch_expr(node[2], indent, current_loop_var)
+        return f"{obj}[int({idx})]"
+
+    elif op == "indexN":
+        arr = node[1]
+        idx_codes = [f"int({ast_to_torch_expr(e, indent, current_loop_var)})" for e in node[2]]
+        return f"{arr}[{', '.join(idx_codes)}]"
 
     elif op == "call":
         func_name = node[1]
@@ -395,11 +591,39 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
             return f"{func_name}({', '.join(arg_strs)})[int({idx})]"
 
     elif op == "imaginary":
-        # If we're inside a for loop with loop var 'i', use the loop var
-        if current_loop_var == "i":
+        # If we're inside a for-expr whose loop var is 'i', emit 'i'.
+        # current_loop_var may be a string (single var) or set (nested vars).
+        active = (
+            current_loop_var
+            if isinstance(current_loop_var, set)
+            else (set({current_loop_var}) if current_loop_var else set())
+        )
+        if "i" in active:
             return "i"
         # Use torch.tensor(1j) so it can be used with torch.exp
         return "torch.tensor(1j)"
+
+    elif op == "for_expr":
+        # active_vars accumulates all enclosing loop var names
+        # to handle nested loops
+        loop_var = node[1]
+        size_expr = node[2]
+        body_expr = node[3]
+        outer_active = (
+            current_loop_var
+            if isinstance(current_loop_var, set)
+            else (set({current_loop_var}) if current_loop_var else set())
+        )
+        active_vars = outer_active | set({loop_var})
+        n_code = ast_to_torch_expr(size_expr, indent, outer_active or None)
+        body_code = ast_to_torch_expr(body_expr, indent, active_vars)
+        tmp = f"_fi_{loop_var}"
+        return (
+            f"torch.stack(["
+            f"{body_code} "
+            f"for {tmp} in range(int({n_code})) "
+            f"for {loop_var} in [torch.tensor(float({tmp}))]])"
+        )
 
     elif op == "equation_string":
         return repr(node[1])
@@ -453,6 +677,8 @@ def emit_body_stmts(
     equation_vars: set[str],
     generate_solve_call: Callable[[ASTNode], str],
     scalar_only: bool = False,
+    expr_fn=ast_to_torch_expr,
+    _equation_vars: set = None,
 ) -> None:
     """Recursively emit Python code lines for a function body.
 
@@ -482,6 +708,12 @@ def emit_body_stmts(
     generate_solve_call: Callable[[ASTNode], str]
         Callable that converts an expression AST to a Python string,
         expanding ``solve(...)`` calls with the current `known_vars`.
+    expr_fn : callable, optional
+        Expression code-generator; defaults to ``ast_to_torch_expr``.
+    _equation_vars : set, optional
+        Internal — tracks variables bound to equation strings so they are
+        excluded from ``solve()`` keyword arguments.  Pass ``None`` (default)
+        to create a fresh set for this call.
 
     Examples
     --------
@@ -497,6 +729,11 @@ def emit_body_stmts(
     >>> lines
     ['    y = (x * 2.0)']
     """
+    if expr_fn is None:
+        expr_fn = ast_to_torch_expr
+    if _equation_vars is None:
+        _equation_vars = set()
+
     prefix = "    " * indent_level
     for stmt in stmts:
         if stmt is None:
@@ -550,7 +787,77 @@ def emit_body_stmts(
             _, cond, then_stmts = stmt
             cond_code = condition_to_expr(cond)
             lines.append(f"{prefix}if {cond_code}:")
-            emit_body_stmts(then_stmts, indent_level + 1, lines, known_vars, equation_vars, generate_solve_call)
+            emit_body_stmts(then_stmts, indent_level + 1, lines, known_vars, equation_vars, generate_solve_call, scalar_only)
+        elif stmt_op == "body_for":
+            _, loop_var, loop_body, indexed_arrays = stmt
+            if indexed_arrays:
+                lines.append(f"{prefix}for {loop_var} in range(len({indexed_arrays[0]})):")
+            else:
+                lines.append(f"{prefix}for {loop_var} in range(n):")
+            for loop_stmt in loop_body:
+                if loop_stmt is None:
+                    continue
+                if loop_stmt[0] == "loop_assign":
+                    _, var_name, expr = loop_stmt
+                    expr_code = ast_to_torch_expr(expr, current_loop_var=loop_var)
+                    lines.append(f"{prefix}    {var_name} = {expr_code}")
+                elif loop_stmt[0] == "loop_pluseq":
+                    _, var_name, expr = loop_stmt
+                    expr_code = ast_to_torch_expr(expr, current_loop_var=loop_var)
+                    lines.append(f"{prefix}    {var_name} = {var_name} + {expr_code}")
+        elif stmt_op == "body_zeros_decl":
+            # Type annotation for an accumulation target. `codegen`` emits nothing.
+            # Example:
+            #   C : ℝ[n, o]
+            # The paired body_for_accum emits the `torch.stack` expression that defines the tensor.
+            pass
+
+        elif stmt_op == "body_for_accum":
+            # Generates one differentiable torch.stack per += target.
+            # Example:
+            #   for i j k:
+            #       C[i, j] += A[i, k] * B[k, j]
+            #       D[i, j] += B[i, k] * A[k, j]
+            # Parameters:
+            # stmt[1] — loop variable list [i, j, k]
+            # stmt[2] — loop body statements (loop_index_pluseq nodes)
+            # Emits: one `name = torch.stack(...)` line per unique += target tensor.
+            _, loop_vars, loop_body = stmt
+            active = set(loop_vars)
+
+            # Collect all unique accumulation targets
+            accums: dict = {}
+            for s in loop_body:
+                if s and s[0] == "loop_index_pluseq":
+                    _, name, idx_list, rhs = s
+                    if name not in accums:
+                        accums[name] = (idx_list, rhs)
+
+            if not accums:
+                raise ValueError("body_for_accum has no loop_index_pluseq statement")
+
+            # Generate one differentiable torch.stack expression per target tensor
+            for tensor_name, (lhs_idx_exprs, rhs_expr) in accums.items():
+                ranges = {
+                    v: _infer_range(v, rhs_expr, tensor_name) or f"# range unknown for {v}"
+                    for v in loop_vars
+                }
+                lhs_vars = [n for n in (_lhs_var_name(e) for e in lhs_idx_exprs) if n]
+                reduction_vars = [v for v in loop_vars if v not in lhs_vars]
+                rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=active)
+                inner_expr = rhs_code
+                for rv in reversed(reduction_vars):
+                    inner_expr = (
+                        f"torch.sum(torch.stack([{inner_expr}"
+                        f" for {rv} in range({ranges[rv]})]))"
+                    )
+                for ov in reversed(lhs_vars):
+                    inner_expr = (
+                        f"torch.stack([{inner_expr}"
+                        f" for {ov} in range({ranges[ov]})])"
+                    )
+                lines.append(f"{prefix}{tensor_name} = {inner_expr}")
+
 
 
 def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
@@ -621,11 +928,48 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
             return f"solve({', '.join(arg_strs)}, {', '.join(kw_strs)})"
         return ast_to_torch_expr(expr)
 
-    # Use if/else (not torch.where) when all params are scalars — allows recursion
-    scalar_only = all(pt == "\u211d" for _, pt in params)
+    scalar_only = all(pt in ("\u211d", "\u2115") for _, pt in params)
+    if scalar_only:
+        for param_name, _ in params:
+            lines.append(f"    {param_name} = torch.as_tensor({param_name}).float()")
 
     # Generate body statements
     emit_body_stmts(statements, 1, lines, known_vars, equation_vars, generate_solve_call, scalar_only)
+
+    # Generate for-loop body
+    if func_def.get("has_loop"):
+        init_stmts = func_def.get("init_stmts", [])
+        loop_var = func_def.get("loop_var", "k")
+        indexed_arrays = func_def.get("loop_indexed_arrays", [])
+        loop_body = func_def.get("loop_body", [])
+
+        # Emit pre-loop initialisation
+        for stmt in init_stmts:
+            if stmt is None:
+                continue
+            if stmt[0] == "init_assign":
+                _, var_name, expr = stmt
+                expr_code = ast_to_torch_expr(expr)
+                lines.append(f"    {var_name} = {expr_code}")
+
+        # Emit loop header — range inferred from the first indexed array
+        if indexed_arrays:
+            lines.append(f"    for {loop_var} in range(len({indexed_arrays[0]})):")
+        else:
+            lines.append(f"    for {loop_var} in range(n):")
+
+        # Emit loop body statements
+        for stmt in loop_body:
+            if stmt is None:
+                continue
+            if stmt[0] == "loop_assign":
+                _, var_name, expr = stmt
+                expr_code = ast_to_torch_expr(expr, current_loop_var=loop_var)
+                lines.append(f"        {var_name} = {expr_code}")
+            elif stmt[0] == "loop_pluseq":
+                _, var_name, expr = stmt
+                expr_code = ast_to_torch_expr(expr, current_loop_var=loop_var)
+                lines.append(f"        {var_name} = {var_name} + {expr_code}")
 
     # Generate return statement only when there is a final expression
     if body is not None:
