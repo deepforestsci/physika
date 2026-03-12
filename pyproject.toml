@@ -2,6 +2,13 @@
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "physika"
+version = "0.1.0"
+
+[project.scripts]
+physika = "physika.execute:main"
+
 [tool.yapf]
 based_on_style = "pep8"
 column_limit = 79
