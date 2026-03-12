@@ -928,10 +928,8 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
             return f"solve({', '.join(arg_strs)}, {', '.join(kw_strs)})"
         return ast_to_torch_expr(expr)
 
-    scalar_only = all(pt in ("\u211d", "\u2115") for _, pt in params)
-    if scalar_only:
-        for param_name, _ in params:
-            lines.append(f"    {param_name} = torch.as_tensor({param_name}).float()")
+    # Use if/else (not torch.where) when all params are scalars — allows recursion
+    scalar_only = all(pt == "\u211d" for _, pt in params)
 
     # Generate body statements
     emit_body_stmts(statements, 1, lines, known_vars, equation_vars, generate_solve_call, scalar_only)
