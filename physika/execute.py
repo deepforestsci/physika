@@ -7,7 +7,7 @@ from physika.codegen import from_ast_to_torch
 from physika.utils.print_utils import print_type_check_results
 from physika.utils.ast_utils import build_unified_ast
 
-if __name__ == "__main__":
+def main():
     print_code = "--print-code" in sys.argv
     print_ast = "--print-ast" in sys.argv
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -29,3 +29,6 @@ if __name__ == "__main__":
     # Generate PyTorch code and execute it
     generated_code = from_ast_to_torch(unified_ast, print_code=print_code)
     exec(generated_code)
+
+if __name__ == "__main__":
+    main()
