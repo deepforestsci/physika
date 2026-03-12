@@ -16,7 +16,7 @@ example.phyk → Lexer (PLY) → Parser → AST → Type Checker → Runtime Exe
 ## Usage
 
 ```bash
-python -m execute examples/example_arrays.phyk
+physika examples/example_arrays.phyk
 ```
 
 ## Physika Program Description
@@ -44,7 +44,7 @@ Output:
 To inspect the generated AST structure run:
 
 ```bash
-python -m execute examples/example_arrays.phyk --print-ast
+physika examples/example_arrays.phyk --print-ast
 ```
 
 The associated AST:
@@ -146,7 +146,7 @@ Finally, to print the Pytorch code equivalent for the given Physika program run:
 
 
 ```bash
-python -m execute examples/example_arrays.phyk --print-code
+physika examples/example_arrays.phyk --print-code
 ```
 
 ```
