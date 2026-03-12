@@ -395,7 +395,7 @@ def _lhs_var_name(expr: ASTNode) -> str | None:
 
     Examples
     --------
-    >>> form physika.utils.ast_utils import _lhs_var_name
+    >>> from physika.utils.ast_utils import _lhs_var_name
     >>> _lhs_var_name(("var", "j"))
     'j'
     >>> _lhs_var_name(("imaginary",))
