@@ -48,6 +48,7 @@ reserved = {
     "class": "CLASS",
     "if": "IF",
     "else": "ELSE",
+    "Δ": "DELTA",
 }
 
 t_POWER = r"\*\*"
