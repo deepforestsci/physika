@@ -9,7 +9,8 @@ from gradient_checker import numerical_gradient
 from physika.lexer import lexer
 from physika.parser import parser, symbol_table
 from physika.runtime import compute_grad
-from physika.utils.ast_utils import build_unified_ast
+from physika.utils.ast_utils import build_unified_ast, ast_uses_func
+from tests.test_codegen import parse_source_to_ast
 
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 r_tol = 1e-02
@@ -193,3 +194,33 @@ class TestDiffIfElseClasses:
         physika_grad = compute_grad(net, x)
         num_grad = numerical_gradient(net, x)[0]
         assert abs(physika_grad - num_grad) < r_tol
+
+class TestGradFunction:
+    """Gradient calculations inside function statements"""
+    def test_grad_calls_in_function_statements(self):
+        """compute_grad must be imported when grad is used in function statements"""
+        phyk_file = EXAMPLES_DIR / "example_check_gradients.phyk"
+        src = phyk_file.read_text()
+        ast = parse_source_to_ast(src)
+        code_phyk = from_ast_to_torch(ast, print_code=False)
+        assert "from physika.runtime import compute_grad" in code_phyk
+
+        # check grad calls inside function statements
+        func_section = code_phyk.split("# === Functions ===")[1].split("# === Program ===")[0]
+        assert "compute_grad" in func_section, "compute grad not found in generated torch code"
+
+        grad_in_ast = any(ast_uses_func(stmt, "grad") for stmt in ast["functions"]["f"]["statements"])
+        assert grad_in_ast, "grad call not found in generated ast code"
+
+    def test_grad_correctness(self):
+        """test the correctness of gradients"""
+        import torch
+        phyk_file = EXAMPLES_DIR / "example_check_gradients.phyk"
+        src = phyk_file.read_text()
+        ast = parse_source_to_ast(src)
+        code = from_ast_to_torch(ast, print_code=False)
+            
+        local = {}
+        exec(code, local)
+        result = local["f"](torch.tensor([1.0, 2.0], requires_grad=True))
+        assert torch.allclose(result, torch.tensor([2.0, 4.0]))
