@@ -24,3 +24,104 @@ mse: R = 0.0
 for i:
     mse += (X[i] - y[i]) ** 2
 mse
+
+# Explicit size for loops physika syntax:
+# for i : ℕ(n) -> expr        
+# 4. Array construction
+a : ℝ[5] = for i : ℕ(5) -> i * 1.0
+a
+
+# 5. Mathematic operations:
+cos_wave : ℝ[6] = for i : ℕ(6) → cos(i * 0.5)
+cos_wave
+
+# 6. Nested for loops
+add : ℝ[3, 4] = for i : ℕ(3) → for j : ℕ(4) → i + j
+add
+# 7. Iteration product
+outer : ℝ[4, 4] = for i : ℕ(4) → for j : ℕ(4) → i * j
+outer
+
+# 8. Higher dimension iteration:
+t : ℝ[2, 3, 4] = for i : ℕ(2) → for j : ℕ(3) → for k : ℕ(4) → i + j + k
+t
+
+# 9. Implicit size
+# Inferred from indexed array
+arr : ℝ[5] = [1.0, 2.0, 3.0, 4.0, 5.0]
+doubled : ℝ[5] = for i → arr[i] * 2.0
+doubled
+
+# 10. Element-wise product of two arrays
+u : ℝ[4] = [1.0, 2.0, 3.0, 4.0]
+v : ℝ[4] = [4.0, 3.0, 2.0, 1.0]
+dot_elems : ℝ[4] = for i → u[i] * v[i]
+dot_elems
+
+# 11. For loops inside functions.
+# Outer product of two vectors:
+# C[i][j] = u[i] * v[j]
+def outer_product(u : ℝ[n], v : ℝ[m]): ℝ[n, m]:
+    return for i → for j → u[i] * v[j]
+
+p : ℝ[3] = [1.0, 2.0, 3.0]
+q : ℝ[4] = [10.0, 20.0, 30.0, 40.0]
+outer_product(p, q)
+
+# 12. Dot product as a reduction
+x : ℝ[4] = [1.0, 0.0, 0.0, 0.0]
+y : ℝ[4] = [0.0, 1.0, 0.0, 0.0]
+dot : ℝ = sum(for i → x[i] * y[i])
+dot
+
+# 13. Matrix multiplication
+# C[i,j] = Σ_k (A[i,k] * B[k,j])
+def matmul_physika(A : ℝ[n, m], B : ℝ[m, o]): ℝ[n, o]:
+    C : ℝ[n, o]
+    for i j k:
+        C[i, j] += A[i, k] * B[k, j]
+    return C
+
+A : ℝ[2, 4] = [[1, 2, 3, 4], [0, 1, 1, 2]]
+B : ℝ[4, 1] = [[1], [0], [0], [2]]
+matmul_physika(A, B)
+
+# 14. Sequential loops.
+# Two separate accumulators, output of first feeds second
+# Computes (A2 @ B2) @ A2
+A2 : ℝ[2, 2] = [[1.0, 2.0], [0.0, 1.0]]
+B2 : ℝ[2, 2] = [[1.0, 0.0], [0.0, 2.0]]
+def chain_mm(A : ℝ[m, n], B : ℝ[n, o]): ℝ[m, o]:
+    C : ℝ[2, 2]
+    for i j k:
+        C[i, j] += A[i, k] * B[k, j]
+    D : ℝ[2, 2]
+    for i j k:
+        D[i, j] += C[i, k] * A[k, j]
+    return D
+chain_mm(A2, B2)
+
+# 15. Two tensors accumulated in one loop.
+# AB and BA computed simultaneously
+def both_matmuls(A : ℝ[m, n], B : ℝ[n, o]): ℝ[m, o]:
+    AB : ℝ[m, n]
+    BA : ℝ[n, o]
+    for i j k:
+        AB[i, j] += A[i, k] * B[k, j]
+        BA[i, j] += B[i, k] * A[k, j]
+    return AB + BA
+
+A2 : ℝ[2, 2] = [[1.0, 2.0], [0.0, 1.0]]
+B2 : ℝ[2, 2] = [[1.0, 0.0], [0.0, 2.0]]
+both_matmuls(A2, B2)
+
+# 16. 3D tensor contraction.
+# T[i, j, l] = Σ_k (A[i,k] * B[k,j] * C_mat[k,l])
+C_mat : ℝ[2, 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+def tensor_contraction(A : ℝ[2, 2], B : ℝ[2, 2], C : ℝ[2, 3]): ℝ[2, 2, 3]:
+    T : ℝ[2, 2, 3]
+    for i j l k:
+        T[i, j, l] += A[i, k] * B[k, j] * C[k, l]
+    return T
+tensor_contraction(A2, B2, C_mat)
+

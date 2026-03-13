@@ -12,6 +12,7 @@ precedence = (
     ("left", "TIMES", "DIVIDE"),
     ("left", "MATMUL"),
     ("right", "POWER"),
+    ("left", "LBRACKET"), # parse [ before doing arithmetic operations for multiple iter indexing
     ("right", "EQUALS"),
 )
 
@@ -178,6 +179,14 @@ def p_func_body_stmt_decl(p):
     # Typed declaration: x : R = expr
     p[0] = ("body_decl", p[1], p[3], p[5])
 
+def p_func_body_stmt_zeros_decl(p):
+    """func_body_stmt : ID COLON type_spec NEWLINE"""
+    # Type annotation for an accumulation target.
+    # Example:
+    # A : ℝ[m, n]
+
+    p[0] = ("body_zeros_decl", p[1], p[3])
+
 def p_func_body_stmt_tuple_unpack(p):
     """func_body_stmt : ID COMMA ID EQUALS func_expr NEWLINE"""
     # Tuple unpacking: a, b = expr
@@ -256,6 +265,56 @@ def p_func_body_stmt_if_only(p):
 # Parameters:
 #   p[1] — left-hand expression
 #   p[3] — right-hand expression.
+
+def p_loop_var_list_single(p):
+    """loop_var_list : ID"""
+    # Single loop variable: for i.
+    # Parameters:
+    # p[1] — loop variable name
+    # Returns:
+    #  [name]
+    p[0] = [p[1]]
+
+def p_loop_var_list_multi(p):
+    """loop_var_list : loop_var_list ID"""
+    # Append next loop variable: for i j k.
+    # Parameters:
+    # p[1] — existing variable list
+    # p[2] — next variable name
+    # Returns:
+    #  [name, ...]
+    p[0] = p[1] + [p[2]]
+
+
+def p_func_body_stmt_for_accum(p):
+    """func_body_stmt : FOR loop_var_list COLON NEWLINE INDENT func_loop_body DEDENT"""
+    # Accumulation loop with multiple loop variables.
+    # Example:
+    # A : ℝ[2, 2] = [[1, 2], [3, 4]]
+    # B : ℝ[2, 2] = [[0, 1], [1, 0]]
+    # C : ℝ[2, 2]
+    # for i j k:
+    #     C[i, j] += A[i, k] * B[k, j]
+    # Parameters:
+    # p[2] — loop variable list [i, j, k]
+    # p[6] — loop body statements
+    # Returns:
+    #  ("body_for_accum", loop_vars, loop_body)
+    loop_vars = p[2]
+    loop_body = p[6]
+    p[0] = ("body_for_accum", loop_vars, loop_body)
+
+def p_func_body_stmt_for(p):
+    """func_body_stmt : FOR ID COLON NEWLINE INDENT func_loop_body DEDENT"""
+    # for k:
+    #     loop_body
+    loop_var = p[2]
+    loop_body = p[6]
+    indexed_arrays = []
+    for stmt in loop_body:
+        if stmt:
+            indexed_arrays.extend(find_indexed_arrays(stmt, loop_var))
+    p[0] = ("body_for", loop_var, loop_body, indexed_arrays)
 
 def p_condition_eq(p):
     """condition : func_expr EQEQ func_expr"""
@@ -371,6 +430,40 @@ def p_func_loop_stmt_assign(p):
 def p_func_loop_stmt_pluseq(p):
     """func_loop_stmt : ID PLUSEQ func_expr NEWLINE"""
     p[0] = ("loop_pluseq", p[1], p[3])
+
+def p_loop_index_list_single(p):
+    """loop_index_list : func_expr"""
+    # Single-element index list.
+    # Base case for nD subscript accumulation.
+    # Parameters:
+    # p[1] — index expression
+    # Returns:
+    #   [p[1]]
+    p[0] = [p[1]]
+
+def p_loop_index_list_multi(p):
+    """loop_index_list : loop_index_list COMMA func_expr"""
+    # Extend index list.
+    # Parameters:
+    # p[1] — existing index list
+    # p[3] — next index expression
+    # Returns:
+    #   p[1] + [p[3]]
+    p[0] = p[1] + [p[3]]
+
+def p_func_loop_stmt_index_pluseq(p):
+    """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET PLUSEQ func_expr NEWLINE"""
+    # N-dimensional indexed accumulation statement inside a loop body.
+    # Example:
+    #   C[i, j]    += A[i, k] * B[k, j]
+    #   T[i, j, l] += A[i, k] * B[k, j, l]
+    # Parameters:
+    # p[1] — tensor name
+    # p[3] — list of index expressions
+    # p[6] — right-hand side expression
+    # Returns:
+    #   ("loop_index_pluseq", name, [idx_exprs], rhs)
+    p[0] = ("loop_index_pluseq", p[1], p[3], p[6])
 
 def p_func_loop_stmt_empty(p):
     """func_loop_stmt : NEWLINE"""
@@ -816,10 +909,54 @@ def p_func_factor_index(p):
     # Tensor indexing: W[i]
     p[0] = ("index", p[1], p[3])
 
+def p_multi_index_list_base(p):
+    """multi_index_list : func_expr COMMA func_expr"""
+    # Base case: 2 comma-separated index expressions.
+    # Requires at least one COMMA, so there is no conflict with 1 
+    # index rule.
+    # Example:
+    #   A[i, k]
+    # Parameters:
+    # p[1] — first index expression
+    # p[3] — second index expression
+    # Returns:
+    #   [p[1], p[3]]
+    p[0] = [p[1], p[3]]
+
+def p_multi_index_list_extend(p):
+    """multi_index_list : multi_index_list COMMA func_expr"""
+    # Extend an existing index list by one more dimension.
+    # Example:
+    #   T[i, j, k]
+    # Parameters:
+    # p[1] — existing index list
+    # p[3] — next index expression
+    # Returns:
+    #   p[1] + [p[3]]
+    p[0] = p[1] + [p[3]]
+
+def p_func_factor_indexN(p):
+    """func_factor : ID LBRACKET multi_index_list RBRACKET"""
+    # N-dimensional comma indexing inside a function body.
+    # Example:
+    #   A[i, k]
+    #   T[i, j, k]
+    # Parameters:
+    # p[1] — array name
+    # p[3] — list of index expressions (length ≥ 2)
+    # Returns:
+    #   ("indexN", name, [idx_exprs])
+    p[0] = ("indexN", p[1], p[3])
+
 def p_func_factor_call_index(p):
     """func_factor : ID LPAREN func_args RPAREN LBRACKET func_expr RBRACKET"""
     # Indexing a function call result: grad(H, x)[0]
     p[0] = ("call_index", p[1], p[3], p[6])
+
+def p_func_factor_chain_index(p):
+    """func_factor : func_factor LBRACKET func_expr RBRACKET"""
+    # Chain indexing: A[i][k], B[k][j], etc.
+    p[0] = ("chain_index", p[1], p[3])
 
 def p_func_factor_step_slice(p):
     """func_factor : ID LBRACKET NUMBER COLON COLON NUMBER RBRACKET"""
@@ -840,6 +977,33 @@ def p_func_factor_imaginary(p):
     """func_factor : IMAGINARY"""
     # Imaginary unit i
     p[0] = ("imaginary",)
+
+def p_func_factor_for_expr(p):
+    """func_factor : FOR ID COLON TYPE LPAREN func_expr RPAREN ARROW func_expr"""
+    # Explicit size for-expression inside a function body.
+    # Example:
+    #   for i : ℕ(n)
+    # Parameters:
+    # p[2] — loop variable name
+    # p[6] — size expression (n)
+    # p[9] — body expression
+    # Returns:
+    #  ("for_expr", var, size_expr, body_expr)
+    p[0] = ("for_expr", p[2], p[6], p[9])
+
+def p_func_factor_for_expr_auto(p):
+    """func_factor : FOR ID ARROW func_expr"""
+    # Infer size for-expression inside a function body.
+    # Example:
+    #   for i -> arr[i] * 2.0
+    loop_var = p[2]
+    body_expr = p[4]
+    indexed = find_indexed_arrays(body_expr, loop_var)
+    if not indexed:
+        raise SyntaxError(
+            f"'for {loop_var} ->' body has no '{loop_var}'-indexed array to infer size from"
+        )
+    p[0] = ("for_expr", loop_var, ("call", "len", [("var", indexed[0])]), body_expr)
 
 def p_func_elements_single(p):
     """func_elements : func_expr"""
@@ -929,6 +1093,33 @@ def p_factor_string(p):
     """factor : STRING"""
     # String literal (for equations and symbolic): 'x0 = a + b'
     p[0] = ("equation_string", p[1])
+
+def p_factor_for_expr(p):
+    """factor : FOR ID COLON TYPE LPAREN func_expr RPAREN ARROW func_expr"""
+    # Explicit size for-expression at program level.
+    # Example:
+    #   for i : ℕ(n)
+    # Parameters:
+    # p[2] — loop variable name
+    # p[6] — size expression (n)
+    # p[9] — body expression
+    # Returns:
+    #  ("for_expr", var, size_expr, body_expr)
+    p[0] = ("for_expr", p[2], p[6], p[9])
+
+def p_factor_for_expr_auto(p):
+    """factor : FOR ID ARROW func_expr"""
+    # Infer size for-expression at program level.
+    # Example:
+    #   for i -> arr[i] * 2.0
+    loop_var = p[2]
+    body_expr = p[4]
+    indexed = find_indexed_arrays(body_expr, loop_var)
+    if not indexed:
+        raise SyntaxError(
+            f"'for {loop_var} ->' body has no '{loop_var}'-indexed array to infer size from"
+        )
+    p[0] = ("for_expr", loop_var, ("call", "len", [("var", indexed[0])]), body_expr)
 
 def p_elements_single(p):
     """elements : expr"""
