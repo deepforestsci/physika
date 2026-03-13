@@ -5,7 +5,7 @@ import pytest
 
 from physika.lexer import lexer
 from physika.parser import parser, symbol_table
-from physika.utils.ast_utils import build_unified_ast, ExprTag, StmtTag, BodyStmtTag, TypeTag, ast_to_torch_expr, condition_to_expr, emit_body_stmts, emit_for_stmts
+from physika.utils.ast_utils import build_unified_ast, ExprTag, StmtTag, BodyStmtTag, TypeTag, ast_to_torch_expr, condition_to_expr, emit_body_stmts, emit_for_stmts, _is_loop_var, _decompose_chain, _infer_range, _lhs_var_name
 
 
 
@@ -465,3 +465,129 @@ class TestEmitForStmts:
         Checks that empty statement lists produce no code lines.
         """
         assert emit_for_stmts([], 4) == []
+
+
+def test_is_loop_var():
+    """""
+    Tests for the `_is_loop_var` helper. This function checks
+    if a given variable node matches a loop variable name,
+    accounting for both the standard variable reference form
+    and the special "imaginary" form used for loop variables named "i".
+    """
+    # check standard variable reference form
+    assert _is_loop_var(("var", "k"), "k") is True
+    assert _is_loop_var(("var", "j"), "j") is True
+    assert _is_loop_var(("var", "j"), "k") is False
+    assert _is_loop_var(("var", "k"), "j") is False
+
+    # check "imaginary" form for loop variable "i"
+    assert _is_loop_var(("imaginary",), "i") is True
+    assert _is_loop_var(("imaginary",), "k") is False
+    assert _is_loop_var(("imaginary",), "j") is False
+
+    # check different ASTNode expression cases
+    assert _is_loop_var(("num", 0), "k") is False
+    assert _is_loop_var(("add", ("var", "k"), ("num", 1)), "k") is False
+
+    # check non-ASTNode inputs
+    assert _is_loop_var("k", "k") is False
+    assert _is_loop_var(None, "k") is False
+
+
+def test_decompose_chain():
+    """
+    Tests for `_decompose_chain` helper.
+
+    Verifies `decompose_chain` handles both "index" and "chain_index" nodes, and returns (None, [])
+    for non-chain/index nodes or if the array name is not a string.
+    """
+
+    expr = ("index", "A", ("var", "i")) # equivalent to A[i]
+    assert _decompose_chain(expr) == ("A", [("var", "i")])
+    
+    expr = ("chain_index", ("index", "A", ("var", "i")), ("var", "k")) # equivalent to A[i][k]
+    assert _decompose_chain(expr) == ("A", [("var", "i"), ("var", "k")])
+
+    inner = ("chain_index", ("index", "A", ("var", "i")), ("var", "j")) # equivalent to A[i][j]
+    expr = ("chain_index", inner, ("var", "k")) # equivalent to A[i][j][k]
+    assert _decompose_chain(expr) == ("A", [("var", "i"), ("var", "j"), ("var", "k")])
+
+    # Non ASTNodes should return (None, [])
+    assert _decompose_chain("A") == (None, []) 
+    assert _decompose_chain(42) == (None, [])
+
+    # Non-index/ non-chain_index nodes should return (None, [])
+    assert _decompose_chain(("add", ("var", "i"), ("num", 1))) == (None, [])
+
+    # array is not a string and returns (None, [])
+    nested = ("index", ("var", "A"), ("var", "i"))
+    assert _decompose_chain(nested) == (None, [])
+
+
+def test_infer_range():
+    """
+    Tests for `_infer_range` helper function.
+    
+    Verifies `_infer_range` correctly identifies loop variables in various index expressions
+    and returns the appropriate shape access string. Also, checks if `_infer_range` returns None when the loop
+    variable is not found or is the accumulation target.
+    """
+    rhs = ("indexN", "A", [("var", "i"), ("var", "k")])
+    assert _infer_range("i", rhs, "C") == "A.shape[0]" # C is the accumulation target
+    assert _infer_range("k", rhs, "C") == "A.shape[1]"
+    assert _infer_range("j", rhs, "C") is None
+
+    # iter var in a 1D index expression
+    rhs = ("index", "B", ("var", "j"))
+    assert _infer_range("j", rhs, "C") == "B.shape[0]"
+
+    # loop var not found in index expression should return None
+    rhs = ("index", "C", ("var", "j"))
+    assert _infer_range("j", rhs, "C") is None
+
+    rhs = ("chain_index", ("index", "A", ("var", "i")), ("var", "k"))
+    assert _infer_range("i", rhs, "C") == "A.shape[0]"
+    assert _infer_range("k", rhs, "C") == "A.shape[1]"
+
+
+    # iter var inside a mul expression
+    rhs = ("mul", ("indexN", "A", [("var", "i"), ("var", "k")]), # equivalent to A[i][k] * B[k][j]
+                  ("indexN", "B", [("var", "k"), ("var", "j")]))
+    assert _infer_range("i", rhs, "C") == "A.shape[0]"
+    assert _infer_range("k", rhs, "C") == "A.shape[1]"
+    assert _infer_range("j", rhs, "C") == "B.shape[1]"
+
+    # ("imaginary",) in indexN acts as loop var "i"
+    rhs = ("indexN", "A", [("imaginary",), ("var", "k")])
+    assert _infer_range("i", rhs, "C") == "A.shape[0]"
+
+    rhs = ("indexN", "A", [("var", "i"), ("var", "k")])
+    assert _infer_range("j", rhs, "C") is None
+
+    # Check that non-ASTNodes return None
+    assert _infer_range("i", "A", "C") is None
+    assert _infer_range("i", 42, "C") is None
+
+def test_lhs_var_name():
+    """
+    Tests for `_lhs_var_name` helper function.
+
+    Verifies `_lhs_var_name` correctly extracts variable names
+    from "var" and "imaginary" nodes, and returns None for non-variable nodes
+    and non-ASTNode expressions.
+    """
+    assert _lhs_var_name(("var", "j")) == "j"
+    assert _lhs_var_name(("var", "i")) == "i"
+    assert _lhs_var_name(("var", "k")) == "k"
+
+    assert _lhs_var_name(("imaginary",)) == "i"
+
+    assert _lhs_var_name(("num", 0.0)) is None
+    assert _lhs_var_name(("num", 1)) is None
+
+    assert _lhs_var_name(("add", ("var", "i"), ("num", 1))) is None
+    assert _lhs_var_name(("index", "A", ("var", "i"))) is None
+
+    assert _lhs_var_name("j") is None
+    assert _lhs_var_name(None) is None
+    assert _lhs_var_name(42) is None
