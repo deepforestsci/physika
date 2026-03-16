@@ -3,8 +3,7 @@
 #-----------------------------------------------
 
 # declaration
-x : Symbol
-y : Symbol
+x, y : Symbol
 u : Function
 x
 
@@ -24,8 +23,6 @@ f = x**3 + 2*x**2 + x
 diff(f, x)
 
 # lambdify example
-x : Symbol
-y : Symbol
 
 expr = x**2 + y**2
 f = lambdify([x, y], expr)
