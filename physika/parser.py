@@ -1603,6 +1603,22 @@ def p_statement_function_decl(p):
     """statement : ID COLON FUNCTION NEWLINE"""
     p[0] = ('function_decl', p[1])
 
+def p_id_list(p):
+    """id_list : ID
+               | id_list COMMA ID"""
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[0] = p[1] + [p[3]]
+
+def p_statement_symbol_multi_decl(p):
+    """statement : id_list COLON SYMBOL NEWLINE"""
+    p[0] = ("symbol_decl_multi", p[1])
+
+def p_statement_function_multi_decl(p):
+    """statement : id_list COLON FUNCTION NEWLINE"""
+    p[0] = ("function_decl_multi", p[1])
+
 def p_statemet_equation_decl(p):
     """statement : ID COLON EQUATION WALRUS func_expr EQUALS func_expr NEWLINE"""
     p[0] = ("equation_decl", p[1], p[5], p[7])

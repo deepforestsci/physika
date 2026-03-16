@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from runtime import physika_print
+from physika.runtime import physika_print
 import sympy as sp
 
 # === Program ===
@@ -17,8 +17,6 @@ physika_print(expr)
 physika_print(f.subs([(x, 3.0), (y, 4.0)]))
 f = (((x ** 3.0) + ((2.0 * x) ** 2.0)) + x)
 physika_print(sp.diff(f, x))
-x = sp.Symbol('x')
-y = sp.Symbol('y')
 expr = ((x ** 2.0) + (y ** 2.0))
 f = sp.lambdify([x, y], expr, modules={'exp': 'torch.exp', 'log': 'torch.log', 'sin': 'torch.sin', 'cos': 'torch.cos', 'sqrt': 'torch.sqrt', 'abs': 'torch.abs', 'sum': 'torch.sum', 'mean': 'torch.mean', 'real': 'torch.real'})
 physika_print(f(3.0, 4.0))
