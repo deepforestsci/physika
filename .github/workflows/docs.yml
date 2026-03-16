@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    name: Build Sphinx docs - python ${{ matrix.python-version }}
+    name: build docs - python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
 
     strategy:
