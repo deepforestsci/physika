@@ -639,15 +639,23 @@ def ast_to_torch_expr(node: ASTNode,
 
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({', '.join(arg_strs)})"
+
         elif func_name == "grad":
             # grad(output, input) -> compute_grad(output, input)
             return f"compute_grad({', '.join(arg_strs)})"
+
         elif func_name == "subs":
             expr_code = arg_strs[0]
             sub_pairs = ", ".join(f"({arg_strs[i]}, {arg_strs[i+1]})" for i in range(1, len(arg_strs)-1, 2))
             return f"{expr_code}.subs([{sub_pairs}])"
+
         elif func_name == "diff":
+            if len(arg_strs) == 3:
+                expr, var, order = arg_strs
+                order = str(int(float(order)))
+                return f"sp.diff({expr}, {var}, {order})"
             return f"sp.diff({', '.join(arg_strs)})"
+
         elif func_name == "lambdify":
             args0 = args[0]
             if isinstance(args0, tuple) and args0[0] == "array":
@@ -657,8 +665,10 @@ def ast_to_torch_expr(node: ASTNode,
                 vars_code = arg_strs[0]
             expr_code = arg_strs[1]
             return f"sp.lambdify({vars_code}, {expr_code}, modules={torch_funcs})"
+
         elif func_name == "symbolic_solve":
             return f"sp.solve({', '.join(arg_strs)})"
+
         else:
             return f"{func_name}({', '.join(arg_strs)})"
 
