@@ -792,13 +792,29 @@ def p_statement_if_only(p):
 
 def p_statement_for(p):
     """statement : FOR ID COLON NEWLINE INDENT for_body DEDENT"""
+    # Top-level for loop over a single variable.
+    # The iteration count is inferred when generating torch code from array usage
+    # inside the body.
+    # Example:
+    #   for i:
+    #       total += arr[i]
+    # Parameters:
+    # p[2] — loop variable name
+    # p[6] — list of for_statement nodes inside the loop body
+    # Returns:
+    #   ("for_loop", loop_var, body_statements, indexed_arrays, lineno)
     loop_var = p[2]
     body_statements = p[6]
 
-    # Find arrays indexed by loop variable to determine iteration count at eval time
+    # Arrays length determines the iteration count.
     indexed_arrays = []
     for stmt in body_statements:
         if stmt:
+
+            # lhs of indexed-assignment statements (b[i] = expr) added directly
+            if stmt[0] == "for_index_assign":
+                indexed_arrays.append(stmt[1])
+            # Arrays read via loop variable (arr[i]) found recursively
             indexed_arrays.extend(find_indexed_arrays(stmt, loop_var))
 
     # Return AST node - iteration count will be determined during evaluation
@@ -812,6 +828,20 @@ def p_for_body_empty(p):
 def p_for_body_multi(p):
     """for_body : for_body for_statement"""
     p[0] = p[1] + ([p[2]] if p[2] is not None else [])
+
+def p_for_statement_index_assign(p):
+    """for_statement : ID LBRACKET func_expr RBRACKET EQUALS func_expr NEWLINE"""
+    # Indexed assignment statement inside a top-level for loop body.
+    # Example:
+    #   for i:
+    #       b[i] = 1
+    # Parameters:
+    # p[1] — array name
+    # p[3] — index expression (iter var)
+    # p[6] — right-hand side expression
+    # Returns:
+    #   ("for_index_assign", arr_name, idx_expr, rhs_expr)
+    p[0] = ("for_index_assign", p[1], p[3], p[6])
 
 def p_for_statement_assign(p):
     """for_statement : ID EQUALS func_expr NEWLINE"""
@@ -978,6 +1008,21 @@ def p_func_factor_imaginary(p):
     # Imaginary unit i
     p[0] = ("imaginary",)
 
+def p_func_factor_for_expr_range(p):
+    """func_factor : FOR ID COLON TYPE LPAREN func_expr COMMA func_expr RPAREN ARROW func_expr"""
+    # Ranged for inside a function body with explicit start and end.
+    # Iterates the loop variable over range(start, end) with exclusive end.
+    # Example:
+    #   for i : ℕ(1, n) -> cos(i * 0.5)
+    # Parameters:
+    # p[2]  — loop variable name
+    # p[6]  — start expression (inclusive)
+    # p[8]  — end expression (exclusive)
+    # p[11] — body expression evaluated for each i
+    # Returns:
+    #   ("for_expr_range", var, start_expr, end_expr, body_expr)
+    p[0] = ("for_expr_range", p[2], p[6], p[8], p[11])
+
 def p_func_factor_for_expr(p):
     """func_factor : FOR ID COLON TYPE LPAREN func_expr RPAREN ARROW func_expr"""
     # Explicit size for-expression inside a function body.
@@ -1093,6 +1138,21 @@ def p_factor_string(p):
     """factor : STRING"""
     # String literal (for equations and symbolic): 'x0 = a + b'
     p[0] = ("equation_string", p[1])
+
+def p_factor_for_expr_range(p):
+    """factor : FOR ID COLON TYPE LPAREN func_expr COMMA func_expr RPAREN ARROW func_expr"""
+    # Ranged for-expression at program level with explicit start and end.
+    # Iterates the loop variable over range(start, end) with exclusive end.
+    # Example:
+    #   cos_wave : ℝ[5] = for i : ℕ(1, 6) -> cos(i * 0.5)
+    # Parameters:
+    # p[2]  — loop variable name
+    # p[6]  — start expression (inclusive)
+    # p[8]  — end expression (exclusive)
+    # p[11] — body expression evaluated for each i
+    # Returns:
+    #   ("for_expr_range", var, start_expr, end_expr, body_expr)
+    p[0] = ("for_expr_range", p[2], p[6], p[8], p[11])
 
 def p_factor_for_expr(p):
     """factor : FOR ID COLON TYPE LPAREN func_expr RPAREN ARROW func_expr"""

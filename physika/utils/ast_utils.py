@@ -571,7 +571,12 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({', '.join(arg_strs)})"
         elif func_name == "grad":
-            # grad(output, input) -> compute_grad(output, input)
+            # grad(f(x), x) → compute_grad(f, x)  — pass the callable, not the evaluated value.
+            # This lets compute_grad re-evaluate f on a fresh requires_grad leaf,
+            # which is required for both scalar and vector-output functions.
+            first_arg = args[0]
+            if isinstance(first_arg, tuple) and first_arg[0] == "call" and isinstance(first_arg[1], str):
+                return f"compute_grad({first_arg[1]}, {arg_strs[1]})"
             return f"compute_grad({', '.join(arg_strs)})"
         else:
             return f"{func_name}({', '.join(arg_strs)})"
@@ -622,6 +627,29 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
             f"torch.stack(["
             f"{body_code} "
             f"for {tmp} in range(int({n_code})) "
+            f"for {loop_var} in [torch.tensor(float({tmp}))]])"
+        )
+
+    elif op == "for_expr_range":
+        # for i : ℕ(start, end) → body  — range(start, end), end-exclusive
+        loop_var = node[1]
+        start_expr = node[2]
+        end_expr = node[3]
+        body_expr = node[4]
+        outer_active = (
+            current_loop_var
+            if isinstance(current_loop_var, set)
+            else (set({current_loop_var}) if current_loop_var else set())
+        )
+        active_vars = outer_active | set({loop_var})
+        start_code = ast_to_torch_expr(start_expr, indent, outer_active or None)
+        end_code = ast_to_torch_expr(end_expr, indent, outer_active or None)
+        body_code = ast_to_torch_expr(body_expr, indent, active_vars)
+        tmp = f"_fi_{loop_var}"
+        return (
+            f"torch.stack(["
+            f"{body_code} "
+            f"for {tmp} in range(int({start_code}), int({end_code})) "
             f"for {loop_var} in [torch.tensor(float({tmp}))]])"
         )
 
@@ -1288,6 +1316,11 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
                 _, var_name, expr = body_stmt
                 expr_code = ast_to_torch_expr(expr, current_loop_var=loop_var)
                 lines.append(f"    {var_name} = {var_name} + {expr_code}")
+            elif body_op == "for_index_assign":
+                _, arr_name, idx_expr, rhs_expr = body_stmt
+                idx_code = ast_to_torch_expr(idx_expr, current_loop_var=loop_var)
+                rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=loop_var)
+                lines.append(f"    {arr_name}[int({idx_code})] = {rhs_code}")
             elif body_op == "for_call":
                 _, func_name, arg_asts = body_stmt
                 arg_strs = [ast_to_torch_expr(arg, current_loop_var=loop_var) for arg in arg_asts]
