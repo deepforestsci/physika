@@ -40,7 +40,9 @@ tokens = (
     "TANGENT",
     "IMAGINARY",
     "SYMBOL", "FUNCTION", "EQUATION",
-    "WALRUS"
+    "WALRUS",
+    "PARTIAL",
+    "NABLA",
 )
 
 reserved = {
@@ -76,6 +78,8 @@ t_EQUALS = r"="
 t_WALRUS = r':='
 t_COLON = r":"
 t_COMMA = r","
+t_PARTIAL = r"∂"
+t_NABLA = r"∇"
 
 
 def t_LAMBDA(t):
