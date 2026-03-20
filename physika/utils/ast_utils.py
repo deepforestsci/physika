@@ -4,7 +4,6 @@ import re
 from typing import Any, Callable, Literal, Union
 from physika.utils.print_utils import print_unified_ast
 
-
 # AST TYPE DEFINITIONS
 # The parser produces a tree of tagged tuples.  Every non-leaf node is a
 # tuple whose first element is a string (tag) and whose remaining elements are
@@ -16,59 +15,73 @@ from physika.utils.print_utils import print_unified_ast
 # Tag literals (every valid first element of an AST tuple)
 
 ExprTag = Literal[
-    "add", "sub", "mul", "div", "pow", "matmul",   # binary arithmetic
-    "neg",                                           # unary arithmetic
-    "num", "var",                                    # literals / references
-    "string", "equation_string",                     # string literals
-    "array",                                         # [elem, ...]
-    "index", "slice",                                # arr[i], arr[a:b]
-    "call", "call_index",                            # f(x), f(x)[i]
-    "imaginary",                                     # complex unit  i
+    "add",
+    "sub",
+    "mul",
+    "div",
+    "pow",
+    "matmul",  # binary arithmetic
+    "neg",  # unary arithmetic
+    "num",
+    "var",  # literals / references
+    "string",
+    "equation_string",  # string literals
+    "array",  # [elem, ...]
+    "index",
+    "slice",  # arr[i], arr[a:b]
+    "call",
+    "call_index",  # f(x), f(x)[i]
+    "imaginary",  # complex unit  i
 ]
 
 StmtTag = Literal[
-    "decl",       # x : R = expr          -> (tag, name, type, expr, lineno)
-    "assign",     # x = expr              -> (tag, name, expr, lineno)
-    "expr",       # expr                  -> (tag, expr, lineno)
-    "func_def",   # def f(...)            -> (tag, name)
+    "decl",  # x : R = expr          -> (tag, name, type, expr, lineno)
+    "assign",  # x = expr              -> (tag, name, expr, lineno)
+    "expr",  # expr                  -> (tag, expr, lineno)
+    "func_def",  # def f(...)            -> (tag, name)
     "class_def",  # class C(...)          -> (tag, name)
-    "for_loop",       # for i: ...          -> (tag, var, [body], [arrays], lineno)
-    "for_loop_range", # for i: ℕ(n) / ℕ(s,e): -> (tag, var, start, end, [body], lineno)
+    "for_loop",  # for i: ...          -> (tag, var, [body], [arrays], lineno)
+    "for_loop_range",  # for i: ℕ(n) / ℕ(s,e): -> (tag, var, start, end,
+    #                                                 [body], lineno)
 ]
 
 BodyStmtTag = Literal[
-    "body_assign",       # x = expr          inside function body
-    "body_decl",         # x : T = expr      inside function body
-    "body_tuple_unpack", # a, b = expr       inside function body
-    "body_for",          # for k: ...        for-loop inside function body
-    "body_zeros_decl",   # C : ℝ[n,o]        type annotation for an accumulation target
-    "body_for_accum",    # for i j k: ...    accumulation loop. emits torch.stack per target
-    "loop_assign",       # x = expr          inside for-loop body
-    "loop_pluseq",       # x += expr         inside for-loop body
-    "loop_index_pluseq", # C[i,...] += expr  nD accumulation inside for-loop body
-    "init_assign",       # x = expr          pre-loop initialisation
-    "for_assign",        # x = expr          program-level for body
-    "for_pluseq",        # x += expr         program-level for body
-    "for_call",          # f(x)              program-level for body
+    "body_assign",  # x = expr          inside function body
+    "body_decl",  # x : T = expr      inside function body
+    "body_tuple_unpack",  # a, b = expr       inside function body
+    "body_for",  # for k: ...        for-loop inside function body
+    "body_zeros_decl",  # C : ℝ[n,o]        type annotation for an accumulation
+    #                                           target
+    "body_for_accum",  # for i j k: ...    accumulation loop. emits
+    #                                          torch.stack
+    #                                          per target
+    "loop_assign",  # x = expr          inside for-loop body
+    "loop_pluseq",  # x += expr         inside for-loop body
+    "loop_index_pluseq",  # C[i,...] += expr  nD accumulation inside for-loop
+    #                                             body
+    "init_assign",  # x = expr          pre-loop initialisation
+    "for_assign",  # x = expr          program-level for body
+    "for_pluseq",  # x += expr         program-level for body
+    "for_call",  # f(x)              program-level for body
 ]
 
 TypeTag = Literal[
-    "func_type",   # R -> R                -> (tag, input_type, output_type)
-    "tangent",     # T_x M                -> (tag, point_id, manifold_type)
-    "tensor",      # R[3,3]               -> (tag, [(dim, variance), ...])
+    "func_type",  # R -> R                -> (tag, input_type, output_type)
+    "tangent",  # T_x M                -> (tag, point_id, manifold_type)
+    "tensor",  # R[3,3]               -> (tag, [(dim, variance), ...])
 ]
 
 ASTTag = Union[ExprTag, StmtTag, BodyStmtTag, TypeTag]
 
-# Composite node type 
+# Composite node type
 ASTNode = Union[
-        tuple[str, ...],     # tagged nodes: ("add", left, right), ("num", 1.0), ...
-        list["ASTNode"],     # child sequences: function args, loop bodies, ...
-        str,                 # identifiers, string literal values
-        int,                 # integer values (line numbers, dimension sizes)
-        float,               # numeric literal values
-        None,                # empty / no-op placeholder
-    ]
+    tuple[str, ...],  # tagged nodes: ("add", left, right), ("num", 1.0), ...
+    list["ASTNode"],  # child sequences: function args, loop bodies, ...
+    str,  # identifiers, string literal values
+    int,  # integer values (line numbers, dimension sizes)
+    float,  # numeric literal values
+    None,  # empty / no-op placeholder
+]
 
 
 def ast_uses_solve(node: ASTNode) -> bool:
@@ -100,7 +113,9 @@ def ast_uses_solve(node: ASTNode) -> bool:
     if isinstance(node, tuple) and len(node) >= 2:
         if node[0] == "call" and node[1] == "solve":
             return True
-        return any(ast_uses_solve(child) for child in node[1:] if isinstance(child, (tuple, list)))
+        return any(
+            ast_uses_solve(child) for child in node[1:]
+            if isinstance(child, (tuple, list)))
     if isinstance(node, list):
         return any(ast_uses_solve(item) for item in node)
     return False
@@ -110,7 +125,7 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
     """Check whether an AST subtree contains a call to *func_name*.
 
     Recursively walks *node* looking for both ``("call", func_name, ...)``
-    and ``("call_index", func_name, ..., idx)`` nodes.  Used during calling of 
+    and ``("call_index", func_name, ..., idx)`` nodes.  Used during calling of
     ``from_ast_to_torch`` to decide which runtime helpers need to be imported.
 
     Parameters
@@ -132,7 +147,7 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
     >>> from physika.utils.ast_utils import ast_uses_func
     >>> ast_uses_func(("call", "train", [("var", "model")]), "train")
     True
-    >>> ast_uses_func(("call_index", "grad", [("var", "H")], ("num", 0.0)), "grad")
+    >>> ast_uses_func(("call_index", "grad", [("var", "H")], ("num", 0.0)), "grad")  # noqa: E501
     True
     >>> ast_uses_func(("add", ("num", 1.0), ("num", 2.0)), "train")
     False
@@ -144,14 +159,17 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
             return True
         if node[0] == "call_index" and node[1] == func_name:
             return True
-        return any(ast_uses_func(child, func_name) for child in node[1:] if isinstance(child, (tuple, list)))
+        return any(
+            ast_uses_func(child, func_name) for child in node[1:]
+            if isinstance(child, (tuple, list)))
     if isinstance(node, list):
         return any(ast_uses_func(item, func_name) for item in node)
     return False
 
 
 def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
-    """Collect variable names used as differentiation targets in ``grad()`` calls.
+    """
+    Collect variable names used as differentiation targets in ``grad()`` calls.
 
     Recursively walks *node* looking for ``("call", "grad", [output, input])``
     patterns and extracts the second argument (the differentiation variable)
@@ -181,7 +199,8 @@ def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
     if isinstance(node, tuple) and len(node) >= 2:
         if node[0] == "call" and node[1] == "grad" and len(node) >= 3:
             args = node[2]
-            if len(args) >= 2 and isinstance(args[1], tuple) and args[1][0] == "var":
+            if len(args) >= 2 and isinstance(args[1],
+                                             tuple) and args[1][0] == "var":
                 targets.add(args[1][1])
         for child in node[1:]:
             if isinstance(child, (tuple, list)):
@@ -191,8 +210,10 @@ def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
             collect_grad_targets(item, targets)
 
 
-def replace_class_params(code: str, class_params: list[tuple[str, ASTNode]]) -> str:
-    """Replace class parameter references with ``self.param`` in generated code.
+def replace_class_params(code: str, class_params: list[tuple[str,
+                                                             ASTNode]]) -> str:
+    """
+    Replace class parameter references with ``self.param`` in generated code.
 
     Rewrites bare parameter names inside the generated ``forward`` and
     ``loss`` method bodies.  Applies regex substitutions for three
@@ -229,7 +250,7 @@ def replace_class_params(code: str, class_params: list[tuple[str, ASTNode]]) -> 
         code = re.sub(rf'\(({cp_name})\s', r'(self.\1 ', code)
         code = re.sub(rf'\s({cp_name})\)', r' self.\1)', code)
         code = re.sub(rf'\(({cp_name})\)', r'(self.\1)', code)
-        # Catch remaining word references not already prefixed 
+        # Catch remaining word references not already prefixed
         code = re.sub(rf'(?<!self\.)\b{cp_name}\b', f'self.{cp_name}', code)
     return code
 
@@ -263,10 +284,9 @@ def _is_loop_var(expr: ASTNode, var: str) -> bool:
     >>> _is_loop_var(("var", "j"), "k")
     False
     """
-    return (
-        (isinstance(expr, tuple) and expr[0] == "var" and expr[1] == var) or
-        (var == "i" and isinstance(expr, tuple) and expr[0] == "imaginary")
-    )
+    return ((isinstance(expr, tuple) and expr[0] == "var" and expr[1] == var)
+            or (var == "i" and isinstance(expr, tuple)
+                and expr[0] == "imaginary"))
 
 
 def _decompose_chain(expr: ASTNode) -> tuple[str | None, list[ASTNode]]:
@@ -296,7 +316,7 @@ def _decompose_chain(expr: ASTNode) -> tuple[str | None, list[ASTNode]]:
     >>> from physika.utils.ast_utils import _decompose_chain
     >>> _decompose_chain(("index", "A", ("var", "i")))
     ('A', [('var', 'i')])
-    >>> _decompose_chain(("chain_index", ("index", "A", ("var", "i")), ("var", "k")))
+    >>> _decompose_chain(("chain_index", ("index", "A", ("var", "i")), ("var", "k")))  # noqa: E501
     ('A', [('var', 'i'), ('var', 'k')])
     """
     if not isinstance(expr, tuple):
@@ -410,7 +430,9 @@ def _lhs_var_name(expr: ASTNode) -> str | None:
     return None
 
 
-def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | None = None) -> str:
+def ast_to_torch_expr(node: ASTNode,
+                      indent: int = 0,
+                      current_loop_var: str | None = None) -> str:
     """Convert an AST expression node to a PyTorch source code string.
 
     Recursively translates a Physika AST subtree into a valid
@@ -500,30 +522,35 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
     elif op == "array":
         elements = node[1]
         # Check if this is a nested array (contains other arrays)
-        has_nested = any(isinstance(e, tuple) and e[0] == "array" for e in elements)
+        has_nested = any(
+            isinstance(e, tuple) and e[0] == "array" for e in elements)
         if has_nested:
-            # For nested arrays, generate list-of-lists and wrap in torch.tensor
+            # For nested arrays, generate list-of-lists and wrap in
+            # torch.tensor
             def array_to_list(arr_node):
                 if isinstance(arr_node, tuple) and arr_node[0] == "array":
                     inner = [array_to_list(e) for e in arr_node[1]]
                     return f"[{', '.join(inner)}]"
                 else:
-                    return ast_to_torch_expr(arr_node, indent, current_loop_var)
+                    return ast_to_torch_expr(arr_node, indent,
+                                             current_loop_var)
+
             inner_lists = [array_to_list(e) for e in elements]
             return f"torch.tensor([{', '.join(inner_lists)}])"
         else:
             all_numeric = all(
-                isinstance(e, tuple) and (
-                    e[0] == "num" or
-                    (e[0] == "neg" and isinstance(e[1], tuple) and e[1][0] == "num")
-                )
+                isinstance(e, tuple) and
+                (e[0] == "num" or (e[0] == "neg" and isinstance(e[1], tuple)
+                                   and e[1][0] == "num")) for e in elements)
+            elem_strs = [
+                ast_to_torch_expr(e, indent, current_loop_var)
                 for e in elements
-            )
-            elem_strs = [ast_to_torch_expr(e, indent, current_loop_var) for e in elements]
+            ]
             if all_numeric:
                 return f"torch.tensor([{', '.join(elem_strs)}])"
             else:
-                # Elements may be tensors (e.g., x[1], sin(x[0])) — use torch.stack
+                # Elements may be tensors (e.g., x[1], sin(x[0]))
+                # use torch.stack
                 wrapped = [f"torch.as_tensor({s}).float()" for s in elem_strs]
                 return f"torch.stack([{', '.join(wrapped)}])"
 
@@ -548,13 +575,18 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
 
     elif op == "indexN":
         arr = node[1]
-        idx_codes = [f"int({ast_to_torch_expr(e, indent, current_loop_var)})" for e in node[2]]
+        idx_codes = [
+            f"int({ast_to_torch_expr(e, indent, current_loop_var)})"
+            for e in node[2]
+        ]
         return f"{arr}[{', '.join(idx_codes)}]"
 
     elif op == "call":
         func_name = node[1]
         args = node[2]
-        arg_strs = [ast_to_torch_expr(arg, indent, current_loop_var) for arg in args]
+        arg_strs = [
+            ast_to_torch_expr(arg, indent, current_loop_var) for arg in args
+        ]
 
         # Map built-in functions to PyTorch equivalents
         torch_funcs = {
@@ -582,7 +614,9 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
         func_name = node[1]
         args = node[2]
         index_ast = node[3]
-        arg_strs = [ast_to_torch_expr(arg, indent, current_loop_var) for arg in args]
+        arg_strs = [
+            ast_to_torch_expr(arg, indent, current_loop_var) for arg in args
+        ]
         idx = ast_to_torch_expr(index_ast, indent, current_loop_var)
 
         if func_name == "grad":
@@ -594,11 +628,8 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
     elif op == "imaginary":
         # If we're inside a for-expr whose loop var is 'i', emit 'i'.
         # current_loop_var may be a string (single var) or set (nested vars).
-        active = (
-            current_loop_var
-            if isinstance(current_loop_var, set)
-            else (set({current_loop_var}) if current_loop_var else set())
-        )
+        active = (current_loop_var if isinstance(current_loop_var, set) else
+                  (set({current_loop_var}) if current_loop_var else set()))
         if "i" in active:
             return "i"
         # Use torch.tensor(1j) so it can be used with torch.exp
@@ -611,20 +642,16 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
         size_expr = node[2]
         body_expr = node[3]
         outer_active = (
-            current_loop_var
-            if isinstance(current_loop_var, set)
-            else (set({current_loop_var}) if current_loop_var else set())
-        )
+            current_loop_var if isinstance(current_loop_var, set) else
+            (set({current_loop_var}) if current_loop_var else set()))
         active_vars = outer_active | set({loop_var})
         n_code = ast_to_torch_expr(size_expr, indent, outer_active or None)
         body_code = ast_to_torch_expr(body_expr, indent, active_vars)
         tmp = f"_fi_{loop_var}"
-        return (
-            f"torch.stack(["
-            f"{body_code} "
-            f"for {tmp} in range(int({n_code})) "
-            f"for {loop_var} in [torch.tensor(float({tmp}))]])"
-        )
+        return (f"torch.stack(["
+                f"{body_code} "
+                f"for {tmp} in range(int({n_code})) "
+                f"for {loop_var} in [torch.tensor(float({tmp}))]])")
 
     elif op == "for_expr_range":
         # for i : ℕ(start, end) → body  — range(start, end), end-exclusive
@@ -633,21 +660,18 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
         end_expr = node[3]
         body_expr = node[4]
         outer_active = (
-            current_loop_var
-            if isinstance(current_loop_var, set)
-            else (set({current_loop_var}) if current_loop_var else set())
-        )
+            current_loop_var if isinstance(current_loop_var, set) else
+            (set({current_loop_var}) if current_loop_var else set()))
         active_vars = outer_active | set({loop_var})
-        start_code = ast_to_torch_expr(start_expr, indent, outer_active or None)
+        start_code = ast_to_torch_expr(start_expr, indent, outer_active
+                                       or None)
         end_code = ast_to_torch_expr(end_expr, indent, outer_active or None)
         body_code = ast_to_torch_expr(body_expr, indent, active_vars)
         tmp = f"_fi_{loop_var}"
-        return (
-            f"torch.stack(["
-            f"{body_code} "
-            f"for {tmp} in range(int({start_code}), int({end_code})) "
-            f"for {loop_var} in [torch.tensor(float({tmp}))]])"
-        )
+        return (f"torch.stack(["
+                f"{body_code} "
+                f"for {tmp} in range(int({start_code}), int({end_code})) "
+                f"for {loop_var} in [torch.tensor(float({tmp}))]])")
 
     elif op == "equation_string":
         return repr(node[1])
@@ -657,7 +681,6 @@ def ast_to_torch_expr(node: ASTNode, indent: int = 0, current_loop_var: str | No
         return repr(node[1])
 
     return f"/* unknown: {node} */"
-
 
 
 def condition_to_expr(cond: ASTNode, current_loop_var=None) -> str:
@@ -684,9 +707,12 @@ def condition_to_expr(cond: ASTNode, current_loop_var=None) -> str:
     'x < 1.0'
     """
     op_map = {
-        "cond_eq": "==", "cond_neq": "!=",
-        "cond_lt": "<",  "cond_gt": ">",
-        "cond_leq": "<=", "cond_geq": ">=",
+        "cond_eq": "==",
+        "cond_neq": "!=",
+        "cond_lt": "<",
+        "cond_gt": ">",
+        "cond_leq": "<=",
+        "cond_geq": ">=",
     }
     op = cond[0]
     left = ast_to_torch_expr(cond[1], current_loop_var=current_loop_var)
@@ -727,35 +753,51 @@ def emit_func_loop_body(
         Active loop variable name(s).  Grows as inner loops are entered.
     """
     prefix = "    " * indent_level
-    active = loop_var if isinstance(loop_var, set) else ({loop_var} if loop_var else set())
+    active = loop_var if isinstance(
+        loop_var, set) else ({loop_var} if loop_var else set())
     for loop_stmt in loop_body:
         if loop_stmt is None:
             continue
         tag = loop_stmt[0]
         if tag == "loop_assign":
             _, var_name, expr = loop_stmt
-            lines.append(f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=active)}")
+            lines.append(
+                f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=active)}"  # noqa: E501
+            )
         elif tag == "loop_pluseq":
             _, var_name, expr = loop_stmt
-            lines.append(f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=active)}")
+            lines.append(
+                f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=active)}"  # noqa: E501
+            )
         elif tag == "loop_index_pluseq":
             _, arr_name, idx_list, rhs = loop_stmt
-            idx_codes = [ast_to_torch_expr(e, current_loop_var=active) for e in idx_list]
+            idx_codes = [
+                ast_to_torch_expr(e, current_loop_var=active) for e in idx_list
+            ]
             rhs_code = ast_to_torch_expr(rhs, current_loop_var=active)
-            lines.append(f"{prefix}{arr_name}[{', '.join(f'int({c})' for c in idx_codes)}] += {rhs_code}")
+            lines.append(
+                f"{prefix}{arr_name}[{', '.join(f'int({c})' for c in idx_codes)}] += {rhs_code}"  # noqa: E501
+            )
         elif tag == "loop_for_range":
             _, inner_var, start_expr, end_expr, inner_body = loop_stmt
             start_code = ast_to_torch_expr(start_expr, current_loop_var=active)
             end_code = ast_to_torch_expr(end_expr, current_loop_var=active)
-            lines.append(f"{prefix}for {inner_var} in range(int({start_code}), int({end_code})):")
-            emit_func_loop_body(inner_body, indent_level + 1, lines, active | {inner_var})
+            lines.append(
+                f"{prefix}for {inner_var} in range(int({start_code}), int({end_code})):"  # noqa: E501
+            )
+            emit_func_loop_body(inner_body, indent_level + 1, lines,
+                                active | {inner_var})
         elif tag == "loop_if":
             _, cond, then_body = loop_stmt
-            lines.append(f"{prefix}if {condition_to_expr(cond, current_loop_var=active)}:")
+            lines.append(
+                f"{prefix}if {condition_to_expr(cond, current_loop_var=active)}:"  # noqa: E501
+            )
             emit_func_loop_body(then_body, indent_level + 1, lines, active)
         elif tag == "loop_if_else":
             _, cond, then_body, else_body = loop_stmt
-            lines.append(f"{prefix}if {condition_to_expr(cond, current_loop_var=active)}:")
+            lines.append(
+                f"{prefix}if {condition_to_expr(cond, current_loop_var=active)}:"  # noqa: E501
+            )
             emit_func_loop_body(then_body, indent_level + 1, lines, active)
             lines.append(f"{prefix}else:")
             emit_func_loop_body(else_body, indent_level + 1, lines, active)
@@ -775,9 +817,11 @@ def emit_body_stmts(
 ) -> None:
     """Recursively emit Python code lines for a function body.
 
-    Converts a sequence of ``body_decl``, ``body_assign``, ``body_tuple_unpack``,
-    ``body_if_return``, ``body_if_else_return``, ``body_if_else``, or
-    ``body_if`` AST nodes into indented Python source lines and appends them to `lines`.
+    Converts a sequence of ``body_decl``, ``body_assign``,
+    ``body_tuple_unpack``, ``body_if_return``,
+    ``body_if_else_return``, ``body_if_else``, or
+    ``body_if`` AST nodes into indented Python source lines
+    and appends them to `lines`.
 
 
     Parameters
@@ -867,24 +911,32 @@ def emit_body_stmts(
                 lines.append(f"{prefix}else:")
                 lines.append(f"{prefix}    return {else_code}")
             else:
-                # Vector functions: use torch.where for elementwise differentiability
-                lines.append(f"{prefix}return torch.where(torch.as_tensor({cond_code}), {then_code}, {else_code})")
+                # Vector functions: use torch.where for elementwise
+                # differentiability
+                lines.append(
+                    f"{prefix}return torch.where(torch.as_tensor({cond_code}), {then_code}, {else_code})"  # noqa: E501
+                )
         elif stmt_op == "body_if_else":
             _, cond, then_stmts, else_stmts = stmt
             cond_code = condition_to_expr(cond)
             lines.append(f"{prefix}if {cond_code}:")
-            emit_body_stmts(then_stmts, indent_level + 1, lines, known_vars, equation_vars, generate_solve_call, scalar_only)
+            emit_body_stmts(then_stmts, indent_level + 1, lines, known_vars,
+                            equation_vars, generate_solve_call, scalar_only)
             lines.append(f"{prefix}else:")
-            emit_body_stmts(else_stmts, indent_level + 1, lines, known_vars, equation_vars, generate_solve_call, scalar_only)
+            emit_body_stmts(else_stmts, indent_level + 1, lines, known_vars,
+                            equation_vars, generate_solve_call, scalar_only)
         elif stmt_op == "body_if":
             _, cond, then_stmts = stmt
             cond_code = condition_to_expr(cond)
             lines.append(f"{prefix}if {cond_code}:")
-            emit_body_stmts(then_stmts, indent_level + 1, lines, known_vars, equation_vars, generate_solve_call, scalar_only)
+            emit_body_stmts(then_stmts, indent_level + 1, lines, known_vars,
+                            equation_vars, generate_solve_call, scalar_only)
         elif stmt_op == "body_for":
             _, loop_var, loop_body, indexed_arrays = stmt
             if indexed_arrays:
-                lines.append(f"{prefix}for {loop_var} in range(len({indexed_arrays[0]})):")
+                lines.append(
+                    f"{prefix}for {loop_var} in range(len({indexed_arrays[0]})):"  # noqa: E501
+                )
             else:
                 lines.append(f"{prefix}for {loop_var} in range(n):")
             emit_func_loop_body(loop_body, indent_level + 1, lines, loop_var)
@@ -892,13 +944,17 @@ def emit_body_stmts(
             _, loop_var, start_expr, end_expr, loop_body = stmt
             start_code = ast_to_torch_expr(start_expr)
             end_code = ast_to_torch_expr(end_expr)
-            lines.append(f"{prefix}for {loop_var} in range(int({start_code}), int({end_code})):")
+            lines.append(
+                f"{prefix}for {loop_var} in range(int({start_code}), int({end_code})):"  # noqa: E501
+            )
             emit_func_loop_body(loop_body, indent_level + 1, lines, loop_var)
         elif stmt_op == "body_zeros_decl":
-            # Type annotation for an accumulation target. `codegen`` emits nothing.
+            # Type annotation for an accumulation target. `codegen``
+            # emits nothing.
             # Example:
             #   C : ℝ[n, o]
-            # The paired body_for_accum emits the `torch.stack` expression that defines the tensor.
+            # The paired body_for_accum emits the `torch.stack` expression that
+            # defines the tensor.
             pass
 
         elif stmt_op == "body_for_accum":
@@ -910,7 +966,8 @@ def emit_body_stmts(
             # Parameters:
             # stmt[1] — loop variable list [i, j, k]
             # stmt[2] — loop body statements (loop_index_pluseq nodes)
-            # Emits: one `name = torch.stack(...)` line per unique += target tensor.
+            # Emits: one `name = torch.stack(...)`
+            # line per unique += target tensor.
             _, loop_vars, loop_body = stmt
             active = set(loop_vars)
 
@@ -923,38 +980,39 @@ def emit_body_stmts(
                         accums[name] = (idx_list, rhs)
 
             if not accums:
-                raise ValueError("body_for_accum has no loop_index_pluseq statement")
+                raise ValueError(
+                    "body_for_accum has no loop_index_pluseq statement")
 
-            # Generate one differentiable torch.stack expression per target tensor
+            # Generate one differentiable torch.stack expression per target
+            # tensor
             for tensor_name, (lhs_idx_exprs, rhs_expr) in accums.items():
                 ranges = {
-                    v: _infer_range(v, rhs_expr, tensor_name) or f"# range unknown for {v}"
+                    v:
+                    _infer_range(v, rhs_expr, tensor_name)
+                    or f"# range unknown for {v}"
                     for v in loop_vars
                 }
-                lhs_vars = [n for n in (_lhs_var_name(e) for e in lhs_idx_exprs) if n]
+                lhs_vars = [
+                    n for n in (_lhs_var_name(e) for e in lhs_idx_exprs) if n
+                ]
                 reduction_vars = [v for v in loop_vars if v not in lhs_vars]
                 rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=active)
                 inner_expr = rhs_code
                 for rv in reversed(reduction_vars):
-                    inner_expr = (
-                        f"torch.sum(torch.stack([{inner_expr}"
-                        f" for {rv} in range({ranges[rv]})]))"
-                    )
+                    inner_expr = (f"torch.sum(torch.stack([{inner_expr}"
+                                  f" for {rv} in range({ranges[rv]})]))")
                 for ov in reversed(lhs_vars):
-                    inner_expr = (
-                        f"torch.stack([{inner_expr}"
-                        f" for {ov} in range({ranges[ov]})])"
-                    )
+                    inner_expr = (f"torch.stack([{inner_expr}"
+                                  f" for {ov} in range({ranges[ov]})])")
                 lines.append(f"{prefix}{tensor_name} = {inner_expr}")
-
 
 
 def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
     """Generate a Python/PyTorch function definition from a function AST.
 
     Translates a Physika function (params, body statements, return
-    expression) into a valid Python function definition string. 
-     
+    expression) into a valid Python function definition string.
+
     If the function body contains a ``solve()`` call, local known-variable
     tracking is used to pass all in-scope variables as keyword
     arguments to ``solve``.
@@ -1007,21 +1065,26 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
     equation_vars = set()
 
     # Helper to generate solve call with known variables
-    # (kept local: it accumulates known_vars/equation_vars as statements are processed)
+    # (kept local: it accumulates known_vars/equation_vars as statements
+    # are processed)
     def generate_solve_call(expr):
-        if isinstance(expr, tuple) and expr[0] == "call" and expr[1] == "solve":
+        if isinstance(expr,
+                      tuple) and expr[0] == "call" and expr[1] == "solve":
             args = expr[2]
             arg_strs = [ast_to_torch_expr(arg) for arg in args]
             # Add known variables as keyword arguments (exclude equation vars)
-            kw_strs = [f"{v}={v}" for v in known_vars if v not in equation_vars]
+            kw_strs = [
+                f"{v}={v}" for v in known_vars if v not in equation_vars
+            ]
             return f"solve({', '.join(arg_strs)}, {', '.join(kw_strs)})"
         return ast_to_torch_expr(expr)
 
-    # Use if/else (not torch.where) when all params are scalars — allows recursion
+    # Use if/else (not torch.where) when all params are scalars
     scalar_only = all(pt == "\u211d" for _, pt in params)
 
     # Generate body statements
-    emit_body_stmts(statements, 1, lines, known_vars, equation_vars, generate_solve_call, scalar_only)
+    emit_body_stmts(statements, 1, lines, known_vars, equation_vars,
+                    generate_solve_call, scalar_only)
 
     # Generate for-loop body
     if func_def.get("has_loop"):
@@ -1041,7 +1104,8 @@ def generate_function(name: str, func_def: dict[str, ASTNode]) -> str:
 
         # Emit loop header — range inferred from the first indexed array
         if indexed_arrays:
-            lines.append(f"    for {loop_var} in range(len({indexed_arrays[0]})):")
+            lines.append(
+                f"    for {loop_var} in range(len({indexed_arrays[0]})):")
         else:
             lines.append(f"    for {loop_var} in range(n):")
 
@@ -1107,10 +1171,14 @@ def emit_for_stmts(
         body_op = s[0]
         if body_op == "for_assign":
             _, var_name, expr = s
-            result.append(f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=loop_var)}")
+            result.append(
+                f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=loop_var)}"  # noqa: E501
+            )
         elif body_op == "for_pluseq":
             _, var_name, expr = s
-            result.append(f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=loop_var)}")
+            result.append(
+                f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=loop_var)}"  # noqa: E501
+            )
         elif body_op == "for_index_assign":
             _, arr_name, idx_expr, rhs_expr = s
             idx_code = ast_to_torch_expr(idx_expr, current_loop_var=loop_var)
@@ -1118,28 +1186,41 @@ def emit_for_stmts(
             result.append(f"{prefix}{arr_name}[int({idx_code})] = {rhs_code}")
         elif body_op == "for_call":
             _, func_name, arg_asts = s
-            arg_strs = [ast_to_torch_expr(arg, current_loop_var=loop_var) for arg in arg_asts]
+            arg_strs = [
+                ast_to_torch_expr(arg, current_loop_var=loop_var)
+                for arg in arg_asts
+            ]
             result.append(f"{prefix}{func_name}({', '.join(arg_strs)})")
         elif body_op == "for_loop_range":
             inner_var = s[1]
             start_code = ast_to_torch_expr(s[2], current_loop_var=loop_var)
             end_code = ast_to_torch_expr(s[3], current_loop_var=loop_var)
             inner_body = s[4]
-            result.append(f"{prefix}for {inner_var} in range(int({start_code}), int({end_code})):")
-            # Accumulate all active loop vars so inner body can reference outer vars (e.g. 'i')
-            outer_vars = loop_var if isinstance(loop_var, set) else ({loop_var} if loop_var else set())
+            result.append(
+                f"{prefix}for {inner_var} in range(int({start_code}), int({end_code})):"  # noqa: E501
+            )
+            # Accumulate all active loop vars so inner body can reference
+            # outer vars (e.g. 'i')
+            outer_vars = loop_var if isinstance(
+                loop_var, set) else ({loop_var} if loop_var else set())
             inner_loop_var = outer_vars | {inner_var}
-            result.extend(emit_for_stmts(inner_body, indent + 4, inner_loop_var))
+            result.extend(
+                emit_for_stmts(inner_body, indent + 4, inner_loop_var))
         elif body_op == "for_loop":
             inner_var = s[1]
             inner_body = s[2]
             indexed_arrays = s[3]
             if indexed_arrays:
-                result.append(f"{prefix}for {inner_var} in range(len({indexed_arrays[0]})):")
+                result.append(
+                    f"{prefix}for {inner_var} in range(len({indexed_arrays[0]})):"  # noqa: E501
+                )
             else:
                 result.append(f"{prefix}for {inner_var} in range(n):")
-            outer_vars = loop_var if isinstance(loop_var, set) else ({loop_var} if loop_var else set())
-            result.extend(emit_for_stmts(inner_body, indent + 4, outer_vars | {inner_var}))
+            outer_vars = loop_var if isinstance(
+                loop_var, set) else ({loop_var} if loop_var else set())
+            result.extend(
+                emit_for_stmts(inner_body, indent + 4,
+                               outer_vars | {inner_var}))
         elif body_op == "for_if":
             _, cond, then_body = s
             cond_code = condition_to_expr(cond, current_loop_var=loop_var)
@@ -1153,7 +1234,6 @@ def emit_for_stmts(
             result.append(f"{prefix}else:")
             result.extend(emit_for_stmts(else_body, indent + 4, loop_var))
     return result
-
 
 
 def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
@@ -1214,7 +1294,7 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
     # __init__ method
     init_params = ", ".join([p[0] for p in class_params])
     lines.append(f"    def __init__(self, {init_params}):")
-    lines.append(f"        super().__init__()")
+    lines.append("        super().__init__()")
     for param_name, param_type in class_params:
         # Check if this is a tensor type that should be a parameter
         is_tensor = False
@@ -1225,18 +1305,21 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
 
         if is_tensor:
             # Handle both tensors and scalars
-            lines.append(f"        self.{param_name} = nn.Parameter(torch.tensor({param_name}).float() if not isinstance({param_name}, torch.Tensor) else {param_name}.clone().detach().float())")
+            lines.append(
+                f"        self.{param_name} = nn.Parameter(torch.tensor({param_name}).float() if not isinstance({param_name}, torch.Tensor) else {param_name}.clone().detach().float())"  # noqa: E501
+            )
         else:
             # Non-tensor (like function 'f' or int 'n')
             lines.append(f"        self.{param_name} = {param_name}")
 
     # forward method (lambda)
     lambda_param_names = [p[0] for p in lambda_params]
-    lines.append(f"")
+    lines.append("")
     lines.append(f"    def forward(self, {', '.join(lambda_param_names)}):")
     # Convert inputs to tensors
     for pname, ptype in lambda_params:
-        if ptype == "\u211d" or ptype == "\u2115" or (isinstance(ptype, tuple) and ptype[0] == "tensor"):
+        if ptype == "\u211d" or ptype == "\u2115" or (isinstance(
+                ptype, tuple) and ptype[0] == "tensor"):
             lines.append(f"        {pname} = torch.as_tensor({pname}).float()")
 
     # Generate forward body statements (multi-statement lambda body)
@@ -1245,13 +1328,16 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
         known_vars = [p[0] for p in lambda_params]
         equation_vars: set[str] = set()
         scalar_only = all(pt == "\u211d" for _, pt in lambda_params)
-        emit_body_stmts(statements, 2, stmt_lines, known_vars, equation_vars, ast_to_torch_expr, scalar_only)
+        emit_body_stmts(statements, 2, stmt_lines, known_vars, equation_vars,
+                        ast_to_torch_expr, scalar_only)
         for line in stmt_lines:
             lines.append(replace_class_params(line, class_params))
 
     # Generate loop if present
     if has_loop and loop_body:
-        lines.append(f"        n = int(self.n) if hasattr(self, 'n') else self.{class_params[-1][0]}.shape[0] if hasattr(self.{class_params[-1][0]}, 'shape') else 2")
+        lines.append(
+            f"        n = int(self.n) if hasattr(self, 'n') else self.{class_params[-1][0]}.shape[0] if hasattr(self.{class_params[-1][0]}, 'shape') else 2"  # noqa: E501
+        )
         lines.append(f"        for {loop_var} in range(n):")
         for stmt in loop_body:
             if stmt and stmt[0] == "loop_assign":
@@ -1268,7 +1354,8 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
 
     # loss method if present
     if has_loss and loss_body:
-        loss_params = class_def.get("loss_params", [("y", "\u211d"), ("target", "\u211d")])
+        loss_params = class_def.get("loss_params", [("y", "\u211d"),
+                                                    ("target", "\u211d")])
         loss_param_names = [p[0] for p in loss_params]
         loss_stmts = class_def.get("loss_statements", [])
 
@@ -1283,10 +1370,12 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
         if loss_uses_grad and lambda_param_names:
             # Add the input parameter (x) to loss params
             input_param = lambda_param_names[0]  # typically 'x'
-            lines.append(f"")
-            lines.append(f"    def loss(self, {', '.join(loss_param_names)}, {input_param}):")
+            lines.append("")
+            lines.append(
+                f"    def loss(self, {', '.join(loss_param_names)}, {input_param}):"  # noqa: E501
+            )
         else:
-            lines.append(f"")
+            lines.append("")
             lines.append(f"    def loss(self, {', '.join(loss_param_names)}):")
 
         # Emit loss body statements
@@ -1317,7 +1406,8 @@ def generate_class(name: str, class_def: dict[str, ASTNode]) -> str:
     return "\n".join(lines)
 
 
-def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
+def generate_statement(stmt: ASTNode,
+                       grad_target_vars: set[str]) -> str | None:
     """Generate a PyTorch code string for a program-level statement.
 
     Handles ``decl`` (variable declaration), ``assign`` (reassignment),
@@ -1382,7 +1472,9 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
         expr = stmt[1]
         expr_code = ast_to_torch_expr(expr)
         # Don't wrap side-effect-only calls in physika_print
-        if isinstance(expr, tuple) and expr[0] == "call" and expr[1] in ("simulate", "animate"):
+        if isinstance(expr,
+                      tuple) and expr[0] == "call" and expr[1] in ("simulate",
+                                                                   "animate"):
             return expr_code
         return f"physika_print({expr_code})"
 
@@ -1393,7 +1485,8 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
         return None  # Already generated
 
     elif op == "for_loop":
-        # For loop: ("for_loop", loop_var, body_statements, indexed_arrays[, lineno])
+        # For loop: ("for_loop", loop_var, body_statements,
+        # indexed_arrays[, lineno])
         loop_var = stmt[1]
         body_statements = stmt[2]
         indexed_arrays = stmt[3]
@@ -1405,12 +1498,15 @@ def generate_statement(stmt: ASTNode, grad_target_vars: set[str]) -> str | None:
         return "\n".join(lines)
 
     elif op == "for_loop_range":
-        # Explicit-range for loop: ("for_loop_range", loop_var, start_expr, end_expr, body_stmts, lineno)
+        # Explicit-range for loop: ("for_loop_range", loop_var, start_expr,
+        # end_expr, body_stmts, lineno)
         loop_var = stmt[1]
         start_code = ast_to_torch_expr(stmt[2])
         end_code = ast_to_torch_expr(stmt[3])
         body_statements = stmt[4]
-        lines = [f"for {loop_var} in range(int({start_code}), int({end_code})):"]
+        lines = [
+            f"for {loop_var} in range(int({start_code}), int({end_code})):"
+        ]
         lines += emit_for_stmts(body_statements, 4, loop_var)
         return "\n".join(lines)
 
@@ -1475,11 +1571,7 @@ def build_unified_ast(
     >>> unified["functions"]
     {}
     """
-    unified = {
-        "functions": {},
-        "classes": {},
-        "program": []
-    }
+    unified = {"functions": {}, "classes": {}, "program": []}
 
     # Extract functions and classes from symbol table
     for name, entry in symbol_table.items():
