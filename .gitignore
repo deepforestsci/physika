@@ -7,3 +7,6 @@ parsetab.py
 # Distribution / packaging
 *.egg-info/
 *.egg
+
+# Sphinx build output
+docs/_build/
