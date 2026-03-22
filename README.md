@@ -165,6 +165,7 @@ physika_print(y)
 physika_print(z)
 ```
 
+
 ## Type Checker
 
 The type checker verifies that all objects defined in a Physika file (.phyk), including classes, functions, and variables, perform operations with compatible dimensions and data types. For example, matrix multiplication must follow the convention (M×N)@(N×P), and operations between types must be valid (e.g., ℝ + ℝ is valid, whereas ℝ[2] + ℝ is not).
