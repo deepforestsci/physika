@@ -10,6 +10,15 @@ requires-python = ">=3.9"
 [project.scripts]
 physika = "physika.execute:main"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "yapf",
+    "toml",
+    "mypy",
+    "flake8"
+]
+
 [tool.yapf]
 based_on_style = "pep8"
 column_limit = 79
