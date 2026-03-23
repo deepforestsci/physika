@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Callable, List, Tuple, Union
 
-
 # Type aliases used throughout this module.
-TypeSpec = Any       # "ℝ", "ℕ", ("tensor", [...]), ("func_type", ...), None
-ASTExpr = Any        # tagged tuple, scalar, or None
+TypeSpec = Any  # "ℝ", "ℕ", ("tensor", [...]), ("func_type", ...), None
+ASTExpr = Any  # tagged tuple, scalar, or None
 ErrorFn = Callable[[str], None]
 InferFn = Callable[..., TypeSpec]
 
@@ -225,7 +224,7 @@ def shapes_broadcast_compatible(
 
     Examples
     --------
-    >>> from physika.utils.type_checker_utils import shapes_broadcast_compatible
+    >>> from physika.utils.type_checker_utils import shapes_broadcast_compatible  # noqa: E501
     >>> shapes_broadcast_compatible([3], [3])
     ([3], True)
     >>> shapes_broadcast_compatible(None, [3], allow_scalar_broadcast=True)
@@ -351,15 +350,15 @@ def type_infer(
         local_env = {}
 
     if op == "num":
-            return "ℝ"
+        return "ℝ"
 
     elif op == "var":
-            var_name = expr[1]
-            if var_name in local_env:
-                return local_env[var_name]
-            if var_name in type_env:
-                return type_env[var_name]
-            return None
+        var_name = expr[1]
+        if var_name in local_env:
+            return local_env[var_name]
+        if var_name in type_env:
+            return type_env[var_name]
+        return None
 
     elif op == "array":
         elements = expr[1]
@@ -377,24 +376,28 @@ def type_infer(
 
             outer_dim = len(elems)
 
-                # Check if elements are nested arrays
+            # Check if elements are nested arrays
             first_elem = elems[0]
             if isinstance(first_elem, tuple) and first_elem[0] == "array":
-                    # Get inner shape from first element
+                # Get inner shape from first element
                 inner_shape = infer_array_shape(first_elem)
 
-                    # Verify all elements have the same shape
+                # Verify all elements have the same shape
                 for i, elem in enumerate(elems):
                     if not isinstance(elem, tuple) or elem[0] != "array":
-                        add_error(f"Inconsistent array shape at index {i}: {elem} vs {inner_shape}")
+                        add_error(
+                            f"Inconsistent array shape at index {i}: {elem} vs {inner_shape}"  # noqa: E501
+                        )
                         return None
 
                 return [outer_dim] + inner_shape
             else:
-                    # Leaf level - all elements should be scalars
+                # Leaf level - all elements should be scalars
                 for i, elem in enumerate(elems):
                     if isinstance(elem, tuple) and elem[0] == "array":
-                        add_error(f"Inconsistent nesting at index {i}: expected scalar, got array")
+                        add_error(
+                            f"Inconsistent nesting at index {i}: expected scalar, got array"  # noqa: E501
+                        )
                         return None
                 return [outer_dim]
 
@@ -404,226 +407,245 @@ def type_infer(
         return ("tensor", [(d, "invariant") for d in shape])
 
     elif op == "index":
-            var_name = expr[1]
-            var_type = local_env.get(var_name) or type_env.get(var_name)
-            if var_type is None:
-                return None
-            shape = get_shape(var_type)
-            if shape is None:
-                add_error(f"Cannot index scalar '{var_name}'")
-                return None
-            if len(shape) == 1:
-                return "ℝ"  # Indexing 1D array gives scalar
-            else:
-                # Indexing multi-dim array gives sub-array
-                return make_tensor_type(shape[1:])
+        var_name = expr[1]
+        var_type = local_env.get(var_name) or type_env.get(var_name)
+        if var_type is None:
+            return None
+        shape = get_shape(var_type)
+        if shape is None:
+            add_error(f"Cannot index scalar '{var_name}'")
+            return None
+        if len(shape) == 1:
+            return "ℝ"  # Indexing 1D array gives scalar
+        else:
+            # Indexing multi-dim array gives sub-array
+            return make_tensor_type(shape[1:])
 
     elif op == "slice":
-            var_name = expr[1]
-            start_expr = expr[2]
-            end_expr = expr[3]
-            var_type = local_env.get(var_name) or type_env.get(var_name)
-            if var_type is None:
-                return None
-            shape = get_shape(var_type)
-            if shape is None:
-                add_error(f"Cannot slice scalar '{var_name}'")
-                return None
-
-            # Try to compute slice length
-            start_val = None
-            end_val = None
-            if isinstance(start_expr, tuple) and start_expr[0] == "num":
-                start_val = int(start_expr[1])
-            if isinstance(end_expr, tuple) and end_expr[0] == "num":
-                end_val = int(end_expr[1])
-
-            if start_val is not None and end_val is not None:
-                # Physika uses inclusive end, so length is end - start + 1
-                slice_len = end_val - start_val + 1
-                if len(shape) == 1:
-                    return ("tensor", [(slice_len, "invariant")])
-                else:
-                    new_shape = [slice_len] + shape[1:]
-                    return make_tensor_type(new_shape)
-            return None  # Cannot determine slice length
-
-    elif op in ("add", "sub"):
-            left_type = infer_type(expr[1], local_env)
-            right_type = infer_type(expr[2], local_env)
-            left_shape = get_shape(left_type)
-            right_shape = get_shape(right_type)
-
-            # Allow scalar broadcasting for add/sub (e.g. tensor + 1.0)
-            result_shape, ok = shapes_broadcast_compatible(left_shape, right_shape, allow_scalar_broadcast=True)
-            if not ok:
-                add_error(f"Shape mismatch in {op}: {type_to_str(left_type)} vs {type_to_str(right_type)}")
-                return None
-            return make_tensor_type(result_shape)
-
-    elif op == "mul":
-            left_type = infer_type(expr[1], local_env)
-            right_type = infer_type(expr[2], local_env)
-            left_shape = get_shape(left_type)
-            right_shape = get_shape(right_type)
-
-            # Allow scalar multiplication with tensors
-            result_shape, ok = shapes_broadcast_compatible(left_shape, right_shape, allow_scalar_broadcast=True)
-            if not ok:
-                add_error(f"Shape mismatch in multiplication: {type_to_str(left_type)} vs {type_to_str(right_type)}")
-                return None
-            return make_tensor_type(result_shape)
-
-    elif op == "div":
-            left_type = infer_type(expr[1], local_env)
-            right_type = infer_type(expr[2], local_env)
-            # Division by scalar is always ok
-            right_shape = get_shape(right_type)
-            if right_shape is not None:
-                left_shape = get_shape(left_type)
-                if left_shape != right_shape:
-                    add_error(f"Element-wise division requires matching shapes: {type_to_str(left_type)} vs {type_to_str(right_type)}")
-            return left_type
-
-    elif op == "matmul":
-            left_type = infer_type(expr[1], local_env)
-            right_type = infer_type(expr[2], local_env)
-            left_shape = get_shape(left_type)
-            right_shape = get_shape(right_type)
-
-            if left_shape is None or right_shape is None:
-                # Scalar matmul - treat as regular mul
-                return left_type if right_shape is None else right_type
-
-            # Matrix multiplication dimension check
-            if len(left_shape) == 1 and len(right_shape) == 1:
-                # Vector dot product: (n,) @ (n,) -> scalar
-                if not dims_compatible(left_shape[0], right_shape[0]):
-                    add_error(f"Vector dot product dimension mismatch: {left_shape[0]} vs {right_shape[0]}")
-                return "ℝ"
-            elif len(left_shape) == 2 and len(right_shape) == 1:
-                # Matrix-vector: (m,n) @ (n,) -> (m,)
-                if not dims_compatible(left_shape[1], right_shape[0]):
-                    add_error(f"Matrix-vector multiplication dimension mismatch: {left_shape[1]} vs {right_shape[0]}")
-                return make_tensor_type([left_shape[0]])
-            elif len(left_shape) == 1 and len(right_shape) == 2:
-                # Vector-matrix: (m,) @ (m,n) -> (n,)
-                if not dims_compatible(left_shape[0], right_shape[0]):
-                    add_error(f"Vector-matrix multiplication dimension mismatch: {left_shape[0]} vs {right_shape[0]}")
-                return make_tensor_type([right_shape[1]])
-            elif len(left_shape) == 2 and len(right_shape) == 2:
-                # Matrix-matrix: (m,k) @ (k,n) -> (m,n)
-                if not dims_compatible(left_shape[1], right_shape[0]):
-                    add_error(f"Matrix multiplication dimension mismatch: {left_shape[1]} vs {right_shape[0]}")
-                return make_tensor_type([left_shape[0], right_shape[1]])
-
+        var_name = expr[1]
+        start_expr = expr[2]
+        end_expr = expr[3]
+        var_type = local_env.get(var_name) or type_env.get(var_name)
+        if var_type is None:
+            return None
+        shape = get_shape(var_type)
+        if shape is None:
+            add_error(f"Cannot slice scalar '{var_name}'")
             return None
 
+        # Try to compute slice length
+        start_val = None
+        end_val = None
+        if isinstance(start_expr, tuple) and start_expr[0] == "num":
+            start_val = int(start_expr[1])
+        if isinstance(end_expr, tuple) and end_expr[0] == "num":
+            end_val = int(end_expr[1])
+
+        if start_val is not None and end_val is not None:
+            # Physika uses inclusive end, so length is end - start + 1
+            slice_len = end_val - start_val + 1
+            if len(shape) == 1:
+                return ("tensor", [(slice_len, "invariant")])
+            else:
+                new_shape = [slice_len] + shape[1:]
+                return make_tensor_type(new_shape)
+        return None  # Cannot determine slice length
+
+    elif op in ("add", "sub"):
+        left_type = infer_type(expr[1], local_env)
+        right_type = infer_type(expr[2], local_env)
+        left_shape = get_shape(left_type)
+        right_shape = get_shape(right_type)
+
+        # Allow scalar broadcasting for add/sub (e.g. tensor + 1.0)
+        result_shape, ok = shapes_broadcast_compatible(
+            left_shape, right_shape, allow_scalar_broadcast=True)
+        if not ok:
+            add_error(
+                f"Shape mismatch in {op}: {type_to_str(left_type)} vs {type_to_str(right_type)}"  # noqa: E501
+            )
+            return None
+        return make_tensor_type(result_shape)
+
+    elif op == "mul":
+        left_type = infer_type(expr[1], local_env)
+        right_type = infer_type(expr[2], local_env)
+        left_shape = get_shape(left_type)
+        right_shape = get_shape(right_type)
+
+        # Allow scalar multiplication with tensors
+        result_shape, ok = shapes_broadcast_compatible(
+            left_shape, right_shape, allow_scalar_broadcast=True)
+        if not ok:
+            add_error(
+                f"Shape mismatch in multiplication: {type_to_str(left_type)} vs {type_to_str(right_type)}"  # noqa: E501
+            )
+            return None
+        return make_tensor_type(result_shape)
+
+    elif op == "div":
+        left_type = infer_type(expr[1], local_env)
+        right_type = infer_type(expr[2], local_env)
+        # Division by scalar is always ok
+        right_shape = get_shape(right_type)
+        if right_shape is not None:
+            left_shape = get_shape(left_type)
+            if left_shape != right_shape:
+                add_error(
+                    f"Element-wise division requires matching shapes: {type_to_str(left_type)} vs {type_to_str(right_type)}"  # noqa: E501
+                )
+        return left_type
+
+    elif op == "matmul":
+        left_type = infer_type(expr[1], local_env)
+        right_type = infer_type(expr[2], local_env)
+        left_shape = get_shape(left_type)
+        right_shape = get_shape(right_type)
+
+        if left_shape is None or right_shape is None:
+            # Scalar matmul - treat as regular mul
+            return left_type if right_shape is None else right_type
+
+        # Matrix multiplication dimension check
+        if len(left_shape) == 1 and len(right_shape) == 1:
+            # Vector dot product: (n,) @ (n,) -> scalar
+            if not dims_compatible(left_shape[0], right_shape[0]):
+                add_error(
+                    f"Vector dot product dimension mismatch: {left_shape[0]} vs {right_shape[0]}"  # noqa: E501
+                )
+            return "ℝ"
+        elif len(left_shape) == 2 and len(right_shape) == 1:
+            # Matrix-vector: (m,n) @ (n,) -> (m,)
+            if not dims_compatible(left_shape[1], right_shape[0]):
+                add_error(
+                    f"Matrix-vector multiplication dimension mismatch: {left_shape[1]} vs {right_shape[0]}"  # noqa: E501
+                )
+            return make_tensor_type([left_shape[0]])
+        elif len(left_shape) == 1 and len(right_shape) == 2:
+            # Vector-matrix: (m,) @ (m,n) -> (n,)
+            if not dims_compatible(left_shape[0], right_shape[0]):
+                add_error(
+                    f"Vector-matrix multiplication dimension mismatch: {left_shape[0]} vs {right_shape[0]}"  # noqa: E501
+                )
+            return make_tensor_type([right_shape[1]])
+        elif len(left_shape) == 2 and len(right_shape) == 2:
+            # Matrix-matrix: (m,k) @ (k,n) -> (m,n)
+            if not dims_compatible(left_shape[1], right_shape[0]):
+                add_error(
+                    f"Matrix multiplication dimension mismatch: {left_shape[1]} vs {right_shape[0]}"  # noqa: E501
+                )
+            return make_tensor_type([left_shape[0], right_shape[1]])
+
+        return None
+
     elif op == "pow":
-            left_type = infer_type(expr[1], local_env)
-            # Power typically returns same shape as base
-            return left_type
+        left_type = infer_type(expr[1], local_env)
+        # Power typically returns same shape as base
+        return left_type
 
     elif op == "neg":
-            return infer_type(expr[1], local_env)
+        return infer_type(expr[1], local_env)
 
     elif op == "call":
-            func_name = expr[1]
-            args = expr[2]
+        func_name = expr[1]
+        args = expr[2]
 
-            # Built-in functions
-            if func_name in ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh"):
-                if args:
-                    return infer_type(args[0], local_env)
-                return "ℝ"
-            elif func_name == "sum":
-                return "ℝ"  # Sum reduces to scalar
-            elif func_name in ("real", "imag"):
-                return "ℝ"
-            elif func_name == "grad":
-                # grad returns gradient with same shape as input
-                if len(args) >= 2:
-                    return infer_type(args[1], local_env)
-                return None
-            elif func_name == "solve":
-                return None  # Solve returns tuple, type depends on equations
-            elif func_name == "train":
-                # train returns the same instance type as its first argument
-                if args:
-                    return infer_type(args[0], local_env)
-                return None
-            elif func_name == "evaluate":
-                return "ℝ"  # evaluate returns a scalar loss
+        # Built-in functions
+        if func_name in ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh"):
+            if args:
+                return infer_type(args[0], local_env)
+            return "ℝ"
+        elif func_name == "sum":
+            return "ℝ"  # Sum reduces to scalar
+        elif func_name in ("real", "imag"):
+            return "ℝ"
+        elif func_name == "grad":
+            # grad returns gradient with same shape as input
+            if len(args) >= 2:
+                return infer_type(args[1], local_env)
+            return None
+        elif func_name == "solve":
+            return None  # Solve returns tuple, type depends on equations
+        elif func_name == "train":
+            # train returns the same instance type as its first argument
+            if args:
+                return infer_type(args[0], local_env)
+            return None
+        elif func_name == "evaluate":
+            return "ℝ"  # evaluate returns a scalar loss
 
-            # User-defined function
-            if func_name in func_env:
-                _, return_type = func_env[func_name]
-                return return_type
+        # User-defined function
+        if func_name in func_env:
+            _, return_type = func_env[func_name]
+            return return_type
 
-            # Class constructor
-            if func_name in class_env:
-                class_def = class_env[func_name]
-                class_params = class_def["class_params"]
+        # Class constructor
+        if func_name in class_env:
+            class_def = class_env[func_name]
+            class_params = class_def["class_params"]
+            # Check argument count
+            if len(args) != len(class_params):
+                add_error(
+                    f"Class '{func_name}' expects {len(class_params)} arguments, got {len(args)}"  # noqa: E501
+                )
+            else:
+                # Check each argument type against the declared parameter type
+                for i, ((param_name, param_type),
+                        arg_expr) in enumerate(zip(class_params, args)):
+                    arg_type = infer_type(arg_expr, local_env)
+                    if arg_type is not None and param_type is not None:
+                        if not types_compatible(param_type, arg_type):
+                            add_error(
+                                f"Type mismatch for parameter '{param_name}' of class '{func_name}': "  # noqa: E501
+                                f"expected {type_to_str(param_type)}, got {type_to_str(arg_type)}"  # noqa: E501
+                            )
+            return ("instance", func_name)
+
+        # Instance call (e.g., net2([1.0, 2.0]) where net2 is an instance)
+        var_type = type_env.get(func_name) or (local_env.get(func_name)
+                                               if local_env else None)
+        if isinstance(var_type, tuple) and var_type[0] == "instance":
+            class_name = var_type[1]
+            if class_name in class_env:
+                class_def = class_env[class_name]
+                lambda_params = class_def["lambda_params"]
+                return_type = class_def.get("return_type")
                 # Check argument count
-                if len(args) != len(class_params):
+                if len(args) != len(lambda_params):
                     add_error(
-                        f"Class '{func_name}' expects {len(class_params)} arguments, got {len(args)}"
+                        f"Instance of '{class_name}' expects {len(lambda_params)} argument(s), got {len(args)}"  # noqa: E501
                     )
                 else:
-                    # Check each argument type against the declared parameter type
-                    for i, ((param_name, param_type), arg_expr) in enumerate(zip(class_params, args)):
+                    # Check each argument type against the lambda parameter
+                    # type
+                    for (param_name,
+                         param_type), arg_expr in zip(lambda_params, args):
                         arg_type = infer_type(arg_expr, local_env)
                         if arg_type is not None and param_type is not None:
                             if not types_compatible(param_type, arg_type):
                                 add_error(
-                                    f"Type mismatch for parameter '{param_name}' of class '{func_name}': "
-                                    f"expected {type_to_str(param_type)}, got {type_to_str(arg_type)}"
+                                    f"Type mismatch for parameter '{param_name}' of '{class_name}': "  # noqa: E501
+                                    f"expected {type_to_str(param_type)}, got {type_to_str(arg_type)}"  # noqa: E501
                                 )
-                return ("instance", func_name)
+                return return_type
 
-            # Instance call (e.g., net2([1.0, 2.0]) where net2 is an instance)
-            var_type = type_env.get(func_name) or (local_env.get(func_name) if local_env else None)
-            if isinstance(var_type, tuple) and var_type[0] == "instance":
-                class_name = var_type[1]
-                if class_name in class_env:
-                    class_def = class_env[class_name]
-                    lambda_params = class_def["lambda_params"]
-                    return_type = class_def.get("return_type")
-                    # Check argument count
-                    if len(args) != len(lambda_params):
-                        add_error(
-                            f"Instance of '{class_name}' expects {len(lambda_params)} argument(s), got {len(args)}"
-                        )
-                    else:
-                        # Check each argument type against the lambda parameter type
-                        for (param_name, param_type), arg_expr in zip(lambda_params, args):
-                            arg_type = infer_type(arg_expr, local_env)
-                            if arg_type is not None and param_type is not None:
-                                if not types_compatible(param_type, arg_type):
-                                    add_error(
-                                        f"Type mismatch for parameter '{param_name}' of '{class_name}': "
-                                        f"expected {type_to_str(param_type)}, got {type_to_str(arg_type)}"
-                                    )
-                    return return_type
-
-            return None
+        return None
 
     elif op == "call_index":
-            func_name = expr[1]
-            args = expr[2]
-            index = expr[3]
+        func_name = expr[1]
+        args = expr[2]
 
-            if func_name == "grad":
-                # grad returns gradient vector, indexing gives scalar
-                return "ℝ"
+        if func_name == "grad":
+            # grad returns gradient vector, indexing gives scalar
+            return "ℝ"
 
-            return None
+        return None
 
     elif op == "string":
-            return "string"
+        return "string"
 
     elif op == "imaginary":
-            return "ℂ"  # Complex type
+        return "ℂ"  # Complex type
 
     return None
 
@@ -675,11 +697,11 @@ def statement_check(
         type_spec = stmt[2]
         expr = stmt[3]
         inferred = infer_type(expr)
-        if type_spec and inferred and not types_compatible(type_spec, inferred):
+        if type_spec and inferred and not types_compatible(
+                type_spec, inferred):
             add_error(
-                f"Type mismatch for '{name}': declared as {type_to_str(type_spec)}, "
-                f"got {type_to_str(inferred)}"
-            )
+                f"Type mismatch for '{name}': declared as {type_to_str(type_spec)}, "  # noqa: E501
+                f"got {type_to_str(inferred)}")
         type_env[name] = type_spec if type_spec else inferred
 
     elif op == "assign":

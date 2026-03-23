@@ -7,8 +7,8 @@ def find_indexed_arrays(ast: ASTNode, loop_var: str) -> list[str]:
     """Collect names of arrays indexed by a given loop variable.
 
     Recursively walks an AST subtree looking for ``("index", name, idx)``
-    nodes where *idx* resolves to *loop_var*.  This function is called during parse
-    to infer the iteration count of ``for`` loops: the generated code
+    nodes where *idx* resolves to *loop_var*.  This function is called during
+    parse to infer the iteration count of ``for`` loops: the generated code
     iterates ``range(len(arr))`` where *arr* is the first array found.
 
     The index expression is matched against three representations the
@@ -56,21 +56,21 @@ def find_indexed_arrays(ast: ASTNode, loop_var: str) -> list[str]:
             if len(node) >= 3 and node[0] == "index":
                 array_name = node[1]
                 index_expr = node[2]
-                is_loop = (
-                    index_expr == ("var", loop_var) or
-                    index_expr == loop_var or
-                    (loop_var == "i" and index_expr == ("imaginary",))
-                )
+                is_loop = (index_expr == ("var", loop_var)
+                           or index_expr == loop_var or
+                           (loop_var == "i" and index_expr == ("imaginary", )))
                 if is_loop:
                     if isinstance(array_name, str):
                         arrays.append(array_name)
-                    elif isinstance(array_name, tuple) and array_name[0] == "var":
-                        arrays.append(array_name[1])
+                    elif isinstance(array_name,
+                                    tuple) and array_name[0] == "var":
+                        if isinstance(array_name[1], str):
+                            arrays.append(array_name[1])
             for item in node:
                 visit(item)
         elif isinstance(node, list):
-            for item in node:
-                visit(item)
+            for list_item in node:
+                visit(list_item)
 
     visit(ast)
     return arrays

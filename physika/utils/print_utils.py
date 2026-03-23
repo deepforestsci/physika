@@ -83,7 +83,8 @@ def _pformat(value: Any, indent: int = 0) -> str:
         lines = [f"{prefix}{{"]
         for k, v in value.items():
             v_str = _pformat(v, indent + 2)
-            # If the formatted value is a single line, put key: value on one line
+            # If the formatted value is a single line, put key: value on one
+            # line
             v_stripped = v_str.strip()
             if "\n" not in v_stripped:
                 lines.append(f"{prefix}  {k}: {v_stripped}")
@@ -97,8 +98,11 @@ def _pformat(value: Any, indent: int = 0) -> str:
         if not value:
             return f"{prefix}[]"
         # Check if all items are simple scalars
-        if all(isinstance(v, (int, float, str)) and not isinstance(v, bool) for v in value):
-            items = ", ".join(repr(v) if isinstance(v, str) else str(v) for v in value)
+        if all(
+                isinstance(v, (int, float, str)) and not isinstance(v, bool)
+                for v in value):
+            items = ", ".join(
+                repr(v) if isinstance(v, str) else str(v) for v in value)
             oneline = f"{prefix}[{items}]"
             if len(oneline) <= 80:
                 return oneline
@@ -112,8 +116,11 @@ def _pformat(value: Any, indent: int = 0) -> str:
         if not value:
             return f"{prefix}()"
         # Check if all items are simple scalars
-        if all(isinstance(v, (int, float, str)) and not isinstance(v, bool) for v in value):
-            items = ", ".join(repr(v) if isinstance(v, str) else str(v) for v in value)
+        if all(
+                isinstance(v, (int, float, str)) and not isinstance(v, bool)
+                for v in value):
+            items = ", ".join(
+                repr(v) if isinstance(v, str) else str(v) for v in value)
             oneline = f"{prefix}({items})"
             if len(oneline) <= 80:
                 return oneline
@@ -149,7 +156,8 @@ def print_unified_ast(unified_ast: dict[str, Any]) -> str:
     Examples
     --------
     >>> from physika.utils.ast_utils import build_unified_ast
-    >>> ast = {"functions": {}, "classes": {}, "program": [("expr", ("num", 1.0), 1)]}
+    >>> ast = {"functions": {}, "classes": {},
+    ... "program": [("expr", ("num", 1.0), 1)]}
     >>> print(print_unified_ast(ast))
     Functions:
     <BLANKLINE>
