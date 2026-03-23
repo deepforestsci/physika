@@ -10,7 +10,6 @@ from physika.lexer import lexer
 from physika.parser import parser, symbol_table
 from physika.runtime import compute_grad
 from physika.utils.ast_utils import build_unified_ast, ast_uses_func
-from tests.test_codegen import parse_source_to_ast
 
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 r_tol = 1e-02
@@ -29,6 +28,12 @@ def compile(phyk_name: str) -> dict:
     exec(code, name_space)
     return name_space
 
+def parse_source_to_ast(source: str) -> dict:
+    """Run lexer/parser and build_unified_ast on a Physika source string."""
+    symbol_table.clear()
+    lexer.lexer.lineno = 1          # reset PLY line counter for deterministic output
+    program_ast = parser.parse(source, lexer=lexer)
+    return build_unified_ast(program_ast, symbol_table)
 
 class TestDiffIfElse:
 
