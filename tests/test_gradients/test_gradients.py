@@ -28,12 +28,14 @@ def compile(phyk_name: str) -> dict:
     exec(code, name_space)
     return name_space
 
+
 def parse_source_to_ast(source: str) -> dict:
     """Run lexer/parser and build_unified_ast on a Physika source string."""
     symbol_table.clear()
-    lexer.lexer.lineno = 1          # reset PLY line counter for deterministic output
+    lexer.lexer.lineno = 1  # reset PLY line counter for deterministic output
     program_ast = parser.parse(source, lexer=lexer)
     return build_unified_ast(program_ast, symbol_table)
+
 
 class TestDiffIfElse:
 
@@ -200,10 +202,13 @@ class TestDiffIfElseClasses:
         num_grad = numerical_gradient(net, x)[0]
         assert abs(physika_grad - num_grad) < r_tol
 
+
 class TestGradFunction:
     """Gradient calculations inside function statements"""
+
     def test_grad_calls_in_function_statements(self):
-        """compute_grad must be imported when grad is used in function statements"""
+        """compute_grad must be imported when grad is used in
+        function statements"""
         phyk_file = EXAMPLES_DIR / "example_check_gradients.phyk"
         src = phyk_file.read_text()
         ast = parse_source_to_ast(src)
@@ -211,10 +216,14 @@ class TestGradFunction:
         assert "from physika.runtime import compute_grad" in code_phyk
 
         # check grad calls inside function statements
-        func_section = code_phyk.split("# === Functions ===")[1].split("# === Program ===")[0]
-        assert "compute_grad" in func_section, "compute grad not found in generated torch code"
+        func_section = code_phyk.split("# === Functions ===")[1].split(
+            "# === Program ===")[0]
+        assert "compute_grad" in func_section, (
+            "compute grad not found in generated torch code")
 
-        grad_in_ast = any(ast_uses_func(stmt, "grad") for stmt in ast["functions"]["f"]["statements"])
+        grad_in_ast = any(
+            ast_uses_func(stmt, "grad")
+            for stmt in ast["functions"]["f"]["statements"])
         assert grad_in_ast, "grad call not found in generated ast code"
 
     def test_grad_correctness(self):
@@ -224,7 +233,7 @@ class TestGradFunction:
         src = phyk_file.read_text()
         ast = parse_source_to_ast(src)
         code = from_ast_to_torch(ast, print_code=False)
-            
+
         local = {}
         exec(code, local)
         result = local["f"](torch.tensor([1.0, 2.0], requires_grad=True))
