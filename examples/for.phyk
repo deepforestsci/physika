@@ -1,26 +1,379 @@
-# For loop examples in Physika
-# Syntax: for <var>:
-#             ... use arr[var] to index arrays
-# The iteration count is inferred from array usage
+# Physika for-loops
 
-# Example 1: Sum of array elements (1+2+3+4+5 = 15)
-arr: R[5] = [1.0, 2.0, 3.0, 4.0, 5.0]
-total: R = 0.0
+# 1. Top-level imperative loops
+# Implicit range
+# Size inferred from array indexing in body
+
+# 1.1 Sum of array elements
+arr: ℝ[5] = [1, 2, 3, 4, 5]
+total: ℝ = 0
 for i:
     total += arr[i]
 total
 
-
-# Example 2: Sum of squares (1+4+9+16 = 30)
-X: R[4] = [1.0, 2.0, 3.0, 4.0]
-sum_sq: R = 0.0
+# 1.2 Sum of squares
+X: ℝ[4] = [1, 2, 3, 4]
+sum_sq: ℝ = 0
 for i:
     sum_sq += X[i] ** 2
 sum_sq
 
-# Example 3: MSE loss ((1-2)^2 + (2-4)^2 + (3-6)^2 + (4-8)^2 = 30)
-y: R[4] = [2.0, 4.0, 6.0, 8.0]
-mse: R = 0.0
+# 1.3 MSE
+y: ℝ[4] = [2, 4, 6, 8]
+mse: ℝ = 0
 for i:
     mse += (X[i] - y[i]) ** 2
 mse
+
+# 1.4 Index assignment
+src : ℝ[5] = [1, 2, 3, 4, 5]
+dst : ℝ[5] = [0, 0, 0, 0, 0]
+for i:
+    dst[i] = src[i] * src[i]
+dst
+
+# Explicit range
+# for i: ℕ(end) or for i: ℕ(start, end)
+
+# 1.5 ℕ(start, end)
+start : ℝ = 10
+end : ℝ = 20
+total: ℝ = 0
+for i: ℕ(start, end):
+    total += i
+total
+
+# 1.6 Nested range
+# outer loop variable used as inner bound
+n: ℝ = 10
+for i: ℕ(n):
+    for j: ℕ(i, 10):
+        total += i
+        total += j
+total
+
+# 2. Compact for-expressions
+# Explicit size
+# 2.1 1D array construction
+a : ℝ[5] = for i : ℕ(5) -> i * 1
+a
+
+# 2.2 Mathematic operations
+cos_wave : ℝ[6] = for i : ℕ(6) → cos(i * 0.5)
+cos_wave
+
+# 2.3 Nested for-loops to produce multi-dimensional arrays
+# 2D matrix
+add : ℝ[3, 4] = for i : ℕ(3) → for j : ℕ(4) → i + j
+add
+
+# 2.4 3D tensor
+t : ℝ[2, 3, 4] = for i : ℕ(2) → for j : ℕ(3) → for k : ℕ(4) → i + j + k
+t
+
+# For-loop range inferred from indexed array
+# 2.5 Single array transform
+arr : ℝ[5] = [1.0, 2.0, 3.0, 4.0, 5.0]
+doubled : ℝ[5] = for i → arr[i] * 2.0
+doubled
+
+# 2.6 Element-wise product of two arrays
+u : ℝ[4] = [1.0, 2.0, 3.0, 4.0]
+v : ℝ[4] = [4.0, 3.0, 2.0, 1.0]
+dot_elems : ℝ[4] = for i → u[i] * v[i]
+dot_elems
+
+# Inside functions
+
+# 2.7 Outer product: C[i,j] = u[i] * v[j]
+def outer_product(u : ℝ[n], v : ℝ[m]): ℝ[n, m]:
+    return for i → for j → u[i] * v[j]
+
+p : ℝ[3] = [1, 2, 3]
+q : ℝ[4] = [10, 20, 30, 40]
+outer_product(p, q)
+
+# 2.8 Dot product as reduction with sum()
+x : ℝ[4] = [1, 0, 0, 0]
+y : ℝ[4] = [0, 1, 0, 0]
+dot : ℝ = sum(for i → x[i] * y[i])
+dot
+
+# 3. Function body with implicit range (for i:)
+# 3.1 Loop assignment
+def get_last(arr : ℝ[n]): ℝ:
+    cur : ℝ = 0
+    for i:
+        cur = arr[i]
+    return cur
+vals : ℝ[5] = [3, 1, 4, 1, 5]
+get_last(vals)
+
+# 4. Function body with explicit range (for i: ℕ(n):)
+# 4.1 Single level iteration
+def iter_prod(n : ℝ): ℝ:
+    total : ℝ = 0
+    for i: ℕ(n):
+        total += i * 1
+    return total
+iter_prod(10)
+
+# 4.2 Start and end from parameters
+def partial_sum(arr : ℝ[n], low : ℝ, high : ℝ): ℝ:
+    total : ℝ = 0
+    for i: ℕ(low, high):
+        total += arr[i]
+    return total
+data : ℝ[6] = [1, 2, 3, 4, 5, 6]
+partial_sum(data, 2, 5)
+
+# 5. Function body with accumulation loops
+# 5.1 2 iter variables
+def outer_accum(u : ℝ[n], v : ℝ[m]): ℝ[n, m]:
+    C : ℝ[n, m]
+    for i j:
+        C[i, j] += u[i] * v[j]
+    return C
+outer_accum(p, q)
+
+# 5.2 3 iter variables
+def matmul_physika(A : ℝ[n, m], B : ℝ[m, o]): ℝ[n, o]:
+    C : ℝ[n, o]
+    for i j k:
+        C[i, j] += A[i, k] * B[k, j]
+    return C
+
+A : ℝ[2, 4] = [[1, 2, 3, 4], [0, 1, 1, 2]]
+B : ℝ[4, 1] = [[1], [0], [0], [2]]
+matmul_physika(A, B)
+
+# 5.3 Sequential loops
+# Computes (A@B)@A
+A2 : ℝ[2, 2] = [[1, 2], [0, 1]]
+B2 : ℝ[2, 2] = [[1, 0], [0, 2]]
+def chain_mm(A : ℝ[m, n], B : ℝ[n, o]): ℝ[m, o]:
+    C : ℝ[2, 2]
+    for i j k:
+        C[i, j] += A[i, k] * B[k, j]
+    D : ℝ[2, 2]
+    for i j k:
+        D[i, j] += C[i, k] * A[k, j]
+    return D
+chain_mm(A2, B2)
+
+
+
+# 5.5 Four iteration variables and one reduction dimension
+# 3D tensor contraction T[i,j,l] = Σ_k A[i,k]*B[k,j]*C[k,l]
+C_mat : ℝ[2, 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+def tensor_contraction(A : ℝ[m, n], B : ℝ[n, o], C : ℝ[n, r]): ℝ[m, o, r]:
+    T : ℝ[m, o, r]
+    for i j l k:
+        T[i, j, l] += A[i, k] * B[k, j] * C[k, l]
+    return T
+tensor_contraction(A2, B2, C_mat)
+
+# 6. For loops with conditionals
+
+# 6.1 For loop inside if-else branch
+# Branch selects which computation to run
+def sum_or_sum_sq(arr : ℝ[n], sq : ℝ): ℝ:
+    if sq > 0.0:
+        return sum(for i → arr[i] ** 2)
+    else:
+        return sum(for i → arr[i])
+w : ℝ[4] = [1.0, 2.0, 3.0, 4.0]
+sum_or_sum_sq(w, 1.0)
+sum_or_sum_sq(w, 0.0 - 1.0)
+
+# 6.2 body_for inside if/else — each branch runs a different loop
+def abs_sum(arr : ℝ[n]): ℝ:
+    total : ℝ = 0.0
+    for i:
+        total += arr[i]
+    if total > 0.0:
+        return total
+    else:
+        return 0.0 - total
+pos : ℝ[4] = [1.0, 2.0, 3.0, 4.0]
+neg : ℝ[4] = [0.0 - 1.0, 0.0 - 2.0, 0.0 - 3.0, 0.0 - 4.0]
+abs_sum(pos)
+abs_sum(neg)
+
+# 6.3 If (one-sided) inside for loop body
+# Accumulate only elements above zero
+def sum_positive(arr : ℝ[n]): ℝ:
+    total : ℝ = 0.0
+    for i:
+        if arr[i] > 0.0:
+            total += arr[i]
+    return total
+mixed : ℝ[5] = [1.0, 0.0 - 2.0, 3.0, 0.0 - 4.0, 5.0]
+sum_positive(mixed)
+
+# 6.4 If-else inside for loop body
+# Sum of absolute values
+def sum_abs(arr : ℝ[n]): ℝ:
+    total : ℝ = 0.0
+    for i:
+        if arr[i] > 0.0:
+            total += arr[i]
+        else:
+            total += 0.0 - arr[i]
+    return total
+sum_abs(mixed)
+
+# 6.5 If-else inside body_for
+# Count elements that exceed a threshold
+def count_above(arr : ℝ[n], thresh : ℝ): ℝ:
+    count : ℝ = 0.0
+    for i:
+        if arr[i] > thresh:
+            count += 1
+    return count
+data : ℝ[6] = [1, 5, 2, 8, 3, 7]
+count_above(data, 3)
+
+# 6.6 If-else inside body_for_range
+# Count elements in a slice that exceed a threshold
+def count_above_range(arr : ℝ[n], lo : ℝ, hi : ℝ, thresh : ℝ): ℝ:
+    count : ℝ = 0.0
+    for i: ℕ(lo, hi):
+        if arr[i] > thresh:
+            count += 1
+    return count
+data : ℝ[6] = [1, 5, 2, 8, 3, 7]
+count_above_range(data, 1, 5, 3)
+
+# 6.7 Deeply nested for/if — 10 levels
+# Alternates body_if_else → body_for → loop_if_else → loop_for_range → ...
+def deep_nest(arr : ℝ[n]): ℝ:
+    n : R = 3
+    a : ℝ = 0
+    if a > - 1:
+        for i: N(2):
+            if arr[i] > 0:
+                for j: N(2):
+                    if arr[j] < 100:
+                        for k: N(2):
+                            if arr[k] != 0:
+                                for l: N(2):
+                                    if a < 10:
+                                        a += 1
+                                    else:
+                                        a += 2
+                            else:
+                                a = a + 3
+                    else:
+                        a = a + 4
+            else:
+                a = a + 5
+    else:
+        a = - 1
+    return a
+arr2 : ℝ[3] = [1, 2, 4]
+deep_nest(arr2)
+
+# 7. Top-level nested for/if/else
+# Same structures as section 6 but written as a top-level program.
+
+# 7.1 If inside explicit range for loop
+arr3 : ℝ[5] = [1, - 2, 3, - 4, 5]
+pos_sum : ℝ = 0
+for i: ℕ(5):
+    if arr3[i] > 0:
+        pos_sum += arr3[i]
+pos_sum
+
+# 7.2 If-else inside explicit range for loop
+abs_total : ℝ = 0.0
+for i: ℕ(5):
+    if arr3[i] > 0.0:
+        abs_total += arr3[i]
+    else:
+        abs_total += 0.0 - arr3[i]
+abs_total
+
+# 7.3 If inside implicit-range for
+pos_sum2 : ℝ = 0.0
+for i:
+    if arr3[i] > 0.0:
+        pos_sum2 += arr3[i]
+pos_sum2
+
+# 7.4 Nested implicit for inside explicit conditional for
+mat : ℝ[3] = [1.0, 2.0, 3.0]
+vec : ℝ[3] = [4.0, 5.0, 6.0]
+dot2 : ℝ = 0.0
+for i: ℕ(3):
+    if mat[i] > 0.0:
+        dot2 += mat[i] * vec[i]
+dot2
+
+# 7.5 Deeply nested for/if/else at top level (6 levels)
+arr4 : ℝ[2] = [1.0, 4.0]
+a : ℝ = 0.0
+for i: ℕ(2):
+    if arr4[i] > 0.0:
+        for j: ℕ(2):
+            if arr4[j] < 100.0:
+                for k: ℕ(2):
+                    if arr4[k] != 0.0:
+                        if a < 10.0:
+                            a += 1
+                        else:
+                            a += 2
+                    else:
+                        a += 3
+            else:
+                a += 4
+    else:
+        a += 5
+a
+
+# 8. List-comprehension style for-expressions with conditionals (top-level)
+
+# 8.1 Explicit single var
+# Select computation via if/else, produce ℝ[5]
+vals : ℝ[5] = [1, -2, 3, 4, 5]
+flag : ℝ = 1
+res : ℝ[5] = for i → vals[i]
+if flag > 0:
+    res = for i : ℕ(5) -> vals[i] ** 3
+else:
+    res = for i : ℕ(5) -> vals[i]
+res
+# Sum of cubes when positive, sum values otherwise
+total_c : ℝ = sum(for i → res[i])
+total_c
+
+
+# 8.3 Nested explicit two iter var for loop
+# Build a 3×4 weight matrix conditioned on scale
+# scale > 1 → W[i,j] = (i + j) * scale; else W[i,j] = i + j
+scale : ℝ = 2
+W : ℝ[3, 4] = for i : ℕ(3) -> for j : ℕ(4) -> i + j
+if scale > 1:
+    W = for i : ℕ(3) → for j : ℕ(4) → (i + j) * scale
+else:
+    W = for i : ℕ(3) → for j : ℕ(4) → i + j
+W
+
+# 8.4 Implicit two-var
+# Element wise product of two arrays
+# for i:
+#   row_sums[i] = Σ_j u[i]*v[j]
+u2 : ℝ[3] = [1, 2, 3]
+v2 : ℝ[3] = [4, 5, 6]
+row_sums : ℝ[3] = for i → sum(for j → u2[i] * v2[j])
+row_sums
+
+# 8.5 Mixed implicit/explicit
+data2 : ℝ[4] = [10, 20, 30, 40]
+norm_flag : ℝ = 1
+normed : ℝ[4] = for i → data2[i]
+if norm_flag > 0:
+    normed = for i : ℕ(4) → data2[i] * (1 / (i + 1))
+else:
+    normed = for i : ℕ(4) → data2[i]
+normed
