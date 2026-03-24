@@ -1,5 +1,5 @@
 import sys
-
+import physika.runtime
 from physika.lexer import lexer
 from physika.parser import parser, symbol_table
 from physika.type_checker import type_check
@@ -28,7 +28,7 @@ def main():
 
     # Generate PyTorch code and execute it
     generated_code = from_ast_to_torch(unified_ast, print_code=print_code)
-    exec(generated_code)
+    exec(generated_code, vars(physika.runtime))
 
 if __name__ == "__main__":
     main()
