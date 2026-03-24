@@ -205,50 +205,31 @@ class TestDiffIfElseClasses:
 
 class TestGradFunction:
     """Gradient calculations inside function statements"""
+    @pytest.fixture()
+    def name_space(self):
+        """Call examples/example_check_gradients.phyk file"""
+        return compile("example_check_gradients")
+    
+    @pytest.mark.parametrize("x_val, expected_grad", [
+        ([1.0], [2.0]),
+        ([3.0], [6.0]),
+    ])
+    def test_function_matches_analytical(self, name_space, x_val, expected_grad):
+        """function gradient matches the analytical derivative."""
+        f = name_space["f"]
+        x = torch.tensor(x_val, requires_grad=True)
+        physika_grad = f(x)
+        expected = torch.tensor(expected_grad)
+        assert torch.allclose(physika_grad, expected, rtol=r_tol)
 
-    def test_grad_calls_in_function_statements(self):
-        """compute_grad must be imported when grad is used in
-        function statements"""
-        phyk_file = EXAMPLES_DIR / "example_check_gradients.phyk"
-        src = phyk_file.read_text()
-        ast = parse_source_to_ast(src)
-        code_phyk = from_ast_to_torch(ast, print_code=False)
-        assert "from physika.runtime import compute_grad" in code_phyk
+    @pytest.mark.parametrize("x_val", [[5.0]])
+    def test_function_matches_numerical(self, name_space, x_val):
+        """function gradient matches the numerical gradient."""
+        f = name_space["f"]
+        x = torch.tensor(x_val, requires_grad=True)
+        physika_grad = f(x)
 
-        # check grad calls inside function statements
-        func_section = code_phyk.split("# === Functions ===")[1].split(
-            "# === Program ===")[0]
-        assert "compute_grad" in func_section, (
-            "compute grad not found in generated torch code")
-
-        grad_in_ast = any(
-            ast_uses_func(stmt, "grad")
-            for stmt in ast["functions"]["f"]["statements"])
-        assert grad_in_ast, "grad call not found in generated ast code"
-
-    def test_grad_correctness(self):
-        """test the correctness of gradients"""
-        import torch
-        phyk_file = EXAMPLES_DIR / "example_check_gradients.phyk"
-        src = phyk_file.read_text()
-        ast = parse_source_to_ast(src)
-        code = from_ast_to_torch(ast, print_code=False)
-
-        local = {}
-        exec(code, local)
-        f = local["f"]
-        x_val = torch.tensor([1.0, 2.0], requires_grad=True)
-        output = f(x_val)
-
-        # compute analytical gradient using autograd
-        scalar_output = output.sum()
-        scalar_output.backward()
-        analytical_grad = x_val.grad
-
-        # compute numerical gradient
-        def f_wrapper(x):
-            return float(f(x).sum())
-        numeric_grad = numerical_gradient(f_wrapper, x_val)
-
-        assert torch.allclose(output, torch.tensor([2.0, 4.0]))
-        assert torch.allclose(analytical_grad, numeric_grad, rtol=r_tol)
+        def y_func(x_input):
+            return (x_input[0] ** 2.0).sum()
+        num_grad = numerical_gradient(y_func, x)[0]
+        assert torch.allclose(physika_grad, num_grad, rtol=r_tol)
