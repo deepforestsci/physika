@@ -226,7 +226,7 @@ class TestGradFunction:
             for stmt in ast["functions"]["f"]["statements"])
         assert grad_in_ast, "grad call not found in generated ast code"
 
-    def test_grad_correctness():
+    def test_grad_correctness(self):
         """test the correctness of gradients"""
         import torch
         phyk_file = EXAMPLES_DIR / "example_check_gradients.phyk"
