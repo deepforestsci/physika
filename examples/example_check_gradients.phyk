@@ -3,5 +3,5 @@ def f(x: ℝ[1]) : ℝ[1]:
     g = grad(y, x)
     return g
 
-v: R[2] = [1.0]
+v: R[1] = [1.0]
 f(v)
