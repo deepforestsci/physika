@@ -226,7 +226,7 @@ class TestGradFunction:
             for stmt in ast["functions"]["f"]["statements"])
         assert grad_in_ast, "grad call not found in generated ast code"
 
-    def test_grad_correctness(self):
+    def test_grad_correctness():
         """test the correctness of gradients"""
         import torch
         phyk_file = EXAMPLES_DIR / "example_check_gradients.phyk"
@@ -236,5 +236,19 @@ class TestGradFunction:
 
         local = {}
         exec(code, local)
-        result = local["f"](torch.tensor([1.0, 2.0], requires_grad=True))
-        assert torch.allclose(result, torch.tensor([2.0, 4.0]))
+        f = local["f"]
+        x_val = torch.tensor([1.0, 2.0], requires_grad=True)
+        output = f(x_val)
+
+        # compute analytical gradient using autograd
+        scalar_output = output.sum()
+        scalar_output.backward()
+        analytical_grad = x_val.grad
+
+        # compute numerical gradient
+        def f_wrapper(x):
+            return float(f(x).sum())
+        numeric_grad = numerical_gradient(f_wrapper, x_val)
+
+        assert torch.allclose(output, torch.tensor([2.0, 4.0]))
+        assert torch.allclose(analytical_grad, numeric_grad, rtol=r_tol)
