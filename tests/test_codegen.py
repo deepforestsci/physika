@@ -2,7 +2,7 @@
 
 from typing import Any
 from physika.codegen import from_ast_to_torch
-from physika.utils.ast_utils import build_unified_ast, ast_uses_func
+from physika.utils.ast_utils import build_unified_ast
 from physika.parser import parser, symbol_table
 from physika.lexer import lexer
 from pathlib import Path
