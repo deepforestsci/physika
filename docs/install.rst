@@ -23,7 +23,7 @@ Running a program
 
 .. code-block:: bash
 
-   python -m physika.execute examples/example_arrays.phyk
+   physika examples/example_arrays.phyk
 
 Flags
 -----

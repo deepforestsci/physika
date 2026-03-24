@@ -5,7 +5,7 @@ All examples files are under ``examples/`` directory. Run any of them with:
 
 .. code-block:: bash
 
-   python -m physika.execute examples/<name>.phyk
+   physika examples/<name>.phyk
 
 Add ``--print-ast`` or ``--print-code`` to inspect the generated AST or
 PyTorch source.
