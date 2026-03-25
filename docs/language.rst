@@ -138,9 +138,28 @@ with respect to its argument using ``torch.autograd.grad``.
 Type Checker
 ------------
 
-The type checker validates tensor shapes before execution:
+Physika's type checker runs Hindley-Milner type inference over a given program before
+execution and validates scalars (``ℝ``, ``ℕ``, ``ℂ``)
+, ``string`` values, arrays and matrices shape compatibility for indexing, slicing, and
+element-wise operations. It also checks that function calls and return values
+match their declared types. 
 
-- Matrix multiplication must satisfy ``(M×N) @ (N×P)``.
-- Adding ``ℝ[2] + ℝ`` is a type error.
+Errors are reported with the source line number or the enclosing
+function/class name where the mismatch was detected.
 
-Errors include the source line number where the mismatch was detected.
+Type Representations
+~~~~~~~~~~~~~~~~~~~~
+
+Every expression is assigned one of these types:
+
+- ``TScalar`` — A scalar ground type: ``ℝ``, ``ℕ``, ``ℂ``, or ``string``.
+- ``TVar`` — An unknown type variable used during unification, (``α0``, ``α1``, etc).
+- ``TDim`` — An unknown dimension resolved at unification step (``δ0``, ``δ1``, etc).
+- ``TTensor`` — A tensor type ``ℝ[d0, d1, ...]`` whose dimensions are one of:
+
+  - ``int`` — A concrete size from a literal annotation (``ℝ[5]``).
+  - ``str`` — A symbolic size from a generic parameter (``ℝ[n]``).
+  - ``TDim`` - For an unknown dimension (``ℝ[δ0]``).
+
+- ``TFunc`` — A function type ``(p0, p1, ...) → ret``, where ``pN`` refers to parameters types and ``ret`` refers to the return type.
+- ``TInstance`` — the type of a class value (``instance(FullyConnectedNet)``).
