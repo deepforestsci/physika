@@ -141,3 +141,9 @@ Hamiltonian Neural Network (HNN)
 
 .. literalinclude:: ../examples/hnn.phyk
    :language: text
+
+Symbolic support
+----------------
+
+.. literalinclude:: ../examples/example_symbolic.phyk
+   :language: text
