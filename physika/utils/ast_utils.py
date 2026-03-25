@@ -186,7 +186,7 @@ def ast_uses_sympy(node: ASTNode) -> bool:
 
     Examples
     --------
-    >>> from utils.ast_utils import ast_uses_sympy
+    >>> from physika.utils.ast_utils import ast_uses_sympy
     >>> ast_uses_sympy(("symbol_decl", "x"))
     True
     >>> ast_uses_sympy(("function_decl", "u"))
