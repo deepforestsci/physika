@@ -36,8 +36,7 @@ class FullyConnectedNetwork(nn.Module):
 
     def forward(self, x):
         x = torch.as_tensor(x).float()
-        n = int(self.n) if hasattr(self, 'n') else self.n.shape[0] if hasattr(self.n, 'shape') else 2
-        for k in range(n):
+        for k in range(len(self.W)):
             x = self.f(((self.W[int(k)] @ x) + self.B[int(k)]))
         return ((self.w @ x) + self.b)
 
