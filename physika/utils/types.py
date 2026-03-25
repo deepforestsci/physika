@@ -185,12 +185,13 @@ class TTensor:
         >>> TTensor(((TVar("α0"), "invariant"),))
         Traceback (most recent call last):
             ...
-        TypeError: TTensor.dims entry α0 is a TVar type. Use TDim for unknown dimensions.  # noqa: E501
+        TypeError: TTensor.dims entry α0 is a TVar; use TDim for unknown
+        ... dimensions.
         """
         for dim, _ in self.dims:
             if isinstance(dim, TVar):
-                raise TypeError(f"TTensor.dims entry {dim!r} is a TVar type. "
-                                "Use TDim for unknown dimensions.")
+                raise TypeError(f"TTensor.dims entry {dim!r} is a TVar; "
+                                "use TDim for unknown dimensions.")
 
     def __repr__(self) -> str:
         """Return the tensor type in Physika notation ``ℝ[d0,d1,...,dN]``.
