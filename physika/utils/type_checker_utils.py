@@ -726,7 +726,7 @@ def statement_check(
     elif op == "symbol_decl":
         name = stmt[1]
         type_env[name] = "Symbol"
-    
+
     elif op == "symbol_decl_multi":
         for name in stmt[1]:
             type_env[name] = "Symbol"
@@ -734,7 +734,7 @@ def statement_check(
     elif op == "function_decl":
         name = stmt[1]
         type_env[name] = "Function"
-    
+
     elif op == "function_decl_multi":
         for name in stmt[1]:
             type_env[name] = "Function"

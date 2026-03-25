@@ -1,14 +1,9 @@
 from typing import Dict, Set, Any
 
-from physika.utils.ast_utils import (
-    ast_uses_solve,
-    ast_uses_func,
-    collect_grad_targets,
-    generate_function,
-    generate_class,
-    generate_statement,
-    ast_uses_sympy
-)
+from physika.utils.ast_utils import (ast_uses_solve, ast_uses_func,
+                                     collect_grad_targets, generate_function,
+                                     generate_class, generate_statement,
+                                     ast_uses_sympy)
 
 
 def from_ast_to_torch(unified_ast: Dict[str, Any],
@@ -119,9 +114,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
         ast_uses_func(stmt, "simulate") for stmt in unified_ast["program"])
     needs_animate = any(
         ast_uses_func(stmt, "animate") for stmt in unified_ast["program"])
-    needs_sympy = any(
-        ast_uses_sympy(stmt) for stmt in unified_ast["program"])
-    
+    needs_sympy = any(ast_uses_sympy(stmt) for stmt in unified_ast["program"])
 
     # Collect variables used as differentiation targets in grad() calls
     grad_target_vars: Set[str] = set()
