@@ -182,11 +182,10 @@ class TTensor:
         Examples
         --------
         >>> from physika.utils.types import TTensor, TVar, TDim
-        >>> TTensor(((TVar("α0"), "invariant"),))
+        >>> TTensor(((TVar("α0"), "invariant"),))  # doctest: +ELLIPSIS
         Traceback (most recent call last):
             ...
-        TypeError: TTensor.dims entry α0 is a TVar; use TDim for unknown
-        ... dimensions.
+        TypeError: TTensor.dims entry α0 is a TVar; ...
         """
         for dim, _ in self.dims:
             if isinstance(dim, TVar):
