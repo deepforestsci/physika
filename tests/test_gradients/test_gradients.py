@@ -9,7 +9,7 @@ from gradient_checker import numerical_gradient
 from physika.lexer import lexer
 from physika.parser import parser, symbol_table
 from physika.runtime import compute_grad
-from physika.utils.ast_utils import build_unified_ast, ast_uses_func
+from physika.utils.ast_utils import build_unified_ast
 
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 r_tol = 1e-02
@@ -205,16 +205,18 @@ class TestDiffIfElseClasses:
 
 class TestGradFunction:
     """Gradient calculations inside function statements"""
+
     @pytest.fixture()
     def name_space(self):
         """Call examples/example_check_gradients.phyk file"""
         return compile("example_check_gradients")
-    
+
     @pytest.mark.parametrize("x_val, expected_grad", [
         ([1.0], [2.0]),
         ([3.0], [6.0]),
     ])
-    def test_function_matches_analytical(self, name_space, x_val, expected_grad):
+    def test_function_matches_analytical(self, name_space, x_val,
+                                         expected_grad):
         """function gradient matches the analytical derivative."""
         f = name_space["f"]
         x = torch.tensor(x_val, requires_grad=True)
@@ -230,6 +232,7 @@ class TestGradFunction:
         physika_grad = f(x)
 
         def y_func(x_input):
-            return (x_input[0] ** 2.0).sum()
+            return (x_input[0]**2.0).sum()
+
         num_grad = numerical_gradient(y_func, x)[0]
         assert torch.allclose(physika_grad, num_grad, rtol=r_tol)
