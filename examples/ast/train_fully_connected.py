@@ -1,4 +1,4 @@
-{'functions': {'sigma': {'params': [('x', 'ℝ')],
+EXPECTED = {'functions': {'sigma': {'params': [('x', 'ℝ')],
                          'return_type': 'ℝ',
                          'body': ('div',
                                   ('num', 1.0),

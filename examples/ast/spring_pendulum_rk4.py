@@ -1,4 +1,4 @@
-{'functions': {'spring_pendulum': {'params': [('x',
+EXPECTED = {'functions': {'spring_pendulum': {'params': [('x',
                                                ('tensor', [(4, 'invariant')]))],
                                    'return_type': ('tensor',
                                                    [(4, 'invariant')]),

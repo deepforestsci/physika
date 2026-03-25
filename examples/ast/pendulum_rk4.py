@@ -1,4 +1,4 @@
-{'functions': {'pendulum': {'params': [('x', ('tensor', [(2, 'invariant')]))],
+EXPECTED = {'functions': {'pendulum': {'params': [('x', ('tensor', [(2, 'invariant')]))],
                             'return_type': ('tensor', [(2, 'invariant')]),
                             'body': ('array',
                                      [('index', 'x', ('num', 1.0)),
