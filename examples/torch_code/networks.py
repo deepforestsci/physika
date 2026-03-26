@@ -45,16 +45,16 @@ class FullyConnectedNetwork(nn.Module):
 
 # === Program ===
 W0 = torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
-c0 = torch.tensor([0.1, 0.2])
-w1 = torch.tensor([0.7, 0.8])
+c0 = torch.tensor([0.1, 0.2], requires_grad=True)
+w1 = torch.tensor([0.7, 0.8], requires_grad=True)
 b1 = 0.3
 net1 = OneLayerNet(W0, c0, w1, b1)
-physika_print(net1(torch.tensor([1.0, 2.0, 3.0])))
+physika_print(net1(torch.tensor([1.0, 2.0, 3.0], requires_grad=True)))
 W = torch.tensor([[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], [[0.2, 0.3, 0.4], [0.5, 0.6, 0.7], [0.8, 0.9, 0.1]]])
 B = torch.tensor([[0.1, 0.2, 0.3], [0.1, 0.2, 0.3]])
-w = torch.tensor([0.5, 0.5, 0.5])
+w = torch.tensor([0.5, 0.5, 0.5], requires_grad=True)
 b = 0.1
 net2 = FullyConnectedNetwork(sigma, W, B, w, b, 2.0)
-physika_print(net2(torch.tensor([1.0, 2.0, 3.0])))
-physika_print(net2(torch.tensor([0.0, 0.0, 0.0])))
-physika_print(net2(torch.tensor([1.0, 1.0, 1.0])))
+physika_print(net2(torch.tensor([1.0, 2.0, 3.0], requires_grad=True)))
+physika_print(net2(torch.tensor([0.0, 0.0, 0.0], requires_grad=True)))
+physika_print(net2(torch.tensor([1.0, 1.0, 1.0], requires_grad=True)))
