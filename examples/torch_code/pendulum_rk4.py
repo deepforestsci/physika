@@ -19,7 +19,7 @@ class RK4(nn.Module):
 
     def forward(self, x):
         x = torch.as_tensor(x).float()
-        for k in range(self.n):
+        for k in range(int(self.n)):
             k1 = self.f(x)
             k2 = self.f((x + ((0.5 * self.dt) * k1)))
             k3 = self.f((x + ((0.5 * self.dt) * k2)))
