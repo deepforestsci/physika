@@ -1457,8 +1457,11 @@ def generate_statement(stmt: ASTNode,
         expr = stmt[3]
         expr_code = ast_to_torch_expr(expr)
         # Variables used as grad targets need to be tensors with requires_grad
-        if name in grad_target_vars and type_spec == "\u211d":
-            return f"{name} = torch.tensor({expr_code}, requires_grad=True)"
+        if name in grad_target_vars:
+            if type_spec == "\u211d":
+                return f"{name} = torch.tensor({expr_code}, requires_grad=True)"  # noqa: E501
+            if isinstance(type_spec, tuple) and type_spec[0] == "tensor":
+                return f"{name} = torch.as_tensor({expr_code}).float().requires_grad_(True)"  # noqa: E501
         return f"{name} = {expr_code}"
 
     elif op == "assign":

@@ -270,8 +270,8 @@ def compute_grad(
 
     The first argument is overloaded: pass a **callable** when Physika
     uses a simple ``grad(f(x), x)`` pattern, or a **pre-evaluated
-    tensor** when the expression is nested (e.g. ``grad(real(U(k,m,t,...)),
-    t)``).
+    tensor** when the expression is nested
+    (e.g. ``grad(real(U(k,m,t,...)), t)``).
 
     Parameters
     ----------
@@ -301,21 +301,45 @@ def compute_grad(
     """
     if callable(f):
         # Evaluate f on a fresh leaf so the tape is always clean.
-        x_val = x.item() if isinstance(x, torch.Tensor) else float(x)
-        x_leaf = torch.tensor(x_val, requires_grad=True)
+        if isinstance(x, torch.Tensor) and x.dim() > 0:
+            x_leaf = x.detach().clone().float().requires_grad_(True)
+        else:
+            x_val = x.item() if isinstance(x, torch.Tensor) else float(x)
+            x_leaf = torch.tensor(x_val, requires_grad=True)
         out = f(x_leaf)
         if not isinstance(out, torch.Tensor):
             out = torch.tensor(float(out))
-        (grad, ) = torch.autograd.grad(out, x_leaf)
-        return grad.detach()
+        if out.dim() == 0 or out.numel() == 1:
+            # Scalar output
+            (grad, ) = torch.autograd.grad(out, x_leaf)
+            return grad.detach()
+        else:
+            # Vector/tensor output (f: ℝ -> ℝ[n,...])
+            # return Jacobian df/dx
+            jac = torch.autograd.functional.jacobian(f, x_leaf)
+            return jac.detach()  # type: ignore[return-value]
     else:
         # f(x) was already evaluated with x as a requires_grad leaf.
         # Call autograd.grad directly on the pre-built graph.
         out = f
         if not isinstance(out, torch.Tensor):
             out = torch.tensor(float(out))
-        (grad, ) = torch.autograd.grad(out, cast(torch.Tensor, x))
-        return grad.detach()
+        if out.dim() == 0 or out.numel() == 1:
+            # Scalar output
+            (grad, ) = torch.autograd.grad(out,
+                                           cast(torch.Tensor, x),
+                                           retain_graph=True)
+            return grad.detach()
+        else:
+            # Tensor output
+            # compute Jacobian by rows from pre built graph
+            x_t = cast(torch.Tensor, x)
+            rows = [
+                torch.autograd.grad(out.reshape(-1)[i], x_t,
+                                    retain_graph=True)[0].detach()
+                for i in range(out.numel())
+            ]
+            return torch.stack(rows).reshape(*out.shape, *x_t.shape).detach()
 
 
 def simulate(

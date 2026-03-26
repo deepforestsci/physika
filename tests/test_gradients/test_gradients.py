@@ -193,3 +193,153 @@ class TestDiffIfElseClasses:
         physika_grad = compute_grad(net, x)
         num_grad = numerical_gradient(net, x)[0]
         assert abs(physika_grad - num_grad) < r_tol
+
+
+class TestDiffFor:
+    """
+    Tests for differentiable for-loops.
+    """
+
+    @pytest.fixture()
+    def ns(self):
+        return compile("diff_for")
+
+    @pytest.mark.parametrize("s_val, expected", [
+        (2.0, 6.0),
+        (0.0, 6.0),
+        (-1.0, 6.0),
+    ])
+    def test_sum_for_expr_analytical(self, ns, s_val, expected):
+        f = ns["sum_for_expr"]
+        g = compute_grad(f, torch.tensor(s_val))
+        assert abs(float(g) - expected) < r_tol
+
+    @pytest.mark.parametrize("s_val", [2.0, 0.0, -1.0])
+    def test_sum_for_expr_numerical(self, ns, s_val):
+        f = ns["sum_for_expr"]
+        x = torch.tensor([s_val])
+        g = compute_grad(f, torch.tensor(s_val))
+        ng = numerical_gradient(lambda v: f(v[0]), x, h=1e-3)
+        assert abs(float(g) - float(ng[0])) < r_tol
+
+    @pytest.mark.parametrize("s_val, expected", [
+        (1.0, 10.0),
+        (3.0, 10.0),
+        (-2.0, 10.0),
+    ])
+    def test_dot_with_arr_analytical(self, ns, s_val, expected):
+        f = ns["dot_with_arr"]
+        g = compute_grad(f, torch.tensor(s_val))
+        assert abs(float(g) - expected) < r_tol
+
+    @pytest.mark.parametrize("s_val", [1.0, 3.0, -2.0])
+    def test_dot_with_arr_numerical(self, ns, s_val):
+        f = ns["dot_with_arr"]
+        x = torch.tensor([s_val])
+        g = compute_grad(f, torch.tensor(s_val))
+        ng = numerical_gradient(lambda v: f(v[0]), x, h=1e-3)
+        assert abs(float(g) - float(ng[0])) < r_tol
+
+    @pytest.mark.parametrize("s_val, expected", [
+        (1.0, 10.0),
+        (0.0, 10.0),
+        (-1.0, 10.0),
+    ])
+    def test_matmul_scale_analytical(self, ns, s_val, expected):
+        f = ns["matmul_scale"]
+        g = compute_grad(f, torch.tensor(s_val))
+        assert abs(float(g) - expected) < r_tol
+
+    @pytest.mark.parametrize("s_val", [1.0, 0.0, -1.0])
+    def test_matmul_scale_numerical(self, ns, s_val):
+        f = ns["matmul_scale"]
+        x = torch.tensor([s_val])
+        g = compute_grad(f, torch.tensor(s_val))
+        ng = numerical_gradient(lambda v: f(v[0]), x, h=1e-3)
+        assert abs(float(g) - float(ng[0])) < r_tol
+
+    @pytest.mark.parametrize("s_val, expected", [
+        (1.0, 495.0),
+        (0.0, 495.0),
+        (-1.0, 495.0),
+    ])
+    def test_nested_sum_analytical(self, ns, s_val, expected):
+        f = ns["nested_sum"]
+        g = compute_grad(f, torch.tensor(s_val))
+        assert abs(float(g) - expected) < r_tol
+
+    @pytest.mark.parametrize("x_val, expected", [
+        (2.0, [1.0, 2.0, 3.0]),
+        (0.0, [1.0, 2.0, 3.0]),
+        (-1.0, [1.0, 2.0, 3.0]),
+    ])
+    def test_scale_vec_jacobian_analytical(self, ns, x_val, expected):
+        f = ns["scale_vec"]
+        g = compute_grad(f, torch.tensor(x_val))
+        for gi, ei in zip(g.tolist(), expected):
+            assert abs(gi - ei) < r_tol
+
+    @pytest.mark.parametrize("x_val", [2.0, 1.0, -0.5])
+    def test_scale_vec_jacobian_numerical(self, ns, x_val):
+        f = ns["scale_vec"]
+        x = torch.tensor(x_val)
+        h = 1e-4
+        jac_num = (f(x + h) - f(x - h)) / (2 * h)
+        g = compute_grad(f, x)
+        for gi, ngi in zip(g.tolist(), jac_num.tolist()):
+            assert abs(gi - ngi) < r_tol
+
+    @pytest.mark.parametrize("x_val, expected", [
+        (3.0, [6.0, 12.0, 18.0, 24.0]),
+        (1.0, [2.0, 4.0, 6.0, 8.0]),
+        (-2.0, [-4.0, -8.0, -12.0, -16.0]),
+    ])
+    def test_sq_vec_jacobian_analytical(self, ns, x_val, expected):
+        f = ns["sq_vec"]
+        g = compute_grad(f, torch.tensor(x_val))
+        for gi, ei in zip(g.tolist(), expected):
+            assert abs(gi - ei) < r_tol
+
+    @pytest.mark.parametrize("x_val", [3.0, 1.0, -2.0])
+    def test_sq_vec_jacobian_numerical(self, ns, x_val):
+        f = ns["sq_vec"]
+        x = torch.tensor(x_val)
+        h = torch.tensor(1e-3)
+        jac_num = (f(x + h) - f(x - h)) / (2 * h)
+        g = compute_grad(f, x)
+        for gi, ngi in zip(g.tolist(), jac_num.tolist()):
+            assert abs(gi - ngi) < r_tol
+
+    @pytest.mark.parametrize("x_val", [0.5, 1.0, -0.3])
+    def test_cos_freqs_jacobian_analytical(self, ns, x_val):
+        f = ns["cos_freqs"]
+        g = compute_grad(f, torch.tensor(x_val))
+        expected = [-(k + 1) * math.sin((k + 1) * x_val) for k in range(4)]
+        for gi, ei in zip(g.tolist(), expected):
+            assert abs(gi - ei) < r_tol
+
+    @pytest.mark.parametrize("x_val", [0.5, 1.0, -0.3])
+    def test_cos_freqs_jacobian_numerical(self, ns, x_val):
+        f = ns["cos_freqs"]
+        x = torch.tensor(x_val)
+        h = torch.tensor(1e-4)
+        jac_num = (f(x + h) - f(x - h)) / (2 * h)
+        g = compute_grad(f, x)
+        for gi, ngi in zip(g.tolist(), jac_num.tolist()):
+            assert abs(gi - ngi) < r_tol
+
+    @pytest.mark.parametrize("x_vals, expected_diag", [
+        ([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]),
+        ([0.5, 1.0, 2.0], [1.0, 2.0, 4.0]),
+    ])
+    def test_elementwise_sq_jacobian_analytical(self, ns, x_vals,
+                                                expected_diag):
+        f = ns["elementwise_sq"]
+        x = torch.tensor(x_vals)
+        jac = compute_grad(f, x)  # shape R[3, 3]
+        assert jac.shape == (3, 3)
+        for i, ei in enumerate(expected_diag):
+            assert abs(jac[i, i].item() - ei) < r_tol
+            for j in range(3):
+                if j != i:
+                    assert abs(jac[i, j].item()) < r_tol

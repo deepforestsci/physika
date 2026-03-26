@@ -135,6 +135,103 @@ Output::
 ``grad`` calls ``compute_grad`` from the runtime, which differentiates ``f``
 with respect to its argument using ``torch.autograd.grad``.
 
+Differentiable For Loops
+------------------------
+
+The four loop forms in Physika are differentiable. ``grad()`` computes a gradient using
+Pytorch's autograd.
+
+For-expression
+~~~~~~~~~~~~~~~
+
+``for i : ℕ(n) → expr`` constructs an array using ``torch.stack([...])``, which is differentiable:
+
+.. code-block:: text
+
+   def scale_vec(x : ℝ): ℝ[3]:
+       return for i : ℕ(3) → x * (i + 1)
+
+   s : ℝ = 2
+   scale_vec(s)
+   grad(scale_vec(s), s)
+
+Output::
+
+   [2.0, 4.0, 6.0] ∈ ℝ[3]
+   [1.0, 2.0, 3.0] ∈ ℝ[3]
+
+The gradient ``[1, 2, 3]`` is the Jacobian ``d(scale_vec)/ds``.
+
+Implicit range for-loop
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   def dot_with_arr(s : ℝ): ℝ:
+       a : ℝ[4] = [1, 2, 3, 4]
+       result : ℝ = 0
+       for i:
+           result += s * a[i]
+       return result
+
+   s : ℝ = 1
+   grad(dot_with_arr(s), s)
+
+Output::
+
+   10.0 ∈ ℝ
+
+Multi-index loop (for i j k:)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Multi-index accumulation loops compile to ``torch.stack`` / ``torch.sum``
+and are fully differentiable:
+
+.. code-block:: text
+
+   def matmul_scale(s : ℝ): ℝ:
+       A : ℝ[2, 2] = [[1.0, 2.0], [3.0, 4.0]]
+       I : ℝ[2, 2] = [[1.0, 0.0], [0.0, 1.0]]
+       C : ℝ[2, 2]
+       for i j k:
+           C[i, j] += s * A[i, k] * I[k, j]
+       return sum(C)
+
+   s : ℝ = 1.0
+   grad(matmul_scale(s), s)
+
+Output::
+
+   10.0 ∈ ℝ
+
+Jacobian of vector output functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When the function returns a vector or tensor, ``grad()`` returns the full
+Jacobian matrix instead of a gradient vector:
+
+.. code-block:: text
+
+   # f: ℝ → ℝ[n]
+   # grad() returns a vector (df[i]/ds)
+   def cos_freqs(x : ℝ): ℝ[4]:
+       return for i : ℕ(4) → cos(x * (i + 1.0))
+
+   grad(cos_freqs(x), x)    
+   # [-sin(x), -2sin(2x), -3sin(3x), -4sin(4x)]
+
+   # f: ℝ[n] → ℝ[n]
+   # calling grad() for f with relation to x returns a matrix (df[i]/dx[j])
+   def elementwise_sq(x : ℝ[n]): ℝ[n]:
+       return for i → x[i] ** 2
+
+   ev : ℝ[3] = [1.0, 2.0, 3.0]
+   grad(elementwise_sq(ev), ev)
+
+Output::
+
+   [[2.0, 0.0, 0.0], [0.0, 4.0, 0.0], [0.0, 0.0, 6.0]] ∈ ℝ[3,3]
+
 Type Checker
 ------------
 
