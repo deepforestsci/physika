@@ -5,9 +5,9 @@ import torch.optim as optim
 from physika.runtime import physika_print
 
 # === Program ===
-x = torch.tensor([1, 2, 3, 5, 6, 7])
-y = (x[0:2+1] + x[0:2+1])
-z = (y + torch.tensor([1, 3, 4]))
+x = torch.tensor([1.0, 2.0, 3.0, 5.0, 6.0, 7.0], requires_grad=True)
+y = (x[int(0.0):int(2.0)+1] + x[int(0.0):int(2.0)+1])
+z = (y + torch.tensor([1.0, 3.0, 4.0], requires_grad=True))
 physika_print(x)
 physika_print(y)
 physika_print(z)
