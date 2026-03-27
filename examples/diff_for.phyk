@@ -1,0 +1,84 @@
+# Examples for differentiable for-loops in Physika
+# Gradient of for-expr
+# f(s) = sum(for i : ℕ(4) → s * i) = s(0+1+2+3) = 6s
+# f'(s) = 6
+def sum_for_expr(s : ℝ): ℝ:
+    return sum(for i : ℕ(4) → s * i)
+s0 : ℝ = 2
+sum_for_expr(s0)
+grad(sum_for_expr(s0), s0)
+
+# Gradient of implicit for-loop
+# g(s) = sum(s * arr[i] for i) = sum([1s, 2s, 3s, 4s])= s * (1+2+3+4) = 10*s
+# g'(s) = 10
+def dot_with_arr(s : ℝ): ℝ:
+    a3 : ℝ[4] = [1, 2, 3, 4]
+    result : ℝ = 0
+    for i:
+        result += s * a3[i]
+    return result
+s1 : ℝ = 1
+dot_with_arr(s1)
+grad(dot_with_arr(s1), s1)
+
+# Gradient of multiple iter variable loops
+# h(s) = sum(s * A @ I) = s * sum(A) = s(1+2+3+4) = 10s
+# h'(s) = 10
+def matmul_scale(s : ℝ): ℝ:
+    A3 : ℝ[2, 2] = [[1, 2], [3, 4]]
+    I : ℝ[2, 2] = [[1, 0], [0, 1]]
+    C3 : ℝ[2, 2]
+    for i j k:
+        C3[i, j] += s * A3[i, k] * I[k, j]
+    return sum(C3)
+s2 : ℝ = 1
+matmul_scale(s2)
+grad(matmul_scale(s2), s2)
+
+# Gradient of nested for i: ℕ(n) / for j: ℕ(i, 10) loop
+# k(s) = s * Σ {i=0}^{9} Σ{j=i}^{9} (i + j)
+# k'(s) = Σ {i=0}^{9} Σ_{j=i}^{9} (i + j) = 495
+def nested_sum(s : ℝ): ℝ:
+    result : ℝ = 0
+    for i: ℕ(10):
+        for j: ℕ(i, 10):
+            result += s * i * 1 + s * j * 1
+    return result
+s3 : ℝ = 1
+nested_sum(s3)
+grad(nested_sum(s3), s3)
+
+
+# Gradients for tensors using for loops
+# scale_vec: f(x) = [x, 2x, 3x]
+# Jac(f)(x) = [1, 2, 3]
+def scale_vec(x : ℝ): ℝ[3]:
+    return for i : ℕ(3) → x * (i + 1)
+s : ℝ = 2.0
+scale_vec(s)
+grad(scale_vec(s), s)
+
+# sq_vec: f(x) = [x², 2x², 3x², 4x²]
+# Jac(f)(x) = [2x, 4x, 6x, 8x]
+def sq_vec(x : ℝ): ℝ[4]:
+    return for i : ℕ(4) → x ** 2 * (i + 1)
+sv : ℝ = 3.0
+sq_vec(sv)
+grad(sq_vec(sv), sv)
+
+# cos_freqs: f(x) = [cos(x), cos(2x), cos(3x), cos(4x)]
+# Jac(f)(x) = [-sin(x), -2sin(2x), -3sin(3x), -4sin(4x)]
+def cos_freqs(x : ℝ): ℝ[4]:
+    return for i : ℕ(4) → cos(x * (i + 1))
+x : ℝ = 0.5
+cos_freqs(x)
+grad(cos_freqs(x), x)
+
+# elementwise_sq: f(x)[i] = x[i]²
+# f(x) ∈ ℝ[n]
+# Jac(f)(x) = diag(2·x) ∈ ℝ[n,n]
+def elementwise_sq(x : ℝ[n]): ℝ[n]:
+    return for i → x[i] ** 2
+ev : ℝ[3] = [1.0, 2.0, 3.0]
+elementwise_sq(ev)
+grad(elementwise_sq(ev), ev)

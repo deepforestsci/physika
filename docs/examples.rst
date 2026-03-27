@@ -68,6 +68,15 @@ For loops and for-expressions
 .. literalinclude:: ../examples/for.phyk
    :language: text
 
+Differentiable for loops
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All loop forms are differentiable. ``grad()`` returns a gradient vector for
+scalar-output functions and a full Jacobian matrix for vector-output functions.
+
+.. literalinclude:: ../examples/diff_for.phyk
+   :language: text
+
 Factorial (recursive)
 ~~~~~~~~~~~~~~~~~~~~~
 
