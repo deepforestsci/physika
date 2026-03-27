@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Union
+import itertools
 
 
 @dataclass(frozen=True)
@@ -310,3 +311,95 @@ T_REAL = TScalar("ℝ")
 T_NAT = TScalar("ℕ")
 T_COMPLEX = TScalar("ℂ")
 T_STRING = TScalar("string")
+
+
+class VarCounter:
+    """
+    Shared counter for generating unique type and dimension variable names.
+
+    ``new_var()`` and ``new_dim()`` draw  from the same counter, so
+    every ``α`` for TVar and ``δ`` for ``TDim`` produced during type checker
+    is unique.
+    Call ``reset()``restart numbering from zero (for unit testing).
+
+    Examples
+    --------
+    >>> from physika.utils.types import VarCounter, TVar, TDim
+    >>> c = VarCounter()
+    >>> c.new_var()
+    α0
+    >>> c.new_var()
+    α1
+    >>> c.new_dim()
+    δ2
+    >>> c.reset()
+    >>> c.new_var()
+    α0
+    """
+
+    def __init__(self) -> None:
+        """
+        Initializes a counter to generate TVar and TDims to be resolved at
+        unification step.
+        """
+        self.c = itertools.count()
+
+    def new_var(self) -> TVar:
+        """
+        Return a new type variable.
+
+        Each call advances the counter, so the returned name is
+        never repeated.
+
+        Returns
+        -------
+        TVar
+            A new type variable (``α0``, ``α1``, etc)
+
+        Examples
+        --------
+        >>> from physika.utils.types import VarCounter, TVar
+        >>> c = VarCounter()
+        >>> c.new_var()
+        α0
+        >>> c.new_var()
+        α1
+        """
+        return TVar(f"α{next(self.c)}")
+
+    def new_dim(self) -> TDim:
+        """
+        Return a new unique dimension variable.
+
+        Dimension variables (``TDim``) share the same counter as type variables
+        (``TVar``).
+
+        Returns
+        -------
+        TDim
+            A new dimension variable ()``δ0``, ``δ1``, etc).
+
+        Examples
+        --------
+        >>> from physika.utils.types import VarCounter, TDim, TVar
+        >>> c = VarCounter()
+        >>> c.new_var()
+        α0
+        >>> c.new_dim()
+        δ1
+        """
+        return TDim(f"δ{next(self.c)}")
+
+    def reset(self) -> None:
+        """
+        Reset the counter to zero.
+
+        After calling this, the next ``new_var()`` call returns ``α0`` again.
+        Intended for use when initializing a physika program and in tests.
+        """
+        self.c = itertools.count()
+
+
+counter = VarCounter()
+new_var = counter.new_var
+new_dim = counter.new_dim

@@ -2,18 +2,9 @@ import pytest
 
 import dataclasses
 
-from physika.utils.types import (
-    TScalar,
-    TTensor,
-    TVar,
-    TDim,
-    TFunc,
-    TInstance,
-    T_REAL,
-    T_NAT,
-    T_COMPLEX,
-    T_STRING,
-)
+from physika.utils.types import (TScalar, TTensor, TVar, TDim, TFunc,
+                                 TInstance, T_REAL, T_NAT, T_COMPLEX, T_STRING,
+                                 VarCounter)
 
 
 class TestHMTypes:
@@ -183,3 +174,75 @@ class TestHMTypes:
 
         with pytest.raises(dataclasses.FrozenInstanceError):
             i1.class_name = "Net"
+
+
+class TestVarCounter:
+    """
+    Tests for VarCounter
+
+    Shared counter for fresh type/dim variables.
+    """
+
+    def setup_method(self):
+        self.c = VarCounter()
+
+    def test_new_tvar(self):
+        v = self.c.new_var()
+        assert isinstance(v, TVar)
+
+    def test_new_tdim(self):
+        d = self.c.new_dim()
+        assert isinstance(d, TDim)
+
+    def test_var_sequential(self):
+        c = VarCounter()
+        assert c.new_var() == TVar("α0")
+        assert c.new_var() == TVar("α1")
+        assert c.new_var() == TVar("α2")
+
+    def test_dim_sequential(self):
+        c = VarCounter()
+        assert c.new_dim() == TDim("δ0")
+        assert c.new_dim() == TDim("δ1")
+
+    def test_var_and_dim_counter(self):
+        # var and dim draw from the same counter, so names never collide
+        c = VarCounter()
+        v0 = c.new_var()  # α0
+        d1 = c.new_dim()  # δ1
+        v2 = c.new_var()  # α2
+        assert v0 == TVar("α0")
+        assert d1 == TDim("δ1")
+        assert v2 == TVar("α2")
+
+    def test_reset_var_dims(self):
+        c = VarCounter()
+        c.new_var()
+        c.new_var()
+        c.new_dim()
+        c.reset()
+        assert c.new_var() == TVar("α0")
+
+        c.new_dim()
+        c.reset()
+        assert c.new_dim() == TDim("δ0")
+
+    def test_independent_instance(self):
+        c1 = VarCounter()
+        c2 = VarCounter()
+        c1.new_var()
+        c1.new_var()
+
+        # c2 starts fresh regardless of c1
+        assert c2.new_var() == TVar("α0")
+
+    def test_produced_dims_and_vars_are_unique(self):
+        c = VarCounter()
+        tvars = [c.new_var() for _ in range(10)]
+        assert [v.name for v in tvars] == [f"α{i}" for i in range(10)]
+        assert len(set(tvars)) == 10
+
+        c1 = VarCounter()
+        tdims = [c1.new_dim() for _ in range(10)]
+        assert [d.name for d in tdims] == [f"δ{i}" for i in range(10)]
+        assert len(set(tdims)) == 10

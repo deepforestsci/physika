@@ -260,3 +260,19 @@ Every expression is assigned one of these types:
 
 - ``TFunc`` — A function type ``(p0, p1, ...) → ret``, where ``pN`` refers to parameters types and ``ret`` refers to the return type.
 - ``TInstance`` — the type of a class value (``instance(FullyConnectedNet)``).
+
+
+``VarCounter`` class
+~~~~~~~~~~~~~~~~~~~~
+
+Generates unique placeholder names when running a Physika program which are resolved at unification step.
+
+.. code-block:: text
+
+   VarCounter:
+   - new_var() → TVar("α0"), TVar("α1"), etc   (unknown type)
+   - new_dim() → TDim("δ0"), TDim("δ1"), etc  (unknown dimension)
+   - reset()   → restart from 0, called by run() at session start.
+
+Both ``new_var`` and ``new_dim`` draw from the same counter so
+``α2`` and ``δ2`` can never both exist simultaneously.
