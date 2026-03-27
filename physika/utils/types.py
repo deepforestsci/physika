@@ -327,14 +327,14 @@ class VarCounter:
     >>> from physika.utils.types import VarCounter, TVar, TDim
     >>> c = VarCounter()
     >>> c.new_var()
-    TVar(name='α0')
+    α0
     >>> c.new_var()
-    TVar(name='α1')
+    α1
     >>> c.new_dim()
-    TDim(name='δ2')
+    δ2
     >>> c.reset()
     >>> c.new_var()
-    TVar(name='α0')
+    α0
     """
 
     def __init__(self) -> None:
@@ -361,9 +361,9 @@ class VarCounter:
         >>> from physika.utils.types import VarCounter, TVar
         >>> c = VarCounter()
         >>> c.new_var()
-        TVar(name='α0')
+        α0
         >>> c.new_var()
-        TVar(name='α1')
+        α1
         """
         return TVar(f"α{next(self.c)}")
 
@@ -384,9 +384,9 @@ class VarCounter:
         >>> from physika.utils.types import VarCounter, TDim, TVar
         >>> c = VarCounter()
         >>> c.new_var()
-        TVar(name='α0')
+        α0
         >>> c.new_dim()
-        TDim(name='δ1')
+        δ1
         """
         return TDim(f"δ{next(self.c)}")
 
