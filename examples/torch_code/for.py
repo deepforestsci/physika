@@ -10,7 +10,7 @@ def outer_product(u, v):
 
 def get_last(arr):
     cur = 0.0
-    for i in range(len(arr)):
+    for i in range(int(len(arr))):
         cur = arr[int(i)]
     return cur
 
@@ -48,20 +48,20 @@ def sum_or_sum_sq(arr, sq):
 
 def abs_sum(arr):
     total = 0.0
-    for i in range(len(arr)):
+    for i in range(int(len(arr))):
         total = total + arr[int(i)]
     return torch.where(torch.as_tensor(total > 0.0), total, (0.0 - total))
 
 def sum_positive(arr):
     total = 0.0
-    for i in range(len(arr)):
+    for i in range(int(len(arr))):
         if arr[int(i)] > 0.0:
             total = total + arr[int(i)]
     return total
 
 def sum_abs(arr):
     total = 0.0
-    for i in range(len(arr)):
+    for i in range(int(len(arr))):
         if arr[int(i)] > 0.0:
             total = total + arr[int(i)]
         else:
@@ -70,7 +70,7 @@ def sum_abs(arr):
 
 def count_above(arr, thresh):
     count = 0.0
-    for i in range(len(arr)):
+    for i in range(int(len(arr))):
         if arr[int(i)] > thresh:
             count = count + 1.0
     return count

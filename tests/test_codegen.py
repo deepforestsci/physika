@@ -70,3 +70,11 @@ def test_codegen_matches_reference(phyk_file):
     assert HEADER in code_phyk
     assert HEADER in code_torch
     assert code_phyk == code_torch
+
+
+def test_for_loop_inside_class():
+    """Test for loop inside class lambda generates correct PyTorch"""
+    src = (EXAMPLES_DIR / "for_classes.phyk").read_text()
+    code = from_ast_to_torch(parse_source_to_ast(src), print_code=False)
+
+    assert "for i in range(int(len(x))):" in code

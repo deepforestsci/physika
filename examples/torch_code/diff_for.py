@@ -12,7 +12,7 @@ def sum_for_expr(s):
 def dot_with_arr(s):
     a3 = torch.tensor([1.0, 2.0, 3.0, 4.0])
     result = 0.0
-    for i in range(len(a3)):
+    for i in range(int(len(a3))):
         result = result + (s * a3[int(i)])
     return result
 

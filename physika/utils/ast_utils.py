@@ -936,10 +936,10 @@ def emit_body_stmts(
             _, loop_var, loop_body, indexed_arrays = stmt
             if indexed_arrays:
                 lines.append(
-                    f"{prefix}for {loop_var} in range(len({indexed_arrays[0]})):"  # noqa: E501
+                    f"{prefix}for {loop_var} in range(int(len({indexed_arrays[0]}))):"  # noqa: E501
                 )
             else:
-                lines.append(f"{prefix}for {loop_var} in range(n):")
+                lines.append(f"{prefix}for {loop_var} in range(int(n)):")
             emit_func_loop_body(loop_body, indent_level + 1, lines, loop_var)
         elif stmt_op == "body_for_range":
             _, loop_var, start_expr, end_expr, loop_body = stmt
