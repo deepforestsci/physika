@@ -468,7 +468,7 @@ def ast_to_torch_expr(node: ASTNode,
     >>> ast_to_torch_expr(("call", "sin", [("var", "theta")]))
     'torch.sin(theta)'
     >>> ast_to_torch_expr(("array", [("num", 1.0), ("num", 2.0)]))
-    'torch.tensor([1.0, 2.0])'
+    'torch.tensor([1.0, 2.0], requires_grad=True)'
     """
     if not isinstance(node, tuple):
         return repr(node)
@@ -546,7 +546,8 @@ def ast_to_torch_expr(node: ASTNode,
                 for e in elements
             ]
             if all_numeric:
-                return f"torch.tensor([{', '.join(elem_strs)}])"
+                return (f"torch.tensor([{', '.join(elem_strs)}], "
+                        "requires_grad=True)")
             else:
                 # Elements may be tensors (e.g., x[1], sin(x[0]))
                 # use torch.stack

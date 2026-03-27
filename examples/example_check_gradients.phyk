@@ -1,0 +1,7 @@
+def f(x: ℝ[1]) : ℝ[1]:
+    y = x[0] ** 2.0
+    g = grad(y, x)
+    return g
+
+v: R[1] = [1.0]
+f(v)

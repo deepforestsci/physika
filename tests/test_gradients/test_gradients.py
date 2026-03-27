@@ -343,3 +343,38 @@ class TestDiffFor:
             for j in range(3):
                 if j != i:
                     assert abs(jac[i, j].item()) < r_tol
+
+
+class TestGradFunction:
+    """Gradient calculations inside function statements"""
+
+    @pytest.fixture()
+    def name_space(self):
+        """Call examples/example_check_gradients.phyk file"""
+        return compile("example_check_gradients")
+
+    @pytest.mark.parametrize("x_val, expected_grad", [
+        ([1.0], [2.0]),
+        ([3.0], [6.0]),
+    ])
+    def test_function_matches_analytical(self, name_space, x_val,
+                                         expected_grad):
+        """function gradient matches the analytical derivative."""
+        f = name_space["f"]
+        x = torch.tensor(x_val, requires_grad=True)
+        physika_grad = f(x)
+        expected = torch.tensor(expected_grad)
+        assert torch.allclose(physika_grad, expected, rtol=r_tol)
+
+    @pytest.mark.parametrize("x_val", [[5.0]])
+    def test_function_matches_numerical(self, name_space, x_val):
+        """function gradient matches the numerical gradient."""
+        f = name_space["f"]
+        x = torch.tensor(x_val, requires_grad=True)
+        physika_grad = f(x)
+
+        def y_func(x_input):
+            return (x_input[0]**2.0).sum()
+
+        num_grad = numerical_gradient(y_func, x)[0]
+        assert torch.allclose(physika_grad, num_grad, rtol=r_tol)

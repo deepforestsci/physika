@@ -10,7 +10,7 @@ def sum_for_expr(s):
     return torch.sum(torch.stack([(s * i) for _fi_i in range(int(4.0)) for i in [torch.tensor(float(_fi_i))]]))
 
 def dot_with_arr(s):
-    a3 = torch.tensor([1.0, 2.0, 3.0, 4.0])
+    a3 = torch.tensor([1.0, 2.0, 3.0, 4.0], requires_grad=True)
     result = 0.0
     for i in range(len(a3)):
         result = result + (s * a3[int(i)])
@@ -63,6 +63,6 @@ physika_print(compute_grad(sq_vec(sv), sv))
 x = torch.tensor(0.5, requires_grad=True)
 physika_print(cos_freqs(x))
 physika_print(compute_grad(cos_freqs(x), x))
-ev = torch.as_tensor(torch.tensor([1.0, 2.0, 3.0])).float().requires_grad_(True)
+ev = torch.as_tensor(torch.tensor([1.0, 2.0, 3.0], requires_grad=True)).float().requires_grad_(True)
 physika_print(elementwise_sq(ev))
 physika_print(compute_grad(elementwise_sq(ev), ev))
