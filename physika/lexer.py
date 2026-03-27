@@ -39,6 +39,8 @@ tokens = (
     "LAMBDA",
     "TANGENT",
     "IMAGINARY",
+    "SYMBOL", "FUNCTION", "EQUATION",
+    "WALRUS"
 )
 
 reserved = {
@@ -48,6 +50,9 @@ reserved = {
     "class": "CLASS",
     "if": "IF",
     "else": "ELSE",
+    "Symbol": "SYMBOL",
+    "Function": "FUNCTION",
+    "Equation": "EQUATION"
 }
 
 t_POWER = r"\*\*"
@@ -68,6 +73,7 @@ t_GEQ = r">="
 t_LT = r"<"
 t_GT = r">"
 t_EQUALS = r"="
+t_WALRUS = r':='
 t_COLON = r":"
 t_COMMA = r","
 

@@ -166,6 +166,48 @@ def ast_uses_func(node: ASTNode, func_name: str) -> bool:
     return False
 
 
+def ast_uses_sympy(node: ASTNode) -> bool:
+    """Check whether an AST subtree contains a Symbol or Function declaration.
+
+    Recursively walks *node* looking for ``("symbol_decl", ...)``` or
+    ``("function_decl", ...)`` nodes, which indicate that sympy is needed
+    as a backed for symbolic math
+
+    Parameters
+    ----------
+    node : ASTNode
+        A tagged tuple, list, or scalar leaf of an AST.
+
+    Returns
+    -------
+    bool
+        ``True`` if a ``("symbol_decl", ...)``` or ```("function_decl", ...)``
+        node exists anywhere in the subtree, ``False`` otherwise.
+
+    Examples
+    --------
+    >>> from physika.utils.ast_utils import ast_uses_sympy
+    >>> ast_uses_sympy(("symbol_decl", "x"))
+    True
+    >>> ast_uses_sympy(("function_decl", "u"))
+    True
+    >>> ast_uses_sympy(("num", "1.0"))
+    False
+    """
+    if not isinstance(node, (tuple, list)):
+        return False
+    if isinstance(node, tuple) and len(node) >= 1:
+        if node[0] in ("symbol_decl", "symbol_decl_multi", "function_decl",
+                       "function_decl_multi"):
+            return True
+        return any(
+            ast_uses_sympy(child) for child in node[1:]
+            if isinstance(child, (tuple, list)))
+    if isinstance(node, list):
+        return any(ast_uses_sympy(item) for item in node)
+    return False
+
+
 def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
     """
     Collect variable names used as differentiation targets in ``grad()`` calls.
@@ -602,9 +644,39 @@ def ast_to_torch_expr(node: ASTNode,
 
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({', '.join(arg_strs)})"
+
         elif func_name == "grad":
             # grad(output, input) -> compute_grad(output, input)
             return f"compute_grad({', '.join(arg_strs)})"
+
+        elif func_name == "subs":
+            expr_code = arg_strs[0]
+            sub_pairs = ", ".join(f"({arg_strs[i]}, {arg_strs[i+1]})"
+                                  for i in range(1,
+                                                 len(arg_strs) - 1, 2))
+            return f"{expr_code}.subs([{sub_pairs}])"
+
+        elif func_name == "diff":
+            if len(arg_strs) == 3:
+                expr, var, order = arg_strs
+                order = str(int(float(order)))
+                return f"sp.diff({expr}, {var}, {order})"
+            return f"sp.diff({', '.join(arg_strs)})"
+
+        elif func_name == "lambdify":
+            args0 = args[0]
+            if isinstance(args0, tuple) and args0[0] == "array":
+                sym_names = [e[1] for e in args0[1]]
+                vars_code = "[" + ", ".join(sym_names) + "]"
+            else:
+                vars_code = arg_strs[0]
+            expr_code = arg_strs[1]
+            return (f"sp.lambdify({vars_code}, {expr_code}, "
+                    f"modules={torch_funcs})")
+
+        elif func_name == "symbolic_solve":
+            return f"sp.solve({', '.join(arg_strs)})"
+
         else:
             return f"{func_name}({', '.join(arg_strs)})"
 
@@ -1479,6 +1551,26 @@ def generate_statement(stmt: ASTNode,
                                                                    "animate"):
             return expr_code
         return f"physika_print({expr_code})"
+
+    elif op == "symbol_decl":
+        name = stmt[1]
+        return f"{name} = sp.Symbol('{name}')"
+
+    elif op == "symbol_decl_multi":
+        return "\n".join(f"{name} = sp.Symbol('{name}')" for name in stmt[1])
+
+    elif op == "function_decl":
+        name = stmt[1]
+        return f"{name} = sp.Function('{name}')"
+
+    elif op == "function_decl_multi":
+        return "\n".join(f"{name} = sp.Function('{name}')" for name in stmt[1])
+
+    elif op == "equation_decl":
+        name = stmt[1]
+        lhs = ast_to_torch_expr(stmt[2])
+        rhs = ast_to_torch_expr(stmt[3])
+        return f"{name} = sp.Eq({lhs}, {rhs})"
 
     elif op == "func_def":
         return None  # Already generated
