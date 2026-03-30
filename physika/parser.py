@@ -1566,6 +1566,22 @@ def p_factor_index(p):
     p[0] = ("index", p[1], ("num", p[3]))
 
 
+def p_factor_indexN(p):
+    """factor : ID LBRACKET multi_index_list RBRACKET"""
+    # N-dimensional comma indexing at program level.
+    # Reuses the multi_index_list shared with function bodies,
+    # which requires at least one comma.
+    # Example:
+    #   u0[1, 2]
+    #   T[0, 1, 2]
+    # Parameters:
+    # p[1] — array name
+    # p[3] — list of index expressions built by multi_index_list
+    # Returns:
+    #   ("indexN", name, [idx_expr, ...])
+    p[0] = ("indexN", p[1], p[3])
+
+
 def p_factor_slice(p):
     """factor : ID LBRACKET NUMBER COLON NUMBER RBRACKET"""
     # Return AST node for array slicing
