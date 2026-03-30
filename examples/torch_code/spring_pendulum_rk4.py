@@ -7,7 +7,7 @@ from physika.runtime import simulate
 
 # === Functions ===
 def spring_pendulum(x):
-    return torch.stack([torch.as_tensor(x[int(2.0)]).float(), torch.as_tensor(x[int(3.0)]).float(), torch.as_tensor(((((x[int(0.0)] * x[int(3.0)]) * x[int(3.0)]) - (9.81 * torch.cos(x[int(1.0)]))) - (50.0 * (x[int(0.0)] - 1.0)))).float(), torch.as_tensor((((0.0 - ((2.0 * x[int(2.0)]) * x[int(3.0)])) - (9.81 * torch.sin(x[int(1.0)]))) / x[int(0.0)])).float()])
+    return torch.stack([torch.as_tensor(x[int(2)]).float(), torch.as_tensor(x[int(3)]).float(), torch.as_tensor(((((x[int(0)] * x[int(3)]) * x[int(3)]) - (9.81 * torch.cos(x[int(1)]))) - (50.0 * (x[int(0)] - 1.0)))).float(), torch.as_tensor((((0.0 - ((2.0 * x[int(2)]) * x[int(3)])) - (9.81 * torch.sin(x[int(1)]))) / x[int(0)])).float()])
 
 # === Classes ===
 class RK4(nn.Module):
@@ -29,8 +29,8 @@ class RK4(nn.Module):
 
 # === Program ===
 dt = 0.01
-solver = RK4(spring_pendulum, dt, 10000.0)
+solver = RK4(spring_pendulum, dt, 10000)
 physika_print(solver(torch.tensor([1.2, 0.3, 0.0, 0.0])))
 physika_print(solver(torch.tensor([1.3, 0.8, 0.0, 0.0])))
-step = RK4(spring_pendulum, dt, 1.0)
-simulate(step, torch.tensor([1.2, 0.3, 0.0, 0.0]), 500.0, dt)
+step = RK4(spring_pendulum, dt, 1)
+simulate(step, torch.tensor([1.2, 0.3, 0.0, 0.0]), 500, dt)

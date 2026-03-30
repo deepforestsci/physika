@@ -7,7 +7,7 @@ from physika.runtime import simulate
 
 # === Functions ===
 def pendulum(x):
-    return torch.stack([torch.as_tensor(x[int(1.0)]).float(), torch.as_tensor((0.0 - ((9.81 / 1.0) * torch.sin(x[int(0.0)])))).float()])
+    return torch.stack([torch.as_tensor(x[int(1)]).float(), torch.as_tensor((0.0 - ((9.81 / 1.0) * torch.sin(x[int(0)])))).float()])
 
 # === Classes ===
 class RK4(nn.Module):
@@ -29,8 +29,8 @@ class RK4(nn.Module):
 
 # === Program ===
 dt = 0.01
-solver = RK4(pendulum, dt, 1000.0)
+solver = RK4(pendulum, dt, 1000)
 physika_print(solver(torch.tensor([0.5, 0.0])))
 physika_print(solver(torch.tensor([1.0, 0.0])))
-step = RK4(pendulum, dt, 1.0)
-simulate(step, torch.tensor([0.5, 0.0]), 1000.0, dt)
+step = RK4(pendulum, dt, 1)
+simulate(step, torch.tensor([0.5, 0.0]), 1000, dt)
