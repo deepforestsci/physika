@@ -23,10 +23,12 @@ class HamiltonianNet(nn.Module):
     def forward(self, x):
         x = torch.as_tensor(x).float()
         h = ((self.w2 @ tanh(((self.W1 @ x) + self.b1))) + self.b2)
-        return h
+        dh_dp = compute_grad(h, x)[int(1.0)]
+        dh_dq = (0.0 - compute_grad(h, x)[int(0.0)])
+        return torch.stack([torch.as_tensor(dh_dp).float(), torch.as_tensor(dh_dq).float()])
 
-    def loss(self, H, target, x):
-        lo = (((compute_grad(H, x)[int(1)] - target[int(0)]) ** 2.0) + (((0.0 - compute_grad(H, x)[int(0)]) - target[int(1)]) ** 2.0))
+    def loss(self, symplectic_gradient, target):
+        lo = (((symplectic_gradient[int(0.0)] - target[int(0.0)]) ** 2.0) + ((symplectic_gradient[int(1.0)] - target[int(1.0)]) ** 2.0))
         return lo
 
 # === Program ===

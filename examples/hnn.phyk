@@ -17,11 +17,13 @@ def tanh(x: ℝ): ℝ:
 # Loss enforces Hamilton's equations in a single expression
 # ------------------------------------------------------------
 class HamiltonianNet(W1: ℝ[M,N], b1: ℝ[M], w2: ℝ[M], b2: ℝ):
-    def λ(x: ℝ[N]) → ℝ:
+    def λ(x: ℝ[N]) → ℝ[n]:
         h : ℝ = w2 @ tanh(W1 @ x + b1) + b2
-        return h
-    def loss(H: ℝ, target: ℝ[N]) → ℝ:
-        lo : ℝ = (grad(H, x)[1] - target[0]) ** 2.0 + (0.0 - grad(H, x)[0] - target[1]) ** 2.0
+        dh_dp: R = grad(h, x)[1]
+        dh_dq: R = 0.0 - grad(h, x)[0]
+        return [dh_dp, dh_dq]
+    def loss(symplectic_gradient: ℝ[2], target: ℝ[N]) → ℝ:
+        lo : ℝ = (symplectic_gradient[0] - target[0]) ** 2.0 + (symplectic_gradient[1] - target[1]) ** 2.0
         return lo
 
 # ------------------------------------------------------------
