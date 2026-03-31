@@ -29,8 +29,8 @@ r_mul
 # ---------------------------
 z_number: Z = 1
 r_number: R = 2.0
-results = z_number + r_number
-results
+result = z_number * r_number
+result
 
 
 # -----------------------
