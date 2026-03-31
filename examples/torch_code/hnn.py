@@ -24,7 +24,7 @@ class HamiltonianNet(nn.Module):
         x = torch.as_tensor(x).float()
         h = ((self.w2 @ tanh(((self.W1 @ x) + self.b1))) + self.b2)
         dh_dp = compute_grad(h, x)[int(1.0)]
-        dh_dq = (0.0 - compute_grad(h, x)[int(0.0)])
+        dh_dq = (-compute_grad(h, x)[int(0.0)])
         return torch.stack([torch.as_tensor(dh_dp).float(), torch.as_tensor(dh_dq).float()])
 
     def loss(self, symplectic_gradient, target):
