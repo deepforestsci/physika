@@ -8,12 +8,19 @@ with PLY.
 Types
 -----
 
-Scalar
-~~~~~~
+ℝ Real number
+~~~~~~~~~~~~~
 
 .. code-block:: text
 
    x : ℝ = 3.14
+
+ℤ Integer
+~~~~~~~~~
+
+.. code-block:: text
+
+   x : ℤ = 3
 
 1-D array
 ~~~~~~~~~

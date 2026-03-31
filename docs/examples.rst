@@ -15,6 +15,12 @@ PyTorch source.
 Data Types
 ----------
 
+Numeric: ℝ and ℤ
+~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../examples/example_numeric_types.phyk
+   :language: text
+
 Arrays
 ~~~~~~
 
