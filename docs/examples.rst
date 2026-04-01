@@ -15,8 +15,8 @@ PyTorch source.
 Data Types
 ----------
 
-Physika supports two core numeric types - ℝ for Real number and ℤ for integer
-both can be used to declare scalar, arrays, tensors etc.
+Physika supports two core numeric types ℝ for Real number and ℤ for integer
+both can be used to declare scalar, arrays, tensors, etc.
 
 Numeric: ℝ and ℤ
 ~~~~~~~~~~~~~~~~
