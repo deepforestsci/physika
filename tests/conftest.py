@@ -1,7 +1,4 @@
 from pathlib import Path
-
-import pytest
-
 from physika.lexer import lexer
 from physika.parser import parser, symbol_table
 from physika.utils.ast_utils import build_unified_ast
