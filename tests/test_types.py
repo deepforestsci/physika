@@ -4,7 +4,7 @@ import dataclasses
 
 from physika.utils.types import (TScalar, TTensor, TVar, TDim, TFunc,
                                  TInstance, T_REAL, T_NAT, T_COMPLEX, T_STRING,
-                                 VarCounter)
+                                 VarCounter, Substitution)
 
 
 class TestHMTypes:
@@ -246,3 +246,177 @@ class TestVarCounter:
         tdims = [c1.new_dim() for _ in range(10)]
         assert [d.name for d in tdims] == [f"δ{i}" for i in range(10)]
         assert len(set(tdims)) == 10
+
+
+class TestSubstitution:
+    """
+    Tests for Substitution class.
+
+    Substitution represents a mapping from type variables (TVar) and dimension
+    variables (TDim) to their bound types/dims.
+    """
+
+    def test_substitution(self):
+        """
+        An empty substitution should return the original type unchanged when
+        applied.
+        """
+        # applying empty substitution to None returns None
+        s = Substitution()
+        assert s.apply(None) is None
+        s = Substitution()
+
+        # test dict access, len, and keys
+        s = Substitution({"α0": T_REAL})
+        assert s["α0"] == T_REAL
+        s = Substitution({"α0": T_REAL, "α1": T_NAT})
+        assert len(s) == 2
+        assert set(s.keys()) == {"α0", "α1"}
+
+        # applying empty substitution returns the original type unchanged
+        assert Substitution().apply(TVar("α0")) == TVar("α0")
+        # applying empty substitution to concrete types returns the same type
+        assert s.apply(T_REAL) == T_REAL
+        assert s.apply(TTensor(((3, "invariant"), ))) == TTensor(
+            ((3, "invariant"), ))
+        assert s.apply(TFunc((TScalar("ℝ"), ), TScalar("ℝ"))) == TFunc(
+            (TScalar("ℝ"), ), TScalar("ℝ"))
+
+    def test_apply_tvar(self):
+        """
+        Test that applying a substitution to a TVar resolves it to the bound
+        type.
+        """
+        s = Substitution({"α0": T_REAL})
+        # bound variable "α0" should have value T_REAL (resolved)
+        assert s.apply(TVar("α0")) == T_REAL
+        # unbound variable "α1" should be returned as is (not resolved)
+        assert s.apply(TVar("α1")) == TVar("α1")
+
+        # apply method follows_chaining substitutions until a concrete type or
+        # unbound variable is reached.
+        # α1 -> α0 -> ℝ
+        s = Substitution({"α0": T_REAL, "α1": TVar("α0")})
+        assert s.apply(TVar("α1")) == T_REAL
+
+    def test_apply_ttensor_resolves_dims(self):
+        """
+        Test that applying a substitution to a ``TTensor`` resolves any bound
+        ``TDim`` variables.
+
+        ``TTensor`` dims use ``TDim`` (not ``TVar``) and ``Substitution``
+        resolves bound TDims
+        """
+        s = Substitution({"δ0": 3})
+        t = TTensor(((TDim("δ0"), "invariant"), ))
+        result = s.apply(t)
+        assert result == TTensor(((3, "invariant"), ))
+
+        # applying substitution to TTensor with concrete dims
+        # leaves them unchanged
+        s = Substitution({"α0": T_REAL})
+        t = TTensor(((3, "invariant"), (4, "invariant")))
+        assert s.apply(t) == t
+
+        # applying substitution chain to solve bound dims
+        s = Substitution({"δ0": TDim("δ1"), "δ1": 5})
+        t = TTensor(((TDim("δ0"), "invariant"), ))
+        result = s.apply(t)
+        assert result == TTensor(((5, "invariant"), ))
+
+    def test_apply_tfunc(self):
+        """
+        Test that applying a substitution to a ``TFunc`` resolves any bound
+        type variables in the parameter types and return type.
+        """
+        s = Substitution({"α0": T_REAL, "α1": T_NAT})
+        f = TFunc((TVar("α0"), ), TVar("α1"))
+        result = s.apply(f)
+        assert result == TFunc((T_REAL, ), T_NAT)
+
+    def test_apply_tinstance_class(self):
+        """
+        Test that applying a substitution to a ``TInstance`` leaves it
+        unchanged.
+        """
+        s = Substitution({"α0": T_REAL})
+        inst = TInstance("Net")
+        assert s.apply(inst) == inst
+
+    def test_apply_env(self):
+        """
+        Test that applying a substitution to an environment dict applies it to
+        all the types in the environment.
+        """
+        # test for empty env
+        s = Substitution({"α0": T_REAL})
+        assert s.apply_env({}) == {}
+
+        # test for env with unbound variable
+        s = Substitution({"α0": T_REAL})
+        env = {"x": TVar("α0"), "y": T_NAT, "z": None}
+        result = s.apply_env(env)
+        assert result == {"x": T_REAL, "y": T_NAT, "z": None}
+
+    def test_compose_method(self):
+        """
+        Test that composing two substitutions applies the first substitution
+        to the values of the second substitution before merging.
+        """
+        s1 = Substitution({"α0": T_REAL})
+        s2 = Substitution({"α1": TVar("α0")})
+        composed = s1.compose(s2)
+        assert composed == {"α1": T_REAL, "α0": T_REAL}
+        assert composed.apply(TVar("α1")) == T_REAL
+
+        # compose should not modify the original substitutions
+        s1 = Substitution({"α0": T_REAL})
+        s2 = Substitution({"α1": T_NAT})
+        composed = s1.compose(s2)
+        assert composed.apply(TVar("α0")) == T_REAL
+        assert composed.apply(TVar("α1")) == T_NAT
+
+        # compose should not override other keys.
+        s1 = Substitution({"α0": T_NAT})
+        s2 = Substitution({"α0": T_REAL})
+        composed = s1.compose(s2)
+        # s2's α0 is kept
+        assert composed.apply(TVar("α0")) == T_REAL
+
+        # test for ``other`` empty
+        s1 = Substitution({"α0": T_REAL})
+        composed = s1.compose(Substitution())
+        assert composed.apply(TVar("α0")) == T_REAL
+
+        # test for self empty
+        s2 = Substitution({"α0": T_REAL})
+        composed = Substitution().compose(s2)
+        assert composed.apply(TVar("α0")) == T_REAL
+
+    def test_apply_dim(self):
+        """
+        Test for ``apply_dim`` method.
+
+        Verifies applying a substitution to a dimension resolves for bound and
+        unbound
+        variable.
+        """
+        # applying substitution to a concrete integer returns the same integer
+        s = Substitution({"δ0": 5})
+        assert s.apply_dim(3) == 3
+
+        # applying empty substitution to a TDim returns the same TDim
+        s = Substitution()
+        assert s.apply_dim(TDim("δ0")) == TDim("δ0")
+
+        # applying substitution to a bound integer value
+        s = Substitution({"δ0": 4})
+        assert s.apply_dim(TDim("δ0")) == 4
+
+        # apply_dim should follow chains of TDim bindings
+        s = Substitution({"δ0": TDim("δ1"), "δ1": 7})
+        assert s.apply_dim(TDim("δ0")) == 7
+
+        # applying substitution to an unbound TDim returns the same TDim
+        s = Substitution({"δ1": 9})
+        assert s.apply_dim(TDim("δ0")) == TDim("δ0")

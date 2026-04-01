@@ -403,3 +403,171 @@ class VarCounter:
 counter = VarCounter()
 new_var = counter.new_var
 new_dim = counter.new_dim
+
+
+class Substitution(dict):
+    """
+    Mapping from type and dimension variable names to types.
+
+    Represents the solution of type inference accumulated during unification.
+    Each entry pair ``"name":  Type`` means that variable *name* has been
+    unified to *Type*. ``Substitution`` chains are applied recursively, so
+    ``apply`` method always returns a resolved type with no remaining
+    bound variables.
+
+    Examples
+    --------
+    >>> from physika.utils.types import Substitution, TVar, TDim, T_REAL, TTensor  # noqa: E501
+    >>> s = Substitution({"α0": T_REAL, "δ0": 3})
+    >>> s.apply(TVar("α0"))
+    ℝ
+    >>> s.apply(TVar("α1"))
+    α1
+    >>> s.apply(TTensor(((TDim("δ0"), "invariant"),)))
+    ℝ[3]
+    """
+
+    def apply(self, t: Type) -> Type:
+        """
+        Recursively apply ``Substitution`` to a given type.
+
+        For a type variable or dimension variable whose name is bound in
+        this substitution, follows the chain until a concrete type or
+        unbound variable is reached.
+
+        Structured types (``TTensor``, ``TFunc``) are reconstructed with all
+        sub-types resolved.
+
+        Parameters
+        ----------
+        t : Type
+            Any HM type: ``TVar``, ``TDim``, ``TScalar``, ``TTensor``,
+            ``TFunc``, or ``TInstance``.
+
+        Returns
+        -------
+        Type
+            Resolved type.
+
+        Examples
+        --------
+        >>> from physika.utils.types import Substitution, TVar, T_REAL
+        >>> s = Substitution({"α0": T_REAL, "α1": TVar("α0")})
+        >>> s.apply(TVar("α1"))   # chain: α1 -> α0 -> ℝ
+        ℝ
+        """
+        if isinstance(t, (TVar, TDim)):
+            if t.name in self:
+                return self.apply(self[t.name])
+            return t
+        if isinstance(t, TScalar):
+            return t
+        if isinstance(t, TTensor):
+            return TTensor(tuple((self.apply_dim(d), v) for d, v in t.dims))
+        if isinstance(t, TFunc):
+            return TFunc(tuple(self.apply(p) for p in t.params),
+                         self.apply(t.ret))
+        if isinstance(t, TInstance):
+            return t
+        return t
+
+    def apply_dim(self, d: Any) -> Any:
+        """
+        Resolve a single tensor dimension entry.
+
+        Dimension entries may be ``TVar``/``TDim`` during inference or
+        plain integers for concrete sizes.  Chains of variable bindings are
+        followed until a concrete value or unbound variable is found.
+
+        Parameters
+        ----------
+        d : Any
+            A dimension entry (``TVar``or ``TDim``), or a concrete
+            integer/value.
+
+        Returns
+        -------
+        Any
+            A concrete integer or an unbound ``TVar``/``TDim``.
+
+        Examples
+        --------
+        >>> from physika.utils.types import Substitution, TDim
+        >>> s = Substitution({"δ0": TDim("δ1"), "δ1": 4})
+        >>> s.apply_dim(TDim("δ0"))   # chain: δ0 -> δ1 -> 4
+        4
+        >>> s.apply_dim(TDim("δ2"))
+        δ2
+        >>> s.apply_dim(3)
+        3
+        """
+        if isinstance(d, (TVar, TDim)):
+            if d.name in self:
+                resolved = self[d.name]
+                if isinstance(resolved, (TVar, TDim)):
+                    return self.apply_dim(resolved)
+                return resolved
+        return d
+
+    def apply_env(self, env: dict) -> dict:
+        """
+        Apply this ``Substitution`` to every type in a type environment.
+
+        Parameters
+        ----------
+        env : dict
+            A mapping (``{name: Type}``).
+
+        Returns
+        -------
+        dict
+            A new environment with all types resolved via ``apply``.
+
+        Examples
+        --------
+        >>> from physika.utils.types import Substitution, TVar, T_REAL
+        >>> s = Substitution({"α0": T_REAL})
+        >>> s.apply_env({"x": TVar("α0"), "y": None})
+        {'x': ℝ, 'y': None}
+        """
+        return {
+            k: self.apply(v) if v is not None else None
+            for k, v in env.items()
+        }
+
+    def compose(self, other: Substitution) -> Substitution:
+        """
+        Return the composition following the structure:
+
+        ``self ∘ other``
+
+        Applying the result is equivalent to first applying *other*, then
+        applying *self*. In other words, apply *self* to every value in
+        *other*, then add any bindings from *self* not already present.
+
+        Parameters
+        ----------
+        other : Substitution
+            The substitution to compose with.
+
+        Returns
+        -------
+        Substitution
+            A new substitution object.
+
+        Examples
+        --------
+        >>> from physika.utils.types import Substitution, TVar, T_REAL
+        >>> s1 = Substitution({"α0": T_REAL})
+        >>> s2 = Substitution({"α1": TVar("α0")})
+        >>> composed = s1.compose(s2)
+        >>> composed
+        {'α1': ℝ, 'α0': ℝ}
+        >>> composed.apply(TVar("α1"))   # α1 -> α0 -> ℝ
+        ℝ
+        """
+        result = Substitution({k: self.apply(v) for k, v in other.items()})
+        for k, v in self.items():
+            if k not in result:
+                result[k] = v
+        return result

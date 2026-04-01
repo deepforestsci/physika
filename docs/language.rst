@@ -276,3 +276,26 @@ Generates unique placeholder names when running a Physika program which are reso
 
 Both ``new_var`` and ``new_dim`` draw from the same counter so
 ``α2`` and ``δ2`` can never both exist simultaneously.
+
+
+``Substitution`` class
+~~~~~~~~~~~~~~~~~~~~~~
+
+A dictionary ``{name: Type}`` that records types resolved at unification step.
+``Substitution`` starts empty at the beginning of each function, class, and statement checkers and
+grows as ``unify`` discovers equalities between type variables and concrete types. 
+
+``Substitution`` support three methods:
+
+
+
+   - apply(t):
+      Resolve an unknown variable type ``TVar`` and replace every bound variable with its value.
+      Unbound variables are returned unchanged.
+      Following chains:
+      α1 → α0 → ℝ
+   - apply_dim(d):
+      Same as apply but for a single tensor dimension entry (``TDim``, ``TVar``, or a ``TScalar``).
+   - compose(other:``Substitution``):
+      Merge two substitutions. Apply self to every value in other,
+      then include self's own bindings.
