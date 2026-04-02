@@ -146,8 +146,25 @@ Symbolic support
 ----------------
 
 Physika supports symbolic math via sympy, letting you declare ``Symbol``, ``Function``,
-and ``Equation`` types and use built-ins like ``diff``, ``subs``, and ``lambdify`` to
-derive and solve expressions analytically.
+and ``Equation`` types and use built-ins like ``diff``, ``subs``, ``lambdify`` and 
+``symbolic_solve`` to derive and solve expressions analytically.
+
+.. note::
+Physika uses ``SymPy`` for symbolic computation.
+
+Core concepts
+~~~~~~~~~~~~~
+
+- ``Symbol`` — symbolic variables used in expressions
+- ``Function`` — symbolic functions of one or more variables
+- ``Equation`` — mathematical relationships between expressions
+
+Operations
+~~~~~~~~~~
+- ``diff(expr, var)`` — compute derivative w.r.t. a variable
+- ``subs(expr, old, new)`` — substitute part of an expression 
+- ``lambdify(expr, vars)`` — convert to a numerical function
+- ``symbolic_solve(eq, var)`` — solve equations analytically
 
 .. literalinclude:: ../examples/example_symbolic.phyk
    :language: text

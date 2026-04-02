@@ -650,6 +650,8 @@ def ast_to_torch_expr(node: ASTNode,
             return f"compute_grad({', '.join(arg_strs)})"
 
         elif func_name == "subs":
+            # Substitution is used in mathematical expression which replace
+            # all instances of something in expression with something else
             expr_code = arg_strs[0]
             sub_pairs = ", ".join(f"({arg_strs[i]}, {arg_strs[i+1]})"
                                   for i in range(1,
@@ -657,6 +659,7 @@ def ast_to_torch_expr(node: ASTNode,
             return f"{expr_code}.subs([{sub_pairs}])"
 
         elif func_name == "diff":
+            # diff is used to find derivative of expression w.r.t to variable
             if len(arg_strs) == 3:
                 expr, var, order = arg_strs
                 order = str(int(float(order)))
@@ -664,6 +667,8 @@ def ast_to_torch_expr(node: ASTNode,
             return f"sp.diff({', '.join(arg_strs)})"
 
         elif func_name == "lambdify":
+            # lambdify converts sympy expression into expression which can be
+            # evaluate numerically
             args0 = args[0]
             if isinstance(args0, tuple) and args0[0] == "array":
                 sym_names = [e[1] for e in args0[1]]
@@ -675,6 +680,8 @@ def ast_to_torch_expr(node: ASTNode,
                     f"modules={torch_funcs})")
 
         elif func_name == "symbolic_solve":
+            # symbolic_solve is wrapper for solve which finds solution of an
+            # equation or system of equations, or the roots of function
             return f"sp.solve({', '.join(arg_strs)})"
 
         else:

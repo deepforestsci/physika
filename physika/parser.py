@@ -1611,20 +1611,39 @@ def p_error(p):
         raise SyntaxError("Syntax error at EOF")
 
 
-# symbolic types
+# Symbolic types
 def p_statement_symbol_decl(p):
     """statement : ID COLON SYMBOL NEWLINE"""
+    # Declares symbolic variable using Sympy's Symbol
+    # Example:
+    #   x : Symbol
+    # Parameters:
+    #   p[1] — symbol name
+    # Returns:
+    #   ("symbol_decl", name)
     p[0] = ('symbol_decl', p[1])
 
 
 def p_statement_function_decl(p):
     """statement : ID COLON FUNCTION NEWLINE"""
+    # Declares symbolic funcion using Sympy's Function
+    # Example:
+    #   u : Function
+    # Parameters:
+    #   p[1] — function name
+    # Returns:
+    #   ("function_decl", name)
     p[0] = ('function_decl', p[1])
 
 
 def p_id_list(p):
     """id_list : ID
                | id_list COMMA ID"""
+    # Builds a list of identifiers separated by commas.
+    # Used for multi-symbol and multi-function declarations.
+    # Parameters:
+    #   p[1] — single ID
+    #   p[3] — next ID (multiple declarations)
     if len(p) == 2:
         p[0] = [p[1]]
     else:
@@ -1633,10 +1652,24 @@ def p_id_list(p):
 
 def p_statement_symbol_multi_decl(p):
     """statement : id_list COLON SYMBOL NEWLINE"""
+    # Declares multiple symbolic variables using Sympy's Symbol
+    # Example:
+    #   x, y : Symbol
+    # Parameters:
+    #   p[1] — list of symbol names from id_list
+    # Returns:
+    #   ("symbol_decl_multi", [name, ...])
     p[0] = ("symbol_decl_multi", p[1])
 
 
 def p_statement_function_multi_decl(p):
+    # Declares multiple symbolic functions using Sympy's Function
+    # Example:
+    #   f, u : Function
+    # Parameters:
+    #   p[1] — list of function names from id_list
+    # Returns:
+    #   (function_decl_multi", [name, ...])
     """statement : id_list COLON FUNCTION NEWLINE"""
     p[0] = ("function_decl_multi", p[1])
 
@@ -1644,6 +1677,13 @@ def p_statement_function_multi_decl(p):
 def p_statemet_equation_decl(p):
     """statement : ID COLON EQUATION WALRUS \
                  func_expr EQUALS func_expr NEWLINE"""
+    # Declares equation using symbolic variables
+    # Example:
+    #   eq: Equation := 2.0*x + 3.0 = 7.0
+    # Parameters:
+    #   p[1] — equation name
+    #   p[5] — expression on LHS
+    #   p[7] — expression on RHS
     p[0] = ("equation_decl", p[1], p[5], p[7])
 
 
