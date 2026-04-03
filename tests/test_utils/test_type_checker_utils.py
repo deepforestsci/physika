@@ -12,6 +12,8 @@ from physika.utils.types import (
 from physika.utils.type_checker_utils import (
     from_typespec,
     occurs_in,
+    get_tensor_shape,
+    make_tensor,
 )
 
 
@@ -113,3 +115,58 @@ class TestOccursIn:
 
         t = TTensor(((3, "invariant"), ))
         assert occurs_in(TDim("δ0"), t) is False
+
+
+class TestGetShape:
+    """Tests for get_tensor_shape helper function."""
+
+    def test_get_tensor_shape(self):
+        """
+
+        Test that get_tensor_shape return a list of dimensions for TTensor types,
+        and None for non-tensor types.
+        """
+        t = TTensor(((3, "invariant"), (4, "invariant")))
+        assert get_tensor_shape(t) == [3, 4]
+
+        t = TTensor(((5, "invariant"), ))
+        assert get_tensor_shape(t) == [5]
+
+        assert get_tensor_shape(T_REAL) is None
+        assert get_tensor_shape(T_NAT) is None
+
+        assert get_tensor_shape(None) is None
+
+        f = TFunc((T_REAL, ), T_REAL)
+        assert get_tensor_shape(f) is None
+
+        t = TTensor(((TDim("n"), "invariant"), (3, "invariant")))
+        shape = get_tensor_shape(t)
+        assert shape == [TDim("n"), 3]
+
+
+class TestMakeTensor:
+    """Tests for make_tensor function."""
+
+    def test_make_tensor(self):
+        """
+        Test that make_tensor constructs the correct TTensor type from a list of dimensions.
+        """
+        # 1D tensor
+        assert make_tensor([3]) == TTensor(((3, "invariant"), ))
+
+        # 2D tensor
+        assert make_tensor([2, 3]) == TTensor(
+            ((2, "invariant"), (3, "invariant")))
+
+        # Symbolic dim
+        result = make_tensor([TDim("n"), 4])
+        assert result == TTensor(((TDim("n"), "invariant"), (4, "invariant")))
+
+        # test that get_tensor_shape and make_tensot interoperability
+        dims = [2, 3, 4]
+        t = make_tensor(dims)
+        assert get_tensor_shape(t) == dims
+        dims = [TDim("n"), 3]
+        t = make_tensor(dims)
+        assert get_tensor_shape(t) == dims

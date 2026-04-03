@@ -7,8 +7,9 @@ from physika.utils.print_utils import (  # noqa: F401
     print_unified_ast, print_type_check_results, _pformat, _from_torch,
     _infer_type)
 from physika.utils.type_checker_utils import (  # noqa: F401
-    type_to_str, get_shape, make_tensor_type, types_compatible,
-    shapes_broadcast_compatible, get_line_info, type_infer, statement_check)
+    type_to_str, get_tensor_shape, make_tensor_type, types_compatible,
+    shapes_broadcast_compatible, get_line_info, type_infer, statement_check,
+    from_typespec, occurs_in, make_tensor)
 from physika.utils.types import (  # noqa: F401
     TVar, TDim, TScalar, TTensor, TFunc, TInstance, T_REAL, T_NAT, T_COMPLEX,
     T_STRING)
