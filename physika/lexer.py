@@ -1,45 +1,11 @@
 import ply.lex as lex
 
-tokens = (
-    "ID",
-    "NUMBER",
-    "TYPE",
-    "STRING",
-    "PLUS",
-    "MINUS",
-    "TIMES",
-    "DIVIDE",
-    "INTDIV",
-    "MATMUL",
-    "POWER",
-    "EQUALS",
-    "EQEQ",
-    "NEQ",
-    "LT",
-    "GT",
-    "LEQ",
-    "GEQ",
-    "PLUSEQ",
-    "COLON",
-    "COMMA",
-    "ARROW",
-    "LPAREN",
-    "RPAREN",
-    "LBRACKET",
-    "RBRACKET",
-    "NEWLINE",
-    "INDENT",
-    "DEDENT",
-    "DEF",
-    "RETURN",
-    "FOR",
-    "IF",
-    "ELSE",
-    "CLASS",
-    "LAMBDA",
-    "TANGENT",
-    "IMAGINARY",
-)
+tokens = ("ID", "NUMBER", "TYPE", "STRING", "PLUS", "MINUS", "TIMES", "DIVIDE",
+          "INTDIV", "MATMUL", "POWER", "EQUALS", "EQEQ", "NEQ", "LT", "GT",
+          "LEQ", "GEQ", "PLUSEQ", "COLON", "COMMA", "ARROW", "LPAREN",
+          "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE", "INDENT", "DEDENT",
+          "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS", "LAMBDA", "TANGENT",
+          "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION", "WALRUS")
 
 reserved = {
     "def": "DEF",
@@ -48,6 +14,9 @@ reserved = {
     "class": "CLASS",
     "if": "IF",
     "else": "ELSE",
+    "Symbol": "SYMBOL",
+    "Function": "FUNCTION",
+    "Equation": "EQUATION"
 }
 
 t_POWER = r"\*\*"
@@ -68,6 +37,7 @@ t_GEQ = r">="
 t_LT = r"<"
 t_GT = r">"
 t_EQUALS = r"="
+t_WALRUS = r':='
 t_COLON = r":"
 t_COMMA = r","
 

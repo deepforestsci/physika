@@ -37,6 +37,20 @@ Types
 
    A : ℝ[3, 3] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 
+Symbol
+~~~~~~
+
+.. code-block:: text
+
+   x, y: Symbol
+
+Symbolic Function
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   u: Function
+
 
 Declarations and Expressions
 -----------------------------
@@ -76,6 +90,32 @@ Functions
 Output::
 
    9.0 ∈ ℝ
+
+Symbolic expression
+-------------------
+
+.. code-block:: text
+
+   x, y: Symbol
+   f = x**2 + y**2
+   f
+
+Output::
+
+   x**2.0 + y**2.0 ∈ Add
+
+Symbolic Function call
+----------------------
+
+.. code-block:: text
+
+   x, y: Symbol
+   u: Function
+   u(x, y)
+
+Output::
+
+   u(x, y) ∈ u
 
 
 Control Flow Operators
@@ -307,3 +347,60 @@ grows as ``unify`` discovers equalities between type variables and concrete type
    - compose(other:``Substitution``):
       Merge two substitutions. Apply self to every value in other,
       then include self's own bindings.
+Errors include the source line number where the mismatch was detected.
+
+
+Symbolic methods
+----------------
+
+Declare required variables:
+
+.. code-block:: text
+
+   x, y : Symbol
+   u : Function
+
+substitution
+~~~~~~~~~~~~
+
+.. code-block:: text
+   f = x**2 + y**2
+   subs(f, x, 3.0, y, 4.0)
+
+Output::
+
+   25.0000000000000 ∈ Float
+
+diff
+~~~~
+
+.. code-block:: text
+   f = x**3 + 2*(x**2) + x
+   diff(f, x)
+
+Output::
+
+   3*x**2 + 4*x + 1 ∈ Add
+
+lambdify
+~~~~~~~~
+
+.. code-block:: text
+   expr = x**2 + y**2
+   f = lambdify([x, y], expr)  
+   f(3.0, 4.0)
+
+Output::
+
+   25.0 ∈ ℝ
+
+symbolic solve
+~~~~~~~~~~~~~~
+
+.. code-block:: text
+   eq: Equation := 2.0*x + 3.0 = 7.0
+   symbolic_solve(eq, x)
+
+Output::
+
+   [2.00000000000000] ∈ ℝ[1]
