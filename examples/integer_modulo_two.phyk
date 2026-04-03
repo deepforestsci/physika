@@ -1,0 +1,26 @@
+a: Z2 = 1
+b: Z2 = 0
+
+# ----------------
+# XOR operation
+# ----------------
+c = a + b
+c
+a + a
+
+# ----------------
+# AND operation
+# ----------------
+d = a * b
+a
+
+
+# ----------------
+# if-else condtion
+# ----------------
+flag: Z2 = 0
+if flag == 0:
+    results = 0.0
+else:
+    results = 1.0
+results
