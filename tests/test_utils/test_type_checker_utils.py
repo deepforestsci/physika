@@ -123,8 +123,8 @@ class TestGetShape:
     def test_get_tensor_shape(self):
         """
 
-        Test that get_tensor_shape return a list of dimensions for TTensor types,
-        and None for non-tensor types.
+        Test that get_tensor_shape return a list of dimensions for TTensor
+        types and None for non-tensor types.
         """
         t = TTensor(((3, "invariant"), (4, "invariant")))
         assert get_tensor_shape(t) == [3, 4]
@@ -150,7 +150,8 @@ class TestMakeTensor:
 
     def test_make_tensor(self):
         """
-        Test that make_tensor constructs the correct TTensor type from a list of dimensions.
+        Test that make_tensor constructs the correct TTensor type from a list
+        of dimensions.
         """
         # 1D tensor
         assert make_tensor([3]) == TTensor(((3, "invariant"), ))
