@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Callable, List, Tuple, Union
+from typing import Any, Callable, List, Tuple, Union, Optional
+from physika.utils.types import (Type, TTensor, TScalar, TFunc, TInstance,
+                                 TVar, TDim, T_REAL, T_NAT, T_COMPLEX,
+                                 T_STRING)
 
 # Type aliases used throughout this module.
 TypeSpec = Any  # "ℝ", "ℕ", ("tensor", [...]), ("func_type", ...), None
@@ -722,3 +725,106 @@ def statement_check(
             if body_stmt is None:
                 continue
             check_statement(body_stmt)
+
+
+def from_typespec(ts: Any) -> Optional[Type]:
+    """
+    Convert a type value from AST to a valid ``Type`` value.
+
+    Called between the parser and the type checker to translate
+    the annotation stored in the AST into the typed objects that
+    will be used at the inference step.  Returns ``None`` for any
+    annotation that cannot be mapped.
+
+    Parameters
+    ----------
+    ts : Any
+        A parser type-spec: ``None``, ``"ℝ"``/``"R"``, ``"ℕ"``/``"N"``,
+        ``"ℂ"``, or ``"string"``, ``("tensor", [(dim, variance), ...])``,
+        ``("func_type", param_types, ret_type)``, ``("instance", name)``.
+
+    Returns
+    -------
+    Optional[Type]
+        The corresponding ``Type``, or ``None`` if the spec is unrecognised.
+
+    Examples
+    --------
+    >>> from physika.utils.type_checker_utils import from_typespec
+    >>> from physika.utils.types import T_REAL, TTensor
+    >>> from_typespec("ℝ")
+    ℝ
+    >>> from_typespec(("tensor", [(3, "invariant"), (4, "invariant")]))
+    ℝ[3,4]
+    >>> from_typespec(None) is None
+    True
+    """
+    if ts is None:
+        return None
+    if ts in ("ℝ", "R"):
+        return T_REAL
+    if ts in ("ℕ", "N"):
+        return T_NAT
+    if ts == "ℂ":
+        return T_COMPLEX
+    if ts == "string":
+        return T_STRING
+    if isinstance(ts, tuple):
+        if ts[0] == "tensor":
+            # Converts dimensions to TDim
+            dims = tuple(
+                (TDim(d) if isinstance(d, str) else d, v) for d, v in ts[1])
+            return TTensor(dims)
+        if ts[0] == "func_type":
+            # Recursively convert parameter and return type specs
+            return TFunc((from_typespec(ts[1]), ), from_typespec(ts[2]))
+        if ts[0] == "struct_type":
+            return TInstance(ts[1])
+        if ts[0] == "instance":
+            return TInstance(ts[1])
+    return None
+
+
+def occurs_in(var: Union[TVar, TDim], t: Type) -> bool:
+    """
+    Check whether variable ``var`` appears anywhere inside type ``t: Type`` to
+    prevent creating infinite types.
+
+    Before binding ``α0 = some_type``, the unification step
+    calls ``occurs_in(α0, some_type)``. if it returns ``True``, the binding
+    would create a circular structure (e.g. ``α0 = ℝ[α0]``) and a
+    ``UnificationError`` is raised instead.
+
+    Parameters
+    ----------
+    var : Union[TVar, TDim]
+        The variable to search for.
+    t : Type
+        The type to search within.
+
+    Returns
+    -------
+    bool
+        ``True`` if ``var`` appears in ``t``, ``False`` otherwise.
+
+    Examples
+    --------
+    >>> from physika.utils.type_checker_utils import occurs_in
+    >>> from physika.utils.types import TVar, TDim, TTensor, T_REAL
+    >>> occurs_in(TVar("α0"), TVar("α0"))
+    True
+    >>> occurs_in(TVar("α0"), T_REAL)
+    False
+    >>> occurs_in(TDim("δ0"), TTensor(((TDim("δ0"), "invariant"),)))
+    True
+    """
+    if isinstance(t, (TVar, TDim)):
+        return t.name == var.name
+    if isinstance(t, TTensor):
+        return any(
+            occurs_in(var, d) for d, _ in t.dims
+            if isinstance(d, (TVar, TDim, TScalar, TTensor, TFunc, TInstance)))
+    if isinstance(t, TFunc):
+        return any(occurs_in(var, p)
+                   for p in t.params) or occurs_in(var, t.ret)
+    return False
