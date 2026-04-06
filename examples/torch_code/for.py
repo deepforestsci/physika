@@ -107,6 +107,20 @@ def deep_nest(arr):
         a = (-1)
     return a
 
+def manipulate_1d_array(x):
+    m = len(x)
+    for i in range(int(0), int(m)):
+        x[int(i)] = (i * 2)
+    return x
+
+def manipulate_2d_array(x):
+    rows = len(x)
+    cols = len(x[int(0)])
+    for i in range(int(0), int(rows)):
+        for j in range(int(0), int(cols)):
+            x[int(i), int(j)] = (j * 2)
+    return x
+
 # === Program ===
 arr = torch.tensor([1, 2, 3, 4, 5])
 total = 0
@@ -265,3 +279,19 @@ if norm_flag > 0:
 else:
     normed = torch.stack([data2[int(i)] for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]])
 physika_print(normed)
+sample_1d_array = torch.tensor([1, 2, 3])
+length_array = len(sample_1d_array)
+for i in range(int(0), int(length_array)):
+    sample_1d_array[int(i)] = (i * 2)
+physika_print(sample_1d_array)
+sample_2d_array = torch.tensor([[1, 1], [1, 1]])
+rows = len(sample_2d_array)
+cols = len(sample_2d_array[int(0)])
+for i in range(int(0), int(rows)):
+    for j in range(int(0), int(cols)):
+        sample_2d_array[int(i), int(j)] = (j * 2)
+physika_print(sample_2d_array)
+arr1d = torch.tensor([1, 2, 3])
+physika_print(manipulate_1d_array(arr1d))
+arr2d = torch.tensor([[1, 1], [1, 1]])
+physika_print(manipulate_2d_array(arr2d))

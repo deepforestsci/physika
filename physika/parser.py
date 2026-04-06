@@ -519,6 +519,37 @@ def p_func_loop_stmt_assign(p):
     p[0] = ("loop_assign", p[1], p[3])
 
 
+def p_func_loop_stmt_index_assign(p):
+    """func_loop_stmt : ID LBRACKET func_expr RBRACKET EQUALS func_expr NEWLINE"""  # noqa: E501
+    # Indexed assignment inside a loop body
+    # Example:
+    # for i:
+    #   arr[i] = 1
+    # Parameters:
+    # p[1] — array name
+    # p[3] — index expression (iter var)
+    # p[5] — right hand side expression
+    # Returns:
+    #   ("loop_index_assign", arr_name, idx_expr, rhs)
+    p[0] = ("loop_index_assign", p[1], p[3], p[6])
+
+
+def p_func_loop_stmt_index_assign_2d(p):
+    """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa: E501
+    # 2d Indexed assignment inside a loop body
+    # Example:
+    # for i:
+    #   for j:
+    #       arr[i, j] = 1
+    # Parameters:
+    # p[1] — array name
+    # p[3] — list of index expressions
+    # p[5] — right hand side expression
+    # Returns:
+    #   ("loop_index_assign_2d", arr_name, [idx_exprs], rhs)
+    p[0] = ("loop_index_assign_2d", p[1], p[3], p[6])
+
+
 def p_func_loop_stmt_pluseq(p):
     """func_loop_stmt : ID PLUSEQ func_expr NEWLINE"""
     # Accumulation inside a loop body.
@@ -1060,6 +1091,23 @@ def p_for_statement_index_assign(p):
     # Returns:
     #   ("for_index_assign", arr_name, idx_expr, rhs_expr)
     p[0] = ("for_index_assign", p[1], p[3], p[6])
+
+
+def p_for_statement_index_assign_2d(p):
+    """for_statement : ID LBRACKET func_expr COMMA func_expr RBRACKET EQUALS func_expr NEWLINE"""  # noqa: E501
+    # 2d Indexed assignment statement inside a top-level for loop body.
+    # Example:
+    #   for i:
+    #       for j:
+    #           b[1, j] = 1
+    # Parameters:
+    # p[1] — array name
+    # p[3] — first index expression (iter var)
+    # p[5] — second index expression (iter var)
+    # p[8] — right-hand side expression
+    # Returns:
+    #   ("for_index_assign_2d", arr_name, first_idx_expr, second_idx_expr, rhs_expr)    # noqa: E501
+    p[0] = ("for_index_assign_2d", p[1], p[3], p[5], p[8])
 
 
 def p_for_statement_assign(p):
