@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, List, Tuple, Union, Optional
 from physika.utils.types import (Type, TTensor, TScalar, TFunc, TInstance,
                                  TVar, TDim, T_REAL, T_NAT, T_COMPLEX,
-                                 T_STRING)
+                                 T_STRING, Substitution)
 
 # Type aliases used throughout this module.
 TypeSpec = Any  # "ℝ", "ℕ", ("tensor", [...]), ("func_type", ...), None
@@ -862,3 +862,173 @@ def make_tensor(dims: list) -> TTensor:
     ℝ[2,3]
     """
     return TTensor(tuple((d, "invariant") for d in dims))
+
+
+def unify(t1: Type, t2: Type, s: Substitution) -> Substitution:
+    """
+    Return an extended ``Substitution`` that makes ``t1`` equal to ``t2``.
+
+    Unification step is used at type checker inference. Both types, ``t1``
+    and ``t2``, are resolved through ``s: Substitution`` so that known
+    equalities are applied before comparing.  The function then dispatches
+    on the structural shape of the two types and either returns ``s``
+    unchanged (already equal), extends ``s`` with a new binding (one side
+    is a variable), or recurses into sub-types (tensors, functions).
+    A ``TypeError`` is raised for any mismatch.
+
+    Parameters
+    ----------
+    t1 : Type
+        First type to unify.
+    t2 : Type
+        Second type to unify.
+    s : Substitution
+        Current substitution accumulator.  Both ``t1`` and ``t2`` are
+        resolved through ``s`` before comparison.
+
+    Returns
+    -------
+    Substitution
+        An extended substitution of ``s``.
+
+    Raises
+    ------
+    TypeError
+        If ``t1`` and ``t2`` cannot be made equal. For example, scalar with
+        tensor types, tensor types with rank mismatch, concrete dimension
+        mismatch, or incompatible class instances.
+
+    Examples
+    --------
+    >>> from physika.utils.type_checker_utils import unify
+    >>> from physika.utils.types import Substitution, TVar, T_REAL, T_NAT
+    >>> s = unify(TVar("α0"), T_REAL, Substitution()) # binds α0 to ℝ
+    >>> s
+    {'α0': ℝ}
+    >>> s.apply(TVar("α0"))
+    ℝ
+    >>> unify(T_REAL, T_REAL, Substitution()) # no new bindings, already equal
+    {}
+    >>> unify(T_REAL, T_NAT, Substitution())  # ℕ ⊂ ℝ — no new bindings needed
+    {}
+    """
+    # Resolve both types through current substitution
+    t1 = s.apply(t1)
+    t2 = s.apply(t2)
+
+    if t1 == t2:
+        return s
+
+    if isinstance(t1, (TVar, TDim)):
+        if occurs_in(t1, t2):
+            raise TypeError(f"Occurs check failed: {t1} ∈ {type_to_str(t2)}")
+        new_s = Substitution({t1.name: t2})
+        return new_s.compose(s)
+
+    if isinstance(t2, (TVar, TDim)):
+        return unify(t2, t1, s)
+
+    if isinstance(t1, TScalar) and isinstance(t2, TScalar):
+        if {t1.name, t2.name} <= {"ℝ", "ℕ"}:
+            return s
+        raise TypeError(f"Scalar mismatch: {t1.name} ≠ {t2.name}")
+
+    if isinstance(t1, TScalar) and isinstance(t2, TTensor):
+        raise TypeError(f"Cannot unify scalar {t1.name} with tensor {t2!r}")
+    if isinstance(t1, TTensor) and isinstance(t2, TScalar):
+        raise TypeError(f"Cannot unify tensor {t1!r} with scalar {t2.name}")
+
+    if isinstance(t1, TTensor) and isinstance(t2, TTensor):
+        if len(t1.dims) != len(t2.dims):
+            raise TypeError(f"Rank mismatch: {t1!r} vs {t2!r}")
+        cur = s
+        for (d1, _), (d2, _) in zip(t1.dims, t2.dims):
+            cur = unify_dim(d1, d2, cur)
+        return cur
+
+    if isinstance(t1, TFunc) and isinstance(t2, TFunc):
+        if len(t1.params) != len(t2.params):
+            raise TypeError(
+                f"Function's parameter count mismatch: {len(t1.params)} vs {len(t2.params)}"  # noqa: E501
+            )
+        cur = s
+        for p1, p2 in zip(t1.params, t2.params):
+            cur = unify(p1, p2, cur)
+        return unify(t1.ret, t2.ret,
+                     cur)  # Unify return types after parameters
+
+    if isinstance(t1, TInstance) and isinstance(t2, TInstance):
+        if t1.class_name != t2.class_name:
+            raise TypeError(f"Instance mismatch: {t1} vs {t2}")
+        return s
+
+    raise TypeError(f"Cannot unify {type_to_str(t1)} with {type_to_str(t2)}")
+
+
+def unify_dim(d1: Any, d2: Any, s: Substitution) -> Substitution:
+    """
+    Unify two tensor dimension entries and return an extended substitution.
+
+    Similar to ``unify`` but at dimension level, used when two ``TTensor``
+    types are unified.  Dimension entries may be concrete integers (``3``)
+    , symbolic strings (``"n"``), or unresolved variables
+    (``TVar`` / ``TDim``).
+
+    Parameters
+    ----------
+    d1 : Any
+        First dimension entry: ``int``, ``str``, ``TVar``, or ``TDim``.
+    d2 : Any
+        Second dimension entry: ``int``, ``str``, ``TVar``, or ``TDim``.
+    s : Substitution
+        Current substitution accumulator; both entries are resolved through
+        it before comparison.
+
+    Returns
+    -------
+    Substitution
+        An extended substitution under which ``d1`` and ``d2`` are equal.
+
+    Raises
+    ------
+    TypeError
+        If both entries are concrete values (int or str) that differ.
+
+    Examples
+    --------
+    >>> from physika.utils.type_checker_utils import unify_dim
+    >>> from physika.utils.types import Substitution, TDim
+    >>> s = unify_dim(TDim("δ0"), 4, Substitution())
+    >>> s
+    {'δ0': 4}
+    >>> s.apply_dim(TDim("δ0"))
+    4
+    >>> unify_dim(3, 3, Substitution())  # same concrete size, no new bindings
+    {}
+    """
+    # Resolve dimensions through current substitution
+    d1 = s.apply_dim(d1)
+    d2 = s.apply_dim(d2)
+
+    if d1 == d2:
+        return s
+    if isinstance(d1, (TVar, TDim)):
+        ns = Substitution({d1.name: d2})
+        return ns.compose(s)
+    if isinstance(d2, (TVar, TDim)):
+        ns = Substitution({d2.name: d1})
+        return ns.compose(s)
+
+    # symbolic dimensions
+    if isinstance(d1, str) and isinstance(d2, str):
+        if d1 != d2:
+            raise TypeError(f"Dimension mismatch: {d1} ≠ {d2}")
+        return s
+
+    if isinstance(d1, str) or isinstance(d2, str):
+        return s
+
+    if isinstance(d1, int) and isinstance(d2, int):
+        if d1 != d2:
+            raise TypeError(f"Dimension mismatch: {d1} ≠ {d2}")
+    return s
