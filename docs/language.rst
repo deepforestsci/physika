@@ -351,6 +351,45 @@ grows as ``unify`` discovers equalities between type variables and concrete type
 Errors include the source line number where the mismatch was detected.
 
 
+Unification
+~~~~~~~~~~~
+
+The unification step determines whether two types can be made equal
+and finding a substitution (``Substitution``) that records the bindings
+to do so.  
+
+Unification step is needed at every point where two types must agree, which is present in three main places of type checker algorithm:
+
+- **Expression inference** (``infer_expr``), when:
+   - Inferring the type of arithmetic operations, both operand types are unified so that tensor shapes must match.
+   - Inferring the types of an array. All element types are inferred first into a list. Then the first element's type is used as a base, and each subsequent element's type is unified against it.
+   - Calling a user-defined function or class, each argument type is unified against the declared parameter type.
+- **Statement inference** (``infer_stmts``), when:
+   - Checking a declaration (``a : ℕ = 1``). The declared type is unified against the inferred type of the right-hand side.
+   - Verifying a ``return`` statement. The inferred return type is unified against the function's declared return type.
+   - Checking an ``if/else`` statement, the types of the two branches are unified with each other and with the declared return type. Hoisting variables from ``if/else`` branches has its two inferred types unified so the outer scope gets a single type.
+- **Top-level checkers** (``check_function``, ``check_class``, ``check_statement``), when:
+   - Running ``infer_stmts`` over a function or class body, the declared return type is unified against the final body expression type.
+   - At program level, running ``check_statement`` unifies the declared type of a ``decl`` node against the inferred type of its right-hand side.
+
+``unify(t1, t2, s)`` resolves both types through the current substitution
+``s``, checking for:
+
+- **Equal types**: Returns ``s`` unchanged.
+- **Type variable** (``TVar``) **on either side**: Binds the variable to the other type and
+  extends ``s``.  An occurs check prevents infinite types (e.g. ``α0 = ℝ[α0]``).
+- **Two scalars**: raises ``TypeError`` if they differ (e.g. ``ℝ ≠ ℂ``), and if subset (``ℕ ⊂ ℝ``), s is unchanged.
+- **Two tensors**: Must have the same rank. Each dimension pair is unified
+  with ``unify_dim``.
+- **Two functions**: Must have the same number of parameters. Each parameter type is unified, then the return types are unified.
+- **Two instances**: raises ``TypeError`` if the class names differ.
+
+Dimension entries may be concrete integers (``3``), symbolic strings (``"n"``), or
+unresolved type variables (``TDim``).  ``unify_dim(d1, d2, s)`` resolve dimension types through ``s``,
+binding a variable if one side is unknown, and raises ``TypeError`` when two
+concrete values differ.
+
+
 Symbolic methods
 ----------------
 
