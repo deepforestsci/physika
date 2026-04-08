@@ -32,10 +32,10 @@ class FullyConnectedNetwork(nn.Module):
 
 # === Program ===
 X = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 1.0, 1.0]])
-y = torch.tensor([0.2, 0.4, 0.6, 0.9])
+y = torch.tensor([0.2, 0.4, 0.6, 0.9], requires_grad=True)
 W = torch.tensor([[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], [[0.2, 0.3, 0.4], [0.5, 0.6, 0.7], [0.8, 0.9, 0.1]]])
 B = torch.tensor([[0.1, 0.2, 0.3], [0.1, 0.2, 0.3]])
-w = torch.tensor([0.5, 0.5, 0.5])
+w = torch.tensor([0.5, 0.5, 0.5], requires_grad=True)
 b = 0.1
 net = FullyConnectedNetwork(sigma, W, B, w, b, 2)
 loss_before = evaluate(net, X, y)
@@ -45,7 +45,7 @@ lr = 0.1
 net_trained = train(net, X, y, epochs, lr)
 loss_after = evaluate(net_trained, X, y)
 physika_print(loss_after)
-physika_print(net_trained(torch.tensor([1.0, 0.0, 0.0])))
-physika_print(net_trained(torch.tensor([0.0, 1.0, 0.0])))
-physika_print(net_trained(torch.tensor([0.0, 0.0, 1.0])))
-physika_print(net_trained(torch.tensor([1.0, 1.0, 1.0])))
+physika_print(net_trained(torch.tensor([1.0, 0.0, 0.0], requires_grad=True)))
+physika_print(net_trained(torch.tensor([0.0, 1.0, 0.0], requires_grad=True)))
+physika_print(net_trained(torch.tensor([0.0, 0.0, 1.0], requires_grad=True)))
+physika_print(net_trained(torch.tensor([1.0, 1.0, 1.0], requires_grad=True)))
