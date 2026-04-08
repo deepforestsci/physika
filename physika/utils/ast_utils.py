@@ -32,7 +32,8 @@ ExprTag = Literal[
     "call",
     "call_index",  # f(x), f(x)[i]
     "imaginary",  # complex unit  i
-]
+    "or",
+    "and"]
 
 StmtTag = Literal[
     "decl",  # x : R = expr          -> (tag, name, type, expr, lineno)
@@ -555,6 +556,16 @@ def ast_to_torch_expr(node: ASTNode,
         left = ast_to_torch_expr(node[1], indent, current_loop_var)
         right = ast_to_torch_expr(node[2], indent, current_loop_var)
         return f"({left} ** {right})"
+
+    elif op == "and":
+        left = ast_to_torch_expr(node[1], indent, current_loop_var)
+        right = ast_to_torch_expr(node[2], indent, current_loop_var)
+        return f"({left} and {right})"
+
+    elif op == "or":
+        left = ast_to_torch_expr(node[1], indent, current_loop_var)
+        right = ast_to_torch_expr(node[2], indent, current_loop_var)
+        return f"({left} or {right})"
 
     elif op == "neg":
         val = ast_to_torch_expr(node[1], indent, current_loop_var)

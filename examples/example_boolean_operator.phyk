@@ -1,0 +1,5 @@
+a: R = 1
+b: R = 0
+
+a or b
+a and b

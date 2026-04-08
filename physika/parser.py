@@ -1432,6 +1432,16 @@ def p_expr_term(p):
     p[0] = p[1]
 
 
+def p_expr_or(p):
+    """expr : expr OR expr"""
+    p[0] = ("or", p[1], p[3])
+
+
+def p_expr_and(p):
+    """expr : expr AND expr"""
+    p[0] = ("and", p[1], p[3])
+
+
 def p_term_binop(p):
     """term : term TIMES factor
             | term DIVIDE factor
