@@ -139,7 +139,7 @@ for i in range(len(X)):
 physika_print(mse)
 src = torch.tensor([1, 2, 3, 4, 5])
 dst = torch.tensor([0, 0, 0, 0, 0])
-for i in range(len(dst)):
+for i in range(len(src)):
     dst[int(i)] = (src[int(i)] * src[int(i)])
 physika_print(dst)
 start = 10

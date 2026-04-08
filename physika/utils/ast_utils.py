@@ -844,21 +844,14 @@ def emit_func_loop_body(
             lines.append(
                 f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=active)}"  # noqa: E501
             )
-        elif tag == "loop_index_assign":
-            _, arr_name, idx_expr, rhs = loop_stmt
-            idx_code = ast_to_torch_expr(idx_expr, current_loop_var=loop_var)
-            rhs_code = ast_to_torch_expr(rhs, current_loop_var=loop_var)
-            lines.append(f"{prefix}{arr_name}[int({idx_code})] = {rhs_code}"
-                         )  # noqa: E501
-        elif tag == "loop_index_assign_2d":
+        elif tag == "loop_index_assign_nd":
             _, arr_name, idx_list, rhs = loop_stmt
-            idx_codes = [
-                ast_to_torch_expr(e, current_loop_var=active) for e in idx_list
-            ]
-            rhs_code = ast_to_torch_expr(rhs, current_loop_var=active)
-            lines.append(
-                f"{prefix}{arr_name}[{', '.join(f'int({c})' for c in idx_codes)}] = {rhs_code}"  # noqa: E501
+            indices = ", ".join(
+                f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
+                for idx in idx_list
             )
+            rhs_code = ast_to_torch_expr(rhs, current_loop_var=loop_var)
+            lines.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
         elif tag == "loop_pluseq":
             _, var_name, expr = loop_stmt
             lines.append(
@@ -1265,19 +1258,14 @@ def emit_for_stmts(
             result.append(
                 f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=loop_var)}"  # noqa: E501
             )
-        elif body_op == "for_index_assign":
-            _, arr_name, idx_expr, rhs_expr = s
-            idx_code = ast_to_torch_expr(idx_expr, current_loop_var=loop_var)
-            rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=loop_var)
-            result.append(f"{prefix}{arr_name}[int({idx_code})] = {rhs_code}")
-        elif body_op == "for_index_assign_2d":
-            _, arr_name, idx1_expr, idx2_expr, rhs_expr = s
-            idx1_code = ast_to_torch_expr(idx1_expr, current_loop_var=loop_var)
-            idx2_code = ast_to_torch_expr(idx2_expr, current_loop_var=loop_var)
-            rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=loop_var)
-            result.append(
-                f"{prefix}{arr_name}[int({idx1_code}), int({idx2_code})] = {rhs_code}"  # noqa: E501
+        elif body_op == "for_index_assign_nd":
+            _, arr_name, idx_list, rhs_expr = s
+            indices = ", ".join(
+                f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
+                for idx in idx_list
             )
+            rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=loop_var)
+            result.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
         elif body_op == "for_call":
             _, func_name, arg_asts = s
             arg_strs = [
