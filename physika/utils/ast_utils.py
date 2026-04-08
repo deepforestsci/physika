@@ -803,6 +803,8 @@ def condition_to_expr(cond: ASTNode,
         "cond_gt": ">",
         "cond_leq": "<=",
         "cond_geq": ">=",
+        "cond_or": "or",
+        "cond_and": "and"
     }
     cond_t = cast(tuple[Any, ...], cond)
     op = cond_t[0]

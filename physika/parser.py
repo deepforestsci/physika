@@ -439,6 +439,24 @@ def p_condition_geq(p):
     p[0] = ("cond_geq", p[1], p[3])
 
 
+def p_condition_or(p):
+    """condition : func_expr OR func_expr"""
+    # Example:
+    # left or right
+    # Returns:
+    #   ("cond_or", left, right)
+    p[0] = ("cond_or", p[1], p[3])
+
+
+def p_condition_and(p):
+    """condition : func_expr AND func_expr"""
+    # Example:
+    # left and right
+    # Returns:
+    #   ("cond_or", left, right)
+    p[0] = ("cond_and", p[1], p[3])
+
+
 def p_statement_function_with_loop(p):
     """statement : DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT func_init FOR ID COLON NEWLINE INDENT func_loop_body DEDENT NEWLINE RETURN func_expr DEDENT"""  # noqa: E501
     # def funcname(params): return_type:
