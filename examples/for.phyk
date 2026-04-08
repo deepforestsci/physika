@@ -408,7 +408,7 @@ def manipulate_1d_array(x: R[m]): R[n]:
 arr1d: R[3] = [1, 2, 3]
 manipulate_1d_array(arr1d)
 
-# 9.4 2d array indeing inside function body
+# 9.4 2d array indexing inside function body
 def manipulate_2d_array(x: R[m, n]): R[m, n]:
     rows = len(x)
     cols = len(x[0])
