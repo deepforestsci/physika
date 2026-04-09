@@ -848,8 +848,7 @@ def emit_func_loop_body(
             _, arr_name, idx_list, rhs = loop_stmt
             indices = ", ".join(
                 f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
-                for idx in idx_list
-            )
+                for idx in idx_list)
             rhs_code = ast_to_torch_expr(rhs, current_loop_var=loop_var)
             lines.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
         elif tag == "loop_pluseq":
@@ -1262,8 +1261,7 @@ def emit_for_stmts(
             _, arr_name, idx_list, rhs_expr = s
             indices = ", ".join(
                 f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
-                for idx in idx_list
-            )
+                for idx in idx_list)
             rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=loop_var)
             result.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
         elif body_op == "for_call":
