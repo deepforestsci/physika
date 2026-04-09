@@ -520,7 +520,7 @@ def p_func_loop_stmt_assign(p):
 
 
 def p_func_loop_stmt_index_assign_nd(p):
-    """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""
+    """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
     # nd Indexed assignment inside a loop body
     # Example:
     # # 1d array
@@ -1068,7 +1068,7 @@ def p_for_body_multi(p):
 
 
 def p_for_statement_index_assign_nd(p):
-    """for_statement : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""
+    """for_statement : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
     # nd Indexed assignment inside top-level for-body
     # Example:
     # # 1d array
