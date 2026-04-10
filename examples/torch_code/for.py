@@ -121,11 +121,18 @@ def manipulate_1d_array(x):
     return x
 
 def manipulate_2d_array(x):
-    rows = get_array_length(x)
-    cols = get_array_length(x[int(0)])
-    for i in range(int(0), int(rows)):
-        for j in range(int(0), int(cols)):
+    m = get_array_length(x)
+    n = get_array_length(x[int(0)])
+    for i in range(int(0), int(m)):
+        for j in range(int(0), int(n)):
             x[int(i), int(j)] = (j * 2)
+    return x
+
+def manipulate_3d_array(x):
+    for i in range(int(0), int(2)):
+        for j in range(int(0), int(2)):
+            for k in range(int(0), int(2)):
+                sample_3d_array[int(i), int(j), int(k)] = (((i * 2) + j) + k)
     return x
 
 # === Program ===
@@ -298,7 +305,15 @@ for i in range(int(0), int(rows)):
     for j in range(int(0), int(cols)):
         sample_2d_array[int(i), int(j)] = (j * 2)
 physika_print(sample_2d_array)
+sample_3d_array = torch.tensor([[[1, 2], [1, 2]], [[1, 2], [1, 2]]])
+for i in range(int(0), int(2)):
+    for j in range(int(0), int(2)):
+        for k in range(int(0), int(2)):
+            sample_3d_array[int(i), int(j), int(k)] = ((j * 2) + k)
+physika_print(sample_3d_array)
 arr1d = torch.tensor([1, 2, 3])
 physika_print(manipulate_1d_array(arr1d))
 arr2d = torch.tensor([[1, 1], [1, 1]])
 physika_print(manipulate_2d_array(arr2d))
+arr3d = torch.tensor([[[3, 2], [1, 1]], [[1, 4], [1, 2]]])
+physika_print(manipulate_3d_array(arr3d))
