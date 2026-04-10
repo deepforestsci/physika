@@ -448,3 +448,189 @@ symbolic solve
 Output::
 
    [2.00000000000000] ∈ ℝ[1]
+
+Scientific notation
+-------------------
+
+Physika supports scientific notation natively for numeric literals such as ``1e5``, ``2.5e-3`` or ``6.674e-11``.
+
+.. code-block:: text
+   G: ℝ = 6.674e-11    # gravitational constant
+   c: ℝ = 3e8          # speed of light
+
+Greek Letters
+-------------
+
+Physika supports Greek letters as valid identifiers.
+
+.. note::
+   ``Δ`` (U+0394) is reserved for the Laplacian operator and cannot be used as an identifier.
+
+Uppercase Letters
+~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 15 20
+
+   * - Symbol
+     - Unicode
+     - Name
+   * - Α
+     - U+0391
+     - Alpha
+   * - Β
+     - U+0392
+     - Beta
+   * - Γ
+     - U+0393
+     - Gamma
+   * - Δ
+     - U+0394
+     - Delta *(reserved — Laplacian operator)*
+   * - Ε
+     - U+0395
+     - Epsilon
+   * - Ζ
+     - U+0396
+     - Zeta
+   * - Η
+     - U+0397
+     - Eta
+   * - Θ
+     - U+0398
+     - Theta
+   * - Ι
+     - U+0399
+     - Iota
+   * - Κ
+     - U+039A
+     - Kappa
+   * - Λ
+     - U+039B
+     - Lambda
+   * - Μ
+     - U+039C
+     - Mu
+   * - Ν
+     - U+039D
+     - Nu
+   * - Ξ
+     - U+039E
+     - Xi
+   * - Ο
+     - U+039F
+     - Omicron
+   * - Π
+     - U+03A0
+     - Pi
+   * - Ρ
+     - U+03A1
+     - Rho
+   * - Σ
+     - U+03A3
+     - Sigma
+   * - Τ
+     - U+03A4
+     - Tau
+   * - Υ
+     - U+03A5
+     - Upsilon
+   * - Φ
+     - U+03A6
+     - Phi
+   * - Χ
+     - U+03A7
+     - Chi
+   * - Ψ
+     - U+03A8
+     - Psi
+   * - Ω
+     - U+03A9
+     - Omega
+
+Lowercase Letters
+~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 15 20
+
+   * - Symbol
+     - Unicode
+     - Name
+   * - α
+     - U+03B1
+     - alpha
+   * - β
+     - U+03B2
+     - beta
+   * - γ
+     - U+03B3
+     - gamma
+   * - δ
+     - U+03B4
+     - delta
+   * - ε
+     - U+03B5
+     - epsilon
+   * - ζ
+     - U+03B6
+     - zeta
+   * - η
+     - U+03B7
+     - eta
+   * - θ
+     - U+03B8
+     - theta
+   * - ι
+     - U+03B9
+     - iota
+   * - κ
+     - U+03BA
+     - kappa
+   * - λ
+     - U+03BB
+     - lambda
+   * - μ
+     - U+03BC
+     - mu
+   * - ν
+     - U+03BD
+     - nu
+   * - ξ
+     - U+03BE
+     - xi
+   * - ο
+     - U+03BF
+     - omicron
+   * - π
+     - U+03C0
+     - pi
+   * - ρ
+     - U+03C1
+     - rho
+   * - ς
+     - U+03C2
+     - final sigma
+   * - σ
+     - U+03C3
+     - sigma
+   * - τ
+     - U+03C4
+     - tau
+   * - υ
+     - U+03C5
+     - upsilon
+   * - φ
+     - U+03C6
+     - phi
+   * - χ
+     - U+03C7
+     - chi
+   * - ψ
+     - U+03C8
+     - psi
+   * - ω
+     - U+03C9
+     - omega

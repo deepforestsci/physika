@@ -20,5 +20,5 @@ greek_letters_array
 def f(x: R[m]): R:
     return x**2 + 1
 
-μ: R[3] = [2]
+μ: R[1] = [2]
 grad(f, μ) # should return 4
