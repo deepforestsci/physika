@@ -1032,3 +1032,161 @@ def unify_dim(d1: Any, d2: Any, s: Substitution) -> Substitution:
         if d1 != d2:
             raise TypeError(f"Dimension mismatch: {d1} ≠ {d2}")
     return s
+
+
+def broadcast_op(t1: Optional[Type], t2: Optional[Type]) -> Optional[Type]:
+    """
+    Return the result type of a broadcast operation.
+
+    Used at ``infer_expr`` for ``+``, ``-``, ``*``, and ``/`` to determine
+    the output type.  The shape of the result follows PyTorch broadcast.
+    Tensor/Tensor shape compatibility is checked via ``unify``.
+
+    Parameters
+    ----------
+    t1 : Optional[Type]
+        Type of the left operand. ``t1`` can be ``None`` when
+        unknown.
+    t2 : Optional[Type]
+        Type of the right operand. ``t2`` can be ``None`` when
+        unknown.
+
+    Returns
+    -------
+    Optional[Type]
+        - ``t1`` if ``t2`` is ``None`` and viceversa.
+        - ``TTensor`` operand if exactly one side is a tensor.
+        - ``TScalar`` when both operands are scalars.
+
+    Examples
+    --------
+    >>> from physika.utils.type_checker_utils import broadcast_op
+    >>> from physika.utils.types import T_REAL, TTensor
+    >>> broadcast_op(T_REAL, T_REAL)
+    ℝ
+    >>> broadcast_op(T_REAL, TTensor(((3, "invariant"),)))
+    ℝ[3]
+    """
+    if t1 is None or t2 is None:
+        return t1 or t2
+    if isinstance(t1, TTensor):
+        return t1
+    if isinstance(t2, TTensor):
+        return t2
+    return t1  # t1 and t2 are scalars
+
+
+def matmul_op(t1: Optional[Type], t2: Optional[Type],
+              add_error: Callable) -> Optional[Type]:
+    """
+    Return the result type of ``t1 @ t2``.
+
+    Valid rank combinations:
+
+    - ``ℝ[n] @ ℝ[n]`` → ``ℝ``
+    - ``ℝ[..., m, n] @ ℝ[..., n, p]`` → ``ℝ[..., m, p]``
+
+    Mixed-rank operands are rejected.  Use an explicit
+    2D shape. For example, ``ℝ[1,n] @ ℝ[n,p]`` instead of ``ℝ[n] @ ℝ[n,p]``.
+    ``add_error`` is called for any shape error.
+
+    Parameters
+    ----------
+    t1 : Optional[Type]
+        Type of the left operand.
+    t2 : Optional[Type]
+        Type of the right operand.
+    add_error : Callable
+        Receives a human-readable error string on mismatch.
+
+    Returns
+    -------
+    Optional[Type]
+        The inferred result type, or ``None`` if an operand type is unknown
+        or the rank combination is invalid.
+
+    Examples
+    --------
+    >>> from physika.utils.type_checker_utils import matmul_op
+    >>> from physika.utils.types import TTensor, T_REAL
+    >>> errors = []
+    >>> matmul_op(TTensor(((2,"invariant"),(3,"invariant"))), TTensor(((3,"invariant"),(4,"invariant"))), errors.append)
+    ℝ[2,4]
+    >>> matmul_op(TTensor(((3,"invariant"),)), TTensor(((3,"invariant"),)), errors.append)
+    ℝ
+    >>> # batched: ℝ[5,2,3] @ ℝ[5,3,4] → ℝ[5,2,4]
+    >>> matmul_op(TTensor(((5,"invariant"),(2,"invariant"),(3,"invariant"))), TTensor(((5,"invariant"),(3,"invariant"),(4,"invariant"))), errors.append)
+    ℝ[5,2,4]
+    >>> errors  # no errors yet
+    []
+    >>> matmul_op(TTensor(((3,"invariant"),)), TTensor(((4,"invariant"),)), errors.append)  # noqa: E501
+    ℝ
+    >>> errors
+    ['Matmul inner dimension mismatch: ℝ[3] @ ℝ[4]; different dims 3 ≠ 4']
+    """
+    if t1 is None or t2 is None:
+        return None
+    s1 = get_tensor_shape(t1)
+    s2 = get_tensor_shape(t2)
+    if s1 is None or s2 is None:
+        return t1 if s2 is None else t2
+
+    r1, r2 = len(s1), len(s2)
+    lhs = "ℝ[" + ",".join(str(d) for d in s1) + "]"
+    rhs = "ℝ[" + ",".join(str(d) for d in s2) + "]"
+
+    # Case both tensors are rank 1, which returns a scalar
+    # if dims are compatible.
+    if r1 == 1 and r2 == 1:
+        if not dims_compatible(s1[0], s2[0]):
+            add_error(f"Matmul inner dimension mismatch: {lhs} @ {rhs}"
+                      f"; different dims {s1[0]} ≠ {s2[0]}")
+        return T_REAL
+
+    # Mixed rank:
+    # if one 1D and one 2D or higher, returns error.
+    # suggest explicit 2D form
+    if r1 == 1 or r2 == 1:
+        if r1 == 1:
+            ones = ",".join(["1"] * (r2 - 1))
+            suggestion = f"ℝ[{ones},{s1[0]}] @ {rhs}"
+        else:
+            ones = ",".join(["1"] * (r1 - 1))
+            suggestion = f"{lhs} @ ℝ[{s2[0]},{ones}]"
+        add_error(f"Matmul rank mismatch: {lhs} @ {rhs}"
+                  f"; use {suggestion} for an explicit matrix form")
+        return None
+
+    # Case both ranks are 2 or higher.
+    inner1, inner2 = s1[-1], s2[-2]
+    # checks that last dim of left matches second last dim of right
+    if not dims_compatible(inner1, inner2):
+        add_error(f"Matmul inner dimension mismatch: {lhs} @ {rhs}"
+                  f"; different dims {inner1} ≠ {inner2}")
+
+    # Drop last two dims and check batch dimensions for broadcast compatibility
+    b1, b2 = list(s1[:-2]), list(s2[:-2])
+    if len(b1) != len(b2):
+        add_error(
+            f"Matmul batch rank mismatch: {lhs} @ {rhs}"
+            f"; {len(b1)} vs {len(b2)} batch dims, use explicit 1s to broadcast"  # noqa: E501
+        )
+        return None
+
+    result_batch = []
+    for d1, d2 in zip(b1, b2):
+        if isinstance(d1, int) and isinstance(d2, int):
+            if d1 == d2 or d2 == 1:
+                result_batch.append(d1)
+            elif d1 == 1:
+                result_batch.append(d2)
+            else:
+                add_error(
+                    f"Matmul batch dimension mismatch: {lhs} @ {rhs}"
+                    f"; batch dims {d1} and {d2} are not broadcast-compatible")
+                result_batch.append(d1)
+        else:
+            # for symbolic or variable dims
+            result_batch.append(d1 if not isinstance(d1, int) else d2)
+
+    return make_tensor(result_batch + [s1[-2], s2[-1]])

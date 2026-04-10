@@ -17,6 +17,8 @@ from physika.utils.type_checker_utils import (
     make_tensor,
     unify,
     unify_dim,
+    broadcast_op,
+    matmul_op,
 )
 from physika.utils.types import Substitution
 
@@ -430,3 +432,244 @@ class TestUnifyDim:
         s = unify_dim(TDim("δ0"), TDim("δ1"), self.s())
         assert s.apply_dim(TDim("δ0")) == s.apply_dim(TDim("δ1"))
         assert s == {"δ0": TDim("δ1")}
+
+
+class TestBroadcast:
+    """
+    Tests for ``broadcast_op``.
+
+    Verifies the result type of element-wise binary operations
+    (``+``, ``-``, ``*``, ``/``).
+    """
+
+    def test_both_scalars(self):
+        """scalar OP scalar should return scalar."""
+        assert broadcast_op(T_REAL, T_REAL) == T_REAL
+        assert broadcast_op(T_NAT, T_NAT) == T_NAT
+
+    def test_tensor_wins_over_scalar_left(self):
+        """tensor OP scalar should return a tensor."""
+        t = TTensor(((3, "invariant"), ))
+        assert broadcast_op(t, T_REAL) == t
+
+    def test_tensor_wins_over_scalar_right(self):
+        """scalar OP tensor should return a tensor."""
+        t = TTensor(((4, "invariant"), ))
+        assert broadcast_op(T_REAL, t) == t
+
+    def test_both_tensors_returns_t1(self):
+        """tensor OP tensor should return t1."""
+        # Shape verified by unify step.
+        t1 = TTensor(((3, "invariant"), ))
+        t2 = TTensor(((3, "invariant"), ))
+        assert broadcast_op(t1, t2) is t1
+
+    def test_none_returns(self):
+        """
+        Unknown left operand should return propagate t2.
+        Unknown right operand should return t1.
+        Both unknown should return None.
+        """
+        t = TTensor(((5, "invariant"), ))
+        assert broadcast_op(None, t) == t
+        assert broadcast_op(None, T_REAL) == T_REAL
+
+        t = TTensor(((5, "invariant"), ))
+        assert broadcast_op(t, None) == t
+        assert broadcast_op(T_REAL, None) == T_REAL
+
+        assert broadcast_op(None, None) is None
+
+    def test_2d_tensor_wins_over_scalar(self):
+        """2D tensor OP scalar should return 2D tensor."""
+        t = TTensor(((2, "invariant"), (3, "invariant")))
+        assert broadcast_op(T_REAL, t) == t
+        assert broadcast_op(t, T_REAL) == t
+
+        # for higher rank tensors as well
+        t = TTensor(((1, "invariant"), (2, "invariant"), (3, "invariant"),
+                     (3, "invariant"), (5, "invariant"), (6, "invariant")))
+        assert broadcast_op(T_REAL, t) == t
+        assert broadcast_op(t, T_REAL) == t
+
+
+class TestMatmulResult:
+    """
+    Tests for ``matmul_op``.
+
+    Verifies the inferred result type of ``@``. Tests for batched ND cases,
+    symbolic expressions, and mismatch errors.
+    """
+
+    def fresh_errors(self):
+        """
+        Helper function that return an error-accumulating list
+        and its append callback for error messages.
+        """
+        errors = []
+        return errors, errors.append
+
+    def test_none_operand(self):
+        """
+        Either operand None should return None.
+        """
+        t = TTensor(((3, "invariant"), ))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(None, t, cb) is None
+        assert matmul_op(t, None, cb) is None
+        assert matmul_op(None, None, cb) is None
+        assert errors == []  # no errors should be added for None cases
+
+    def test_1d_1d(self):
+        """
+        ℝ[n] @ ℝ[n] should return ℝ where n is a positive integer.
+        """
+        t = TTensor(((3, "invariant"), ))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t, t, cb) == T_REAL
+        assert errors == []
+
+    def test_matrix_vector(self):
+        """
+        ℝ[m,n] @ ℝ[n] should raise an error (mixed rank)
+        """
+        m, n = 2, 3
+        t1 = TTensor(((m, "invariant"), (n, "invariant")))
+        t2 = TTensor(((n, "invariant"), ))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) is None
+        assert len(errors) == 1
+        assert "rank mismatch" in errors[0]
+        err_msg = "; use ℝ[%s,%s] @ ℝ[%s,1]" % (m, n, n)
+        assert err_msg in errors[0]
+
+        n, p = 3, 4
+        t1 = TTensor(((n, "invariant"), ))
+        t2 = TTensor(((n, "invariant"), (p, "invariant")))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) is None
+        assert len(errors) == 1
+        assert "rank mismatch" in errors[0]
+        err_msg = "; use ℝ[1,%s] @ ℝ[%s,%s]" % (n, n, p)
+        assert err_msg in errors[0]
+
+    def test_2d_2d(self):
+        """
+        ℝ[m, n] @ ℝ[n, p] should return ℝ[m, p] (matrix-matrix).
+        """
+        m, n, p = 2, 3, 4
+        t1 = TTensor(((m, "invariant"), (n, "invariant")))
+        t2 = TTensor(((n, "invariant"), (p, "invariant")))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) == make_tensor([m, p])
+        assert errors == []
+
+    def test_batched_3d_3d(self):
+        """
+        ℝ[b, m, n] @ ℝ[b, n, p] should return ℝ[b, m, p]
+        """
+        b, m, n, p = 5, 2, 3, 4
+        t1 = TTensor(((b, "invariant"), (m, "invariant"), (n, "invariant")))
+        t2 = TTensor(((b, "invariant"), (n, "invariant"), (p, "invariant")))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) == make_tensor([b, m, p])
+        assert errors == []
+
+        # batch broadcasting:
+        # ℝ[1, m, n] @ ℝ[b, n, p] should return ℝ[b, m, p]
+        b, m, n, p = 5, 2, 3, 4
+        t1 = TTensor(((1, "invariant"), (m, "invariant"), (n, "invariant")))
+        t2 = TTensor(((b, "invariant"), (n, "invariant"), (p, "invariant")))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) == make_tensor([b, m, p])
+        assert errors == []
+
+        # ℝ[n] @ ℝ[b,n,p] should raise an error (mixed rank)
+        b, n, p = 5, 3, 4
+        t1 = TTensor(((n, "invariant"), ))
+        t2 = TTensor(((b, "invariant"), (n, "invariant"), (p, "invariant")))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) is None
+        assert len(errors) == 1
+        assert "rank mismatch" in errors[0]
+        err_msg = "; use ℝ[1,1,%s] @ ℝ[%s,%s,%s]" % (n, b, n, p)
+        assert err_msg in errors[0]
+
+        # ℝ[b,m,n] @ ℝ[n] should raise an error (mixed rank)
+        b, m, n = 5, 2, 3
+        t1 = TTensor(((b, "invariant"), (m, "invariant"), (n, "invariant")))
+        t2 = TTensor(((n, "invariant"), ))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) is None
+        assert len(errors) == 1
+        assert "rank mismatch" in errors[0]
+
+    def test_symbolic_dims_preserved(self):
+        """
+        ℝ[m,n] @ ℝ[n,p] should return ℝ[m,p] where m,n,p are symbolic types.
+        """
+        t1 = TTensor(((TDim("m"), "invariant"), (TDim("n"), "invariant")))
+        t2 = TTensor(((TDim("n"), "invariant"), (TDim("p"), "invariant")))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) == make_tensor([TDim("m"), TDim("p")])
+        assert errors == []
+
+    def test_dot_product_mismatch(self):
+        """
+        ℝ[3] @ ℝ[4] should raise an error.
+        """
+        t1 = TTensor(((3, "invariant"), ))
+        t2 = TTensor(((4, "invariant"), ))
+        errors, cb = self.fresh_errors()
+        result = matmul_op(t1, t2, cb)
+        assert result == T_REAL
+        assert len(errors) == 1
+        assert "3" in errors[0] and "4" in errors[0]
+        assert "different dims 3 ≠ 4" in errors[0]
+
+    def test_matrix_matrix_mismatch(self):
+        """ℝ[2,3] @ ℝ[4,5] should raise an error."""
+        t1 = TTensor(((2, "invariant"), (3, "invariant")))
+        t2 = TTensor(((4, "invariant"), (5, "invariant")))
+        errors, cb = self.fresh_errors()
+        result = matmul_op(t1, t2, cb)
+        assert result == make_tensor([2, 5])
+        assert len(errors) == 1
+        assert "3" in errors[0] and "4" in errors[0]
+        assert "different dims 3 ≠ 4" in errors[0]
+
+    def test_batched_mismatch(self):
+        """
+        ℝ[3,2,4] @ ℝ[5,4,6] should raise an error"""
+        t1 = TTensor(((3, "invariant"), (2, "invariant"), (4, "invariant")))
+        t2 = TTensor(((5, "invariant"), (4, "invariant"), (6, "invariant")))
+        errors, cb = self.fresh_errors()
+        matmul_op(t1, t2, cb)
+        assert len(errors) == 1
+        assert "3" in errors[0] and "5" in errors[0]
+        assert "batch dims 3 and 5 are not broadcast-compatible" in errors[0]
+
+    def test_unequal_batch_rank(self):
+        """
+        ℝ[6,2,3] @ ℝ[4,6,2,3,4] should raise an error
+        """
+        t1 = TTensor(((6, "invariant"), (2, "invariant"), (3, "invariant")))
+        t2 = TTensor(((4, "invariant"), (6, "invariant"), (2, "invariant"),
+                      (3, "invariant"), (4, "invariant")))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) is None
+        assert len(errors) == 1
+        assert "batch rank mismatch" in errors[0]
+        assert "1 vs 3 batch dims, use explicit 1s to broadcast" in errors[0]
+
+    def test_explicit_1_batch_broadcast_valid(self):
+        """
+        ℝ[1,1,2,3] @ ℝ[4,6,3,4] should return ℝ[4,6,2,4]
+        """
+        t1 = TTensor(((1, "invariant"), (1, "invariant"), (2, "invariant"),
+                      (3, "invariant")))
+        t2 = TTensor(((4, "invariant"), (6, "invariant"), (3, "invariant"),
+                      (4, "invariant")))
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) == make_tensor([4, 6, 2, 4])
+        assert errors == []
