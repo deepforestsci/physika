@@ -1,0 +1,12 @@
+a: R = 1
+b: R = 0
+
+a or b
+a and b
+
+
+if a or b:
+    physika_print("True from or condition")
+
+if a and a:
+    physika_print("True from and condition")
