@@ -64,3 +64,11 @@ physika.utils.type\_checker\_utils
    :members:
    :undoc-members:
    :show-inheritance:
+
+physika.utils.infer\_expr\
+-----------------------------------
+
+.. automodule:: physika.utils.infer_expr
+   :members:
+   :undoc-members:
+   :show-inheritance:

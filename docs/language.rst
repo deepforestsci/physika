@@ -389,6 +389,46 @@ unresolved type variables (``TDim``).  ``unify_dim(d1, d2, s)`` resolve dimensio
 binding a variable if one side is unknown, and raises ``TypeError`` when two
 concrete values differ.
 
+Expression type inference
+--------------------------
+
+Physika expression forms (numeric literals, variables,
+imaginary unit, arrays, indexing, arithmetic operators, function calls,
+for-expressions, etc) are handled by a dedicated ``expr_*``
+function in ``physika/utils/infer_expr.py``.
+
+Every handler receives an ``ExprContext`` that bundles the four environment arguments (``env``, ``s``, ``func_env``, ``class_env``):
+
+- ``env``: Maps variable names to their current ``Type``.
+- ``s``: ``Substitution`` accumulated so far. Bindings from sub-expressions are visible to later ones.
+- ``func_env``: Maps function names to ``(param_types, return_type)``.
+- ``class_env``: Maps class names to their definition dicts.
+
+Each handler returns ``(inferred_type, updated_substitution)``.
+
+**expr_num** (Numeric literal ``("num", value)``)
+
+Always returns ``ℝ`` regardless of value. No environment lookup needed::
+
+   expr_num(("num", 3.14), ctx)  →  (ℝ, s)
+
+**expr_imaginary** (Imaginary unit ``("imaginary",)``)
+
+Returns ``ℂ`` at the top level, but ``ℝ`` when ``"i"`` appears in ``env`` as
+a for-expression loop variable that shadows the imaginary unit::
+
+   expr_imaginary(("imaginary",), ctx)            →  (ℂ, s)
+   expr_imaginary(("imaginary",), ctx_with_i=ℝ)   →  (ℝ, s)
+
+**expr_var** (Variable reference ``("var", name)``)
+
+Looks up *name* in ``env`` and applies pending substitutions.  Returns
+``(None, s)`` when the variable is not yet in scope::
+
+   # env = {"x": ℝ[3]}
+   expr_var(("var", "x"), ctx)   →  (ℝ[3], s)
+   expr_var(("var", "y"), ctx)   →  (None, s)   # not in scope
+
 
 Symbolic methods
 ----------------
