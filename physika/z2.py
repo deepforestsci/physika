@@ -1,3 +1,5 @@
+from typing import Union
+
 class Z2:
     """
     A class representing elements of the finite field Z2 (integers modulo 2).
@@ -19,7 +21,7 @@ class Z2:
     0
     """
 
-    def __init__(self, val):
+    def __init__(self, val: Union[int, "Z2"]) -> "Z2":
         """
         Initialize Z2 element.
 
@@ -34,7 +36,7 @@ class Z2:
         """
         self.val = int(val) % 2
 
-    def __add__(self, other):
+    def __add__(self, other: Union[int, "Z2"]) -> "Z2":
         """
         Add two Z2 elements.
 
@@ -51,7 +53,7 @@ class Z2:
         other_val = other.val if isinstance(other, Z2) else int(other)
         return Z2(self.val + other_val)
 
-    def __mul__(self, other):
+    def __mul__(self, other: Union[int, "Z2"]) -> "Z2":
         """
         Multiply two Z2 elements.
 
@@ -68,7 +70,7 @@ class Z2:
         other_val = other.val if isinstance(other, Z2) else int(other)
         return Z2(self.val * other_val)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return the string representation of the Z2 element.
 
@@ -79,7 +81,7 @@ class Z2:
         """
         return f"{self.val}"
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         """
         Convert the Z2 element to a boolean.
 
@@ -90,7 +92,7 @@ class Z2:
         """
         return bool(self.val)
 
-    def __int__(self):
+    def __int__(self) -> int:
         """
         Convert the Z2 element to an integer.
 
@@ -101,7 +103,7 @@ class Z2:
         """
         return self.val
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """
         Check equality between two Z2 elements.
 
