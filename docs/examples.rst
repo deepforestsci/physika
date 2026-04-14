@@ -173,17 +173,16 @@ Operations
 Greek Letters and Scientifc Notation
 ------------------------------------
 
-Physika treats Greek letters as first-class identifiers, allowing you to write
+Physika treats Greek letters as valid symbols and variables, allowing you to write
 physics and mathematics in a natural, notation-friendly style. Variables like
-``α``, ``β``, ``μ``, ``σ``, ``λ`` and all standard Greek letters are valid
-identifiers anywhere a latin identifier is accepted.
+``α``, ``β``, ``μ``, ``σ``, ``λ`` and all standard Greek letters are supported.
 
 Scientific notation is also supported natively — values like ``1e5``, ``2.5e-3``,
 or ``6.674e-11`` are valid numeric literals.
 
 .. note::
 
-   ``Δ`` is reserved for the Laplacian operator and cannot be used as an identifier.
+   ``Δ`` is reserved for the Laplacian operator and cannot be used as an symbol/variable.
 
 .. literalinclude:: ../examples/greek_letter_and_scientific_notation.phyk
    :language: text

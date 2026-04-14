@@ -456,13 +456,13 @@ Physika supports scientific notation natively for numeric literals such as ``1e5
 
 .. code-block:: text
 
-   G: ℝ = 6.674e-11    # gravitational constant
-   c: ℝ = 3e8          # speed of light
+   G: ℝ = 6.674e-11    # gravitational constant (m³·kg⁻¹·s⁻²)
+   c: ℝ = 3e8          # speed of light (m·s⁻¹)
 
 Greek Letters
 -------------
 
-Physika supports Greek letters as valid identifiers.
+Physika supports Greek letters as valid symbols and variables.
 
 .. note::
    ``Δ`` (U+0394) is reserved for the Laplacian operator and cannot be used as an identifier.
