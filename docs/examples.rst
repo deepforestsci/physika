@@ -169,3 +169,20 @@ Operations
 
 .. literalinclude:: ../examples/example_symbolic.phyk
    :language: text
+
+Greek Letters and Scientifc Notation
+------------------------------------
+
+Physika treats Greek letters as valid symbols and variables, allowing you to write
+physics and mathematics in a natural, notation-friendly style. Variables like
+``α``, ``β``, ``μ``, ``σ``, ``λ`` and all standard Greek letters are supported.
+
+Scientific notation is also supported natively — values like ``1e5``, ``2.5e-3``,
+or ``6.674e-11`` are valid numeric literals.
+
+.. note::
+
+   ``Δ`` is reserved for the Laplacian operator and cannot be used as an symbol/variable.
+
+.. literalinclude:: ../examples/greek_letter_and_scientific_notation.phyk
+   :language: text
