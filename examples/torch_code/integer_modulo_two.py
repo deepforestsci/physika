@@ -8,11 +8,14 @@ from physika.z2 import Z2
 # === Program ===
 a = Z2(1)
 b = Z2(0)
-c = (a + b)
-physika_print(c)
-physika_print((a + a))
-d = (a * b)
-physika_print(a)
+xor_opposite = (a + b)
+xor_same = (a + a)
+physika_print(xor_opposite)
+physika_print(xor_same)
+and_opposite = (a * b)
+and_same = (a * a)
+physika_print(and_opposite)
+physika_print(and_same)
 flag = Z2(0)
 if flag == 0:
     results = 0.0

@@ -1,5 +1,6 @@
 from typing import Union
 
+
 class Z2:
     """
     A class representing elements of the finite field Z2 (integers modulo 2).
@@ -11,6 +12,7 @@ class Z2:
 
     Examples
     --------
+    >>> from physika.z2 import Z2
     >>> a = Z2(1)
     >>> b = Z2(0)
     >>> # XOR operation
@@ -21,7 +23,7 @@ class Z2:
     0
     """
 
-    def __init__(self, val: Union[int, "Z2"]) -> "Z2":
+    def __init__(self, val: Union[int, "Z2"]) -> None:
         """
         Initialize Z2 element.
 
@@ -29,7 +31,7 @@ class Z2:
         ----------
         val : int
             The integer value to be reduced modulo 2.
-        
+
         Returns
         -------
         None
@@ -44,14 +46,15 @@ class Z2:
         ----------
         other : Z2 or int
             The element to add.
-        
+
         Returns
         -------
         Z2
             A new Z2 element.
         """
-        other_val = other.val if isinstance(other, Z2) else int(other)
-        return Z2(self.val + other_val)
+        if not isinstance(other, Z2):
+            return NotImplemented
+        return Z2(self.val + other.val)
 
     def __mul__(self, other: Union[int, "Z2"]) -> "Z2":
         """
@@ -61,14 +64,15 @@ class Z2:
         ----------
         other : Z2 or int
             The element to multiply.
-        
+
         Returns
         -------
         Z2
             A new Z2 element.
         """
-        other_val = other.val if isinstance(other, Z2) else int(other)
-        return Z2(self.val * other_val)
+        if not isinstance(other, Z2):
+            return NotImplemented
+        return Z2(self.val * other.val)
 
     def __repr__(self) -> str:
         """
@@ -91,17 +95,6 @@ class Z2:
             False if value is 0, True if value is 1.
         """
         return bool(self.val)
-
-    def __int__(self) -> int:
-        """
-        Convert the Z2 element to an integer.
-
-        Returns
-        -------
-        int
-            The integer value (0 or 1).
-        """
-        return self.val
 
     def __eq__(self, other: object) -> bool:
         """

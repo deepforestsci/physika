@@ -4,15 +4,20 @@ b: Z2 = 0
 # ----------------
 # XOR operation
 # ----------------
-c = a + b
-c
-a + a
+xor_opposite = a + b
+xor_same = a + a
+
+xor_opposite
+xor_same
 
 # ----------------
 # AND operation
 # ----------------
-d = a * b
-a
+and_opposite = a * b
+and_same = a * a
+
+and_opposite
+and_same
 
 
 # ----------------
