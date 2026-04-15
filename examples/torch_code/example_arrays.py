@@ -6,7 +6,7 @@ from physika.runtime import physika_print
 
 # === Program ===
 x = torch.tensor([1, 2, 3, 5, 6, 7])
-y = (x[0:2+1] + x[0:2+1])
+y = (x[0:3] + x[0:3])
 z = (y + torch.tensor([1, 3, 4]))
 physika_print(x)
 physika_print(y)

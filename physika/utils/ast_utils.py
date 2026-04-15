@@ -606,7 +606,7 @@ def ast_to_torch_expr(node: ASTNode,
         end = ast_to_torch_expr(node[3], indent, current_loop_var)
         # Convert to int if needed
         start_int = f"int({start})" if "." in start else start
-        end_int = f"int({end})+1" if "." in end else f"{end}+1"
+        end_int = f"int({end})" if "." in end else end
         return f"{var_name}[{start_int}:{end_int}]"
 
     elif op == "chain_index":
