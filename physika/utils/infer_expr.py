@@ -1,6 +1,7 @@
 from typing import Any, Callable, Optional, Tuple
-from physika.utils.types import Substitution, Type, TScalar, TVar, TDim, TTensor, TFunc, TInstance, T_REAL, T_NAT, T_COMPLEX, T_STRING, new_dim
+from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, T_REAL, T_COMPLEX  # noqa: E501
 from physika.utils.ast_utils import ASTNode
+
 
 class ExprContext:
     """
@@ -155,12 +156,13 @@ def expr_var(node: Any,
     return (ctx.s.apply(t), ctx.s) if t is not None else (None, ctx.s)
 
 
-def expr_array(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+def expr_array(node: Any,
+               ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
     """
     Infer the type of an array element ``[e0, e1, ..., en]``.
 
     All elements are inferred and unified pairwise. A type error is reported
-    if any two elements have incompatible types. An empty literal produces 
+    if any two elements have incompatible types. An empty literal produces
     ``ℝ[0]``.
 
     Parameters
@@ -191,7 +193,7 @@ def expr_array(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
     >>> t, _= expr_array(("array", []), ctx)  # empty literal
     >>> t
     ℝ[0]
-    >>> nested = [("array", [("num", 1.0), ("num", 2.0)]), ("array", [("num", 3.0), ("num", 4.0)])]
+    >>> nested = [("array", [("num", 1.0), ("num", 2.0)]), ("array", [("num", 3.0), ("num", 4.0)])]  # noqa: E501
     >>> t, _= expr_array(("array", nested), ctx)  # ℝ[2,2]
     >>> t
     ℝ[2,2]
@@ -206,7 +208,8 @@ def expr_array(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
     elem_types = []
     cur = ctx.s
     for e in elements:
-        et, cur = infer_expr(e, ctx.env, cur, ctx.func_env, ctx.class_env, ctx.add_error)
+        et, cur = infer_expr(e, ctx.env, cur, ctx.func_env, ctx.class_env,
+                             ctx.add_error)
         elem_types.append(et)
 
     # Unify element types pairwise to find a common type for the whole array.
@@ -217,17 +220,20 @@ def expr_array(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
                 cur = unify(base, et, cur)
                 base = cur.apply(base)
             except TypeError as e:
-                ctx.add_error(f"Inconsistent array element types at index {i}: {e}")
+                ctx.add_error(
+                    f"Inconsistent array element types at index {i}: {e}")
     n = len(elements)
     # For a nested array, prepend the outer length as a new leading dimension.
     if isinstance(base, TTensor):
-        return TTensor(((n, "invariant"),) + base.dims), cur
+        return TTensor(((n, "invariant"), ) + base.dims), cur
     return make_tensor([n]), cur
 
-def expr_index(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+
+def expr_index(node: Any,
+               ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
     """
     Infer the type of a 1D index expression ``arr[idx]`` from ``arr``'s shape.
-    
+
     A indexed 1D array produces ``ℝ``. A higher rank tensor
     produces a tensor of the remaining dimensions.  The index expression
     is itself inferred and unified against the leading dimension to
@@ -260,16 +266,16 @@ def expr_index(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
     --------
     >>> from physika.utils.infer_expr import ExprContext, expr_index, TTensor
     >>> from physika.utils.types import Substitution
-    >>> ctx = ExprContext({"v": TTensor(((3, "invariant"),))}, Substitution(), {}, {}, [].append)
+    >>> ctx = ExprContext({"v": TTensor(((3, "invariant"),))}, Substitution(), {}, {}, [].append)  # noqa: E501
     >>> t, _= expr_index(("index", "v", ("num", 0.0)), ctx)  # ℝ[3][0] → ℝ
     >>> t
     ℝ
-    >>> ctx2 = ExprContext({"A": TTensor(((3, "invariant"), (4, "invariant")))}, Substitution(), {}, {}, [].append)
-    >>> t, _= expr_index(("index", "A", ("num", 0.0)), ctx2)  # ℝ[3,4][0] → ℝ[4]
+    >>> ctx2 = ExprContext({"A": TTensor(((3, "invariant"), (4, "invariant")))}, Substitution(), {}, {}, [].append)  # noqa: E501
+    >>> t, _= expr_index(("index", "A", ("num", 0.0)), ctx2)  # ℝ[3,4][0] → ℝ[4]  # noqa: E501
     >>> t
     ('tensor', [(4, 'invariant')])
     """
-    from physika.utils.type_checker_utils import get_tensor_shape, unify_dim, make_tensor_type
+    from physika.utils.type_checker_utils import get_tensor_shape, unify_dim, make_tensor_type  # noqa: E501
 
     # example node: ("index", "A", ("num", 0.0))
     arr_name = node[1]
@@ -277,15 +283,16 @@ def expr_index(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
         return None, ctx.s
 
     # Apply pending substitutions to get latest resolved type of arr_name
-    arr_t = ctx.s.apply(ctx.env[arr_name]) 
+    arr_t = ctx.s.apply(ctx.env[arr_name])
     shape = get_tensor_shape(arr_t)
 
-    if shape is None: # arr_name is a scalar
+    if shape is None:  # arr_name is a scalar
         ctx.add_error(f"Cannot index scalar '{arr_name}'")
         return None, ctx.s
 
     # Infer the index expression type and unify it with the leading dimension.
-    idx_t, s = infer_expr(node[2], ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error)
+    idx_t, s = infer_expr(node[2], ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+                          ctx.add_error)
     # Unify the index against the leading dimension to bind symbolic dims.
     if isinstance(idx_t, (TVar, TDim, str, int)) and shape:
         try:
@@ -299,15 +306,17 @@ def expr_index(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
     else:
         return (make_tensor_type(shape[1:]), s)
 
-def expr_indexN(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+
+def expr_indexN(node: Any,
+                ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
     """
     Infer the type of a nD index expression ``arr[i0, i1, ...]``.
 
     A generalisation of ''expr_index'' to an arbitrary number of indices.
     Each index expression is inferred and unified against the corresponding
     leading dimension of ``arr``. The visited dimensions are stripped
-    from the front of the shape.  
-    
+    from the front of the shape.
+
     Fully indexing an ND tensor produces ``ℝ`` and partial indexing produces
     a lower rank tensor than the original.
 
@@ -337,14 +346,14 @@ def expr_indexN(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substituti
     >>> from physika.utils.infer_expr import ExprContext, expr_indexN, TTensor
     >>> from physika.utils.types import Substitution
     >>> ctx = ExprContext({"T": TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))}, Substitution(), {}, {}, [].append)
-    >>> t, _= expr_indexN(("indexN", "T", [("num", 0.0), ("num", 1.0)]), ctx)  # ℝ[2,3,4][0,1] → ℝ[4]
+    >>> t, _= expr_indexN(("indexN", "T", [("num", 0.0), ("num", 1.0)]), ctx)  # ℝ[2,3,4][0,1] → ℝ[4]  # noqa: E501
     >>> t
     ℝ[4]
-    >>> t, _= expr_indexN(("indexN", "T", [("num", 0.0), ("num", 1.0), ("num", 2.0)]), ctx)  # fully indexed → ℝ
+    >>> t, _= expr_indexN(("indexN", "T", [("num", 0.0), ("num", 1.0), ("num", 2.0)]), ctx)  # fully indexed → ℝ  # noqa: E501
     >>> t
     ℝ
     """
-    from physika.utils.type_checker_utils import get_tensor_shape, unify_dim, make_tensor
+    from physika.utils.type_checker_utils import get_tensor_shape, unify_dim, make_tensor  # noqa: E501
 
     # example node: ("indexN", "A", [i_expr, k_expr])
     arr_name, idx_exprs = node[1], node[2]
@@ -356,7 +365,8 @@ def expr_indexN(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substituti
     s = ctx.s
     # Unify each index expression against the corresponding leading dimension
     for idx_expr, dim in zip(idx_exprs, shape or []):
-        idx_t, s = infer_expr(idx_expr, ctx.env, s, ctx.func_env, ctx.class_env, ctx.add_error)
+        idx_t, s = infer_expr(idx_expr, ctx.env, s, ctx.func_env,
+                              ctx.class_env, ctx.add_error)
         if isinstance(idx_t, (TVar, TDim, str, int)):
             try:
                 s = unify_dim(idx_t, dim, s)
@@ -364,24 +374,26 @@ def expr_indexN(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substituti
                 ctx.add_error(f"Index mismatch for '{arr_name}[...]: {e}")
 
     n_idx = len(idx_exprs)
-    # arr is scalar (catched by expr_index as well) 
+    # arr is scalar (catched by expr_index as well)
     # or not in scope (runtime error before type checking)
     if shape is None:
         return None, s
     # overindexed expression
     if n_idx > len(shape):
         ctx.add_error(
-            f"Over-indexed '{arr_name}': {n_idx} indices for a rank-{len(shape)} tensor"
+            f"Over-indexed '{arr_name}': {n_idx} indices for a rank-{len(shape)} tensor"  # noqa: E501
         )
         return None, s
-    
-     # fully indexed
-    if n_idx == len(shape):
-        return T_REAL, s  
-    # partial indexed
-    return make_tensor(shape[n_idx:]), s  
 
-def expr_chain_index(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    # fully indexed
+    if n_idx == len(shape):
+        return T_REAL, s
+    # partial indexed
+    return make_tensor(shape[n_idx:]), s
+
+
+def expr_chain_index(node: Any,
+                     ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
     """
     Infer the type of a chained index expression ``A[i][k]``.
 
@@ -415,7 +427,7 @@ def expr_chain_index(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Subst
     --------
     >>> from physika.utils.infer_expr import ExprContext, expr_chain_index, TTensor
     >>> from physika.utils.types import Substitution
-    >>> ctx = ExprContext({"A": TTensor(((3, "invariant"), (4, "invariant")))}, Substitution(), {}, {}, [].append)
+    >>> ctx = ExprContext({"A": TTensor(((3, "invariant"), (4, "invariant")))}, Substitution(), {}, {}, [].append)  # noqa: E501
     >>> inner = ("index", "A", ("num", 0.0))  # A[0] → ℝ[4]
     >>> t, _= expr_chain_index(("chain_index", inner), ctx)  # A[0][k] → ℝ
     >>> t
@@ -423,22 +435,22 @@ def expr_chain_index(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Subst
     """
     from physika.utils.type_checker_utils import get_tensor_shape, make_tensor
     # Infer the type of the inner sub-expression first.
-    obj_t, cur = infer_expr(node[1], ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error)
+    obj_t, cur = infer_expr(node[1], ctx.env, ctx.s, ctx.func_env,
+                            ctx.class_env, ctx.add_error)
 
     # Inner inference failed entirely
     if obj_t is None:
         return None, cur
 
     shape = get_tensor_shape(obj_t)
-    if shape is None and isinstance(obj_t, tuple) and len(obj_t) == 2 and obj_t[0] == "tensor":
+    if shape is None and isinstance(
+            obj_t, tuple) and len(obj_t) == 2 and obj_t[0] == "tensor":
         shape = [d for d, _ in obj_t[1]]
 
     # Inner expression is already a scalar
     # chaining [k] is over-indexing.
     if shape is None:
-        ctx.add_error(
-            "Chain index applied to a scalar: cannot index a scalar"
-        )
+        ctx.add_error("Chain index applied to a scalar: cannot index a scalar")
         return None, cur
 
     # 1D Tensor
@@ -448,14 +460,16 @@ def expr_chain_index(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Subst
     # Higher-rank Tensor (peel one dimension)
     return make_tensor(shape[1:]), cur
 
-def expr_slice(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+
+def expr_slice(node: Any,
+               ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
     """
     Infer the type of a slice expression ``arr[start:end]``.
 
     When both bounds are numeric literals the result length is computed
     as ``end − start`` (end-exclusive).  For higher-rank tensors only
     the leading dimension is sliced and remaining dims are preserved.
-    
+
     When either bound is a non-literal expression (e.g. a loop variable)
     a fresh symbolic dimension ``TDim("δN")`` is introduced for the sliced
     leading dimension so that the rank and trailing dims are still preserved.
@@ -498,7 +512,7 @@ def expr_slice(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
     >>> t
     ℝ[3]
     >>> ctx2 = ExprContext({"A": TTensor(((3, "invariant"), (4, "invariant")))}, Substitution(), {}, {}, [].append)
-    >>> t, _= expr_slice(("slice", "A", ("num", 0.0), ("num", 2.0)), ctx2)  # A[0:2] → ℝ[2,4]
+    >>> t, _= expr_slice(("slice", "A", ("num", 0.0), ("num", 2.0)), ctx2)  # A[0:2] → ℝ[2,4]  # noqa: E501
     >>> t
     ℝ[2,4]
     """
@@ -517,7 +531,7 @@ def expr_slice(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
     # If arr_name is a scalar or not in scope, we cannot slice it. Return None.
     if shape is None:
         return None, ctx.s
-    
+
     start, end = node[2], node[3]
     if (isinstance(start, tuple) and start[0] == "num"
             and isinstance(end, tuple) and end[0] == "num"):
@@ -526,36 +540,31 @@ def expr_slice(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
         # Static semantic checks.
         if s_val < 0:
             ctx.add_error(
-                f"Slice start {s_val} is negative in '{arr_name}[{s_val}:{e_val}]'"
+                f"Slice start {s_val} is negative in '{arr_name}[{s_val}:{e_val}]'"  # noqa: E501
             )
             return None, ctx.s
         if e_val < 0:
             ctx.add_error(
-                f"Slice end {e_val} is negative in '{arr_name}[{s_val}:{e_val}]'"
+                f"Slice end {e_val} is negative in '{arr_name}[{s_val}:{e_val}]'"  # noqa: E501
             )
             return None, ctx.s
         if e_val < s_val:
-            ctx.add_error(
-                f"Slice end {e_val} is less than start {s_val} "
-                f"in '{arr_name}[{s_val}:{e_val}]'"
-            )
+            ctx.add_error(f"Slice end {e_val} is less than start {s_val} "
+                          f"in '{arr_name}[{s_val}:{e_val}]'")
             return None, ctx.s
         if e_val == s_val:
             ctx.add_error(
-                f"Empty slice '{arr_name}[{s_val}:{e_val}]': start equals end"
-            )
+                f"Empty slice '{arr_name}[{s_val}:{e_val}]': start equals end")
             return None, ctx.s
         if s_val >= shape[0]:
             ctx.add_error(
                 f"Slice start {s_val} is out of bounds for '{arr_name}' "
-                f"with leading dimension {shape[0]}"
-            )
+                f"with leading dimension {shape[0]}")
             return None, ctx.s
         if e_val > shape[0]:
             ctx.add_error(
                 f"Slice end {e_val} is out of bounds for '{arr_name}' "
-                f"with leading dimension {shape[0]}"
-            )
+                f"with leading dimension {shape[0]}")
             return None, ctx.s
 
         length = e_val - s_val
@@ -569,7 +578,9 @@ def expr_slice(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitutio
     fresh_dim = VarCounter().new_dim()
     return make_tensor([fresh_dim] + list(shape[1:])), ctx.s
 
-def expr_add_sub(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+
+def expr_add_sub(node: Any,
+                 ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
     """
     Infer the result type of an addition or subtraction ``t1 +/− t2``.
 
@@ -610,15 +621,17 @@ def expr_add_sub(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitut
     >>> t, _= expr_add_sub(("add", ("var", "x"), ("num", 1.0)), ctx)  # ℝ[3] + ℝ → ℝ[3]
     >>> t
     ℝ[3]
-    >>> t, _= expr_add_sub(("sub", ("num", 1.0), ("num", 2.0)), ctx)  # ℝ - ℝ → ℝ
+    >>> t, _= expr_add_sub(("sub", ("num", 1.0), ("num", 2.0)), ctx)  # ℝ - ℝ → ℝ  # noqa: E501
     >>> t
     ℝ
     """
-    from physika.utils.type_checker_utils import broadcast_op, unify, type_to_str
+    from physika.utils.type_checker_utils import broadcast_op, unify, type_to_str  # noqa: E501
 
     op = node[0]  # "add" or "sub"
-    t1, s = infer_expr(node[1], ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error)
-    t2, s = infer_expr(node[2], ctx.env, s,      ctx.func_env, ctx.class_env, ctx.add_error)
+    t1, s = infer_expr(node[1], ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+                       ctx.add_error)
+    t2, s = infer_expr(node[2], ctx.env, s, ctx.func_env, ctx.class_env,
+                       ctx.add_error)
 
     # Apply accumulated substitutions before shape comparison.
     from typing import cast
@@ -628,25 +641,28 @@ def expr_add_sub(node: Any, ctx: ExprContext) -> Tuple[Optional[Type], Substitut
         try:
             s = unify(t1, t2, s)
             t1 = s.apply(t1)  # apply any new dim bindings in t1
-        except TypeError as e:
-            ctx.add_error(f"Shape mismatch in {op}: {type_to_str(t1)} vs {type_to_str(t2)}")
+        except TypeError:
+            ctx.add_error(
+                f"Shape mismatch in {op}: {type_to_str(t1)} vs {type_to_str(t2)}"  # noqa: E501
+            )
     # Scalar + Tensor → Tensor
     # Scalar + Scalar → Scalar.
     return broadcast_op(t1, t2), s
 
 
 EXPR_DISPATCH: dict = {
-    "num":            expr_num,
-    "var":            expr_var,
-    "imaginary":      expr_imaginary,
-    "array":          expr_array,
-    "index":          expr_index,
-    "indexN":         expr_indexN,
-    "chain_index":    expr_chain_index,
-    "slice":          expr_slice,
-    "add":            expr_add_sub,
-    "sub":            expr_add_sub,
+    "num": expr_num,
+    "var": expr_var,
+    "imaginary": expr_imaginary,
+    "array": expr_array,
+    "index": expr_index,
+    "indexN": expr_indexN,
+    "chain_index": expr_chain_index,
+    "slice": expr_slice,
+    "add": expr_add_sub,
+    "sub": expr_add_sub,
 }
+
 
 def infer_expr(
     node: ASTNode,
@@ -724,7 +740,7 @@ def infer_expr(
     >>> t
     ℝ[2]
     >>> # Unknown tag error recorded, returns None
-    >>> t, _ = infer_expr(("unknown", 42), {}, Substitution(), {}, {}, errors.append)
+    >>> t, _ = infer_expr(("unknown", 42), {}, Substitution(), {}, {}, errors.append)  # noqa: E501
     >>> t is None
     True
     >>> errors[-1]
@@ -740,7 +756,11 @@ def infer_expr(
         else:
             return None, s
 
-    ctx = ExprContext(env=env, s=s, func_env=func_env, class_env=class_env, add_error=add_error)
+    ctx = ExprContext(env=env,
+                      s=s,
+                      func_env=func_env,
+                      class_env=class_env,
+                      add_error=add_error)
     # Dispatch to the appropriate expr_* handler based on the AST tag.
     handler = EXPR_DISPATCH.get(node[0])
     if handler is not None:

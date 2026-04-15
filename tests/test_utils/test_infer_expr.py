@@ -299,29 +299,28 @@ class TestExprVar:
         t, _ = expr_var(("var", "f"), ctx)
         assert t == f_t
 
+
 class TestExprArray:
     """Tests for ``expr_array``."""
+
     def test_empty_array(self):
         """Empty literal produces ℝ[0]."""
         ctx = make_ctx()
         t, _ = expr_array(("array", []), ctx)
-        assert t == TTensor(((0, "invariant"),))
+        assert t == TTensor(((0, "invariant"), ))
 
     def test_scalar_elements(self):
         """Three scalar literals produce ℝ[3]."""
         ctx = make_ctx()
-        elems = [("num", 1.0),
-                    ("num", 2.0),
-                    ("num", 3.0)
-                ]
+        elems = [("num", 1.0), ("num", 2.0), ("num", 3.0)]
         t, _ = expr_array(("array", elems), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
         # Length of the resulting tensor equals the number of elements
         for n in (1, 5, 10):
             elems = [("num", float(i)) for i in range(n)]
             t, _ = expr_array(("array", elems), ctx)
-            assert t == TTensor(((n, "invariant"),))
+            assert t == TTensor(((n, "invariant"), ))
 
     def test_nested_arrays(self):
         """
@@ -332,7 +331,6 @@ class TestExprArray:
         row = ("array", [("num", 1.0), ("num", 2.0)])
         t, _ = expr_array(("array", [row, row]), ctx)
         assert t == TTensor(((2, "invariant"), (2, "invariant")))
-
 
         # non-square matrices:
         # [[1,2,3],[4,5,6]] should be ℝ[2, 3]
@@ -348,7 +346,8 @@ class TestExprArray:
         middle = ("array", [inner, inner])
         t, _ = expr_array(("array", [middle, middle]), ctx)
         # t should be ℝ[2, 2, 2]
-        assert t == TTensor(((2, "invariant"), (2, "invariant"), (2, "invariant")))
+        assert t == TTensor(
+            ((2, "invariant"), (2, "invariant"), (2, "invariant")))
 
     def test_variable_elements(self):
         """
@@ -356,15 +355,18 @@ class TestExprArray:
         """
         # a : R[4]
         # b: R[4]
-        ctx = make_ctx(env={"a": TTensor(((4, "invariant"),)),
-                            "b": TTensor(((4, "invariant"),))})
+        ctx = make_ctx(env={
+            "a": TTensor(((4, "invariant"), )),
+            "b": TTensor(((4, "invariant"), ))
+        })
         # t : R[2, 4] = [a, b] = [R[4], R[4]]
         t, _ = expr_array(("array", [("var", "a"), ("var", "b")]), ctx)
         assert t == TTensor(((2, "invariant"), (4, "invariant")))
 
     def test_substitution(self):
         """
-        Unification of a TVar element against a concrete type produces a binding.
+        Unification of a TVar element against a concrete type produces a
+        binding.
         """
         alpha = TVar("α0")
         # x has a fresh type variable as its type
@@ -373,7 +375,7 @@ class TestExprArray:
 
         # [x, 1.0] where x : α0
         t, s_out = expr_array(("array", elems), ctx)
-        assert t == TTensor(((2, "invariant"),))
+        assert t == TTensor(((2, "invariant"), ))
         # α0 must now be resolved to T_REAL
         assert s_out["α0"] == T_REAL
 
@@ -383,19 +385,25 @@ class TestExprArray:
         ."""
         errors = []
         ctx = make_ctx(
-            env={"v": TTensor(((3, "invariant"),)), "w": TTensor(((5, "invariant"),))},
+            env={
+                "v": TTensor(((3, "invariant"), )),
+                "w": TTensor(((5, "invariant"), ))
+            },
             errors=errors,
         )
         # ℝ[3] and ℝ[5] cannot be unified, should add an error
         expr_array(("array", [("var", "v"), ("var", "w")]), ctx)
         assert len(errors) == 1
-        assert 'Inconsistent array element types at index 1: Dimension mismatch: 3 ≠ 5' == errors[0]
+        assert 'Inconsistent array element types at index 1: Dimension mismatch: 3 ≠ 5' == errors[  # noqa: E501
+            0]
 
         # no error for compatible shapes
-        errors =[]
-        ctx_no_error= make_ctx(env={"a": TTensor(((3, "invariant"),)),
-                            "b": TTensor(((3, "invariant"),))},
-                            errors=errors)
+        errors = []
+        ctx_no_error = make_ctx(env={
+            "a": TTensor(((3, "invariant"), )),
+            "b": TTensor(((3, "invariant"), ))
+        },
+                                errors=errors)
         expr_array(("array", [("var", "a"), ("var", "b")]), ctx_no_error)
         assert errors == []
 
@@ -407,25 +415,28 @@ class TestExprIndex:
 
     def test_index(self):
         """Indexing a 1D vector produces a scalar ℝ."""
-        ctx = make_ctx(env={"v": TTensor(((4, "invariant"),))})
+        ctx = make_ctx(env={"v": TTensor(((4, "invariant"), ))})
         t, _ = expr_index(("index", "v", ("num", 0)), ctx)
         assert t == T_REAL
 
-
         # Indexing the first dimension of a matrix produces a row vector
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
         t, _ = expr_index(("index", "A", ("num", 0)), ctx)
         assert t == ("tensor", [(4, "invariant")])
 
-   
-        #Indexing a 3D tensor along dim-0 produces a 2D matrix
-        ctx = make_ctx(env={"T": TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))})
+        # Indexing a 3D tensor along dim-0 produces a 2D matrix
+        ctx = make_ctx(env={
+            "T":
+            TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
+        })
         t, _ = expr_index(("index", "T", ("num", 0)), ctx)
         assert t == ("tensor", [(3, "invariant"), (4, "invariant")])
 
     def test_unknown_variable(self):
         """
-        Unknown array name returns (None, ctx.s) without error, error is raised at compile time.
+        Unknown array name returns (None, ctx.s) without error, error is raised
+        at compile time.
         """
         errors = []
         ctx = make_ctx(errors=errors)
@@ -445,21 +456,21 @@ class TestExprIndex:
 
     def test_expression_index(self):
         """The index expression may itself be a variable (loop counter)."""
-        ctx = make_ctx(env={"v": TTensor(((5, "invariant"),)),
-                             "i": T_REAL})
+        ctx = make_ctx(env={"v": TTensor(((5, "invariant"), )), "i": T_REAL})
         t, _ = expr_index(("index", "v", ("var", "i")), ctx)
         assert t == T_REAL
 
     def test_substitution_returned(self):
         """Substitution is returned unchanged for simple cases."""
         s = Substitution()
-        ctx = make_ctx(env={"v": TTensor(((3, "invariant"),))}, s=s)
+        ctx = make_ctx(env={"v": TTensor(((3, "invariant"), ))}, s=s)
         _, s_out = expr_index(("index", "v", ("num", 0)), ctx)
         assert isinstance(s_out, Substitution)
 
     def test_substitution_gains_binding(self):
         """
-        Indexing with a TDim index variable unifies it against the leading dimension.
+        Indexing with a TDim index variable unifies it against the
+        leading dimension.
 
         ``v : ℝ[5]``, ``i : δ0``:
 
@@ -468,8 +479,10 @@ class TestExprIndex:
         """
         s = Substitution()
         ctx = make_ctx(
-            env={"v": TTensor(((5, "invariant"),)),
-                  "i": TDim("δ0")}, # "δ0" is the size to range over, determined by unification 
+            env={
+                "v": TTensor(((5, "invariant"), )),
+                "i": TDim("δ0")
+            },  # "δ0" is the size to range over, determined by unification
             s=s,
         )
         _, s_out = expr_index(("index", "v", ("var", "i")), ctx)
@@ -485,7 +498,8 @@ class TestExprIndexN:
         """
         Indexing all dims of a matrix gives type ℝ.
         """
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
         t, _ = expr_indexN(("indexN", "A", [("num", 0), ("num", 1)]), ctx)
         assert t == T_REAL
 
@@ -493,21 +507,28 @@ class TestExprIndexN:
         """
         Indexing the first two dims of a 3-D tensor gives ℝ[k].
         """
-        ctx = make_ctx(env={"T": TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))})
+        ctx = make_ctx(env={
+            "T":
+            TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
+        })
         t, _ = expr_indexN(("indexN", "T", [("num", 0), ("num", 1)]), ctx)
-        assert t == TTensor(((4, "invariant"),))
+        assert t == TTensor(((4, "invariant"), ))
 
-
-        #Indexing all three dims gives ℝ
-        ctx = make_ctx(env={"T": TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))})
-        t, _ = expr_indexN(("indexN", "T", [("num", 0), ("num", 1), ("num", 2)]), ctx)
+        # Indexing all three dims gives ℝ
+        ctx = make_ctx(env={
+            "T":
+            TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
+        })
+        t, _ = expr_indexN(("indexN", "T", [("num", 0), ("num", 1),
+                                            ("num", 2)]), ctx)
         assert t == T_REAL
 
     def test_matrix_index(self):
         """One index on a matrix gives row vector."""
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
         t, _ = expr_indexN(("indexN", "A", [("num", 1)]), ctx)
-        assert t == TTensor(((4, "invariant"),))
+        assert t == TTensor(((4, "invariant"), ))
 
     def test_unknown_variable_returns_none(self):
         """
@@ -515,7 +536,8 @@ class TestExprIndexN:
         """
         errors = []
         ctx = make_ctx(errors=errors)
-        t, _ = expr_indexN(("indexN", "missing", [("num", 0), ("num", 1)]), ctx)
+        t, _ = expr_indexN(("indexN", "missing", [("num", 0), ("num", 1)]),
+                           ctx)
         assert t is None
         assert errors == []
 
@@ -530,25 +552,28 @@ class TestExprIndexN:
     def test_over_indexed(self):
         """More indices than dimensions gives None + error reported."""
         errors = []
-        ctx = make_ctx(env={"v": TTensor(((3, "invariant"),))}, errors=errors)
+        ctx = make_ctx(env={"v": TTensor(((3, "invariant"), ))}, errors=errors)
         # v is ℝ[3] (rank 1).
         # supplying [i][j][k] indices is overindexing
-        t, _ = expr_indexN(("indexN", "v", [("num", 0), ("num", 1), ("num", 2)]), ctx)
+        t, _ = expr_indexN(("indexN", "v", [("num", 0), ("num", 1),
+                                            ("num", 2)]), ctx)
         assert t is None
         assert len(errors) == 1
         assert errors[0] == "Over-indexed 'v': 3 indices for a rank-1 tensor"
         assert "v" in errors[0]
-        assert "3" in errors[0]   # n_idx reported in message
+        assert "3" in errors[0]  # n_idx reported in message
 
     def test_variable_indices(self):
         """
         Loop variables used as indices works properly.
         """
         # A : ℝ[3, 4][i][j] -> ℝ
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"),
-                                          (4, "invariant"))),
-                            "i": T_REAL,
-                            "j": T_REAL})
+        ctx = make_ctx(
+            env={
+                "A": TTensor(((3, "invariant"), (4, "invariant"))),
+                "i": T_REAL,
+                "j": T_REAL
+            })
         t, _ = expr_indexN(("indexN", "A", [("var", "i"), ("var", "j")]), ctx)
         assert t == T_REAL
 
@@ -561,18 +586,22 @@ class TestExprChainIndex:
         Let A: ℝ[m, n];
         A[i] on a 2D matrix gives ℝ[n]
         """
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
-        inner = ("index", "A", ("num", 0))   # A[0] -> ℝ[4]
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        inner = ("index", "A", ("num", 0))  # A[0] -> ℝ[4]
         t, _ = expr_chain_index(("chain_index", inner), ctx)
         assert t == T_REAL
 
         # Let T : ℝ[m, n, o];
         # T[i][j] on a 3-D tensor gives ℝ[4].
-        ctx = make_ctx(env={"T": TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))})
-        inner = ("index", "T", ("num", 0))   # T[0] -> ('tensor', [(3,'invariant'),(4,'invariant')])
+        ctx = make_ctx(env={
+            "T":
+            TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
+        })
+        inner = ("index", "T", ("num", 0)
+                 )  # T[0] -> ('tensor', [(3,'invariant'),(4,'invariant')])
         t, _ = expr_chain_index(("chain_index", inner), ctx)
-        assert t == TTensor(((4, "invariant"),))
-
+        assert t == TTensor(((4, "invariant"), ))
 
     def test_1d_chain_is_overindex(self):
         """
@@ -581,22 +610,26 @@ class TestExprChainIndex:
         then [k] on scalar gives error.
         """
         errors = []
-        ctx = make_ctx(env={"v": TTensor(((2, "invariant"),))}, errors=errors)
-        inner = ("index", "v", ("num", 0))   # v[0] → ℝ
+        ctx = make_ctx(env={"v": TTensor(((2, "invariant"), ))}, errors=errors)
+        inner = ("index", "v", ("num", 0))  # v[0] → ℝ
         t, s_out = expr_chain_index(("chain_index", inner), ctx)
         assert t is None
         assert len(errors) == 1
-        assert "Chain index applied to a scalar: cannot index a scalar" in errors[0]
+        assert "Chain index applied to a scalar: cannot index a scalar" in errors[  # noqa: E501
+            0]
         assert isinstance(s_out, Substitution)
 
     def test_chain_of_var_indices(self):
         """
         Chain index with variable loop counters works correctly.
         """
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"), (4, "invariant"))),
-                             "i": T_REAL,
-                             "j": T_REAL})
-        inner = ("index", "A", ("var", "i"))   # A[i] → ℝ[4]
+        ctx = make_ctx(
+            env={
+                "A": TTensor(((3, "invariant"), (4, "invariant"))),
+                "i": T_REAL,
+                "j": T_REAL
+            })
+        inner = ("index", "A", ("var", "i"))  # A[i] → ℝ[4]
         t, _ = expr_chain_index(("chain_index", inner), ctx)
         assert t == T_REAL
 
@@ -606,22 +639,27 @@ class TestExprChainIndex:
         """
         errors = []
         ctx = make_ctx(env={"x": T_REAL}, errors=errors)
-        # ("var", "x") infers T_REAL; chain_index then tries to peel a dim from scalar
+        # ("var", "x") infers T_REAL; chain_index then tries to peel
+        #  a dim from scalar
         inner = ("var", "x")
         t, _ = expr_chain_index(("chain_index", inner), ctx)
         assert t is None
         assert len(errors) == 1
-        assert "Chain index applied to a scalar: cannot index a scalar" in errors[0]
+        assert "Chain index applied to a scalar: cannot index a scalar" in errors[  # noqa: E501
+            0]
 
     def test_chain_on_failed_inner_propagates_none(self):
-        """When inner inference returns None (e.g. unknown var), no second error is added."""
+        """
+        When inner inference returns None (e.g. unknown var),
+        no second error is added.
+        """
         errors = []
         ctx = make_ctx(errors=errors)
         # "missing" is not in env
         inner = ("index", "missing", ("num", 0))
         t, _ = expr_chain_index(("chain_index", inner), ctx)
         assert t is None
-        assert errors == [] 
+        assert errors == []
 
 
 class TestExprSlice:
@@ -633,24 +671,24 @@ class TestExprSlice:
         """
         v[0:3] on ℝ[6] gives ℝ[3].
         """
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),))})
+        ctx = make_ctx(env={"v": TTensor(((6, "invariant"), ))})
         t, _ = expr_slice(("slice", "v", ("num", 0.0), ("num", 3.0)), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
         # v[2:7] on ℝ[10] gives ℝ[5].
-        ctx = make_ctx(env={"v": TTensor(((10, "invariant"),))})
+        ctx = make_ctx(env={"v": TTensor(((10, "invariant"), ))})
         t, _ = expr_slice(("slice", "v", ("num", 2.0), ("num", 7.0)), ctx)
-        assert t == TTensor(((5, "invariant"),))   # 7 - 2 = 5
-
+        assert t == TTensor(((5, "invariant"), ))  # 7 - 2 = 5
 
         # v[0:6] on ℝ[6] → ℝ[6]
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),))})
+        ctx = make_ctx(env={"v": TTensor(((6, "invariant"), ))})
         t, _ = expr_slice(("slice", "v", ("num", 0.0), ("num", 6.0)), ctx)
-        assert t == TTensor(((6, "invariant"),))
+        assert t == TTensor(((6, "invariant"), ))
 
     def test_2d_slice(self):
         """A[0:2] on ℝ[3, 4] gives ℝ[2, 4]"""
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
         t, _ = expr_slice(("slice", "A", ("num", 0.0), ("num", 2.0)), ctx)
         assert t == TTensor(((2, "invariant"), (4, "invariant")))
 
@@ -658,16 +696,16 @@ class TestExprSlice:
         """
         Dynamic start result is ℝ[δN]
         """
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),)), "i": T_REAL})
+        ctx = make_ctx(env={"v": TTensor(((6, "invariant"), )), "i": T_REAL})
         t, _ = expr_slice(("slice", "v", ("var", "i"), ("num", 4.0)), ctx)
         assert isinstance(t, TTensor)
         assert len(t.dims) == 1
         dim, _ = t.dims[0]
-        assert isinstance(dim, TDim)   # length unknown, but still a 1-D tensor
+        assert isinstance(dim, TDim)  # length unknown, but still a 1-D tensor
 
     def test_dynamic_end_gives_symbolic_dim(self):
         """Dynamic end result is ℝ[δN]"""
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),)), "j": T_REAL})
+        ctx = make_ctx(env={"v": TTensor(((6, "invariant"), )), "j": T_REAL})
         t, _ = expr_slice(("slice", "v", ("num", 0.0), ("var", "j")), ctx)
         assert isinstance(t, TTensor)
         assert len(t.dims) == 1
@@ -678,7 +716,11 @@ class TestExprSlice:
         """
         Both bounds dynamic gives ℝ[δN]
         """
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),)), "a": T_REAL, "b": T_REAL})
+        ctx = make_ctx(env={
+            "v": TTensor(((6, "invariant"), )),
+            "a": T_REAL,
+            "b": T_REAL
+        })
         t, _ = expr_slice(("slice", "v", ("var", "a"), ("var", "b")), ctx)
         assert isinstance(t, TTensor)
         assert len(t.dims) == 1
@@ -687,31 +729,35 @@ class TestExprSlice:
 
     def test_dynamic_bounds_2d(self):
         """Dynamic start on ℝ[3,4] gives ℝ[δN,4]"""
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"), (4, "invariant"))), "i": T_REAL})
+        ctx = make_ctx(env={
+            "A": TTensor(((3, "invariant"), (4, "invariant"))),
+            "i": T_REAL
+        })
         t, _ = expr_slice(("slice", "A", ("var", "i"), ("num", 2.0)), ctx)
         assert isinstance(t, TTensor)
         assert len(t.dims) == 2
         leading_dim, _ = t.dims[0]
-        assert isinstance(leading_dim, TDim)   # sliced dim is symbolic
-        assert t.dims[1] == (4, "invariant")   # trailing dim is exact
+        assert isinstance(leading_dim, TDim)  # sliced dim is symbolic
+        assert t.dims[1] == (4, "invariant")  # trailing dim is exact
 
     def test_unknown_variable_returns_none(self):
         """Unknown array name gives (None, ctx.s)."""
         ctx = make_ctx()
-        t, _ = expr_slice(("slice", "missing", ("num", 0.0), ("num", 3.0)), ctx)
+        t, _ = expr_slice(("slice", "missing", ("num", 0.0), ("num", 3.0)),
+                          ctx)
         assert t is None
 
     def test_substitution_unchanged(self):
         """No new substitution bindings are produced for literal slices."""
         s = Substitution({"α0": T_REAL})
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),))}, s=s)
+        ctx = make_ctx(env={"v": TTensor(((6, "invariant"), ))}, s=s)
         _, s_out = expr_slice(("slice", "v", ("num", 0.0), ("num", 3.0)), ctx)
         assert s_out == s
 
     def test_negative_start_reports_error(self):
         """Negative start is a semantic error gives (None, s) + error."""
         errors = []
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),))}, errors=errors)
+        ctx = make_ctx(env={"v": TTensor(((6, "invariant"), ))}, errors=errors)
         t, _ = expr_slice(("slice", "v", ("num", -1.0), ("num", 3.0)), ctx)
         assert t is None
         assert len(errors) == 1
@@ -720,7 +766,7 @@ class TestExprSlice:
     def test_negative_end_reports_error(self):
         """Negative end is a static semantic error."""
         errors = []
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),))}, errors=errors)
+        ctx = make_ctx(env={"v": TTensor(((6, "invariant"), ))}, errors=errors)
         t, _ = expr_slice(("slice", "v", ("num", 0.0), ("num", -2.0)), ctx)
         assert t is None
         assert len(errors) == 1
@@ -729,7 +775,7 @@ class TestExprSlice:
     def test_end_less_than_start_reports_error(self):
         """end < start raise error."""
         errors = []
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),))}, errors=errors)
+        ctx = make_ctx(env={"v": TTensor(((6, "invariant"), ))}, errors=errors)
         t, _ = expr_slice(("slice", "v", ("num", 4.0), ("num", 2.0)), ctx)
         assert t is None
         assert len(errors) == 1
@@ -738,7 +784,7 @@ class TestExprSlice:
     def test_empty_slice_reports_error(self):
         """start == end produces an empty slice error."""
         errors = []
-        ctx = make_ctx(env={"v": TTensor(((6, "invariant"),))}, errors=errors)
+        ctx = make_ctx(env={"v": TTensor(((6, "invariant"), ))}, errors=errors)
         t, _ = expr_slice(("slice", "v", ("num", 3.0), ("num", 3.0)), ctx)
         assert t is None
         assert len(errors) == 1
@@ -747,20 +793,22 @@ class TestExprSlice:
     def test_start_out_of_bounds_reports_error(self):
         """start >= leading dimension error."""
         errors = []
-        ctx = make_ctx(env={"v": TTensor(((4, "invariant"),))}, errors=errors)
+        ctx = make_ctx(env={"v": TTensor(((4, "invariant"), ))}, errors=errors)
         t, _ = expr_slice(("slice", "v", ("num", 4.0), ("num", 5.0)), ctx)
         assert t is None
         assert len(errors) == 1
-        assert errors[0] == "Slice start 4 is out of bounds for 'v' with leading dimension 4"
+        assert errors[
+            0] == "Slice start 4 is out of bounds for 'v' with leading dimension 4"  # noqa: E501
 
     def test_end_out_of_bounds_reports_error(self):
         """end > leading dimension error."""
         errors = []
-        ctx = make_ctx(env={"v": TTensor(((4, "invariant"),))}, errors=errors)
+        ctx = make_ctx(env={"v": TTensor(((4, "invariant"), ))}, errors=errors)
         t, _ = expr_slice(("slice", "v", ("num", 0.0), ("num", 5.0)), ctx)
         assert t is None
         assert len(errors) == 1
-        assert errors[0] == "Slice end 5 is out of bounds for 'v' with leading dimension 4"
+        assert errors[
+            0] == "Slice end 5 is out of bounds for 'v' with leading dimension 4"  # noqa: E501
 
 
 class TestExprAddSub:
@@ -779,61 +827,77 @@ class TestExprAddSub:
 
     def test_vector(self):
         """ℝ[3] + ℝ[3] → ℝ[3]"""
-        ctx = make_ctx(env={"x": TTensor(((3, "invariant"),)),
-                            "y": TTensor(((3, "invariant"),))})
+        ctx = make_ctx(env={
+            "x": TTensor(((3, "invariant"), )),
+            "y": TTensor(((3, "invariant"), ))
+        })
         t, _ = expr_add_sub(("add", ("var", "x"), ("var", "y")), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
         # ℝ[4] - ℝ[4] → ℝ[4]
-        ctx = make_ctx(env={"a": TTensor(((4, "invariant"),)), "b": TTensor(((4, "invariant"),))})
+        ctx = make_ctx(env={
+            "a": TTensor(((4, "invariant"), )),
+            "b": TTensor(((4, "invariant"), ))
+        })
         t, _ = expr_add_sub(("sub", ("var", "a"), ("var", "b")), ctx)
-        assert t == TTensor(((4, "invariant"),))
+        assert t == TTensor(((4, "invariant"), ))
 
     def test_vector_and_scalar(self):
         """ℝ[3] + ℝ → ℝ[3]  (broadcast)."""
-        ctx = make_ctx(env={"v": TTensor(((3, "invariant"),))})
+        ctx = make_ctx(env={"v": TTensor(((3, "invariant"), ))})
         t, _ = expr_add_sub(("add", ("var", "v"), ("num", 1)), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
         # ℝ + ℝ[3] → ℝ[3]  (tensor wins regardless of order)
-        ctx = make_ctx(env={"v": TTensor(((3, "invariant"),))})
+        ctx = make_ctx(env={"v": TTensor(((3, "invariant"), ))})
         t, _ = expr_add_sub(("add", ("num", 1), ("var", "v")), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
     def test_matrix_and_matrix(self):
         """ℝ[2,3] + ℝ[2,3] → ℝ[2,3]."""
-        ctx = make_ctx(env={"A": TTensor(((2, "invariant"), (3, "invariant"))),
-                            "B": TTensor(((2, "invariant"), (3, "invariant")))})
+        ctx = make_ctx(
+            env={
+                "A": TTensor(((2, "invariant"), (3, "invariant"))),
+                "B": TTensor(((2, "invariant"), (3, "invariant")))
+            })
         t, _ = expr_add_sub(("add", ("var", "A"), ("var", "B")), ctx)
         assert t == TTensor(((2, "invariant"), (3, "invariant")))
 
         errors = []
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"), (2, "invariant"))),
-                            "B": TTensor(((2, "invariant"), (3, "invariant")))},
-                        errors=errors)
+        ctx = make_ctx(env={
+            "A": TTensor(((3, "invariant"), (2, "invariant"))),
+            "B": TTensor(((2, "invariant"), (3, "invariant")))
+        },
+                       errors=errors)
         t, _ = expr_add_sub(("add", ("var", "A"), ("var", "B")), ctx)
         assert len(errors) == 1
         assert errors[0] == 'Shape mismatch in add: ℝ[3,2] vs ℝ[2,3]'
 
         errors = []
-        ctx = make_ctx(env={"A": TTensor(((3, "invariant"), (2, "invariant"))),
-                            "B": TTensor(((2, "invariant"), (3, "invariant")))},
-                        errors=errors)
+        ctx = make_ctx(env={
+            "A": TTensor(((3, "invariant"), (2, "invariant"))),
+            "B": TTensor(((2, "invariant"), (3, "invariant")))
+        },
+                       errors=errors)
         t, _ = expr_add_sub(("sub", ("var", "A"), ("var", "B")), ctx)
         assert len(errors) == 1
         assert errors[0] == 'Shape mismatch in sub: ℝ[3,2] vs ℝ[2,3]'
 
     def test_matrix_minus_scalar_broadcast(self):
         """ℝ[2,3] - ℝ → ℝ[2,3]."""
-        ctx = make_ctx(env={"A": TTensor(((2, "invariant"), (3, "invariant")))})
+        ctx = make_ctx(
+            env={"A": TTensor(((2, "invariant"), (3, "invariant")))})
         t, _ = expr_add_sub(("sub", ("var", "A"), ("num", 1)), ctx)
         assert t == TTensor(((2, "invariant"), (3, "invariant")))
 
     def test_shape_mismatch_reports_error(self):
         """Mismatched tensor shapes report an error and do not raise."""
         errors = []
-        ctx = make_ctx(env={"x": TTensor(((3, "invariant"),)),
-                            "y": TTensor(((5, "invariant"),))}, errors=errors)
+        ctx = make_ctx(env={
+            "x": TTensor(((3, "invariant"), )),
+            "y": TTensor(((5, "invariant"), ))
+        },
+                       errors=errors)
         expr_add_sub(("add", ("var", "x"), ("var", "y")), ctx)
         assert len(errors) == 1
         assert errors[0] == "Shape mismatch in add: ℝ[3] vs ℝ[5]"
@@ -841,11 +905,13 @@ class TestExprAddSub:
     def test_no_error_for_compatible_shapes(self):
         """Compatible tensor shapes emit no errors."""
         errors = []
-        ctx = make_ctx(env={"x": TTensor(((3, "invariant"),)),
-                            "y": TTensor(((3, "invariant"),))},
-                            errors=errors)
+        ctx = make_ctx(env={
+            "x": TTensor(((3, "invariant"), )),
+            "y": TTensor(((3, "invariant"), ))
+        },
+                       errors=errors)
         expr_add_sub(("add", ("var", "x"), ("var", "y")), ctx)
-        
+
         assert errors == []
 
     def test_nested_expressions(self):
@@ -855,6 +921,7 @@ class TestExprAddSub:
         inner = ("add", ("var", "x"), ("var", "y"))
         t, _ = expr_add_sub(("sub", inner, ("num", 1)), ctx)
         assert t == T_REAL
+
 
 class TestInferExpr:
     """
@@ -895,60 +962,65 @@ class TestInferExpr:
 
     def test_var_node(self):
         """``("var", name)`` with known env entry returns its known type."""
-        t, _ = infer_expr(("var", "x"), {"x": T_REAL}, Substitution(), {}, {}, [].append)
+        t, _ = infer_expr(("var", "x"), {"x": T_REAL}, Substitution(), {}, {},
+                          [].append)
         assert t == T_REAL
 
         # for a vector variable returns TTensor type
-        vec3 =  TTensor(((3, "invariant"),))
-        t, _ = infer_expr(("var", "v"), {"v": vec3}, Substitution(), {}, {}, [].append)
+        vec3 = TTensor(((3, "invariant"), ))
+        t, _ = infer_expr(("var", "v"), {"v": vec3}, Substitution(), {}, {},
+                          [].append)
         assert t == vec3
 
         # Unknown variable returns ``None``"""
         errors = []
-        t, _ = infer_expr(("var", "z"), {}, Substitution(), {}, {}, errors.append)
+        t, _ = infer_expr(("var", "z"), {}, Substitution(), {}, {},
+                          errors.append)
         assert t is None
         assert errors == []
 
     def test_imaginary_node(self):
         """``("imaginary",)`` returns ``T_COMPLEX``."""
-        t, _ = infer_expr(("imaginary",), {}, Substitution(), {}, {}, [].append)
+        t, _ = infer_expr(("imaginary", ), {}, Substitution(), {}, {},
+                          [].append)
         assert t == T_COMPLEX
 
     def test_array_literal(self):
         """``("array", [num, num])`` returns ``ℝ[2]``."""
         node = ("array", [("num", 1.0), ("num", 2.0)])
         t, _ = infer_expr(node, {}, Substitution(), {}, {}, [].append)
-        assert t == TTensor(((2, "invariant"),))
+        assert t == TTensor(((2, "invariant"), ))
 
     def test_index_1d(self):
         """1-D subscript on a known vector returns ``T_REAL``."""
-        env = {"a": TTensor(((5, "invariant"),))}
+        env = {"a": TTensor(((5, "invariant"), ))}
         node = ("index", "a", ("num", 2.0))
         t, _ = infer_expr(node, env, Substitution(), {}, {}, [].append)
         assert t == T_REAL
 
     def test_index_into_array_literal(self):
         """Index into an inline array literal resolves to scalar."""
-        env = {"a": TTensor(((3, "invariant"),))}
+        env = {"a": TTensor(((3, "invariant"), ))}
         node = ("index", "a", ("num", 0.0))
         t, _ = infer_expr(node, env, Substitution(), {}, {}, [].append)
         assert t == T_REAL
 
     def test_slice_returns_shorter_tensor(self):
         """``a[1:4]`` on ``ℝ[9]`` → ``ℝ[3]`` (end-exclusive)."""
-        env = {"a": TTensor(((9, "invariant"),))}
+        env = {"a": TTensor(((9, "invariant"), ))}
         node = ("slice", "a", ("num", 1), ("num", 4))
         t, _ = infer_expr(node, env, Substitution(), {}, {}, [].append)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
     def test_slice_oob_reports_error(self):
         """Slice end beyond array length → error."""
         errors = []
-        env = {"a": TTensor(((5, "invariant"),))}
+        env = {"a": TTensor(((5, "invariant"), ))}
         node = ("slice", "a", ("num", 0), ("num", 10))
         infer_expr(node, env, Substitution(), {}, {}, errors.append)
         assert len(errors) >= 1
-        assert errors[0] == "Slice end 10 is out of bounds for 'a' with leading dimension 5"
+        assert errors[
+            0] == "Slice end 10 is out of bounds for 'a' with leading dimension 5"  # noqa: E501
 
     def test_add_two_scalars(self):
         """``x + y`` with both scalars returns ``T_REAL``."""
@@ -967,17 +1039,21 @@ class TestInferExpr:
     def test_unknown_tag_reports_error(self):
         """Unrecognised AST tag reports an error."""
         errors = []
-        t, _ = infer_expr(("invalid_tag", 99), {}, Substitution(), {}, {}, errors.append)
+        t, _ = infer_expr(("invalid_tag", 99), {}, Substitution(), {}, {},
+                          errors.append)
         assert t is None
         assert errors == ["Unknown expression type: invalid_tag"]
 
         # second unknown tag produces the correct error message
-        infer_expr(("mystery_op", "a", "b"), {}, Substitution(), {}, {}, errors.append)
+        infer_expr(("mystery_op", "a", "b"), {}, Substitution(), {}, {},
+                   errors.append)
         assert len(errors) == 2
         assert errors[-1] == "Unknown expression type: mystery_op"
 
     def test_returns_substitution_instance(self):
-        """``infer_expr`` always returns a ``Substitution`` as second element."""
+        """
+        ``infer_expr`` always returns a ``Substitution`` as second element.
+        """
         _, s = infer_expr(("num", 1.0), {}, Substitution(), {}, {}, [].append)
         assert isinstance(s, Substitution)
 
@@ -988,4 +1064,3 @@ class TestInferExpr:
         outer = ("add", inner, ("var", "z"))
         t, _ = infer_expr(outer, env, Substitution(), {}, {}, [].append)
         assert t == T_REAL
-
