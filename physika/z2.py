@@ -23,7 +23,7 @@ class Z2:
     0
     """
 
-    def __init__(self, val: Union[int, "Z2"]) -> None:
+    def __init__(self, val: int) -> None:
         """
         Initialize Z2 element.
 
@@ -110,5 +110,8 @@ class Z2:
         bool
             True if values are equal modulo 2, False otherwise.
         """
-        other_val = other.val if isinstance(other, Z2) else int(other)
-        return self.val == other_val
+        if isinstance(other, Z2):
+            return self.val == other.val
+        if isinstance(other, int):
+            return self.val == (other % 2)
+        return NotImplemented

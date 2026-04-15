@@ -13,11 +13,11 @@ xor_same
 # ----------------
 # AND operation
 # ----------------
-and_opposite = a * b
-and_same = a * a
+and_mixed = a * b
+and_both_ones = a * a
 
-and_opposite
-and_same
+and_mixed
+and_both_ones
 
 
 # ----------------
