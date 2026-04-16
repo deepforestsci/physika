@@ -844,6 +844,13 @@ def emit_func_loop_body(
             lines.append(
                 f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=active)}"  # noqa: E501
             )
+        elif tag == "loop_index_assign_nd":
+            _, arr_name, idx_list, rhs = loop_stmt
+            indices = ", ".join(
+                f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
+                for idx in idx_list)
+            rhs_code = ast_to_torch_expr(rhs, current_loop_var=loop_var)
+            lines.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
         elif tag == "loop_pluseq":
             _, var_name, expr = loop_stmt
             lines.append(
@@ -1250,11 +1257,13 @@ def emit_for_stmts(
             result.append(
                 f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=loop_var)}"  # noqa: E501
             )
-        elif body_op == "for_index_assign":
-            _, arr_name, idx_expr, rhs_expr = s
-            idx_code = ast_to_torch_expr(idx_expr, current_loop_var=loop_var)
+        elif body_op == "for_index_assign_nd":
+            _, arr_name, idx_list, rhs_expr = s
+            indices = ", ".join(
+                f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
+                for idx in idx_list)
             rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=loop_var)
-            result.append(f"{prefix}{arr_name}[int({idx_code})] = {rhs_code}")
+            result.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
         elif body_op == "for_call":
             _, func_name, arg_asts = s
             arg_strs = [

@@ -519,6 +519,26 @@ def p_func_loop_stmt_assign(p):
     p[0] = ("loop_assign", p[1], p[3])
 
 
+def p_func_loop_stmt_index_assign_nd(p):
+    """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
+    # nd Indexed assignment inside a loop body
+    # Example:
+    # # 1d array
+    # for i:
+    #   arr1d[i] = 1
+    # # 2d array
+    # for i:
+    #   for j:
+    #       arr2d[i, j] = 1
+    # Parameters:
+    # p[1] — array name
+    # p[3] — list of index expressions
+    # p[5] — right hand side expression
+    # Returns:
+    #   ("loop_index_assign_nd", arr_name, [idx_exprs], rhs)
+    p[0] = ("loop_index_assign_nd", p[1], p[3], p[6])
+
+
 def p_func_loop_stmt_pluseq(p):
     """func_loop_stmt : ID PLUSEQ func_expr NEWLINE"""
     # Accumulation inside a loop body.
@@ -1047,19 +1067,24 @@ def p_for_body_multi(p):
     p[0] = p[1] + ([p[2]] if p[2] is not None else [])
 
 
-def p_for_statement_index_assign(p):
-    """for_statement : ID LBRACKET func_expr RBRACKET EQUALS func_expr NEWLINE"""  # noqa: E501
-    # Indexed assignment statement inside a top-level for loop body.
+def p_for_statement_index_assign_nd(p):
+    """for_statement : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
+    # nd Indexed assignment inside top-level for-body
     # Example:
-    #   for i:
-    #       b[i] = 1
+    # # 1d array
+    # for i:
+    #   arr1d[i] = 1
+    # # 2d array
+    # for i:
+    #   for j:
+    #       arr2d[i, j] = 1
     # Parameters:
     # p[1] — array name
-    # p[3] — index expression (iter var)
-    # p[6] — right-hand side expression
+    # p[3] — list of index expressions
+    # p[5] — right hand side expression
     # Returns:
-    #   ("for_index_assign", arr_name, idx_expr, rhs_expr)
-    p[0] = ("for_index_assign", p[1], p[3], p[6])
+    #   ("for_index_assign_nd", arr_name, [idx_exprs], rhs)
+    p[0] = ("for_index_assign_nd", p[1], p[3], p[6])
 
 
 def p_for_statement_assign(p):

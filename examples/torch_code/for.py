@@ -107,6 +107,34 @@ def deep_nest(arr):
         a = (-1)
     return a
 
+def get_array_length(x):
+    total = 0
+    for i in range(len(x)):
+        curr = x[int(i)]
+        total = total + 1
+    return total
+
+def manipulate_1d_array(x):
+    m = get_array_length(x)
+    for i in range(int(0), int(m)):
+        x[int(i)] = (i * 2)
+    return x
+
+def manipulate_2d_array(x):
+    m = get_array_length(x)
+    n = get_array_length(x[int(0)])
+    for i in range(int(0), int(m)):
+        for j in range(int(0), int(n)):
+            x[int(i), int(j)] = (j * 2)
+    return x
+
+def manipulate_3d_array(x):
+    for i in range(int(0), int(2)):
+        for j in range(int(0), int(2)):
+            for k in range(int(0), int(2)):
+                x[int(i), int(j), int(k)] = (((i * 2) + j) + k)
+    return x
+
 # === Program ===
 arr = torch.tensor([1, 2, 3, 4, 5])
 total = 0
@@ -125,7 +153,7 @@ for i in range(len(X)):
 physika_print(mse)
 src = torch.tensor([1, 2, 3, 4, 5])
 dst = torch.tensor([0, 0, 0, 0, 0])
-for i in range(len(dst)):
+for i in range(len(src)):
     dst[int(i)] = (src[int(i)] * src[int(i)])
 physika_print(dst)
 start = 10
@@ -265,3 +293,27 @@ if norm_flag > 0:
 else:
     normed = torch.stack([data2[int(i)] for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]])
 physika_print(normed)
+sample_1d_array = torch.tensor([1, 2, 3])
+length_array = get_array_length(sample_1d_array)
+for i in range(int(0), int(length_array)):
+    sample_1d_array[int(i)] = (i * 2)
+physika_print(sample_1d_array)
+sample_2d_array = torch.tensor([[1, 1], [1, 1]])
+rows = get_array_length(sample_2d_array)
+cols = get_array_length(sample_2d_array[int(0)])
+for i in range(int(0), int(rows)):
+    for j in range(int(0), int(cols)):
+        sample_2d_array[int(i), int(j)] = (j * 2)
+physika_print(sample_2d_array)
+sample_3d_array = torch.tensor([[[1, 2], [1, 2]], [[1, 2], [1, 2]]])
+for i in range(int(0), int(2)):
+    for j in range(int(0), int(2)):
+        for k in range(int(0), int(2)):
+            sample_3d_array[int(i), int(j), int(k)] = ((j * 2) + k)
+physika_print(sample_3d_array)
+arr1d = torch.tensor([1, 2, 3])
+physika_print(manipulate_1d_array(arr1d))
+arr2d = torch.tensor([[1, 1], [1, 1]])
+physika_print(manipulate_2d_array(arr2d))
+arr3d = torch.tensor([[[3, 2], [1, 1]], [[1, 4], [1, 2]]])
+physika_print(manipulate_3d_array(arr3d))

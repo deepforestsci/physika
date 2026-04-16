@@ -377,3 +377,90 @@ if norm_flag > 0:
 else:
     normed = for i : ℕ(4) → data2[i]
 normed
+
+# 9. Indexing array (1d, 2d) inside for loop
+
+# helper function
+def get_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    for i:
+        curr = x[i]
+        total += 1
+    return total
+
+# 9.1 Top-level 1d array indexing
+sample_1d_array: ℝ[3] = [1, 2, 3]
+length_array: ℝ = get_array_length(sample_1d_array)
+for i:ℕ(length_array):
+    sample_1d_array[i] = i*2
+sample_1d_array
+
+# 9.2 Top-level 2d array indexing
+sample_2d_array: ℝ[2, 2] = [
+    [1, 1],
+    [1, 1]
+]
+rows: R = get_array_length(sample_2d_array)
+cols: R = get_array_length(sample_2d_array[0])
+for i:ℕ(rows):
+    for j:ℕ(cols):
+        sample_2d_array[i, j] = j*2
+sample_2d_array
+
+# 9.3 Top-level 3d array indexing
+sample_3d_array: ℝ[2, 2, 2] = [
+    [
+        [1, 2],
+        [1, 2]
+    ],
+    [
+        [1, 2],
+        [1, 2]
+    ]
+]
+for i:ℕ(2):
+    for j:ℕ(2):
+        for k:ℕ(2):
+            sample_3d_array[i, j, k] = j*2 + k
+sample_3d_array
+
+# 9.4 1d array indexing inside function body
+def manipulate_1d_array(x: ℝ[m]): ℝ[n]:
+    m = get_array_length(x)
+    for i:ℕ(m):
+        x[i] = i*2
+    return x
+arr1d: ℝ[3] = [1, 2, 3]
+manipulate_1d_array(arr1d)
+
+# 9.5 2d array indexing inside function body
+def manipulate_2d_array(x: ℝ[m, n]): ℝ[m, n]:
+    m = get_array_length(x)
+    n = get_array_length(x[0])
+    for i:ℕ(m):
+        for j:ℕ(n):
+            x[i, j] = j*2
+    return x
+arr2d: ℝ[2, 2] = [
+    [1, 1],
+    [1, 1]
+]
+manipulate_2d_array(arr2d)
+
+def manipulate_3d_array(x: ℝ[m, n, o]): ℝ[m, n, o]:
+    for i:ℕ(2):
+        for j:ℕ(2):
+            for k:ℕ(2):
+                x[i, j, k] = i*2 + j + k
+    return x
+arr3d: ℝ[2, 2, 2] = [
+    [
+        [3, 2],
+        [1, 1]
+    ],
+    [
+        [1, 4],
+        [1, 2]
+    ]
+]
+manipulate_3d_array(arr3d)
