@@ -132,7 +132,7 @@ def manipulate_3d_array(x):
     for i in range(int(0), int(2)):
         for j in range(int(0), int(2)):
             for k in range(int(0), int(2)):
-                sample_3d_array[int(i), int(j), int(k)] = (((i * 2) + j) + k)
+                x[int(i), int(j), int(k)] = (((i * 2) + j) + k)
     return x
 
 # === Program ===
