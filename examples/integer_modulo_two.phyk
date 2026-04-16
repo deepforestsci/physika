@@ -1,0 +1,31 @@
+a: Z2 = 1
+b: Z2 = 0
+
+# ----------------
+# XOR operation
+# ----------------
+xor_opposite = a + b
+xor_same = a + a
+
+xor_opposite
+xor_same
+
+# ----------------
+# AND operation
+# ----------------
+and_mixed = a * b
+and_both_ones = a * a
+
+and_mixed
+and_both_ones
+
+
+# ----------------
+# if-else condtion
+# ----------------
+flag: Z2 = 0
+if flag == 0:
+    results = 0.0
+else:
+    results = 1.0
+results

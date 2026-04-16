@@ -795,3 +795,55 @@ Lowercase Letters
    * - ω
      - U+03C9
      - omega
+
+Z₂ modulo type-2
+----------------
+
+Physika supports arithmetic in Z₂ (integers modulo 2)
+
+Basic declarations 
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   a: Z2 = 1
+   b: Z2 = 0
+
+XOR operations
+~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   a + b
+   a + a
+
+Output::
+
+   1
+   0
+
+AND operations
+~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   a * b
+   a * a
+
+Output::
+
+   0
+   1
+
+boolean operations
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   flag: Z2 = 0
+   if flag == 0:
+      physika_print("zero flag detected")
+
+Output::
+
+   zero flag detected

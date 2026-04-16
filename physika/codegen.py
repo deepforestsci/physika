@@ -106,6 +106,13 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
             needs_solve = True
             break
 
+    # just for draft version
+    # this will get converted into ast_uses_z2 in ast_utils and then
+    # call here like needs_solve
+    needs_z2 = any(
+        isinstance(stmt, tuple) and stmt[0] == "decl" and stmt[2] == "ℤ2"
+        for stmt in unified_ast["program"])
+
     needs_train = any(
         ast_uses_func(stmt, "train") for stmt in unified_ast["program"])
     needs_evaluate = any(
@@ -172,6 +179,8 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
         imports.append("from physika.runtime import animate")
     if needs_sympy:
         imports.append("import sympy as sp")
+    if needs_z2:
+        imports.append("from physika.z2 import Z2")
     code_lines.append("\n".join(imports))
     code_lines.append("")
 
