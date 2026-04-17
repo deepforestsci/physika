@@ -1,3 +1,14 @@
+<p align="center">
+  <img src="assets/physika_logo.png" alt="Physika Logo" width="200"/>
+</p>
+
+<p align="center">
+  <a href="https://physika.readthedocs.io">
+    <img src="https://img.shields.io/badge/docs-Read%20the%20Docs-blue" alt="Read the Docs">
+  </a>
+</p>
+
+
 # Physika
 
 Physika is designed to simplify the representation of equations governing diverse physical systems, and the computational methods used to approximate their solutions. Physika is a type-based differentiable language program, that checks for dimension and data type correctenss.
