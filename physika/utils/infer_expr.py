@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple, Union
 from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, new_dim  # noqa: E501
 from physika.utils.ast_utils import ASTNode
 
@@ -1099,6 +1099,7 @@ def expr_for_expr(
                            add_error=ctx.add_error)
 
     # Use a concrete dim when the size is a literal, otherwise a fresh TDim.
+    outer_dim: Union[int, TDim]
     if isinstance(size_expr, tuple) and size_expr[0] == "num":
         outer_dim = int(size_expr[1])
     else:
@@ -1174,6 +1175,7 @@ def expr_for_expr_range(
                            class_env=ctx.class_env,
                            add_error=ctx.add_error)
 
+    outer_dim: Union[int, TDim]
     if (isinstance(start_expr, tuple) and start_expr[0] == "num"
             and isinstance(end_expr, tuple) and end_expr[0] == "num"):
         outer_dim = int(end_expr[1]) - int(start_expr[1])
