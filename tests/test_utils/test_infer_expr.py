@@ -1087,29 +1087,30 @@ class TestExprMul:
         assert t == T_REAL
 
         # ℝ[3] * ℝ → ℝ[3]
-        ctx = make_ctx(env={"x": TTensor(((3, "invariant"),))})
+        ctx = make_ctx(env={"x": TTensor(((3, "invariant"), ))})
         t, _ = expr_mul(("mul", ("var", "x"), ("num", 2.0)), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
         # ℝ * ℝ[3] → ℝ[3]  (order in operands swapped)
-        ctx = make_ctx(env={"x": TTensor(((3, "invariant"),))})
+        ctx = make_ctx(env={"x": TTensor(((3, "invariant"), ))})
         t, _ = expr_mul(("mul", ("num", 2.0), ("var", "x")), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
         # ℝ[4] * ℝ[4] → ℝ[4]  (elementwise)
-        ctx = make_ctx(env={
-            "x": TTensor(((4, "invariant"),)),
-            "y": TTensor(((4, "invariant"),)),
-        })
+        ctx = make_ctx(
+            env={
+                "x": TTensor(((4, "invariant"), )),
+                "y": TTensor(((4, "invariant"), )),
+            })
         t, _ = expr_mul(("mul", ("var", "x"), ("var", "y")), ctx)
-        assert t == TTensor(((4, "invariant"),))
-
+        assert t == TTensor(((4, "invariant"), ))
 
         # ℝ[2,3] * ℝ[2,3] → ℝ[2,3]
-        ctx = make_ctx(env={
-            "A": TTensor(((2, "invariant"), (3, "invariant"))),
-            "B": TTensor(((2, "invariant"), (3, "invariant"))),
-        })
+        ctx = make_ctx(
+            env={
+                "A": TTensor(((2, "invariant"), (3, "invariant"))),
+                "B": TTensor(((2, "invariant"), (3, "invariant"))),
+            })
         t, _ = expr_mul(("mul", ("var", "A"), ("var", "B")), ctx)
         assert t == TTensor(((2, "invariant"), (3, "invariant")))
 
@@ -1117,12 +1118,14 @@ class TestExprMul:
         """ℝ[3] * ℝ[5] report error"""
         errors = []
         ctx = make_ctx(env={
-            "x": TTensor(((3, "invariant"),)),
-            "y": TTensor(((5, "invariant"),)),
-        }, errors=errors)
+            "x": TTensor(((3, "invariant"), )),
+            "y": TTensor(((5, "invariant"), )),
+        },
+                       errors=errors)
         expr_mul(("mul", ("var", "x"), ("var", "y")), ctx)
         assert len(errors) == 1
         assert errors[0] == "Shape mismatch in mul: ℝ[3] vs ℝ[5]"
+
 
 class TestExprDiv:
     """
@@ -1136,24 +1139,25 @@ class TestExprDiv:
         assert t == T_REAL
 
         # ℝ[3] / ℝ → ℝ[3]
-        ctx = make_ctx(env={"x": TTensor(((3, "invariant"),))})
+        ctx = make_ctx(env={"x": TTensor(((3, "invariant"), ))})
         t, _ = expr_div(("div", ("var", "x"), ("num", 2.0)), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
         # ℝ[4] / ℝ[4] → ℝ[4]  (elementwise)
-        ctx = make_ctx(env={
-            "x": TTensor(((4, "invariant"),)),
-            "y": TTensor(((4, "invariant"),)),
-        })
+        ctx = make_ctx(
+            env={
+                "x": TTensor(((4, "invariant"), )),
+                "y": TTensor(((4, "invariant"), )),
+            })
         t, _ = expr_div(("div", ("var", "x"), ("var", "y")), ctx)
-        assert t == TTensor(((4, "invariant"),))
-
+        assert t == TTensor(((4, "invariant"), ))
 
         # ℝ[2,3] / ℝ[2,3] → ℝ[2,3]
-        ctx = make_ctx(env={
-            "A": TTensor(((2, "invariant"), (3, "invariant"))),
-            "B": TTensor(((2, "invariant"), (3, "invariant"))),
-        })
+        ctx = make_ctx(
+            env={
+                "A": TTensor(((2, "invariant"), (3, "invariant"))),
+                "B": TTensor(((2, "invariant"), (3, "invariant"))),
+            })
         t, _ = expr_div(("div", ("var", "A"), ("var", "B")), ctx)
         assert t == TTensor(((2, "invariant"), (3, "invariant")))
 
@@ -1161,12 +1165,14 @@ class TestExprDiv:
         """ℝ[3] / ℝ[2] reports error."""
         errors = []
         ctx = make_ctx(env={
-            "x": TTensor(((3, "invariant"),)),
-            "z": TTensor(((2, "invariant"),)),
-        }, errors=errors)
+            "x": TTensor(((3, "invariant"), )),
+            "z": TTensor(((2, "invariant"), )),
+        },
+                       errors=errors)
         expr_div(("div", ("var", "x"), ("var", "z")), ctx)
         assert len(errors) == 1
         assert errors[0] == "Shape mismatch in div: ℝ[3] vs ℝ[2]"
+
 
 class TestExprMatmul:
     """
@@ -1175,43 +1181,46 @@ class TestExprMatmul:
 
     def test_matmul_op(self):
         """ℝ[3] @ ℝ[3] → ℝ."""
-        ctx = make_ctx(env={
-            "u": TTensor(((3, "invariant"),)),
-            "v": TTensor(((3, "invariant"),)),
-        })
+        ctx = make_ctx(
+            env={
+                "u": TTensor(((3, "invariant"), )),
+                "v": TTensor(((3, "invariant"), )),
+            })
         t, _ = expr_matmul(("matmul", ("var", "u"), ("var", "v")), ctx)
         assert t == T_REAL
 
         # ℝ[2,3] @ ℝ[3,4] → ℝ[2,4]
-        ctx = make_ctx(env={
-            "A": TTensor(((2, "invariant"), (3, "invariant"))),
-            "B": TTensor(((3, "invariant"), (4, "invariant"))),
-        })
+        ctx = make_ctx(
+            env={
+                "A": TTensor(((2, "invariant"), (3, "invariant"))),
+                "B": TTensor(((3, "invariant"), (4, "invariant"))),
+            })
         t, _ = expr_matmul(("matmul", ("var", "A"), ("var", "B")), ctx)
         assert t == TTensor(((2, "invariant"), (4, "invariant")))
 
-
         # ℝ[3,3] @ ℝ[3,3] → ℝ[3,3]
-        ctx = make_ctx(env={
-            "A": TTensor(((3, "invariant"), (3, "invariant"))),
-            "B": TTensor(((3, "invariant"), (3, "invariant"))),
-        })
+        ctx = make_ctx(
+            env={
+                "A": TTensor(((3, "invariant"), (3, "invariant"))),
+                "B": TTensor(((3, "invariant"), (3, "invariant"))),
+            })
         t, _ = expr_matmul(("matmul", ("var", "A"), ("var", "B")), ctx)
         assert t == TTensor(((3, "invariant"), (3, "invariant")))
 
     def test_error_report(self):
-         # ℝ[2,3] @ ℝ[3] should raise error rank mismatch
+        # ℝ[2,3] @ ℝ[3] should raise error rank mismatch
         errors = []
         ctx = make_ctx(env={
             "A": TTensor(((2, "invariant"), (3, "invariant"))),
-            "v": TTensor(((3, "invariant"),)),
-            
-            },
-            errors=errors)
+            "v": TTensor(((3, "invariant"), )),
+        },
+                       errors=errors)
         t, _ = expr_matmul(("matmul", ("var", "A"), ("var", "v")), ctx)
         assert len(errors) == 1
-        assert errors[0] == "Matmul rank mismatch: ℝ[2,3] @ ℝ[3]; use ℝ[2,3] @ ℝ[3,1] for an explicit matrix form"
-        assert t == None
+        assert errors[
+            0] == "Matmul rank mismatch: ℝ[2,3] @ ℝ[3]; use ℝ[2,3] @ ℝ[3,1] for an explicit matrix form"  # noqa: E501
+        assert t is None
+
 
 class TestExprPow:
     """
@@ -1225,12 +1234,13 @@ class TestExprPow:
         assert t == T_REAL
 
         # ℝ[3] ** ℝ → ℝ[3]
-        ctx = make_ctx(env={"x": TTensor(((3, "invariant"),))})
+        ctx = make_ctx(env={"x": TTensor(((3, "invariant"), ))})
         t, _ = expr_pow(("pow", ("var", "x"), ("num", 2.0)), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
         # ℝ[2,3] ** ℝ → ℝ[2,3]
-        ctx = make_ctx(env={"A": TTensor(((2, "invariant"), (3, "invariant")))})
+        ctx = make_ctx(
+            env={"A": TTensor(((2, "invariant"), (3, "invariant")))})
         t, _ = expr_pow(("pow", ("var", "A"), ("num", 2.0)), ctx)
         assert t == TTensor(((2, "invariant"), (3, "invariant")))
 
@@ -1253,17 +1263,17 @@ class TestExprNeg:
         assert t == T_REAL
 
         # -ℝ[3] → ℝ[3]
-        ctx = make_ctx(env={"x": TTensor(((3, "invariant"),))})
+        ctx = make_ctx(env={"x": TTensor(((3, "invariant"), ))})
         t, _ = expr_neg(("neg", ("var", "x")), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
         # -ℝ[2,4] → ℝ[2,4]
-        ctx = make_ctx(env={"A": TTensor(((2, "invariant"), (4, "invariant")))})
+        ctx = make_ctx(
+            env={"A": TTensor(((2, "invariant"), (4, "invariant")))})
         t, _ = expr_neg(("neg", ("var", "A")), ctx)
         assert t == TTensor(((2, "invariant"), (4, "invariant")))
 
-
-        #--ℝ → ℝ  (double negation)
+        # --ℝ → ℝ  (double negation)
         ctx = make_ctx()
         inner = ("neg", ("num", 5.0))
         t, _ = expr_neg(("neg", inner), ctx)
@@ -1275,12 +1285,13 @@ class TestExprNeg:
         t, _ = expr_neg(("neg", ("var", "missing")), ctx)
         assert t is None
 
+
 class TestExprCall:
     """Tests for ``expr_call``."""
 
     def test_elementwise_ops_preserve_shape(self):
         """Element wise builtins preserve operand's shape."""
-        vec = TTensor(((4, "invariant"),))
+        vec = TTensor(((4, "invariant"), ))
         for name in ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh"):
             ctx = make_ctx(env={"x": vec})
             t, _ = expr_call(("call", name, [("var", "x")]), ctx)
@@ -1288,15 +1299,15 @@ class TestExprCall:
 
     def test_reduction_sum(self):
         """sum(ℝ[5]) → ℝ."""
-        ctx = make_ctx(env={"v": TTensor(((5, "invariant"),))})
+        ctx = make_ctx(env={"v": TTensor(((5, "invariant"), ))})
         t, _ = expr_call(("call", "sum", [("var", "v")]), ctx)
         assert t == T_REAL
 
     def test_grad_returns_x_shape(self):
         """grad(f, x) returns same shape as x."""
-        ctx = make_ctx(env={"x": TTensor(((3, "invariant"),))})
+        ctx = make_ctx(env={"x": TTensor(((3, "invariant"), ))})
         t, _ = expr_call(("call", "grad", [("num", 1.0), ("var", "x")]), ctx)
-        assert t == TTensor(((3, "invariant"),))
+        assert t == TTensor(((3, "invariant"), ))
 
     def test_grad_scalar_x(self):
         """grad(f, x) with scalar x → ℝ."""
@@ -1307,7 +1318,7 @@ class TestExprCall:
     def test_user_defined_function(self):
         """User-defined function: return type taken from func_env."""
         # f → ℝ[3]
-        vec3 = TTensor(((3, "invariant"),))
+        vec3 = TTensor(((3, "invariant"), ))
         func_env = {"f": ([vec3], vec3)}
         ctx = make_ctx(env={"x": vec3}, func_env=func_env)
         t, _ = expr_call(("call", "f", [("var", "x")]), ctx)
@@ -1334,22 +1345,24 @@ class TestExprCall:
         t, _ = expr_call(("call", "unknown_fn", [("num", 1.0)]), ctx)
         assert t is None
 
+
 class TestExprForExpr:
     """Tests for ``expr_for_expr``."""
 
     def test_scalar_body_produces_1d(self):
         """for i : ℕ(5) → i  produces ℝ[5]."""
         ctx = make_ctx()
-        t, _ = expr_for_expr(
-            ("for_expr", "i", ("num", 5.0), ("imaginary")), ctx, new_dim)
-        assert t == TTensor(((5, "invariant"),))
+        t, _ = expr_for_expr(("for_expr", "i", ("num", 5.0), ("imaginary")),
+                             ctx, new_dim)
+        assert t == TTensor(((5, "invariant"), ))
 
         # test for other cases
         ctx = make_ctx()
         for n in (1, 3, 8):
             t, _ = expr_for_expr(
-                ("for_expr", "i", ("num", float(n)), ('imaginary')), ctx, new_dim)
-            assert t == TTensor(((n, "invariant"),))
+                ("for_expr", "i", ("num", float(n)), ('imaginary')), ctx,
+                new_dim)
+            assert t == TTensor(((n, "invariant"), ))
 
     def test_tensor_body_prepends_dim(self):
         """
@@ -1358,16 +1371,16 @@ class TestExprForExpr:
         """
         ctx = make_ctx()
         body = ("array", [("num", 1.0), ("num", 2.0)])  # ℝ[2]
-        t, _ = expr_for_expr(
-            ("for_expr", "i", ("num", 4.0), body), ctx, new_dim)
+        t, _ = expr_for_expr(("for_expr", "i", ("num", 4.0), body), ctx,
+                             new_dim)
         assert t == TTensor(((4, "invariant"), (2, "invariant")))
 
     def test_two_level_nesting(self):
         """for i :ℕ(3) → for j : ℕ(4) → i  produces ℝ[3, 4]."""
         ctx = make_ctx()
         inner = ("for_expr", "j", ("num", 4.0), ('imaginary'))
-        t, _ = expr_for_expr(
-            ("for_expr", "i", ("num", 3.0), inner), ctx, new_dim)
+        t, _ = expr_for_expr(("for_expr", "i", ("num", 3.0), inner), ctx,
+                             new_dim)
         assert t == TTensor(((3, "invariant"), (4, "invariant")))
 
     def test_three_level_nesting(self):
@@ -1375,15 +1388,16 @@ class TestExprForExpr:
         ctx = make_ctx()
         innermost = ("for_expr", "k", ("num", 4.0), (('imaginary')))
         middle = ("for_expr", "j", ("num", 3.0), innermost)
-        t, _ = expr_for_expr(
-            ("for_expr", "i", ("num", 2.0), middle), ctx, new_dim)
-        assert t == TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
+        t, _ = expr_for_expr(("for_expr", "i", ("num", 2.0), middle), ctx,
+                             new_dim)
+        assert t == TTensor(
+            ((2, "invariant"), (3, "invariant"), (4, "invariant")))
 
     def test_dynamic_size_gives_tdim(self):
         """Non-literal size_expr introduces a fresh TDim as the outer dim."""
         ctx = make_ctx(env={"n": T_NAT})
-        t, _ = expr_for_expr(
-            ("for_expr", "i", ("var", "n"), ('imaginary')), ctx, new_dim)
+        t, _ = expr_for_expr(("for_expr", "i", ("var", "n"), ('imaginary')),
+                             ctx, new_dim)
 
         # t type should be t : ℝ[δ0]
         assert isinstance(t, TTensor)
@@ -1401,7 +1415,7 @@ class TestExprForExprRange:
         t, _ = expr_for_expr_range(
             ("for_expr_range", "i", ("num", 0.0), ("num", 4.0), ('imaginary')),
             ctx, new_dim)
-        assert t == TTensor(((4, "invariant"),))
+        assert t == TTensor(((4, "invariant"), ))
 
     def test_range_size_is_end_minus_start(self):
         """Size = end − start for literal bounds."""
@@ -1409,34 +1423,32 @@ class TestExprForExprRange:
         t, _ = expr_for_expr_range(
             ("for_expr_range", "i", ("num", 2.0), ("num", 7.0), ('imaginary')),
             ctx, new_dim)
-        assert t == TTensor(((5, "invariant"),))
+        assert t == TTensor(((5, "invariant"), ))
 
     def test_zero_start(self):
         """ℕ(0, n) range gives ℝ[n]."""
         # n = 1, 5, 10
         ctx = make_ctx()
         for n in (1, 5, 10):
-            t, _ = expr_for_expr_range(
-                ("for_expr_range", "i",
-                 ("num", 0.0), ("num", float(n)), ('imaginary')),
-                ctx, new_dim)
-            assert t == TTensor(((n, "invariant"),))
+            t, _ = expr_for_expr_range(("for_expr_range", "i", ("num", 0.0),
+                                        ("num", float(n)), ('imaginary')), ctx,
+                                       new_dim)
+            assert t == TTensor(((n, "invariant"), ))
 
     def test_tensor_body_prepends_dim(self):
         """for i : ℕ(0, n) → ℝ[3] body  produces ℝ[2, 3]."""
         ctx = make_ctx()
         body = ("array", [("num", 1.0), ("num", 2.0), ("num", 3.0)])  # ℝ[3]
         t, _ = expr_for_expr_range(
-            ("for_expr_range", "i", ("num", 0.0), ("num", 2.0), body),
-            ctx, new_dim)
+            ("for_expr_range", "i", ("num", 0.0), ("num", 2.0), body), ctx,
+            new_dim)
         assert t == TTensor(((2, "invariant"), (3, "invariant")))
 
     def test_dynamic_bounds_give_tdim(self):
         """Dynamic end bound introduces a fresh TDim."""
         ctx = make_ctx(env={"n": T_NAT})
         t, _ = expr_for_expr_range(
-            ("for_expr_range", "i",
-             ("num", 0.0), ("var", "n"), ('imaginary')),
+            ("for_expr_range", "i", ("num", 0.0), ("var", "n"), ('imaginary')),
             ctx, new_dim)
         assert isinstance(t, TTensor)
         assert len(t.dims) == 1
