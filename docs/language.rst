@@ -549,6 +549,139 @@ their shapes.  Broadcasting rules:
    # x : ℝ[3],  y : ℝ[5]  →  shape mismatch error
    expr_add_sub(("add",("var","x"),("var","y")), ctx)   →  (None, s) + "Shape mismatch in add: ℝ[3] vs ℝ[5]"
 
+**expr_mul** (Multiplication ``("mul", left, right)``)
+
+Infers both operands and unifies shapes for tensor operands.  Broadcasting
+rules same as ``expr_add_sub``:
+
+- Tensor × Tensor: shapes must match, a mismatch calls ``add_error``.
+- Tensor × Scalar (either order): tensor shape returned.
+- Scalar × Scalar: ``ℝ``::
+
+   # x : ℝ[3]
+   # x * 2
+   expr_mul(("mul",(TTensor(((3, "invariant"),))),("num",2.0)), ctx) → (ℝ[3], s)
+   # 2 * 3
+   expr_mul(("mul",("num",2.0),("num",3.0)), ctx) → (ℝ, s)
+   # x : ℝ[3] * y : ℝ[5]
+   # shape mismatch error
+   expr_mul(("mul",("var","x"),("var","y")), ctx) → (None, s) + "Shape mismatch in mul: ℝ[3] vs ℝ[5]"
+
+**expr_div** (Division ``("div", numerator, denominator)``)
+
+
+- Tensor / Scalar: result has the shape of the numerator.
+- Scalar / Scalar: ``ℝ``.
+- Tensor / Tensor: shapes must match for elementwise division. A mismatch
+  calls ``add_error``::
+
+   # x : ℝ[3]
+   # x / 2
+   expr_div(("div",(TTensor(((3, "invariant"),))),("num",2.0)), ctx)  → (ℝ[3], s)
+   
+   # 6 / 2
+   expr_div(("div",("num",6.0),("num",2.0)), ctx) → (ℝ, s)
+
+   # x : ℝ[3]
+   # y : ℝ[3]
+   expr_div(("div",(TTensor(((3, "invariant"),))),(TTensor(((3, "invariant"),)))), ctx) → (ℝ[3], s)
+
+   # x : ℝ[3]
+   # z : ℝ[2] 
+   # shape mismatch error
+   expr_div(("div",(TTensor(((3, "invariant"),))),(TTensor(((2, "invariant"),)))), ctx) → (None, s) + "Shape mismatch in div: ℝ[3] vs ℝ[2]"
+
+**expr_matmul** (Matrix multiplication ``("matmul", left, right)``)
+
+Inner dimensions must match.  Supported rank combinations:
+
+- Vector @ Vector (same length) → scalar ``ℝ`` (dot product).
+- Matrix @ Matrix (ℝ[m,n] @ ℝ[n,p]) → ℝ[m,p]. (And so on for higher ranks)
+- Incompatible shapes calls ``add_error``::
+
+   # A : ℝ[2,3],  B : ℝ[3,4]
+   expr_matmul(("matmul",("var","A"),("var","B")), ctx) → (ℝ[2,4], s)
+   # u : ℝ[3],  v : ℝ[3]  →  dot product
+   expr_matmul(("matmul",("var","u"),("var","v")), ctx) → (ℝ, s)
+
+**expr_pow** (Exponentiation ``("pow", base, exponent)``)
+
+The result has the same type as the base.  The exponent is inferred and it should not affect the output shape::
+
+   # x : ℝ[3]
+   # x ** 2
+   expr_pow(("pow",("var","x"),("num",2.0)), ctx) → (ℝ[3], s)
+   # x ** 3
+   expr_pow(("pow",("num",2.0),("num",3.0)), ctx) → (ℝ, s)
+
+**expr_neg** (Negation ``("neg", operand)``)
+
+The result type equals the operand type::
+
+   # x : ℝ[3]
+   # -x
+   expr_neg(("neg",("var","x")), ctx) → (ℝ[3], s)
+   #-1
+   expr_neg(("neg",("num",1.0)), ctx) → (ℝ, s)
+
+**expr_call** (Function call ``("call", func_name, arg_list)``)
+
+Resolution order:
+
+1. **Built-in elementwise** (``exp``, ``sin``, ``cos``, ``sqrt``, ``abs``,
+   ``tanh``, ``log``, ``real``, ``imag``): preserve the shape of their
+   first argument.
+2. **Built-in reduction** (``sum``): ``ℝ``.
+3. **grad(f, x)**: same type as ``x``.
+4. **User-defined functions** in ``func_env``: each argument is unified against its declared parameter type and
+   the declared return type is returned. The number of arguments received and declared are also checked.
+5. Unknown call target returns ``(None, s)``.
+
+::
+
+   # x : ℝ[3]
+   expr_call(("call","sin",[("var","x")]), ctx) → (ℝ[3], s)
+   expr_call(("call","sum",[("var","x")]), ctx) → (ℝ, s)
+   expr_call(("call","grad",[("num",1.0),("var","x")]), ctx) → (ℝ[3], s)
+   # func_env = {"f": ([ℝ[3]], ℝ[3])}
+   expr_call(("call","f",[("var","x")]), ctx) → (ℝ[3], s)
+
+**expr_for_expr** (For-expression ``("for_expr", loop_var, size_expr, body_expr)``)
+
+Loop variable is bound as ``ℕ`` inside
+the body.  The outer size is prepended as the leading tensor dimension:
+
+- Scalar body is inferred to type ``ℝ[n]``.
+- Tensor body ``ℝ[d0, d1, ...]`` is inferred to ``ℝ[n, d0, d1, ...]``.
+- Fresh ``TDim`` placeholder used instead of ``n`` for non-literal expressions::
+
+   # body = i (ℕ, resolved as ℝ for scalar context)
+   expr_for_expr(("for_expr","i",("num",3.0),("imaginary",)), ctx, new_dim) → (ℝ[3], s)
+
+   # body = [1.0, 2.0] (ℝ[2]) — outer size 4 prepended
+   expr_for_expr(("for_expr","i",("num",4.0),("array",[num(1),num(2)])), ctx, new_dim) → (ℝ[4,2], s)
+
+   # nested: inner for produces ℝ[4], outer for prepends 3 → ℝ[3,4]
+   expr_for_expr(("for_expr","i",("num",3.0), inner_for_expr_node), ctx, new_dim) → (ℝ[3,4], s)
+
+**expr_for_expr_range** (Range for-expression ``("for_expr_range", loop_var, start_expr, end_expr, body_expr)``)
+
+Like ``expr_for_expr`` but the outer size is computed as ``end − start``
+from explicit bounds.  When either bound is non-literal a fresh ``TDim`` is
+introduced instead:
+
+- Both bounds literal: outer dimension = ``int(end) − int(start)``.
+- Either bound dynamic: outer dimension = fresh ``TDim``::
+
+   # range ℕ(0, 4) (4 elements), scalar body
+   expr_for_expr_range(("for_expr_range","i",("num",0.0),("num",4.0),("imaginary",)), ctx, new_dim) → (ℝ[4], s)
+
+   # range ℕ(0, 2) (2 elements), body ℝ[3]
+   expr_for_expr_range(("for_expr_range","i",("num",0.0),("num",2.0), body), ctx, new_dim) → (ℝ[2,3], s)
+
+   # dynamic end bound (ℕ(0, n))
+   expr_for_expr_range(("for_expr_range","i",("num",0.0),("var","n"),("imaginary",)), ctx, new_dim) → (ℝ[δ0], s)
+
 
 Symbolic methods
 ----------------

@@ -1,5 +1,5 @@
-from typing import Any, Callable, Optional, Tuple
-from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, T_REAL, T_COMPLEX  # noqa: E501
+from typing import Any, Callable, Optional, Tuple, Union
+from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, new_dim  # noqa: E501
 from physika.utils.ast_utils import ASTNode
 
 
@@ -650,6 +650,544 @@ def expr_add_sub(node: Any,
     return broadcast_op(t1, t2), s
 
 
+def expr_mul(node: Any,
+             ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the type of multiplication ``t1 * t2``.
+
+    As same as ``expr_add_sub``, shapes must match for tensor operands, and
+    follows broadcast rules.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("mul", left_expr, right_expr)``.
+    ctx : ExprContext
+        Current inference context.  ``ctx.s`` is threaded through both
+        operand inferences and updated with any new unification bindings.
+        Shape mismatch errors are registered via ``ctx.add_error``.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(TTensor, s)`` when either operand is a tensor. The tensor
+        shape is the broadcast result.
+        ``(T_REAL, s)`` when both operands are scalars.
+        ``(None, s)`` when both operand types could not be determined.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_mul, T_REAL, TTensor
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({"x": TTensor(((3, "invariant"),))}, Substitution(), {}, {}, [].append)  # noqa: E501
+    >>> t, _=expr_mul(("mul", ("var", "x"), ("num", 2.0)), ctx)  # ℝ[3] * ℝ → ℝ[3]
+    >>> t
+    ℝ[3]
+    >>> t, _= expr_mul(("mul", ("num", 2.0), ("num", 3.0)), ctx)  # ℝ * ℝ → ℝ
+    >>> t
+    ℝ
+    """
+    from physika.utils.type_checker_utils import unify, type_to_str, broadcast_op  # noqa: E501
+
+    t1, s = infer_expr(node[1], ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+                       ctx.add_error)
+    t2, s = infer_expr(node[2], ctx.env, s, ctx.func_env, ctx.class_env,
+                       ctx.add_error)
+
+    # Apply accumulated substitutions before shape comparison.
+    if t1:
+        t1 = s.apply(t1)
+
+    if t2:
+        t2 = s.apply(t2)
+
+    if isinstance(t1, TTensor) and isinstance(t2, TTensor):
+        try:
+            s = unify(t1, t2, s)
+            t1 = s.apply(t1)  # register any new dim bindings in t1
+        except TypeError:
+            ctx.add_error(
+                f"Shape mismatch in mul: {type_to_str(t1)} vs {type_to_str(t2)}"  # noqa: E501
+            )
+    return broadcast_op(t1, t2), s
+
+
+def expr_div(node: Any,
+             ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the result type of division ``t1 / t2``.
+
+    Valid cases:
+
+    - **tensor / scalar** broadcasts and result has the shape of ``t1``.
+    - **scalar / scalar** result is ``ℝ``.
+    - **tensor / tensor** must match dimensions for element-wise operation,
+      else a type error is reported.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("div", numerator_expr, denominator_expr)``.
+    ctx : ExprContext
+        Current inference context.  ``ctx.s`` is threaded through both
+        operand inferences and updated with any new unification bindings.
+        Shape mismatch errors are registered via ``ctx.add_error``.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(unified_tensor_type, s)`` for tensor / tensor.
+        ``(tensor_type, s)`` for tensor / scalar (broadcast).
+        ``(T_REAL, s)`` for scalar / scalar.
+        ``(None, s)`` when the numerator type could not be determined.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_div, TTensor
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({"x": TTensor(((3, "invariant"),)), "y": TTensor(((3, "invariant"),))}, Substitution(), {}, {}, [].append)
+    >>> t, _= expr_div(("div", ("var", "x"), ("num", 2.0)), ctx)  # ℝ[3] / ℝ → ℝ[3]
+    >>> t
+    ℝ[3]
+    >>> t, _= expr_div(("div", ("num", 6.0), ("num", 2.0)), ctx)  # ℝ / ℝ → ℝ
+    >>> t
+    ℝ
+    >>> t, _= expr_div(("div", ("var", "x"), ("var", "y")), ctx)  # ℝ[3] / ℝ[3] → ℝ[3]
+    >>> t
+    ℝ[3]
+    >>> errors = []
+    >>> ctx2 = ExprContext({"x": TTensor(((3, "invariant"),)), "z": TTensor(((2, "invariant"),))}, Substitution(), {}, {}, errors.append)  # noqa: E501
+    >>> t, _= expr_div(("div", ("var", "x"), ("var", "z")), ctx2)  # ℝ[3] / ℝ[2] → error
+    >>> errors
+    ['Shape mismatch in div: ℝ[3] vs ℝ[2]']
+    """
+    from physika.utils.type_checker_utils import unify, type_to_str, broadcast_op  # noqa: E501
+
+    t1, s = infer_expr(node[1], ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+                       ctx.add_error)
+    t2, s = infer_expr(node[2], ctx.env, s, ctx.func_env, ctx.class_env,
+                       ctx.add_error)
+
+    if t1:
+        t1 = s.apply(t1)
+
+    if t2:
+        t2 = s.apply(t2)
+
+    if isinstance(t1, TTensor) and isinstance(t2, TTensor):
+        try:
+            s = unify(t1, t2, s)
+            t1 = s.apply(t1)
+        except TypeError:
+            ctx.add_error(
+                f"Shape mismatch in div: {type_to_str(t1)} vs {type_to_str(t2)}"  # noqa: E501
+            )
+    return broadcast_op(t1, t2), s
+
+
+def expr_matmul(node: Any,
+                ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the result type of matrix multiplication ``t1 @ t2``.
+
+    ``matmul_op`` handles supported rank combinations.
+    The inner dimensions must agree and a type error is reported otherwise.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("matmul", left_expr, right_expr)``.
+    ctx : ExprContext
+        Current inference context.  ``ctx.s`` is threaded through both
+        operand inferences and updated with any new substitution bindings.
+        Shape incompatibility errors are reported via ``ctx.add_error``.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(T_REAL, s)`` for a dot product (vector @ vector).
+        ``(TTensor([m, p]), s)`` for a mat-mat product (ℝ[m,n] @ ℝ[n,p]).
+        ``(None, s)`` when either operand type could not be determined or
+        shapes are incompatible.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_matmul, TTensor
+    >>> from physika.utils.types import Substitution
+    >>> env = {"A": TTensor(((2, "invariant"), (3, "invariant"))), "B": TTensor(((3, "invariant"), (4, "invariant")))}  # noqa: E501
+    >>> ctx = ExprContext(env, Substitution(), {}, {}, [].append)
+    >>> t, _= expr_matmul(("matmul", ("var", "A"), ("var", "B")), ctx)  # ℝ[2,3] @ ℝ[3,4] → ℝ[2,4]
+    >>> t
+    ℝ[2,4]
+    >>> env2 = {"u": TTensor(((3, "invariant"),)), "v": TTensor(((3, "invariant"),))}  # noqa: E501
+    >>> ctx2 = ExprContext(env2, Substitution(), {}, {}, [].append)
+    >>> t, _= expr_matmul(("matmul", ("var", "u"), ("var", "v")), ctx2)  # ℝ[3] @ ℝ[3] → ℝ (dot)  # noqa: E501
+    >>> t
+    ℝ
+    """
+    from physika.utils.type_checker_utils import matmul_op
+    t1, s = infer_expr(node[1], ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+                       ctx.add_error)
+    t2, s = infer_expr(node[2], ctx.env, s, ctx.func_env, ctx.class_env,
+                       ctx.add_error)
+    # Apply accumulated substitutions so symbolic dims are as resolved as possible.  # noqa: E501
+    if t1:
+        t1 = s.apply(t1)
+
+    if t2:
+        t2 = s.apply(t2)
+
+    return matmul_op(t1, t2, ctx.add_error), s
+
+
+def expr_pow(node: Any,
+             ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """Infer the result type of exponentiation ``t1 ** t2``.
+
+    The result has the same shape as the base. The exponent type is inferred
+    to accumulate substitutions but does not affect the output shape.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("pow", base_expr, exp_expr)``.
+    ctx : ExprContext
+        Current inference context.  Only the base expression is used to
+        determine the result type; ``ctx.s`` is threaded through the base
+        inference and the result has the base's type after substitution.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(base_type, s)``. Same type as the base expression after applying
+        the accumulated substitution.
+        ``(None, s)`` when the base type could not be determined.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_pow, TTensor
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({"x": TTensor(((3, "invariant"),))}, Substitution(), {}, {}, [].append)
+    >>> t, _= expr_pow(("pow", ("var", "x"), ("num", 2.0)), ctx)  # ℝ[3] ** ℝ → ℝ[3]  # noqa: E501
+    >>> t
+    ℝ[3]
+    >>> t, _= expr_pow(("pow", ("num", 2.0), ("num", 3.0)), ctx)  # ℝ ** ℝ → ℝ
+    >>> t
+    ℝ
+    """
+    t1, s = infer_expr(node[1], ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+                       ctx.add_error)
+
+    if t1:
+        t1 = s.apply(t1)
+
+    return t1, s
+
+
+def expr_neg(node: Any,
+             ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the result type of negation ``-expr``.
+
+    Negation is shape-preserving and inferred through the
+    single operand sub-expression.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("neg", operand_expr)``.
+    ctx : ExprContext
+        Current inference context passed unchanged to the operand inference.
+        The returned substitution reflects any new bindings produced while
+        inferring the operand.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        Exactly the result of inferring the operand: ``(operand_type, s)``.
+        ``(None, s)`` when the operand type could not be determined.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_neg, TTensor, T_REAL
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({"x": TTensor(((3, "invariant"),))}, Substitution(), {}, {}, [].append)  # noqa: E501
+    >>> t, _= expr_neg(("neg", ("var", "x")), ctx)  # -ℝ[3] → ℝ[3]
+    >>> t
+    ℝ[3]
+    >>> t, _= expr_neg(("neg", ("num", 1.0)), ctx)  # -ℝ → ℝ
+    >>> t
+    ℝ
+    """
+    return infer_expr(node[1], ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+                      ctx.add_error)
+
+
+def expr_call(node: Any,
+              ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the result type of a function call.
+
+    Resolution order:
+
+    1. Built-in elementwise functions (``exp``, ``sin``, ``cos``, ``sqrt``,
+       ``abs``, ``tanh``, ``log``, ``real``, ``imag``) — preserve the shape
+       of their first argument.
+    2. Built-in reduction (``sum``) → ``ℝ``.
+    3. ``grad(f, x)`` → same shape as ``x``.
+    4. User-defined functions in ``func_env`` — arity and argument types
+       are checked; each argument is unified against its declared parameter
+       type; the declared return type is returned.
+
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("call", func_name, arg_list)`` where
+        *func_name* is a ``str`` and *arg_list* is a list of expression nodes.
+    ctx : ExprContext
+        Current inference context.  ``ctx.s`` is threaded through all
+        argument inferences and updated with unification bindings from
+        parameter matching.  Arity and type mismatch errors are reported via
+        ``ctx.add_error``.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(result_type, s)`` where *result_type* depends on the solved
+        path and type.
+        ``(None, s)`` when the call target is unrecognised.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_call, T_REAL, TTensor  # noqa: E501
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({"x": TTensor(((3, "invariant"),))}, Substitution(), {}, {}, [].append)  # noqa: E501
+    >>> t, _= expr_call(("call", "sin", [("var", "x")]), ctx)  # element-wise
+    >>> t
+    ℝ[3]
+    >>> t, _= expr_call(("call", "sum", [("var", "x")]), ctx)  # ℝ
+    >>> t
+    ℝ
+    >>> t, _= expr_call(("call", "grad", [("num", 1.0), ("var", "x")]), ctx)
+    >>> t
+    ℝ[3]
+    >>> func_env = {"f": ([TTensor(((3, "invariant"),))], TTensor(((3, "invariant"),)))}  # noqa: E501
+    >>> ctx2 = ExprContext({"x": TTensor(((3, "invariant"),))}, Substitution(), func_env, {}, [].append)  # noqa: E501
+    >>> t, _= expr_call(("call", "f", [("var", "x")]), ctx2)
+    >>> t
+    ℝ[3]
+    """
+    from physika.utils.type_checker_utils import from_typespec, unify
+
+    func_name, args = node[1], node[2]
+    # Infer all argument types first
+    arg_types = []
+    s = ctx.s
+    for a in args:
+        at, s = infer_expr(a, ctx.env, s, ctx.func_env, ctx.class_env,
+                           ctx.add_error)
+        arg_types.append(at)
+
+    # Built-in functions
+    elementwise_ops = ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh",
+                       "real", "imag")
+    if func_name in elementwise_ops:
+        # Element-wise ops preserve the shape of their argument
+        if arg_types:
+            return arg_types[0], s
+        else:
+            return T_REAL, s
+
+    if func_name in ("sum"):
+        return T_REAL, s
+    if func_name == "grad":
+        # TODO: We should add support to get the tangent space type (e.g. Tₓ)
+        return (arg_types[1] if len(arg_types) >= 2 else None), s
+
+    # User defined functions
+    if func_name in ctx.func_env:
+        param_types, ret_type = ctx.func_env[func_name]
+        if len(args) != len(param_types):
+            ctx.add_error(
+                f"Function '{func_name}' expects {len(param_types)} args, got {len(args)}"  # noqa: E501
+            )
+        else:
+            for i, (pt, at) in enumerate(zip(param_types, arg_types)):
+                # Convert raw typespec to Type when needed.
+                if not isinstance(pt,
+                                  (TVar, TScalar, TTensor, TFunc, TInstance)):
+                    pt = from_typespec(pt)
+                if pt is not None and at is not None:
+                    try:
+                        s = unify(pt, at, s)
+                    except TypeError as e:
+                        ctx.add_error(f"Arg {i} of '{func_name}': {e}")
+        # return the inferred type (no errors catched during unifcation)
+        if not isinstance(ret_type, (TVar, TScalar, TTensor, TFunc, TInstance,
+                                     type(None))):  # noqa: E125
+            ret = from_typespec(ret_type)
+        else:
+            ret = ret_type
+        return ret, s
+
+    # Unknown call
+    return None, s
+
+
+def expr_for_expr(
+        node: Any, ctx: ExprContext,
+        new_dim: Callable[[], TDim]) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the type of for-expression ``for i : ℕ(n) → body``.
+
+    The loop variable ``i`` is bound as ``ℕ`` inside the body.
+    The result type has explicit ``ℕ(n)`` size as its leading dimension.
+    When the body is itself a tensor (implicit for loops) the result is same
+    rank. Nested for-exprs produce multi-dimensional tensors.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("for_expr", loop_var, size_expr, body_expr)``
+        where *size_expr* is typically ``("num", n)`` literal, and *body_expr*
+        is the body expression.
+    ctx : ExprContext
+        Current inference context.  The body is inferred with an extended
+        environment that passes *loop_var* as ``ℕ``.  ``ctx.s`` is threaded
+        through the size and body inferences.
+    new_dim : Callable[[], TDim]
+        Fresh symbolic dimension variables, used when *size_expr*
+        is not a numeric literal.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(TTensor(((n, "invariant"),) + body_dims), s)`` when the body has a
+        tensor type, prepends the outer ``ℕ(n)`` dimension.
+        ``(TTensor(((n, "invariant"),)), s)`` when the body is scalar (``ℝ``).
+        The leading dimension is a concrete ``int`` for literal sizes or a
+        fresh ``TDim`` for dynamic sizes.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_for_expr
+    >>> from physika.utils.types import Substitution, new_dim
+    >>> ctx = ExprContext({}, Substitution(), {}, {}, [].append)
+    >>> t, _= expr_for_expr(("for_expr", "i", ("num", 3.0), ("imaginary")), ctx, new_dim)  #  ℝ[3]  # noqa: E501
+    >>> t
+    ℝ[3]
+    >>> inner_body = ("array", [("num", 1.0), ("num", 2.0)])  #  ℝ[2]
+    >>> t, _= expr_for_expr(("for_expr", "i", ("num", 4.0), inner_body), ctx, new_dim)  # ℝ[4,2]  # noqa: E501
+    >>> t
+    ℝ[4,2]
+    """
+    from physika.utils.type_checker_utils import make_tensor
+    loop_var, size_expr, body_expr = node[1], node[2], node[3]
+    # Infer the size expression for substitution.
+    _, s = infer_expr(size_expr, ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+                      ctx.add_error)
+
+    # Extend env dict with the loop variable bound as ℕ.
+    body_t, s = infer_expr(node=body_expr,
+                           env={
+                               **ctx.env, loop_var: T_NAT
+                           },
+                           s=s,
+                           func_env=ctx.func_env,
+                           class_env=ctx.class_env,
+                           add_error=ctx.add_error)
+
+    # Use a concrete dim when the size is a literal, otherwise a fresh TDim.
+    outer_dim: Union[int, TDim]
+    if isinstance(size_expr, tuple) and size_expr[0] == "num":
+        outer_dim = int(size_expr[1])
+    else:
+        outer_dim = new_dim()
+
+    # Prepend the outer dimension:
+    # scalar body → ℝ[n]
+    # tensor body → ℝ[n, etc]
+    # for 1-level for loops body_t ==  ℕ -> True
+    if isinstance(body_t, TTensor):
+        return TTensor(((outer_dim, "invariant"), ) + body_t.dims), s
+    return make_tensor([outer_dim]), s
+
+
+def expr_for_expr_range(
+        node: Any, ctx: ExprContext,
+        new_dim: Callable[[], TDim]) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the type of a range for-expression ``for i : ℕ(start, end) → body``
+
+    Is similar to ``expr_for_expr`` but the size is derived from numeric
+    ``start`` and ``end`` bounds. When bounds are non literal, a fresh
+    symbolic dimension is introduced.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form
+        ``("for_expr_range", loop_var, start_expr, end_expr, body_expr)``
+        where  *start_expr* and *end_expr* are num nodes (``("num", value)``).
+    ctx : ExprContext
+        Current inference context.  The body is inferred with an extended
+        environment that passes *loop_var* as ``ℕ``.  ``ctx.s`` is
+        threaded through the body inference.
+    new_dim : Callable[[], TDim]
+        Fresh symbolic dimension variables, used when
+        *start_expr* or *end_expr* is not a numeric literal.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(TTensor(((end - start, "invariant"),) + body_dims), s)`` when both
+        bounds are literals and the body has a tensor type.
+        ``(TTensor(((end - start, "invariant"),)), s)`` when both bounds are
+        literals and the body is scalar.
+        ``(TTensor(((TDim, "invariant"), ...)), s)`` when either bound is
+        dynamic, a fresh symbolic dimension replaces the outer size.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_for_expr_range
+    >>> from physika.utils.types import Substitution, new_dim
+    >>> ctx = ExprContext({}, Substitution(), {}, {}, [].append)
+    >>> t, _= expr_for_expr_range(("for_expr_range", "i", ("num", 0.0), ("num", 4.0), ("imaginary")), ctx, new_dim)
+    >>> t  # ℝ[4]
+    ℝ[4]
+    >>> inner_body = ("array", [("num", 0.0), ("num", 1.0), ("num", 2.0)])  # body produces ℝ[3]
+    >>> t, _= expr_for_expr_range(("for_expr_range", "k", ("num", 0.0), ("num", 2.0), inner_body), ctx, new_dim)  # noqa: E501
+    >>> t  # ℝ[2,3]
+    ℝ[2,3]
+    """
+    from physika.utils.type_checker_utils import make_tensor
+
+    _, loop_var, start_expr, end_expr, body_expr = node
+
+    # Bind loop variable as ℕ
+    body_t, s = infer_expr(node=body_expr,
+                           env={
+                               **ctx.env, loop_var: T_NAT
+                           },
+                           s=ctx.s,
+                           func_env=ctx.func_env,
+                           class_env=ctx.class_env,
+                           add_error=ctx.add_error)
+
+    outer_dim: Union[int, TDim]
+    if (isinstance(start_expr, tuple) and start_expr[0] == "num"
+            and isinstance(end_expr, tuple) and end_expr[0] == "num"):
+        outer_dim = int(end_expr[1]) - int(start_expr[1])
+    else:
+        outer_dim = new_dim()
+
+    # Case nested for-loops
+    if isinstance(body_t, TTensor):
+        return TTensor(((outer_dim, "invariant"), ) + body_t.dims), s
+    return make_tensor([outer_dim]), s
+
+
 EXPR_DISPATCH: dict = {
     "num": expr_num,
     "var": expr_var,
@@ -661,6 +1199,14 @@ EXPR_DISPATCH: dict = {
     "slice": expr_slice,
     "add": expr_add_sub,
     "sub": expr_add_sub,
+    "mul": expr_mul,
+    "div": expr_div,
+    "matmul": expr_matmul,
+    "pow": expr_pow,
+    "neg": expr_neg,
+    "call": expr_call,
+    "for_expr": expr_for_expr,
+    "for_expr_range": expr_for_expr_range,
 }
 
 
@@ -764,6 +1310,8 @@ def infer_expr(
     # Dispatch to the appropriate expr_* handler based on the AST tag.
     handler = EXPR_DISPATCH.get(node[0])
     if handler is not None:
+        if node[0] in ("for_expr", "for_expr_range"):
+            return handler(node, ctx, new_dim)
         return handler(node, ctx)
 
     # No handler registered for this tag — report and return unknown type.
