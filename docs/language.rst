@@ -633,9 +633,9 @@ Resolution order:
    first argument.
 2. **Built-in reduction** (``sum``): ``ℝ``.
 3. **grad(f, x)**: same type as ``x``.
-4. **User-defined functions** in ``func_env`` — each argument is unified against its declared parameter type and
+4. **User-defined functions** in ``func_env``: each argument is unified against its declared parameter type and
    the declared return type is returned. The number of arguments received and declared are also checked.
-5. Unknown call target → ``(None, s)``.
+5. Unknown call target returns ``(None, s)``.
 
 ::
 
