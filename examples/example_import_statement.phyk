@@ -1,0 +1,8 @@
+from factorial import fact
+
+fact(1.0)
+
+
+from train_fully_connected import sigma
+
+sigma([1.0])

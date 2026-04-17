@@ -101,6 +101,11 @@ def p_dimension_type_as_symbol(p):
     p[0] = (mapping.get(p[1], p[1]), "invariant")
 
 
+def p_statement_import(p):
+    """statement : FROM ID IMPORT ID NEWLINE"""
+    p[0] = ("import", p[2], p[4])
+
+
 # Statements
 def p_statement_function(p):
     """statement : DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT RETURN func_expr NEWLINE DEDENT"""  # noqa: E501

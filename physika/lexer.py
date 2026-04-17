@@ -5,7 +5,8 @@ tokens = ("ID", "NUMBER", "TYPE", "STRING", "PLUS", "MINUS", "TIMES", "DIVIDE",
           "LEQ", "GEQ", "PLUSEQ", "COLON", "COMMA", "ARROW", "LPAREN",
           "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE", "INDENT", "DEDENT",
           "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS", "LAMBDA", "TANGENT",
-          "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION", "WALRUS")
+          "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION", "WALRUS", "FROM",
+          "IMPORT")
 
 reserved = {
     "def": "DEF",
@@ -16,7 +17,9 @@ reserved = {
     "else": "ELSE",
     "Symbol": "SYMBOL",
     "Function": "FUNCTION",
-    "Equation": "EQUATION"
+    "Equation": "EQUATION",
+    "from": "FROM",
+    "import": "IMPORT"
 }
 
 t_POWER = r"\*\*"
