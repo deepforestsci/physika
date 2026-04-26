@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from physika.utils.print_utils import _from_torch, _infer_type
+from physika.z2 import Z2  # noqa
 
 
 def physika_print(value: Any) -> None:

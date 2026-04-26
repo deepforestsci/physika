@@ -37,7 +37,9 @@ def p_statements_single(p):
 # Types
 def p_type_scalar(p):
     """type_spec : TYPE"""
-    if p[1] == "ℤ":
+    if p[1] == "ℤ2":
+        p[0] = "ℤ2"
+    elif p[1] == "ℤ":
         p[0] = "ℤ"
     elif p[1] == "ℕ":
         p[0] = "ℕ"

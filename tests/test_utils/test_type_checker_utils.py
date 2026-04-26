@@ -1,15 +1,6 @@
 import pytest
-from physika.utils.types import (
-    TVar,
-    TDim,
-    TTensor,
-    TFunc,
-    TInstance,
-    T_REAL,
-    T_NAT,
-    T_COMPLEX,
-    T_STRING,
-)
+from physika.utils.types import (TVar, TDim, TTensor, TFunc, TInstance, T_REAL,
+                                 T_NAT, T_COMPLEX, T_STRING, T_Z2)
 from physika.utils.type_checker_utils import (
     from_typespec,
     occurs_in,
@@ -49,6 +40,9 @@ class TestFromTypespec:
         assert from_typespec("ℂ") == T_COMPLEX
 
         assert from_typespec("string") == T_STRING
+
+        assert from_typespec("ℤ2") == T_Z2
+        assert from_typespec("Z2") == T_Z2
 
         result = from_typespec(("tensor", [(3, "invariant")]))
         assert result == TTensor(((3, "invariant"), ))
@@ -213,6 +207,9 @@ class TestUnify:
         assert unify(T_STRING, T_STRING, s) is s
         assert s == {}  # no new bindings
 
+        assert unify(T_Z2, T_Z2, s) is s
+        assert s == {}  # no new bindings
+
     def test_nat_real_compatible(self):
         """
         Tests that set of natural number is compatible with real numbers
@@ -280,6 +277,8 @@ class TestUnify:
         """
         with pytest.raises(TypeError):
             unify(T_REAL, T_COMPLEX, self.s())
+        with pytest.raises(TypeError):
+            unify(T_Z2, T_COMPLEX, self.s())
 
     def test_scalar_tensor_mismatch_raises(self):
         """
@@ -291,6 +290,10 @@ class TestUnify:
             unify(T_REAL, t, self.s())
         with pytest.raises(TypeError):
             unify(t, T_REAL, self.s())
+        with pytest.raises(TypeError):
+            unify(T_Z2, t, self.s())
+        with pytest.raises(TypeError):
+            unify(t, T_Z2, self.s())
 
     def test_tensors_same_shape(self):
         """
@@ -446,6 +449,7 @@ class TestBroadcast:
         """scalar OP scalar should return scalar."""
         assert broadcast_op(T_REAL, T_REAL) == T_REAL
         assert broadcast_op(T_NAT, T_NAT) == T_NAT
+        assert broadcast_op(T_Z2, T_Z2) == T_Z2
 
     def test_tensor_wins_over_scalar_left(self):
         """tensor OP scalar should return a tensor."""

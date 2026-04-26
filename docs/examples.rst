@@ -186,3 +186,12 @@ or ``6.674e-11`` are valid numeric literals.
 
 .. literalinclude:: ../examples/greek_letter_and_scientific_notation.phyk
    :language: text
+
+Z₂ modulo type-2
+----------------
+
+Physika supports arithmetic in Z₂ (integers modulo 2), including XOR and AND operations,
+making it useful for working with binary logic.
+
+.. literalinclude:: ../examples/integer_modulo_two.phyk
+   :language: text

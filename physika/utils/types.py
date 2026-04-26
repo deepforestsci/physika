@@ -89,19 +89,21 @@ class TScalar:
 
     Supports the four built-in scalars singletons
     ``T_REAL`` (ℝ), ``T_NAT`` (ℕ), ``T_COMPLEX`` (ℂ), and
-    ``T_STRING``.  ``TScalar`` is never created with a fresh name
-    during inference.
+    ``T_STRING``, ``T_Z2``.  ``TScalar`` is never created with
+    a fresh name during inference.
 
     Parameters
     ----------
     name : str
-        Unicode symbol (one of ``"ℝ"``, ``"ℕ"``, ``"ℂ"``, ``"string"``).
+        Unicode symbol (one of ``"ℝ"``, ``"ℕ"``, ``"ℂ"``, ``"string"``, ``"ℤ2"``).  # noqa: E501
 
     Examples
     --------
     >>> from physika.utils.types import TScalar
     >>> TScalar("ℝ")
     ℝ
+    >>> TScalar("ℤ2")
+    ℤ2
     >>> TScalar("ℝ") == TScalar("ℕ")
     False
     """
@@ -113,7 +115,7 @@ class TScalar:
         Returns
         -------
         str
-            One of ``"ℝ"``, ``"ℕ"``, ``"ℂ"``, or ``"string"``.
+            One of ``"ℝ"``, ``"ℕ"``, ``"ℂ"``, ``"string"``, or ``"ℤ2"``.
 
         Examples
         --------
@@ -311,6 +313,7 @@ T_REAL = TScalar("ℝ")
 T_NAT = TScalar("ℕ")
 T_COMPLEX = TScalar("ℂ")
 T_STRING = TScalar("string")
+T_Z2 = TScalar("ℤ2")
 
 
 class VarCounter:

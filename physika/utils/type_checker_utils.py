@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, List, Tuple, Union, Optional
 from physika.utils.types import (Type, TTensor, TScalar, TFunc, TInstance,
                                  TVar, TDim, T_REAL, T_NAT, T_COMPLEX,
-                                 T_STRING, Substitution)
+                                 T_STRING, T_Z2, Substitution)
 
 # Type aliases used throughout this module.
 TypeSpec = Any  # "ℝ", "ℕ", ("tensor", [...]), ("func_type", ...), None
@@ -746,7 +746,8 @@ def from_typespec(ts: Any) -> Optional[Type]:
     ----------
     ts : Any
         A parser type-spec: ``None``, ``"ℝ"``/``"R"``, ``"ℕ"``/``"N"``,
-        ``"ℂ"``, or ``"string"``, ``("tensor", [(dim, variance), ...])``,
+        ``"ℂ"``, ``"string"`` or ``"ℤ2"``/``"Z2"``,
+        ``("tensor", [(dim, variance), ...])``,
         ``("func_type", param_types, ret_type)``, ``("instance", name)``.
 
     Returns
@@ -760,6 +761,8 @@ def from_typespec(ts: Any) -> Optional[Type]:
     >>> from physika.utils.types import T_REAL, TTensor
     >>> from_typespec("ℝ")
     ℝ
+    >>> from_typespec("ℤ2")
+    ℤ2
     >>> from_typespec(("tensor", [(3, "invariant"), (4, "invariant")]))
     ℝ[3,4]
     >>> from_typespec(None) is None
@@ -775,6 +778,8 @@ def from_typespec(ts: Any) -> Optional[Type]:
         return T_COMPLEX
     if ts == "string":
         return T_STRING
+    if ts in ("ℤ2", "Z2"):
+        return T_Z2
     if isinstance(ts, tuple):
         if ts[0] == "tensor":
             # Converts dimensions to TDim

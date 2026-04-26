@@ -4,7 +4,7 @@ import dataclasses
 
 from physika.utils.types import (TScalar, TTensor, TVar, TDim, TFunc,
                                  TInstance, T_REAL, T_NAT, T_COMPLEX, T_STRING,
-                                 VarCounter, Substitution)
+                                 T_Z2, VarCounter, Substitution)
 
 
 class TestHMTypes:
@@ -75,6 +75,16 @@ class TestHMTypes:
         assert T_STRING != T_REAL
         assert T_STRING != T_NAT
         assert T_STRING != T_COMPLEX
+
+    def test_TZ2(self):
+        """
+        T_Z2 is a singleton instance of TScalar representing  modul0 ℤ₂.
+        """
+        assert repr(T_Z2) == "ℤ2"
+        assert T_Z2 == TScalar("ℤ2")
+        assert T_Z2 != T_REAL
+        assert T_Z2 != T_NAT
+        assert T_Z2 != T_COMPLEX
 
     def test_TDim(self):
         """
