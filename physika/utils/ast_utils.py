@@ -55,10 +55,12 @@ BodyStmtTag = Literal[
     "body_for_accum",  # for i j k: ...    accumulation loop. emits
     #                                          torch.stack
     #                                          per target
+    "loop_decl"
     "loop_assign",  # x = expr          inside for-loop body
     "loop_pluseq",  # x += expr         inside for-loop body
     "loop_index_pluseq",  # C[i,...] += expr  nD accumulation inside for-loop
     #                                             body
+    "for_decl"
     "for_assign",  # x = expr          program-level for body
     "for_pluseq",  # x += expr         program-level for body
     "for_call",  # f(x)              program-level for body
@@ -881,7 +883,11 @@ def emit_func_loop_body(
         if loop_stmt is None:
             continue
         tag = loop_stmt[0]
-        if tag == "loop_assign":
+        if tag == "loop_decl":
+            _, var_name, type_spec, expr = loop_stmt
+            expr_code = ast_to_torch_expr(expr, current_loop_var=active)
+            lines.append(f"{prefix}{var_name} = {expr_code}")
+        elif tag == "loop_assign":
             _, var_name, expr = loop_stmt
             lines.append(
                 f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=active)}"  # noqa: E501
@@ -1297,7 +1303,12 @@ def emit_for_stmts(
         if not isinstance(s, tuple):
             continue
         body_op = s[0]
-        if body_op == "for_assign":
+        if body_op == "for_decl":
+            _, var_name, type_spec, expr = s
+            result.append(
+            f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=loop_var)}" # noqa: E501
+            )
+        elif body_op == "for_assign":
             _, var_name, expr = s
             result.append(
                 f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=loop_var)}"  # noqa: E501
