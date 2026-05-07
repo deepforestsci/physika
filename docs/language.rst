@@ -828,6 +828,7 @@ so that type errors inside them are caught::
            y : ℝ = 0.0 - x
 
 Error inside a branch are tracked::
+
    def f(x: ℝ): ℝ:
        if x > 0.0:
            v : ℝ[3] = 2.0
@@ -912,7 +913,7 @@ In place accumulation (``+=``) inside a for loop body.  Two forms:
 
 - ``"for_pluseq"``: scalar accumulation (``total += expr``).  Only the
   RHS is inferred and no need for index unification.
-- ``"loop_index_pluseq"`` — indexed accumulation (``C[i, j] += expr``).
+- ``"loop_index_pluseq"``: indexed accumulation (``C[i, j] += expr``).
   Each index expression is unified against the matching dimension of the
   target array in ``ctx.s``, binding the ``TDim`` loop variables to
   concrete sizes.
