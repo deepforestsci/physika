@@ -815,71 +815,168 @@ unified with the declared type::
    # "if/else branch type mismatch: then=ℝ[3], else=ℝ: ..."
    # "if/else return type mismatch: declared ℝ, got ℝ[3]: ..."
 
-Statement type inference
-------------------------
-Physika statement type inference at function's body and top-level programs (declaration, assigments, for-loops, if-else blocks, random sampling, etc)
-are handled by a  handler ``stmt_*`` function in ``physika/utils/infer_stmts.py``.
+* **stmt_body_if_else** (``("body_if_else", cond_expr, then_stmts, else_stmts)`` / ``("body_if", cond_expr, then_stmts)``)
 
-Every handler receives an ``StmtContext`` that bundles six environment arguments (``env``, ``s``, ``func_env``, ``class_env``, ``func_name``, ``return_type``):
+``if/else`` and ``if``-only node inside a function body where neither branch
+ends with ``return``.  Both branch bodies are run through ``infer_stmts``
+so that type errors inside them are caught::
 
-- ``env``: Maps variable names to their current ``Type``.
-- ``s``: ``Substitution`` accumulated so far. Bindings from sub-expressions are visible to later ones.
-- ``func_env``: Maps function names to ``(param_types, return_type)``.
-- ``class_env``: Maps class names to their definition dicts.
--  ``func_name``: User defined function name. Used when calling ``check_function`` from main type checking algorithm.
-- ``return_type``: Used especifically in ``body_if_return`` and ``body_if_else_return`` to unify the return expression type against it.
+   def f(x: ℝ): ℝ:
+       if x > 0.0:
+           y : ℝ = x * x
+       else:
+           y : ℝ = 0.0 - x
 
-Each handler unifies inferred type against declared type. If a mismatch is found, an error is reported. ``stmt_*`` handlers instead of returning the inferred type, updates ``ctx: StmtContext`` with inferred and declared information.
-Physika support statements as follows.
+Error inside a branch are tracked::
+   def f(x: ℝ): ℝ:
+       if x > 0.0:
+           v : ℝ[3] = 2.0
+   # declared ℝ[3] but inferred ℝ
+   # type checker call:
+   stmt_body_if_else(("body_if_else", cond,
+                      [("body_decl","v",("tensor",[(3,"invariant")]),("num",2.0))],
+                      []), ctx)
+   # "In 'f': 'v' declared ℝ[3], inferred ℝ"
 
-**1. At function level** (``body_statements``).
+**2. Inside function and for loop bodies**.
 
-* **stmt_body_decl** (``("body_decl", var_name, var_type, expr)``)
+* **stmt_body_for** (``("body_for", loop_var, loop_body, indexed_arrays)``)
 
-Typed variable declaration inside a function body (``x : ℝ = expr``).
-Infers the type of ``expr``, unifies it against the declared type, and
-registers the resolved type in ``env``.  On mismatch the inferred type is
-stored so inference can continue.
+Inference statements for ``for-loop`` (``for i:``) inside a function body.
+Registers ``loop_var`` as ``T_NAT``, then runs ``infer_stmts`` over the body.
+New bindings from the body are added to ``ctx.env``.
 
-Match: ``env[var_name]`` is set to the declared type::
+The fourth element ``indexed_arrays`` is to infer the size of the array to range over using ``range(len(arr))`` and type inference ignores this argument.
+In a physika program the body must index an array::
 
-   # x : ℝ = 3.14
-   stmt_body_decl(("body_decl","x","ℝ",("num",3.14)), ctx)
-   # ctx.env["x"] == ℝ
+   # for i:
+   #     total = arr[i]
+   stmt_body_for(("body_for","i",
+                  [("loop_assign","total",("index","arr",("var","i")))],
+                  ["arr"]), ctx)
+   # ctx.env["i"] == ℕ
+   # ctx.env["total"] == ℝ
 
-Mismatch: error reported, ``env[var_name]`` is set to the inferred type::
+* **stmt_body_for_range** (``("body_for_range", loop_var, start, stop, loop_body)``)
 
-   # v : ℝ[3] = 2.0
-   stmt_body_decl(("body_decl","v",("tensor",[(3,"invariant")]), ("num",2.0)), ctx)
-   # errors == ["In 'f': 'v' declared ℝ[3], inferred ℝ: Cannot unify tensor ℝ[3] with scalar ℝ"]
-   # inferred type stored so inference continues
-   # ctx.env["v"] == ℝ
+Ranged for loop (``for i : ℕ(n):``).
+Similar syntax as previous loops but here, an user can explicitly define the values to range over.
+In the type checker, the ``start`` and ``stop`` expressions are not checked. Our type system check the body statements::
 
-* **stmt_body_assign** (``("body_assign", var_name, expr)``)
+   # for i : ℕ(10):
+   #     acc = x
+   stmt_body_for_range(("body_for_range","i",("num",0),("num",10),
+                        [("loop_assign","acc",("var","x"))]), ctx)
+   # ctx.env["i"] == ℕ
+   # ctx.env["acc"] == ℝ
 
-Untyped assignment inside a function body (``x = expr``).
-Infers the type of ``expr`` and registers it in ``env``.  There is no
-declared type to check against so no error is emitted.  If inference
-returns ``None`` a fresh type variable is stored.
+* **stmt_body_zeros_decl** (``("body_zeros_decl", var_name, type_spec)``)
 
-Scalar::
+Zero initialised array declaration (``C : ℝ[n, o]``).
+Registers the declared type in ``env`` so that a subsequent
+``for i j k:`` accumulation loop can look up ``C``'s shape for index
+unification::
 
-   # x = 3.0
-   stmt_body_assign(("body_assign","x",("num",3.0)), ctx)
-   # ctx.env["x"] == ℝ,  errors == []
+   # C : ℝ[3, 4]
+   stmt_body_zeros_decl(("body_zeros_decl","C",
+                          ("tensor",[(3,"invariant"),(4,"invariant")])), ctx)
+   # ctx.env["C"] == ℝ[3,4]
 
-Array::
+If the type cannot be resolved, a fresh ``TVar`` is added.
 
-   # v = [1.0, 2.0, 3.0]
-   stmt_body_assign(("body_assign","v",
-                     ("array",[num(1),num(2),num(3)])), ctx)
-   # ctx.env["v"] == ℝ[3]
+* **stmt_body_for_accum** (``("body_for_accum", loop_vars, loop_body)``)
 
-If unknown type, a fresh type variable (``TVar``) stored::
+Multi-variable accumulation loop (``for i j k:``).
+Each loop variable is registered as a fresh ``TDim`` (dimension unification
+variable).``TDim`` is required because each variable is later unified against a
+specific array dimension::
 
-   # x not in env
-   stmt_body_assign(("body_assign","x",("var","unknown")), ctx)
-   # ctx.env["x"] == TVar("α0")
+   # for i j k:
+   #     C[i, j] += A[i, k] * B[k, j]
+   stmt_body_for_accum(("body_for_accum",["i","j","k"],[...]), ctx)
+   # ctx.env["i"], ["j"], ["k"]  are all fresh TDim instances
+
+* **stmt_for_assign** (``("loop_assign", var_name, rhs)``)
+
+Assignment statement inside a for loop body (``y = expr``).
+Infers the type of ``rhs`` and registers it in ``env``. If inference returns ``None``
+a fresh ``TVar`` is stored and type checking continues, allowing for unification::
+
+   # y = arr[i]
+   stmt_for_assign(("loop_assign","y",("index","arr",("var","i"))), ctx)
+   # ctx.env["y"] == ℝ
+
+* **stmt_for_pluseq** (``("for_pluseq", arr_name, idx_exprs, rhs)`` / ``("loop_index_pluseq", arr_name, idx_exprs, rhs)``)
+
+In place accumulation (``+=``) inside a for loop body.  Two forms:
+
+- ``"for_pluseq"``: scalar accumulation (``total += expr``).  Only the
+  RHS is inferred and no need for index unification.
+- ``"loop_index_pluseq"`` — indexed accumulation (``C[i, j] += expr``).
+  Each index expression is unified against the matching dimension of the
+  target array in ``ctx.s``, binding the ``TDim`` loop variables to
+  concrete sizes.
+
+Indexed form: ``C : ℝ[3,4]``, ``i`` and ``j`` are ``TDim`` loop vars::
+
+   stmt_for_pluseq(("loop_index_pluseq","C",
+                    [("var","i"),("var","j")],("num",1.0)), ctx)
+   # ctx.s: binds i TDim to 3 and j TDim to 4
+   # ctx.env["i"], ctx.env["j"]: hold the original TDim objects
+
+* **stmt_loop_if** (``("loop_if", cond_expr, then_body)``)
+
+``if`` conditional inside a for loop body::
+
+   def f(x: ℝ): ℝ:
+      for i:
+         if arr[i] > 0.0:
+            pos = pos + arr[i]
+
+Infers ``cond_expr`` and runs ``infer_stmts`` over ``then_body``.
+New bindings from the body are added to ``ctx.env``::
+
+   stmt_loop_if(("loop_if", cond,
+                 [("loop_assign","result",("var","x"))]), ctx)
+   # ctx.env["result"] == ℝ
+
+* **stmt_loop_if_else** (``("loop_if_else", cond_expr, then_body, else_body)``)
+
+Similar to ``stmt_loop_if``, but includes the else branch statements infernece::
+
+   def f(x: ℝ): ℝ:
+      for i:
+         if arr[i] > 0.0:
+            pos = pos + arr[i]
+         else:
+            neg = neg + arr[i]
+
+Infers ``cond_expr`` and runs ``infer_stmts`` over both branches.
+New bindings from each branch are added to ``ctx.env``::
+
+   stmt_loop_if_else(("loop_if_else", cond,
+                      [("loop_assign","a",("var","x"))],
+                      [("loop_assign","b",("num",0.0))]), ctx)
+   # ctx.env["a"] == ℝ
+   # ctx.env["b"] == ℝ
+
+**3. Central dispatcher**.
+
+* **infer_stmts** (``infer_stmts(stmts, env, s, func_env, class_env, add_error)``)
+
+Dispatches a list of statement AST nodes to their ``stmt_*`` handler
+functions via ``STMT_DISPATCH``.  Called from the main type checking
+algorithm for both function bodies and top-level programs.
+
+Creates a fresh ``StmtContext`` and iterates over
+``stmts``.  Each node's tag is looked up in ``STMT_DISPATCH``.
+Returns the updated ``(env, s)`` pair::
+
+   env, s = infer_stmts(
+       [("body_decl","x","ℝ",("num",1.0)),
+        ("body_assign","y",("var","x"))],
+       {}, Substitution(), {}, {}, errors.append)
+   # env == {"x": ℝ, "y": ℝ},  errors == []
 
 Symbolic methods
 ----------------
