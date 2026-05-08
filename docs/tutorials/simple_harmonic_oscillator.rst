@@ -135,10 +135,30 @@ The algorithm proceeds in three phases:
   are zeroed out by subtracting a scaled multiple of the pivot row from every
   row below it, producing an upper triangular matrix.
 
-- **Back substitution** — After we get the upper triangular metrix, we first calculate 
+- **Back substitution** — After we get the upper triangular matrix, we first calculate 
   the value of the last variable. Then plug this value to find the value of next variable. 
   Then plug these two values to find the next variables..
 
+
+In the specific case of the Simple Harmonic Oscillator, the system of equations we are solving is:
+
+.. math::
+    \begin{bmatrix} 
+    1 & 0 \\ 
+    0 & \omega 
+    \end{bmatrix}
+    \begin{bmatrix} 
+    a \\ 
+    b 
+    \end{bmatrix}
+    =
+    \begin{bmatrix} 
+    x_0 \\ 
+    v_0 
+    \end{bmatrix}
+
+Since the coefficient matrix is already diagonal, we don't strictly need ``solve()`` here, as the variables :math:`a` and :math:`b` 
+are already decoupled. It is not needed in this case, but we are providing it as a pedagogical example for the general case.
 
 
 Time Evolution
