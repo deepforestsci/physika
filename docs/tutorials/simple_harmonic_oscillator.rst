@@ -137,7 +137,7 @@ The algorithm proceeds in three phases:
 
 - **Back substitution** — After we get the upper triangular matrix, we first calculate 
   the value of the last variable. Then plug this value to find the value of next variable. 
-  Then plug these two values to find the next variables..
+  Then plug these two values to find the next variables.
 
 
 In the specific case of the Simple Harmonic Oscillator, the system of equations we are solving is:
@@ -196,8 +196,9 @@ Physical Constants and Initial Conditions
     U(k, m, 4.7124, x0, v0) # t = 3 * π / 2
     U(k, m, 6.2832, x0, v0) # t = 2 * π
 
-Visualize trajectory
---------------------
+
+Visualize oscillation
+---------------------
 
 .. code-block:: text
 
@@ -209,7 +210,7 @@ Visualize trajectory
 
 
 .. figure:: /_static/tutorial_files/output_harmonic_oscillator.gif
-   :alt: Predicted trajecotory vs ground truth
+   :alt: output_harmonic_oscillator
    :align: center
    :width: 700px
 
