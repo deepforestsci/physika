@@ -9,7 +9,7 @@ from physika.runtime import compute_grad
 
 # === Functions ===
 def tanh(x):
-    return ((torch.exp(x) - torch.exp((0.0 - x))) / (torch.exp(x) + torch.exp((0.0 - x))))
+    return ((torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) - torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))) / (torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) + torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))))
 
 # === Classes ===
 class HamiltonianNet(nn.Module):

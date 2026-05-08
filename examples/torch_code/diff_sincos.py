@@ -8,9 +8,9 @@ from physika.runtime import compute_grad
 # === Functions ===
 def f(x):
     if x > 0:
-        return torch.cos(x)
+        return torch.cos(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
     else:
-        return torch.sin(x)
+        return torch.sin(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
 
 # === Program ===
 x0 = torch.tensor((-1.5), requires_grad=True)

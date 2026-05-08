@@ -507,14 +507,18 @@ def ast_to_torch_expr(node: ASTNode,
     >>> from physika.utils.ast_utils import ast_to_torch_expr
     >>> ast_to_torch_expr(("add", ("num", 1.0), ("var", "x")))
     '(1.0 + x)'
-    >>> ast_to_torch_expr(("call", "sin", [("var", "theta")]))
-    'torch.sin(theta)'
+    >>> expected = (
+    ...     "torch.sin(theta if isinstance(theta, torch.Tensor) "
+    ...     "else torch.tensor(float(theta)))"
+    ... )
+    >>> ast_to_torch_expr(("call", "sin", [("var", "theta")])) == expected
+    True
     >>> ast_to_torch_expr(("array", [("num", 1.0), ("num", 2.0)]))
     'torch.tensor([1.0, 2.0])'
     """
+
     if not isinstance(node, tuple):
         return repr(node)
-
     op = node[0]
 
     if op == "num":
@@ -628,6 +632,7 @@ def ast_to_torch_expr(node: ASTNode,
         arg_strs = [
             ast_to_torch_expr(arg, indent, current_loop_var) for arg in args
         ]
+        arg = arg_strs[0]
 
         # Map built-in functions to PyTorch equivalents
         torch_funcs = {
@@ -643,7 +648,7 @@ def ast_to_torch_expr(node: ASTNode,
         }
 
         if func_name in torch_funcs:
-            return f"{torch_funcs[func_name]}({', '.join(arg_strs)})"
+            return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
 
         elif func_name == "grad":
             # grad(output, input) -> compute_grad(output, input)
@@ -1148,9 +1153,9 @@ def generate_function(name: str, func_def: dict[str, Any]) -> str:
     ...     "body": ("call", "exp", [("var", "x")]),
     ...     "statements": [],
     ... }
-    >>> print(generate_function("f", func_def))
+    >>> print(generate_function("f", func_def)) # noqa: E501
     def f(x):
-        return torch.exp(x)
+        return torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
     """
     params = func_def["params"]
     body = func_def["body"]
@@ -1180,10 +1185,7 @@ def generate_function(name: str, func_def: dict[str, Any]) -> str:
             args = expr[2]
             arg_strs = [ast_to_torch_expr(arg) for arg in args]
             # Add known variables as keyword arguments (exclude equation vars)
-            kw_strs = [
-                f"{v}={v}" for v in known_vars if v not in equation_vars
-            ]
-            return f"solve({', '.join(arg_strs)}, {', '.join(kw_strs)})"
+            return f"solve({', '.join(arg_strs)})"
         return ast_to_torch_expr(expr)
 
     # Use if/else (not torch.where) when all params are scalars

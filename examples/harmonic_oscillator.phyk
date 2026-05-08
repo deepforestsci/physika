@@ -1,26 +1,91 @@
 # ============================================================
 # Harmonic Oscillator - Differentiable Time Evolution
 # ============================================================
-# Equation: m * d²x/dt² = -k * x
+# Equation: 
+#   m * d²x/dt² = -k * x
+# 
+# Angular frequence:
+#   ω = √(k / m)
 #
-# General solution (complex exponential form):
-#   x(t) = a * exp(i*ω*t) + b * exp(-i*ω*t)
-#   where ω = √(k/m)
+# General solution (sine-cosine form):
+#   x(t) = A * cos(ω t) + B * sin(ω t)
+# 
+# Velocity:
+#   v(t) = dx/dt = -Aω sin(ω t) + Bω cos(ω t)
+# 
+# Initial conditions:
+#   x(0) = x0
+#   v(0) = v0
 #
-# Initial conditions give a linear system:
-#   eq1: x0 = a + b
-#   eq2: v0 = i*ω*a - i*ω*b
-#
+# Apply initial conditions:
+#   x(0) = A = x0
+#   v(0) = Bω = v0 -> B = v0 / ω
+# 
+# Final solution:
+#   x(t) = x0 * cos(ω t) + (v0 / ω) * sin(ω t)
+# ============================================================
+
+
+# ------------------------------------------------------------
+# Helper functions
+# ------------------------------------------------------------
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i:ℕ(len) -> i*0
+    return results
+
+def zero_2d_array(rows: ℝ, cols: ℝ): R[m, n]:
+    results: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
+    return results
+
+# ------------------------------------------------------------
+# Gaussian elimination method 
+# ------------------------------------------------------------
+
+def solve(A: ℝ[m, m], b: ℝ[m]) : ℝ[m]:
+    n: ℝ = get_1d_array_length(b)
+    Aug: ℝ[m, m] = zero_2d_array(n, n+1)
+    result: ℝ[m] = zero_1d_array(n)
+    # create augmented matrix
+    for i:ℕ(n):
+        for j:ℕ(n):
+            Aug[i, j] = A[i, j]
+        Aug[i, n] = b[i]
+    # convert into upper triangular matrix
+    for pivot:ℕ(n):
+        for i:ℕ(pivot+1, n):
+            factor = Aug[i, pivot] / Aug[pivot, pivot]
+            for j:ℕ(pivot, n+1):
+                Aug[i, j] = Aug[i, j] - factor * Aug[pivot, j]
+    # back substitution
+    for i:ℕ(n):
+        ri = n - 1 - i
+        result[ri] = Aug[ri, n]
+        for j:ℕ(ri+1, n):
+            result[ri] = result[ri] - Aug[ri, j] * result[j]
+        result[ri] = result[ri] / Aug[ri, ri]
+    return result
+
 
 # ------------------------------------------------------------
 # Time Evolution U(k, m, t, x0, v0)
 # ------------------------------------------------------------
 def U(k: ℝ, m: ℝ, t: ℝ, x0: ℝ, v0: ℝ): ℝ:
     omega: ℝ = (k / m) ** 0.5
-    eq1: ℝ = 'x0 = a + b'
-    eq2: ℝ = 'v0 = i * omega * a - i * omega * b'
-    a, b = solve(eq1, eq2)
-    return a * exp(i * t * omega) + b * exp(0.0 - i * t * omega)
+    A: ℝ[2, 2] = [[1.0, 0.0], [0.0, omega]]
+    B: ℝ[2] = [x0, v0]
+    coeffs: ℝ[2] = solve(A, B)
+    a: ℝ = coeffs[0]
+    b: ℝ = coeffs[1]
+    return a * cos(omega * t) + b * sin(omega * t)
 
 # ------------------------------------------------------------
 # Physical Constants
@@ -60,7 +125,7 @@ animate(U, k, m, x0, v0, 0.0, 31.1416) # t = 10π
 
 
 # ------------------------------------------------------------
-# Velocity via grad(real(U), t) = dU/dt
+# Velocity via grad(U, t) = dU/dt
 # For x0=1, v0=0: x(t) = cos(t)
 #                  v(t) = -sin(t)
 # Expected: v(0) = 0,
@@ -68,10 +133,10 @@ animate(U, k, m, x0, v0, 0.0, 31.1416) # t = 10π
 #            v(π) = 0
 # ------------------------------------------------------------
 t0: ℝ = 0.0
-grad(real(U(k, m, t0, x0, v0)), t0)
+grad(U(k, m, t0, x0, v0), t0)
 
 t1: ℝ = 1.5708
-grad(real(U(k, m, t1, x0, v0)), t1)
+grad(U(k, m, t1, x0, v0), t1)
 
 t2: ℝ = 3.1416
-grad(real(U(k, m, t2, x0, v0)), t2)
+grad(U(k, m, t2, x0, v0), t2)

@@ -7,7 +7,7 @@ from physika.runtime import compute_grad
 
 # === Functions ===
 def sum_for_expr(s):
-    return torch.sum(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]]))
+    return torch.sum(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]]))))
 
 def dot_with_arr(s):
     a3 = torch.tensor([1.0, 2.0, 3.0, 4.0])
@@ -20,7 +20,7 @@ def matmul_scale(s):
     A3 = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
     I = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
     C3 = torch.stack([torch.stack([torch.sum(torch.stack([((s * A3[int(i), int(k)]) * I[int(k), int(j)]) for k in range(A3.shape[1])])) for j in range(I.shape[1])]) for i in range(A3.shape[0])])
-    return torch.sum(C3)
+    return torch.sum(C3 if isinstance(C3, torch.Tensor) else torch.tensor(float(C3)))
 
 def nested_sum(s):
     result = 0
@@ -36,7 +36,7 @@ def sq_vec(x):
     return torch.stack([((x ** 2) * (i + 1)) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]])
 
 def cos_freqs(x):
-    return torch.stack([torch.cos((x * (i + 1))) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]])
+    return torch.stack([torch.cos((x * (i + 1)) if isinstance((x * (i + 1)), torch.Tensor) else torch.tensor(float((x * (i + 1))))) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]])
 
 def elementwise_sq(x):
     return torch.stack([(x[int(i)] ** 2) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i))]])

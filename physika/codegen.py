@@ -80,9 +80,9 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     >>> code = from_ast_to_torch(unified_ast, print_code=False)
     >>> "def f(x):" in code
     True
-    >>> "torch.exp(x)" in code
+    >>> "torch.exp" in code
     True
-    >>> print(code)
+    >>> print(code)  # noqa: E501
     import torch
     import torch.nn as nn
     import torch.optim as optim
@@ -91,7 +91,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     <BLANKLINE>
     # === Functions ===
     def f(x):
-        return torch.exp(x)
+        return torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
     <BLANKLINE>
     # === Program ===
     physika_print(f(1.0))

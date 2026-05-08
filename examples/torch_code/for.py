@@ -44,7 +44,7 @@ def tensor_contraction(A, B, C):
     return T
 
 def sum_or_sum_sq(arr, sq):
-    return torch.where(torch.as_tensor(sq > 0.0), torch.sum(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]])), torch.sum(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]])))
+    return torch.where(torch.as_tensor(sq > 0.0), torch.sum(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]])))), torch.sum(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]])))))
 
 def abs_sum(arr):
     total = 0.0
@@ -170,7 +170,7 @@ for i in range(int(0), int(n)):
 physika_print(total)
 a = torch.stack([(i * 1) for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i))]])
 physika_print(a)
-cos_wave = torch.stack([torch.cos((i * 0.5)) for _fi_i in range(int(6)) for i in [torch.tensor(float(_fi_i))]])
+cos_wave = torch.stack([torch.cos((i * 0.5) if isinstance((i * 0.5), torch.Tensor) else torch.tensor(float((i * 0.5)))) for _fi_i in range(int(6)) for i in [torch.tensor(float(_fi_i))]])
 physika_print(cos_wave)
 add = torch.stack([torch.stack([(i + j) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i))]])
 physika_print(add)
@@ -188,7 +188,7 @@ q = torch.tensor([10, 20, 30, 40])
 physika_print(outer_product(p, q))
 x = torch.tensor([1, 0, 0, 0])
 y = torch.tensor([0, 1, 0, 0])
-dot = torch.sum(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i))]]))
+dot = torch.sum(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i))]]))))
 physika_print(dot)
 vals = torch.tensor([3, 1, 4, 1, 5])
 physika_print(get_last(vals))
@@ -272,7 +272,7 @@ if flag > 0:
 else:
     res = torch.stack([vals[int(i)] for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i))]])
 physika_print(res)
-total_c = torch.sum(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i))]]))
+total_c = torch.sum(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i))]]))))
 physika_print(total_c)
 scale = 2
 W = torch.stack([torch.stack([(i + j) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i))]])
@@ -283,7 +283,7 @@ else:
 physika_print(W)
 u2 = torch.tensor([1, 2, 3])
 v2 = torch.tensor([4, 5, 6])
-row_sums = torch.stack([torch.sum(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j))]])) for _fi_i in range(int(len(u2))) for i in [torch.tensor(float(_fi_i))]])
+row_sums = torch.stack([torch.sum(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j))]]) if isinstance(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j))]]), torch.Tensor) else torch.tensor(float(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j))]])))) for _fi_i in range(int(len(u2))) for i in [torch.tensor(float(_fi_i))]])
 physika_print(row_sums)
 data2 = torch.tensor([10, 20, 30, 40])
 norm_flag = 1

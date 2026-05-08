@@ -8,7 +8,7 @@ from physika.runtime import evaluate
 
 # === Functions ===
 def sigma(x):
-    return (1.0 / (1.0 + torch.exp((0.0 - x))))
+    return (1.0 / (1.0 + torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))))
 
 # === Classes ===
 class FullyConnectedNetwork(nn.Module):
