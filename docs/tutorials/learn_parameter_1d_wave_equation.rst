@@ -1,8 +1,15 @@
 Parameter Learning of 1D wave equation
 ======================================
 
-In this tutorial we will learn how to learn a parameter 1D wave equation using
-gradient descent in Physika. The 1D wave equation describes how a wave propagates through a medium.
+In this tutorial we will learn how to estimate/learn parameter of 1D wave equation using
+gradient descent in Physika. The 1D wave equation describes how a wave propagates through a medium — examples include sound
+waves travelling through air, seismic waves propagating through the earth,
+and vibrations along a guitar string.
+
+Given observed wave data, our goal is to find the value of :math:`c` that
+makes our simulation match it. This is called parameter learning. Gradient
+descent does this by repeatedly computing how the error changes with respect
+to :math:`c` and updating it in the direction that reduces the error.
 
 
 The Equation
@@ -76,13 +83,47 @@ Step 2: Build the solver
 
 Because the wave equation is second order in time, the solver must track
 two states at each step — the previous displacement ``u_prev`` and the
-current displacement ``u_curr``. The explicit time-stepping scheme is:
+current displacement ``u_curr``.
+
+We start with the wave equation:
+
+.. math::
+
+    \begin{align*}
+    \frac{\partial^2 u}{\partial t^2} &= c^2 \frac{\partial^2 u}{\partial x^2}
+    \end{align*}
+
+Approximating the second time derivative with centered finite differences:
+
+.. math::
+
+    \begin{align*}
+    \frac{\partial^2 u}{\partial t^2} &\approx \frac{u_i^{n+1} - 2u_i^n + u_i^{n-1}}{\Delta t^2}
+    \end{align*}
+
+Approximating the second space derivative with centered finite differences:
+
+.. math::
+
+    \begin{align*}
+    \frac{\partial^2 u}{\partial x^2} &\approx \frac{u_{i-1}^n - 2u_i^n + u_{i+1}^n}{\Delta x^2}
+    \end{align*}
+
+Substituting both into the wave equation and rearranging for :math:`u_i^{n+1}`:
+
+
+.. math::
+
+    \begin{align*}
+    \frac{u_i^{n+1} - 2u_i^n + u_i^{n-1}}{\Delta t^2} &= c^2 \frac{u_{i-1}^n - 2u_i^n + u_{i+1}^n}{\Delta x^2}
+    \end{align*}
 
 .. math::
 
     \begin{align*}
     u_i^{n+1} &= 2u_i^n - u_i^{n-1} + \Delta t^2 \cdot \frac{c^2}{\Delta x^2} \left( u_{i-1}^n - 2u_i^n + u_{i+1}^n \right)
     \end{align*}
+
 
 .. code-block:: text
 
@@ -103,6 +144,10 @@ current displacement ``u_curr``. The explicit time-stepping scheme is:
 Step 3: Set Up the Grid
 ------------------------------
 
+We discretize the spatial domain :math:`[0, 1]` into ``nx`` points and the
+time domain :math:`[1, 2]` into ``nt`` steps, giving uniform spacings
+:math:`\Delta x` and :math:`\Delta t`:
+
 .. code-block:: text
 
     nx: ℝ = 30
@@ -119,6 +164,18 @@ Step 3: Set Up the Grid
 
 Step 4: Generate Ground Truth Data
 ---------------------------------------------
+
+We fix the true wave speed at :math:`c = 0.5` and set the initial condition
+to a sine wave:
+
+.. math::
+
+    \begin{align*}
+    u(x, 0) &= \sin(2\pi x)
+    \end{align*}
+
+Running the solver with this initial condition and the true parameter produces
+the ground truth trajectory that we will try to recover:
 
 
 .. code-block:: text
@@ -139,6 +196,13 @@ Step 5: Define the Loss
 
 The loss function measures the mean squared error between the predicted
 final state and the true final state:
+
+.. math::
+
+    \begin{align*}
+    \mathcal{L}(c) &= \frac{1}{N} \sum_{i=0}^{N - 1} \left( u_i^{\text{pred}} - u_i^{\text{true}} \right)^2
+    \end{align*}
+
 
 .. code-block:: text
 
