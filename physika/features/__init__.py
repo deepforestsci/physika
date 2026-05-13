@@ -1,5 +1,5 @@
 from physika.elf import REGISTRY
-from physika.features.struct import StructFeature
+from physika.features.classes import StructFeature
 
 
 REGISTRY.register(StructFeature())
