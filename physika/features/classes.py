@@ -439,7 +439,8 @@ def make_parser_rules():
     def p_class_items_multi(p):
         """class_items : class_items class_item"""
         # Accumulates multiple field/method items into a list.
-        # p[1] - existing item list, p[2]  (next item appended)
+        # p[1] - existing item list
+        # p[2]  (next item appended)
         p[0] = p[1] + [p[2]]
 
     def p_class_items_single(p):

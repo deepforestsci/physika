@@ -113,3 +113,52 @@ methods to type check and generate code for ``while_loop`` nodes (Each registry 
     # Backward dispatch: emit adjoint gradient code
     reg.dispatch_backward("while_loop", "dL_dn")
     # '_adj = dL_dn\nfor _state in reversed(_while_tape):\n    _adj = _body_vjp(_state, _adj)'
+
+
+Features
+--------
+New ELF subclasses are defined at ``physika.features`` directory as python files, where lexer, parser, and code generation rules are added.
+Tests for new language features should be added to ``physika/tests/test_features/`` folder.
+
+Classes
+~~~~~~~
+The classes ELF subclass adds support for defining classes in Physika. Two new lexer tokens were added. ``DOT`` (for field and method access) and the ``CLASS`` reserved keyword.
+
+A class can be defined with or without explicit constructor parameters:
+
+.. code-block:: text
+
+    # No constructor parameters
+    class Particle:
+        mass : ℝ
+        def ke() : ℝ:
+            return 0.5 * this.mass
+
+    # Explicit constructor parameters
+    class Linear(w: ℝ, b: ℝ):
+        def λ(x: ℝ) → ℝ:
+            return w * x + b
+
+**AST node types** produced by the new parser rules:
+
+* ``("class_def", name)``: The class definition is stored in the parser's symbol table under class ``name`` and is retrieved in code generation step.
+* ``("field_decl", name, type)``: A field declaration inside the class body. For example, ``mass : ℝ`` produces ``("field_decl", "mass", "ℝ")``.
+* ``("method_def", method_dict)``: Method definition, where ``method_dict`` holds the method name, parameter list, return type, body statements.
+* ``("struct_type", name)``: Type annotation that refers to an instance of current or another class. For example, ``pos : Particle`` produces ``("struct_type", "Particle")``.
+* ``("field_access", obj, field)``: Reads a field from an instance.
+* ``("method_call", obj, method, args)``: Calls a method on an instance.
+
+``make_parser_rules`` produce sixteen PLY grammar functions that handles class declarations with and without constructor parameters, field declarations, methods with and without parameters, methods with intermediate statements, single-value returns, and two-value tuple returns.
+
+**this vs self**
+
+Inside a Physika method body, the current instance is referred as ``this``. The parser produces ``("field_access", ("var", "this"), "mass")`` (AST) for ``this.mass`` (Physika code). During code generation, ``emit_method`` rewrites every occurrence of ``this`` to ``self`` so the emitted Python is runnable. The alias ``this = self`` is also inserted at the top of each method to avoid issues at runtime.
+
+**Code generation**
+
+``generate_class`` transforms a parsed class definition into a ``torch.nn.Module`` subclass:
+
+* The class inherits from ``nn.Module``.
+* An ``__init__`` method is generated from the constructor parameters. Scalar (``ℝ``) and tensor parameters are converted with ``torch.as_tensor`` objects. If the class defines learnable parameters (e.g. inside a forward method), these are wrapped in ``nn.Parameter``.
+* Each Physika method is emitted by ``emit_method``, walking down the AST, which handles ``this`` to ``self`` rewriting and fields substitution via ``replace_class_params``
+* A ``params`` property and an ``update`` method are appended to every generated class to support manual gradient-descent updates.
