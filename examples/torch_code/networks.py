@@ -12,64 +12,36 @@ def sigma(x):
 class OneLayerNet(nn.Module):
     def __init__(self, W0, c0, w1, b1):
         super().__init__()
-        self.W0 = W0.float() if isinstance(W0, torch.Tensor) else nn.Parameter(torch.tensor(W0).float())
-        self.c0 = c0.float() if isinstance(c0, torch.Tensor) else nn.Parameter(torch.tensor(c0).float())
-        self.w1 = w1.float() if isinstance(w1, torch.Tensor) else nn.Parameter(torch.tensor(w1).float())
-        self.b1 = b1.float() if isinstance(b1, torch.Tensor) else nn.Parameter(torch.tensor(b1).float())
+        self.W0 = nn.Parameter(torch.tensor(W0).float() if not isinstance(W0, torch.Tensor) else W0.clone().detach().float())
+        self.c0 = nn.Parameter(torch.tensor(c0).float() if not isinstance(c0, torch.Tensor) else c0.clone().detach().float())
+        self.w1 = nn.Parameter(torch.tensor(w1).float() if not isinstance(w1, torch.Tensor) else w1.clone().detach().float())
+        self.b1 = nn.Parameter(torch.tensor(b1).float() if not isinstance(b1, torch.Tensor) else b1.clone().detach().float())
 
     def forward(self, x):
-        this = self
         x = torch.as_tensor(x).float()
         return sigma(((self.w1 @ sigma(((self.W0 @ x) + self.c0))) + self.b1))
 
     def loss(self, y, target):
-        this = self
-        y = torch.as_tensor(y).float()
-        target = torch.as_tensor(target).float()
         return ((y - target) ** 2.0)
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 class FullyConnectedNetwork(nn.Module):
     def __init__(self, f, W, B, w, b, n):
         super().__init__()
         self.f = f
-        self.W = W.float() if isinstance(W, torch.Tensor) else nn.Parameter(torch.tensor(W).float())
-        self.B = B.float() if isinstance(B, torch.Tensor) else nn.Parameter(torch.tensor(B).float())
-        self.w = w.float() if isinstance(w, torch.Tensor) else nn.Parameter(torch.tensor(w).float())
-        self.b = b.float() if isinstance(b, torch.Tensor) else nn.Parameter(torch.tensor(b).float())
+        self.W = nn.Parameter(torch.tensor(W).float() if not isinstance(W, torch.Tensor) else W.clone().detach().float())
+        self.B = nn.Parameter(torch.tensor(B).float() if not isinstance(B, torch.Tensor) else B.clone().detach().float())
+        self.w = nn.Parameter(torch.tensor(w).float() if not isinstance(w, torch.Tensor) else w.clone().detach().float())
+        self.b = nn.Parameter(torch.tensor(b).float() if not isinstance(b, torch.Tensor) else b.clone().detach().float())
         self.n = n
 
     def forward(self, x):
-        this = self
         x = torch.as_tensor(x).float()
         for k in range(len(self.W)):
             x = self.f(((self.W[int(k)] @ x) + self.B[int(k)]))
         return ((self.w @ x) + self.b)
 
     def loss(self, y, target):
-        this = self
-        y = torch.as_tensor(y).float()
-        target = torch.as_tensor(target).float()
         return ((y - target) ** 2.0)
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 # === Program ===
 W0 = torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
