@@ -392,13 +392,14 @@ def stmt_body_if_else_return(stmt: Any, ctx: StmtContext) -> None:
 
 def stmt_if(stmt: Any, ctx: StmtContext) -> None:
     """
-    Type checks if/if-else blocks at program, function level and/or inside for-loops.
+    Type checks if/if-else blocks at program, function level and/or inside
+    for-loops.
 
     Supports ``body_if``, ``body_if_else``, ``loop_if``, ``loop_if_else``,
     ``for_if``, ``for_if_else``, ``if_only``, ``if_else``.
 
     These nodes share same structure: ``(tag, cond, then_stmts, else_stmts])``.
-    The condition is type-checked and each branch body is checked independently.
+    The condition is type-checked and each branch body is checked independently.  # noqa: E501
 
     Parameters
     ----------
@@ -429,14 +430,15 @@ def stmt_if(stmt: Any, ctx: StmtContext) -> None:
     else:
         else_stmts = []
 
-    infer_expr(cond, ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error)
+    infer_expr(cond, ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+               ctx.add_error)
     ctx.env, ctx.s = infer_stmts(then_stmts, ctx.env, ctx.s, ctx.func_env,
                                  ctx.class_env, ctx.add_error, ctx.func_name,
                                  ctx.return_type)
     if else_stmts:
         ctx.env, ctx.s = infer_stmts(else_stmts, ctx.env, ctx.s, ctx.func_env,
-                                     ctx.class_env, ctx.add_error, ctx.func_name,
-                                     ctx.return_type)
+                                     ctx.class_env, ctx.add_error,
+                                     ctx.func_name, ctx.return_type)
 
 
 def stmt_for(stmt: Any, ctx: StmtContext) -> None:
@@ -449,7 +451,7 @@ def stmt_for(stmt: Any, ctx: StmtContext) -> None:
     - ``for_loop``
     - ``for_loop_range``
 
-    Loop variable is registered as ``T_NAT``.  Range for loops store body statements at node index 4, while
+    Loop variable is registered as ``T_NAT``.  Range for loops store body statements at node index 4, while  # noqa: E501
     implicit for-lopps store body statements at index 2.
 
     Parameters
@@ -468,7 +470,7 @@ def stmt_for(stmt: Any, ctx: StmtContext) -> None:
     >>> ctx = StmtContext(env={'x': T_REAL}, s=Substitution(), func_name='f',
     ...                   return_type=T_REAL, add_error=errors.append,
     ...                   func_env={}, class_env={})
-    >>> stmt_for(('body_for', 'i', [('loop_assign', 'y', ('var', 'x'))], []), ctx)
+    >>> stmt_for(('body_for', 'i', [('loop_assign', 'y', ('var', 'x'))], []), ctx)  # noqa: E501
     >>> ctx.env['i']
     ℕ
     >>> errors
@@ -687,7 +689,7 @@ def stmt_decl(stmt: Any, ctx: StmtContext) -> None:
 
     Handles ``("decl", name, type_spec, expr)`` nodes. The expression
     type is inferred and unified against the declared type.
-    
+
     When declared and inferred types match, the type is stored in ``ctx.env``.
     On mismatch the inferred type is stored instead so that subsequent
     statements can still be checked.
@@ -713,7 +715,7 @@ def stmt_decl(stmt: Any, ctx: StmtContext) -> None:
     []
     """
     from physika.utils.type_checker_utils import from_typespec, unify, type_to_str
-    _, name, ts, expr, _ = stmt
+    _, name, ts, expr, *_ = stmt
     inferred = ctx.infer_type(expr)
     declared = from_typespec(ts)
     mismatch = False
@@ -723,12 +725,11 @@ def stmt_decl(stmt: Any, ctx: StmtContext) -> None:
         except TypeError as e:
             mismatch = True
             ctx.add_error(
-                f"Type mismatch for '{name}': declared {type_to_str(declared)}, "
-                f"got {type_to_str(inferred)}: {e}"
-            )
+                f"Type mismatch for '{name}': declared {type_to_str(declared)}, "  # noqa: E501
+                f"got {type_to_str(inferred)}: {e}")
     if mismatch:
         if inferred is not None:
-            ctx.env[name] = inferred 
+            ctx.env[name] = inferred
         else:
             ctx.env[name] = new_var()
     else:
@@ -763,7 +764,7 @@ def stmt_assign(stmt: tuple, ctx: StmtContext) -> None:
     >>> errors = []
     >>> ctx = StmtContext(env={'x': T_REAL}, s=Substitution(), func_env={},
     ...                   class_env={}, add_error=errors.append)
-    >>> stmt_assign(('assign', 'y', ('add', ('var', 'x'), ('num', 1.0)), 2), ctx)
+    >>> stmt_assign(('assign', 'y', ('add', ('var', 'x'), ('num', 1.0)), 2), ctx)  # noqa: E501
     >>> ctx.env['y']
     ℝ
     >>> errors
@@ -801,32 +802,33 @@ def stmt_expr(stmt: Any, ctx: StmtContext) -> None:
     """
     ctx.infer_type(stmt[1])
 
+
 STMT_DISPATCH: dict = {
-    "body_decl":           stmt_body_decl,
-    "body_assign":         stmt_body_assign,
-    "body_zeros_decl":     stmt_body_zeros_decl,
-    "decl":                stmt_decl,
-    "assign":              stmt_assign,
-    "expr":                stmt_expr,
-    "body_if_return":      stmt_body_if_return,
+    "body_decl": stmt_body_decl,
+    "body_assign": stmt_body_assign,
+    "body_zeros_decl": stmt_body_zeros_decl,
+    "decl": stmt_decl,
+    "assign": stmt_assign,
+    "expr": stmt_expr,
+    "body_if_return": stmt_body_if_return,
     "body_if_else_return": stmt_body_if_else_return,
-    "body_if":             stmt_if,
-    "body_if_else":        stmt_if,
-    "loop_if":             stmt_if,
-    "loop_if_else":        stmt_if,
-    "for_if":              stmt_if,
-    "for_if_else":         stmt_if,
-    "if_only":             stmt_if,
-    "if_else":             stmt_if,
-    "body_for":            stmt_for,
-    "body_for_range":      stmt_for,
-    "for_loop":            stmt_for,
-    "for_loop_range":      stmt_for,
-    "body_for_accum":      stmt_body_for_accum,
-    "for_assign":          stmt_for_assign,
-    "loop_assign":         stmt_for_assign,
-    "for_pluseq":          stmt_for_pluseq,
-    "loop_index_pluseq":   stmt_for_pluseq,
+    "body_if": stmt_if,
+    "body_if_else": stmt_if,
+    "loop_if": stmt_if,
+    "loop_if_else": stmt_if,
+    "for_if": stmt_if,
+    "for_if_else": stmt_if,
+    "if_only": stmt_if,
+    "if_else": stmt_if,
+    "body_for": stmt_for,
+    "body_for_range": stmt_for,
+    "for_loop": stmt_for,
+    "for_loop_range": stmt_for,
+    "body_for_accum": stmt_body_for_accum,
+    "for_assign": stmt_for_assign,
+    "loop_assign": stmt_for_assign,
+    "for_pluseq": stmt_for_pluseq,
+    "loop_index_pluseq": stmt_for_pluseq,
 }
 
 

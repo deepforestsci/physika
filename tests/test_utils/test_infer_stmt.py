@@ -1101,7 +1101,7 @@ class TestStmtExpr:
         """expressions should never bind a to a variable."""
         errors = []
         ctx = make_stmt_ctx(env={'x': T_REAL}, errors=errors)
-        stmt_expr(('expr', ('var', 'x'), ctx))
+        stmt_expr(('expr', ('var', 'x')), ctx)
         assert list(ctx.env.keys()) == ['x']
 
     def test_shape_mismatch_caught(self):
