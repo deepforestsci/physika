@@ -242,7 +242,7 @@ Step 7: Visualize Results
     pred_values: ℝ[m] = solver(c, u0, dx, dt, nt)
     plot_trajectories(true_values, pred_values)
 
-After 500 epochs, ``c`` should be close to ``0.5``.
+After 200 epochs, ``c`` should be close to ``0.5``.
 
 .. note::
    ``plot_trajectories`` is not a built-in Physika function. To use it,
@@ -319,8 +319,8 @@ Full Code
 
     a: ℝ = 0
     b: ℝ = 1
-    t0: ℝ = 1
-    tf: ℝ = 2
+    t0: ℝ = 0
+    tf: ℝ = 1
 
     dx: ℝ = (b-a)/(nx-1)
     dt: ℝ = (tf-t0)/(nt-1)
@@ -329,6 +329,7 @@ Full Code
     pi: ℝ = 3.14
     true_c: ℝ = 0.5
 
+    x: R[m] = linspace(a, b, nx)
     u0: ℝ[nx] = zero_1d_array(nx)
     for i:ℕ(0, nx):
         u0[i] = sin(2 * pi * x[i])
