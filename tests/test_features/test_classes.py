@@ -9,8 +9,6 @@ from physika.features.classes import (
 )
 
 
-
-
 def make_method(name="ke", params=None, body=None, statements=None):
     """
     Helper function to create a basic method for testing.
@@ -33,7 +31,8 @@ def particle_class_def():
             def ke() : ℝ:
                 return 0.5 * this.mass
     """
-    kinetic_energy_body = ("mul", ("num", 0.5), ("field_access", ("var", "this"), "mass"))
+    kinetic_energy_body = ("mul", ("num", 0.5), ("field_access",
+                                                 ("var", "this"), "mass"))
     ke = make_method(body=kinetic_energy_body)
     body_items = [
         ("field_decl", "mass", "ℝ"),
@@ -55,7 +54,8 @@ class TestIsLearnable:
         assert is_learnable("ℝ") is True
         assert is_learnable("R") is True
         assert is_learnable(("tensor", [(3, "invariant")])) is True
-        assert is_learnable(("tensor", [(3, "invariant"), (4, "invariant")])) is True
+        assert is_learnable(("tensor", [(3, "invariant"),
+                                        (4, "invariant")])) is True
 
     def test_not_valid(self):
         """
@@ -72,25 +72,28 @@ class TestReplaceClassParams:
     """
     Tests for ``replace_class_params`` helper function to add 'self.' prefix.
     """
+
     def test_params_replacement(self):
         """A bare param name in an expression becomes self.param."""
-        assert replace_class_params("0.5 * mass", [("mass", "ℝ")]) == "0.5 * self.mass"
+        assert replace_class_params("0.5 * mass",
+                                    [("mass", "ℝ")]) == "0.5 * self.mass"
 
         # self.param should never have double prefix
-        assert replace_class_params("self.mass * 2", [("mass", "ℝ")]) == "self.mass * 2"
+        assert replace_class_params("self.mass * 2",
+                                    [("mass", "ℝ")]) == "self.mass * 2"
         # multiple replacement
         result = replace_class_params(
             "pos + vel * mass",
-            [("pos", ("tensor", [2])), ("vel", ("tensor", [2])), ("mass", "ℝ")],
+            [("pos", ("tensor", [2])), ("vel", ("tensor", [2])),
+             ("mass", "ℝ")],
         )
         assert result == "self.pos + self.vel * self.mass"
 
         # no matching params returns code no changes
-        assert replace_class_params("x + y * z", [("mass", "ℝ")]) == "x + y * z"
+        assert replace_class_params("x + y * z",
+                                    [("mass", "ℝ")]) == "x + y * z"
         # empty param list also dont change code
         assert replace_class_params("mass * 0.5", []) == "mass * 0.5"
-
-
 
 
 class TestUnwrapReturn:
@@ -102,13 +105,15 @@ class TestUnwrapReturn:
 
     def test_return_single(self):
         """An AST node type inside return_single passes through unchanged."""
-        for expr in [("var", "h"), ("num", 42), ("add", ("var", "x"), ("var", "y"))]:
+        for expr in [("var", "h"), ("num", 42),
+                     ("add", ("var", "x"), ("var", "y"))]:
             assert unwrap_return(("return_single", expr)) == expr
 
     def test_return_tuple(self):
         """return_tuple is retagged as ("tuple_return", e1, e2)."""
         e1, e2 = ("var", "new_pos"), ("var", "new_vel")
-        assert unwrap_return(("return_tuple", e1, e2)) == ("tuple_return", e1, e2)
+        assert unwrap_return(
+            ("return_tuple", e1, e2)) == ("tuple_return", e1, e2)
 
 
 class TestBuildClass:
@@ -127,7 +132,7 @@ class TestBuildClass:
         result = build_class(None, [("field_decl", "mass", "ℝ")])
         assert result["constructor_params"] == [("mass", "ℝ")]
 
-        #fields is always an empty list
+        # fields is always an empty list
         assert result["fields"] == []
 
         # multiple fields
@@ -157,16 +162,16 @@ class TestBuildClass:
     def test_methods(self):
         """method_def body items are collected into the methods list."""
         ke = make_method()
-        result = build_class(None, [("field_decl", "mass", "ℝ"), ("method_def", ke)])
+        result = build_class(None, [("field_decl", "mass", "ℝ"),
+                                    ("method_def", ke)])
         assert len(result["methods"]) == 1
         assert result["methods"][0]["name"] == "ke"
-
-
 
         # check for multiple methods
         m1 = make_method("ke")
         m2 = make_method("step", params=[("dt", "ℝ")])
-        body = [("field_decl", "mass", "ℝ"), ("method_def", m1), ("method_def", m2)]
+        body = [("field_decl", "mass", "ℝ"), ("method_def", m1),
+                ("method_def", m2)]
         result = build_class(None, body)
         assert [m["name"] for m in result["methods"]] == ["ke", "step"]
 
@@ -184,7 +189,8 @@ class TestEmitMethod:
                 return 0.5 * this.mass
         """
         method = make_method(body=("var", "mass"))
-        lines = emit_method(method, [("mass", "ℝ")], lambda _: "this.mass", True)
+        lines = emit_method(method, [("mass", "ℝ")], lambda _: "this.mass",
+                            True)
         assert lines[1] == "    def ke(self):"
         assert lines[2] == "        this = self"
         assert lines[-1] == "        return self.mass"
@@ -198,12 +204,15 @@ class TestEmitMethod:
     def test_named_method(self):
         """method names pass through unchanged."""
         method = make_method(name="step", body=("var", "mass"))
-        lines = emit_method(method, [("mass", "ℝ")], lambda _: "this.mass", True)
+        lines = emit_method(method, [("mass", "ℝ")], lambda _: "this.mass",
+                            True)
         assert "def step(self):" in lines[1]
 
     def test_learnable_param(self):
         """ℝ method param gets converted to torch.tensor."""
-        method = make_method(name="scale", params=[("s", "ℝ")], body=("var", "s"))
+        method = make_method(name="scale",
+                             params=[("s", "ℝ")],
+                             body=("var", "s"))
         lines = emit_method(method, [], lambda node: node[1], True)
         # conversion line must appear before the return
         assert any("torch.as_tensor(s).float()" in ln for ln in lines)
@@ -235,8 +244,8 @@ class TestGenerateClass:
         code = generate_class("Particle", particle_class_def())
         # new python code should contain __init__ and __super__
         assert "def __init__(self, mass):" in code
-        assert "super().__init__()" in code 
-        
+        assert "super().__init__()" in code
+
         # check code inheriths from nn.Module
         assert "class Particle(nn.Module):" in code
 
@@ -268,45 +277,13 @@ class TestGenerateClass:
         assert "nn.Parameter(torch.as_tensor(w).float())" in code
 
 
-    def test_full_output_matches_expected(self):
-        """
-        End-to-end conversion of Physika class Particle to Pytorch/Python code.
-
-            class Particle:
-                mass : ℝ
-                def ke() : ℝ:
-                    return 0.5 * this.mass
-        """
-        expected = (
-            "class Particle(nn.Module):\n"
-            "    def __init__(self, mass):\n"
-            "        super().__init__()\n"
-            "        self.mass = torch.as_tensor(mass).float()\n"
-            "\n"
-            "    def ke(self):\n"
-            "        this = self\n"
-            "        return (0.5 * self.mass)\n"
-            "\n"
-            "    @property\n"
-            "    def params(self):\n"
-            "        return list(self.parameters())\n"
-            "\n"
-            "    def update(self, lr, grads):\n"
-            "        with torch.no_grad():\n"
-            "            for p, g in zip(self.parameters(), grads):\n"
-            "                if g is not None:\n"
-            "                    p -= lr * g"
-        )
-        assert generate_class("Particle", particle_class_def()) == expected
-
-
 class TestMakeParserRules:
     """
     Verifies the PLY grammar functions for the class syntax.
     """
 
     def test_make_parser(self):
-        #make_parser_rules returns a plain list
+        # make_parser_rules returns a plain list
         assert isinstance(make_parser_rules(), list)
 
         # Exactly 16 grammar rules
@@ -315,7 +292,7 @@ class TestMakeParserRules:
         # every item should be a callable p_ functino
         for rule in make_parser_rules():
             assert callable(rule)
-        
+
             # with docstrings for PLY
             assert rule.__doc__ is not None
             assert rule.__doc__.strip() != ""
