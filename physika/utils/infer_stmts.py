@@ -390,147 +390,97 @@ def stmt_body_if_else_return(stmt: Any, ctx: StmtContext) -> None:
                           f"got {type_to_str(unified_branch)}: {e}")
 
 
-def stmt_body_if_else(stmt: Any, ctx: StmtContext) -> None:
+def stmt_if(stmt: Any, ctx: StmtContext) -> None:
     """
-    Infer and check both branches of an ``if/else`` statement, without return.
+    Type checks if/if-else blocks at program, function level and/or inside for-loops.
 
-    Handles ``("body_if_else", cond_expr, then_stmts, else_stmts)`` and
-    ``("body_if", cond_expr, then_stmts)`` nodes.
+    Supports ``body_if``, ``body_if_else``, ``loop_if``, ``loop_if_else``,
+    ``for_if``, ``for_if_else``, ``if_only``, ``if_else``.
 
-    Runs type inference on each branch body to catch expression errors inside
-    them.
-
+    These nodes share same structure: ``(tag, cond, then_stmts, else_stmts])``.
+    The condition is type-checked and each branch body is checked independently.
 
     Parameters
     ----------
     stmt : tuple
-        AST node of the form
-        ``("body_if_else", cond_expr, then_stmts, else_stmts)`` or
-        ``("body_if", cond_expr, then_stmts)``.
-    ctx : StmtContext
-        Current inference context.
-
-    Returns
-    -------
-    None
-        Calls ``ctx.add_error`` for each type error found inside a branch.
-
-    Examples
-    --------
-    >>> from physika.utils.infer_stmts import stmt_body_if_else, StmtContext  # noqa: E501
-    >>> from physika.utils.types import Substitution, T_REAL, TTensor
-    >>> errors = []
-    >>> ctx = StmtContext(env={'x': T_REAL},
-    ...                        s=Substitution(),
-    ...                        func_name='f',
-    ...                        return_type=T_REAL,
-    ...                        add_error=errors.append,
-    ...                        func_env={},
-    ...                        class_env={})
-    >>> cond = ("cond_gt", ("var", "x"), ("num", 0.0))
-    >>> then_stmts = [("body_assign", "y", ("var", "x"))]
-    >>> else_stmts = [("body_assign", "y", ("num", 0.0))]
-    >>> stmt = ("body_if_else", cond, then_stmts, else_stmts)
-    >>> stmt_body_if_else(stmt, ctx)
-    >>> errors
-    []
-    """
-    op = stmt[0]
-    _, _, then_stmts = stmt[:3]
-    else_stmts = stmt[3] if op == "body_if_else" else []
-
-    infer_stmts(then_stmts, ctx.env, ctx.s, ctx.func_env, ctx.class_env,
-                ctx.add_error, ctx.func_name, ctx.return_type)
-    infer_stmts(else_stmts, ctx.env, ctx.s, ctx.func_env, ctx.class_env,
-                ctx.add_error, ctx.func_name, ctx.return_type)
-
-
-def stmt_body_for(stmt: Any, ctx: StmtContext) -> None:
-    """
-    Infer the types of ``body_for`` node statements which calls ``infer_stmts``
-    since there are statements inside body for loops. A general physika program
-    that will trigger this inference handler would look like:
-
-    def f(x : ℝ[n]): ℝ:
-        for i:
-            total = op
-
-    ``stmt_body_for`` will infer and compare types of any operations defined
-    inside for-loop body.
-
-    Parameters
-    ----------
-    stmt : tuple
-        AST node of the form
-        ``("body_for", loop_var, body_for)``.
-    ctx : StmtContext
-        Current inference context.  ``ctx.return_type``.
-
-    Examples
-    --------
-    >>> from physika.utils.infer_stmts import stmt_body_for, StmtContext  # noqa: E501
-    >>> from physika.utils.types import Substitution, T_REAL, TTensor
-    >>> errors = []
-    >>> ctx = StmtContext(env={'x': T_REAL},
-    ...                        s=Substitution(),
-    ...                        func_name='f',
-    ...                        return_type=T_REAL,
-    ...                        add_error=errors.append,
-    ...                        func_env={},
-    ...                        class_env={})
-    >>> stmt = ('body_for', 'i', [('loop_pluseq', 'total', ('index', 'arr', ('imaginary',)))], ['arr']) # noqa: E501
-    >>> stmt_body_for(stmt, ctx)
-    >>> errors
-    []
-    """
-    _, loop_var, loop_body, _ = stmt
-    ctx.env[loop_var] = T_NAT
-    ctx.env, ctx.s = infer_stmts(loop_body, ctx.env, ctx.s, ctx.func_env,
-                                 ctx.class_env, ctx.add_error, ctx.func_name,
-                                 ctx.return_type)
-
-
-def stmt_body_for_range(stmt: Any, ctx: StmtContext) -> None:
-    """
-    Infer the types of ``body_for_range`` node statements inside a ranged for
-    loop.
-
-    Handles ``("body_for_range", loop_var, start, stop, body)`` nodes where the
-    loop variable iterates over an integer range.  A Physika program
-    that triggers this handler looks like:
-
-    def f(x : ℝ[n]): ℝ:
-        for i: ℕ(n):
-            total = op
-
-    The loop variable is registered as ``T_NAT`` so that index expressions
-    inside the body can be checked against array dimensions.
-
-    Parameters
-    ----------
-    stmt : tuple
-        AST node of the form
-        ``("body_for_range", loop_var, start, stop, body)``.
+        ``(tag, cond, then_stmts)`` or ``(tag, cond, then_stmts, else_stmts)``.
     ctx : StmtContext
         Current inference context.
 
     Examples
     --------
-    >>> from physika.utils.infer_stmts import stmt_body_for_range, StmtContext
+    >>> from physika.utils.infer_stmts import stmt_if, StmtContext
     >>> from physika.utils.types import Substitution, T_REAL
     >>> errors = []
     >>> ctx = StmtContext(env={'x': T_REAL}, s=Substitution(), func_name='f',
     ...                   return_type=T_REAL, add_error=errors.append,
     ...                   func_env={}, class_env={})
-    >>> stmt = ('body_for_range', 'i', ('num', 0), ('num', 4),
-    ...         [('loop_assign', 'y', ('var', 'x'))])
-    >>> stmt_body_for_range(stmt, ctx)
+    >>> cond = ('cond_gt', ('var', 'x'), ('num', 0.0))
+    >>> stmt_if(('if_only', cond, [('body_assign', 'y', ('var', 'x'))]), ctx)
     >>> errors
     []
     """
-    _, loop_var, _, _, loop_body = stmt
+    from physika.utils.infer_expr import infer_expr
+    cond = stmt[1]
+    then_stmts = stmt[2]
+
+    if len(stmt) > 3:
+        else_stmts = stmt[3]
+    else:
+        else_stmts = []
+
+    infer_expr(cond, ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error)
+    ctx.env, ctx.s = infer_stmts(then_stmts, ctx.env, ctx.s, ctx.func_env,
+                                 ctx.class_env, ctx.add_error, ctx.func_name,
+                                 ctx.return_type)
+    if else_stmts:
+        ctx.env, ctx.s = infer_stmts(else_stmts, ctx.env, ctx.s, ctx.func_env,
+                                     ctx.class_env, ctx.add_error, ctx.func_name,
+                                     ctx.return_type)
+
+
+def stmt_for(stmt: Any, ctx: StmtContext) -> None:
+    """
+    Check single variable for loops types regardless of context.
+
+    Suported ASTNode tags are:
+    - ``body_for``
+    - ``body_for_range``
+    - ``for_loop``
+    - ``for_loop_range``
+
+    Loop variable is registered as ``T_NAT``.  Range for loops store body statements at node index 4, while
+    implicit for-lopps store body statements at index 2.
+
+    Parameters
+    ----------
+    stmt : tuple
+        ``(tag, loop_var, body, ...)`` for implicit loops, or
+        ``(tag, loop_var, start, end, body, ...)`` for explicit range loops.
+    ctx : StmtContext
+        Current inference context.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_stmts import stmt_for, StmtContext
+    >>> from physika.utils.types import Substitution, T_REAL
+    >>> errors = []
+    >>> ctx = StmtContext(env={'x': T_REAL}, s=Substitution(), func_name='f',
+    ...                   return_type=T_REAL, add_error=errors.append,
+    ...                   func_env={}, class_env={})
+    >>> stmt_for(('body_for', 'i', [('loop_assign', 'y', ('var', 'x'))], []), ctx)
+    >>> ctx.env['i']
+    ℕ
+    >>> errors
+    []
+    """
+    loop_var = stmt[1]
     ctx.env[loop_var] = T_NAT
-    ctx.env, ctx.s = infer_stmts(loop_body, ctx.env, ctx.s, ctx.func_env,
+    if "range" in stmt[0]:
+        body = stmt[4]
+    else:
+        body = stmt[2]
+    ctx.env, ctx.s = infer_stmts(body, ctx.env, ctx.s, ctx.func_env,
                                  ctx.class_env, ctx.add_error, ctx.func_name,
                                  ctx.return_type)
 
@@ -731,119 +681,152 @@ def stmt_for_pluseq(stmt: Any, ctx: StmtContext) -> None:
                         ctx.add_error(f"Index mismatch for '{arr_name}': {e}")
 
 
-def stmt_loop_if(stmt: Any, ctx: StmtContext) -> None:
+def stmt_decl(stmt: Any, ctx: StmtContext) -> None:
     """
-    Infer types for an ``if` statement inside a for loop body.
+    Infer types of a variable declaration.
 
-    Handles ``("loop_if", cond_expr, then_body)`` nodes. The condition
-    and statements in the then branch are type checked. A Physika program
-    that triggers this handler looks like:
-
-    def f(x : ℝ[n]): ℝ:
-        for i:
-            if x[i] > 0.0: # if only branch
-                total = total + x[i]
+    Handles ``("decl", name, type_spec, expr)`` nodes. The expression
+    type is inferred and unified against the declared type.
+    
+    When declared and inferred types match, the type is stored in ``ctx.env``.
+    On mismatch the inferred type is stored instead so that subsequent
+    statements can still be checked.
 
     Parameters
     ----------
     stmt : tuple
-        AST node of the form ``("loop_if", cond_expr, then_body)`` where
-        ``then_body`` is a list of loop body statement nodes.
+        AST node of the form ``("decl", name, type_spec, expr)``.
     ctx : StmtContext
         Current inference context.
 
     Examples
     --------
-    >>> from physika.utils.infer_stmts import stmt_loop_if, StmtContext
+    >>> from physika.utils.infer_stmts import stmt_decl, StmtContext
     >>> from physika.utils.types import Substitution, T_REAL
     >>> errors = []
-    >>> ctx = StmtContext(env={'x': T_REAL}, s=Substitution(), func_name='f',
-    ...                   return_type=T_REAL, add_error=errors.append,
-    ...                   func_env={}, class_env={})
-    >>> cond = ('cond_gt', ('var', 'x'), ('num', 0.0))
-    >>> stmt_loop_if(('loop_if', cond, [('loop_assign', 'y', ('var', 'x'))]), ctx)  # noqa: E501
+    >>> ctx = StmtContext(env={}, s=Substitution(), func_env={}, class_env={},
+    ...                   add_error=errors.append)
+    >>> stmt_decl(('decl', 'x', 'ℝ', ('num', 3.0), 1), ctx)
+    >>> ctx.env['x']
+    ℝ
     >>> errors
     []
     """
-    from physika.utils.infer_expr import infer_expr
+    from physika.utils.type_checker_utils import from_typespec, unify, type_to_str
+    _, name, ts, expr, _ = stmt
+    inferred = ctx.infer_type(expr)
+    declared = from_typespec(ts)
+    mismatch = False
+    if declared is not None and inferred is not None:
+        try:
+            ctx.s = unify(declared, inferred, ctx.s)
+        except TypeError as e:
+            mismatch = True
+            ctx.add_error(
+                f"Type mismatch for '{name}': declared {type_to_str(declared)}, "
+                f"got {type_to_str(inferred)}: {e}"
+            )
+    if mismatch:
+        if inferred is not None:
+            ctx.env[name] = inferred 
+        else:
+            ctx.env[name] = new_var()
+    else:
+        if declared is not None:
+            ctx.env[name] = ctx.s.apply(declared)
+        elif inferred is not None:
+            ctx.env[name] = ctx.s.apply(inferred)
+        else:
+            ctx.env[name] = new_var()
 
-    _, cond, then_body = stmt
-    infer_expr(cond, ctx.env, ctx.s, ctx.func_env, ctx.class_env,
-               ctx.add_error)
-    ctx.env, ctx.s = infer_stmts(then_body, ctx.env, ctx.s, ctx.func_env,
-                                 ctx.class_env, ctx.add_error, ctx.func_name,
-                                 ctx.return_type)
 
-
-def stmt_loop_if_else(stmt: Any, ctx: StmtContext) -> None:
+def stmt_assign(stmt: tuple, ctx: StmtContext) -> None:
     """
-    Infer types for ``if/else`` statement inside a for loop body.
+    Infer the type of a variable assignment.
 
-    Handles ``("loop_if_else", cond_expr, then_body, else_body)`` nodes.
-    The condition and both branch bodies are type-checked. A Physika program
-    that triggers this handler looks like:
-
-    def f(x : ℝ[n]): ℝ:
-        for i:
-            if x[i] > 0.0:
-                pos = pos + x[i]
-            else:
-                neg = neg + x[i]
+    Handles ``("assign", name, expr)`` nodes. Because assignments
+    carry no declared type, the inferred type is stored directly in
+    ``ctx.env``. If the expression type cannot be inferred, a fresh type
+    variable is stored so that later statements can still be checked.
 
     Parameters
     ----------
     stmt : tuple
-        AST node of the form
-        ``("loop_if_else", cond_expr, then_body, else_body)`` where each
-        body is a list of loop body statement nodes.
+        AST node of the form ``("assign", name, expr)``.
     ctx : StmtContext
         Current inference context.
 
     Examples
     --------
-    >>> from physika.utils.infer_stmts import stmt_loop_if_else, StmtContext
+    >>> from physika.utils.infer_stmts import stmt_assign, StmtContext
     >>> from physika.utils.types import Substitution, T_REAL
     >>> errors = []
-    >>> ctx = StmtContext(env={'x': T_REAL}, s=Substitution(), func_name='f',
-    ...                   return_type=T_REAL, add_error=errors.append,
-    ...                   func_env={}, class_env={})
-    >>> cond = ('cond_gt', ('var', 'x'), ('num', 0.0))
-    >>> stmt_loop_if_else(('loop_if_else', cond,
-    ...                    [('loop_assign', 'y', ('var', 'x'))],
-    ...                    [('loop_assign', 'y', ('num', 0.0))]), ctx)
+    >>> ctx = StmtContext(env={'x': T_REAL}, s=Substitution(), func_env={},
+    ...                   class_env={}, add_error=errors.append)
+    >>> stmt_assign(('assign', 'y', ('add', ('var', 'x'), ('num', 1.0)), 2), ctx)
+    >>> ctx.env['y']
+    ℝ
     >>> errors
     []
     """
-    from physika.utils.infer_expr import infer_expr
+    _, name, expr, *_ = stmt
+    inferred = ctx.infer_type(expr)
+    ctx.env[name] = inferred if inferred is not None else new_var()
 
-    _, cond, then_body, else_body = stmt
-    infer_expr(cond, ctx.env, ctx.s, ctx.func_env, ctx.class_env,
-               ctx.add_error)
-    ctx.env, ctx.s = infer_stmts(then_body, ctx.env, ctx.s, ctx.func_env,
-                                 ctx.class_env, ctx.add_error, ctx.func_name,
-                                 ctx.return_type)
-    ctx.env, ctx.s = infer_stmts(else_body, ctx.env, ctx.s, ctx.func_env,
-                                 ctx.class_env, ctx.add_error, ctx.func_name,
-                                 ctx.return_type)
 
+def stmt_expr(stmt: Any, ctx: StmtContext) -> None:
+    """
+    Infer the type of a standalone expression statement.
+
+    Handles ``("expr", expr)`` nodes. The result is discarded because
+    standalone expressions do not bind any variable.
+
+    Parameters
+    ----------
+    stmt : tuple
+        AST node of the form ``("expr", expr)``.
+    ctx : StmtContext
+        Current inference context.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_stmts import stmt_expr, StmtContext
+    >>> from physika.utils.types import Substitution, T_REAL
+    >>> errors = []
+    >>> ctx = StmtContext(env={}, s=Substitution(), func_env={}, class_env={},
+    ...                   add_error=errors.append)
+    >>> stmt_expr(('expr', ('num', 42.0)), ctx)
+    >>> errors
+    []
+    """
+    ctx.infer_type(stmt[1])
 
 STMT_DISPATCH: dict = {
-    "body_decl": stmt_body_decl,
-    "body_assign": stmt_body_assign,
-    "body_if_return": stmt_body_if_return,
+    "body_decl":           stmt_body_decl,
+    "body_assign":         stmt_body_assign,
+    "body_zeros_decl":     stmt_body_zeros_decl,
+    "decl":                stmt_decl,
+    "assign":              stmt_assign,
+    "expr":                stmt_expr,
+    "body_if_return":      stmt_body_if_return,
     "body_if_else_return": stmt_body_if_else_return,
-    "body_if_else": stmt_body_if_else,
-    "body_if": stmt_body_if_else,
-    "body_for": stmt_body_for,
-    "body_for_range": stmt_body_for_range,
-    "body_zeros_decl": stmt_body_zeros_decl,
-    "body_for_accum": stmt_body_for_accum,
-    "for_assign": stmt_for_assign,
-    "loop_assign": stmt_for_assign,
-    "for_pluseq": stmt_for_pluseq,
-    "loop_index_pluseq": stmt_for_pluseq,
-    "loop_if": stmt_loop_if,
-    "loop_if_else": stmt_loop_if_else,
+    "body_if":             stmt_if,
+    "body_if_else":        stmt_if,
+    "loop_if":             stmt_if,
+    "loop_if_else":        stmt_if,
+    "for_if":              stmt_if,
+    "for_if_else":         stmt_if,
+    "if_only":             stmt_if,
+    "if_else":             stmt_if,
+    "body_for":            stmt_for,
+    "body_for_range":      stmt_for,
+    "for_loop":            stmt_for,
+    "for_loop_range":      stmt_for,
+    "body_for_accum":      stmt_body_for_accum,
+    "for_assign":          stmt_for_assign,
+    "loop_assign":         stmt_for_assign,
+    "for_pluseq":          stmt_for_pluseq,
+    "loop_index_pluseq":   stmt_for_pluseq,
 }
 
 

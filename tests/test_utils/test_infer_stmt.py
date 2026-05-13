@@ -14,15 +14,18 @@ from physika.utils.infer_stmts import (
     stmt_body_assign,
     stmt_body_if_return,
     stmt_body_if_else_return,
-    stmt_body_if_else,
-    stmt_body_for,
-    stmt_body_for_range,
+    stmt_if as stmt_body_if_else,
+    stmt_for as stmt_body_for,
+    stmt_for as stmt_body_for_range,
     stmt_body_zeros_decl,
     stmt_body_for_accum,
     stmt_for_assign,
     stmt_for_pluseq,
-    stmt_loop_if,
-    stmt_loop_if_else,
+    stmt_if as stmt_loop_if,
+    stmt_if as stmt_loop_if_else,
+    stmt_decl,
+    stmt_assign,
+    stmt_expr,
     infer_stmts,
 )
 
@@ -998,4 +1001,130 @@ class TestInferStmts:
         assert env['a'] == T_REAL
         assert env['b'] == T_REAL
         assert env['c'] == T_REAL
+        assert errors == []
+
+
+class TestStmtDecl:
+    """Tests for ``stmt_decl`` infer types"""
+
+    def test_scalar(self):
+        """Declared ℝ matched by a numeric literal"""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+        stmt_decl(('decl', 'x', 'ℝ', ('num', 1.0)), ctx)
+        assert ctx.env['x'] == T_REAL
+        assert errors == []
+
+    def test_tensor(self):
+        """Declared ℝ[3] matched infer tensor types"""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+        stmt_decl(
+            ('decl', 'v', ('tensor', [(3, 'invariant')]),
+             ('array', [('num', 1.0), ('num', 2.0), ('num', 3.0)])),
+            ctx,
+        )
+        assert ctx.env['v'] == TTensor(((3, 'invariant'),))
+        assert errors == []
+
+    def test_type_mismatch(self):
+        """Declared ℝ[3] but inferred ℝ report error"""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+        stmt_decl(
+            ('decl', 't', ('tensor', [(3, 'invariant')]), ('num', 0.0)),
+            ctx,
+        )
+        print(errors)
+        assert len(errors) == 1
+        assert "Type mismatch for 't': declared ℝ[3], got ℝ: Cannot unify tensor ℝ[3] with scalar ℝ" == errors[0]
+
+        # on a type mismatch the variable is still added to env
+        assert 't' in ctx.env
+
+
+class TestStmtAssign:
+    """Tests for ``stmt_assign``"""
+
+    def test_scala(self):
+        """Assigning a numeric stores T_REAL in env."""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+        stmt_assign(('assign', 'x', ('num', 3.0)), ctx)
+        assert ctx.env['x'] == T_REAL
+        assert errors == []
+
+    def test_tensor_rhs(self):
+        """Assigning an array stores the tensor type in env."""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+        stmt_assign(
+            ('assign', 'v',
+             ('array', [('num', 1.0), ('num', 2.0), ('num', 3.0)])),
+            ctx,
+        )
+        assert ctx.env['v'] == TTensor(((3, 'invariant'),))
+        assert errors == []
+
+    def test_expression_rhs(self):
+        """The result type of an expression is inferred from operands."""
+        errors = []
+        ctx = make_stmt_ctx(env={'x': T_REAL}, errors=errors)
+        stmt_assign(
+            ('assign', 'y', ('add', ('var', 'x'), ('num', 1.0))),
+            ctx,
+        )
+        assert ctx.env['y'] == T_REAL
+        assert errors == []
+
+    def test_unknown_tvar(self):
+        """An unknown variable stores a fresh TVar in env."""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+        stmt_assign(('assign', 'z', ('var', 'unknown')), ctx)
+        assert 'z' in ctx.env
+        assert isinstance(ctx.env['z'], TVar)
+
+
+
+class TestStmtExpr:
+    """Tests for ``stmt_expr``"""
+
+    def test_valid_expression(self):
+        """Basic correct expr node."""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+        stmt_expr(('expr', ('add', ('num', 1.0), ('num', 2.0))), ctx)
+        assert errors == []
+
+    def test_env_not_modified(self):
+        """expressions should never bind a to a variable."""
+        errors = []
+        ctx = make_stmt_ctx(env={'x': T_REAL}, errors=errors)
+        stmt_expr(('expr', ('var', 'x'), ctx))
+        assert list(ctx.env.keys()) == ['x']
+
+    def test_shape_mismatch_caught(self):
+        """A shape error inside the expression is reported as an error."""
+        errors = []
+        v2 = TTensor(((2, 'invariant'),))
+        v3 = TTensor(((3, 'invariant'),))
+        ctx = make_stmt_ctx(env={'a': v2, 'b': v3}, errors=errors)
+        stmt_expr(
+            ('expr', ('add', ('var', 'a'), ('var', 'b'))),
+            ctx,
+        )
+
+        assert len(errors) == 1
+        assert errors[0] == 'Shape mismatch in add: ℝ[2] vs ℝ[3]'
+
+    def test_function_call_expression(self):
+        """A function call used as a statement is type checked."""
+        errors = []
+        ctx = make_stmt_ctx(
+            env={'x': T_REAL},
+            func_env={'f': ([T_REAL], T_REAL)},
+            errors=errors,
+        )
+        stmt_expr(('expr', ('call', 'f', [('var', 'x')])), ctx)
         assert errors == []
