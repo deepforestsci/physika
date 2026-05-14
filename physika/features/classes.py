@@ -422,7 +422,7 @@ def make_parser_rules():
         p[0] = ("class_def", name)
 
     def p_statement_class_with_params(p):
-        """statement : CLASS ID LPAREN params RPAREN COLON NEWLINE INDENT class_items DEDENT"""  # noqa :E501
+        """statement : CLASS ID LPAREN params RPAREN COLON NEWLINE INDENT class_items DEDENT"""
         # class with explicit constructor params in the header, usually to
         # define DL models and layers.
         # Example:
@@ -494,7 +494,7 @@ def make_parser_rules():
     def p_class_method_params_simple(p):
         """class_method : DEF LAMBDA LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT class_method_return DEDENT
                         | DEF ID    LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT class_method_return DEDENT
-                        | DEF ID    LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT class_method_return DEDENT"""  # noqa :E501
+                        | DEF ID    LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT class_method_return DEDENT"""
         # Method with params and a single return expression (no statements between return and method definition).  # noqa :E501
         # Example:
         #   def dot(other: Vec) → ℝ:
@@ -514,7 +514,7 @@ def make_parser_rules():
 
     def p_class_method_no_params_body(p):
         """class_method : DEF ID LPAREN RPAREN ARROW type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
-                        | DEF ID LPAREN RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""  # noqa :E501
+                        | DEF ID LPAREN RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""
         # Method with no params and intermediate statements before the return.
         # Example:
         #   def ke() : ℝ:
@@ -535,7 +535,7 @@ def make_parser_rules():
 
     def p_class_method_no_params_simple(p):
         """class_method : DEF ID LPAREN RPAREN ARROW type_spec COLON NEWLINE INDENT class_method_return DEDENT
-                        | DEF ID LPAREN RPAREN COLON type_spec COLON NEWLINE INDENT class_method_return DEDENT"""  # noqa :E501
+                        | DEF ID LPAREN RPAREN COLON type_spec COLON NEWLINE INDENT class_method_return DEDENT"""
         # Method with no params and a single return expression.
         # Example:
         #   def norm_sq() : ℝ:
@@ -604,7 +604,7 @@ def make_parser_rules():
         p[0] = ("struct_type", p[1])
 
     def p_func_body_stmt_method_call(p):
-        """func_body_stmt : func_factor DOT ID LPAREN func_args RPAREN NEWLINE"""  # noqa :E501
+        """func_body_stmt : func_factor DOT ID LPAREN func_args RPAREN NEWLINE"""
         # Method call used as a statement.
         # Example:
         #   inside another method
