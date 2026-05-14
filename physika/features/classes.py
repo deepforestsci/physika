@@ -1,6 +1,6 @@
 # flake8: noqa: E501
 import re
-from typing import Optional, Callable
+from typing import Any, Optional, Callable
 from physika.elf import ELF
 
 
@@ -149,7 +149,7 @@ def build_class(constructor_params: Optional[list], body_items: list) -> dict:
     >>> result["fields"]
     []
     >>> result
-    {'class_params': [('mass', 'ℝ')], 'fields': [], 'methods': [{'name': 'ke', 'params': [], 'return_type': 'ℝ', 'statements': [], 'body': None}]}  # noqa :E501
+    {'class_params': [('mass', 'ℝ')], 'fields': [], 'methods': [{'name': 'ke', 'params': [], 'return_type': 'ℝ', 'statements': [], 'body': None}]}
     """
     fields = [(item[1], item[2]) for item in body_items
               if item[0] == "field_decl"]
@@ -193,7 +193,7 @@ def emit_method(method: dict, all_params: list, to_expr: Callable,
     >>> body = ("mul", ("num", 0.5), ("field_access", ("var", "this"), "mass"))
     >>> ke = {"name": "ke", "params": [], "return_type": "ℝ", "statements": [], "body": body}
     >>> emit_method(ke, [("mass", "ℝ")], lambda _: "0.5 * this.mass", True)
-    ['', '    def ke(self):', '        this = self', '        return 0.5 * self.mass']  # noqa :E501
+    ['', '    def ke(self):', '        this = self', '        return 0.5 * self.mass']
     """
     from physika.utils.ast_utils import emit_body_stmts
 
@@ -635,21 +635,162 @@ def make_parser_rules():
     ]
 
 
-class StructFeature(ELF):
-    name = "struct"
+class ClassFeature(ELF):
+    """
+    Physika classes implemented as an ELF subclass.
+
+    ``ClassFeature`` injects rules via ``REGISTRY`` at lexer, parser, type
+    checker, and code generator.
+
+    **Lexer rules**
+    Adds two new tokens, ``CLASS`` reserved keyword (``"class"``) and ``DOT``
+    token (``"."``) for field and method access
+
+    **Parser rules**
+    Sixteen PLY grammar functions (see ``make_parser_rules``) handle class
+    declarations with and without constructor parameters, field
+    declarations, method definitions, and single or two tuple valued returns.
+
+    **Type rules**
+    Registers ``class_env`` entries so the type checker can
+    resolve field types, method calls and constructor calls.
+
+    **Forward rules**
+    Three code-generation handlers were defined. ``class_def`` emits a complete
+    ``nn.Module``. ``field_access` emits ``obj.field``. ``method_call``emits
+    ``obj.method(args)``.
+
+    Physika classes are fully differentiable using Pytroch as backend. Scalar
+    and tensor constructor parameters are converted to ``torch.as_tensor``
+    objects. Parameters used inside a forward method are wrapped in
+    ``nn.Parameter``.
+
+    Physika syntax example (see ``examples/physika_class.phyk``)::
+
+        class Vec:
+            x : ℝ
+            y : ℝ
+            def dot(other : Vec) : ℝ:
+                return this.x * other.x + this.y * other.y
+            def norm_sq() : ℝ:
+                return this.x * this.x + this.y * this.y
+
+        a = Vec(3.0, 4.0)
+        a.norm_sq()
+
+    Examples
+    --------
+    >>> from physika.lexer import lexer
+    >>> from physika.parser import parser, symbol_table
+    >>> from physika.utils.ast_utils import build_unified_ast
+    >>> from physika.codegen import from_ast_to_torch
+    >>> def run_phyk(src):
+    ...     symbol_table.clear()
+    ...     lexer.lexer.lineno = 1
+    ...     ast = build_unified_ast(parser.parse(src, lexer=lexer), symbol_table)
+    ...     exec(from_ast_to_torch(ast, print_code=False), {})
+
+    # Physika class example
+    >>> src = '''
+    ... class Vec:
+    ...     x : ℝ
+    ...     y : ℝ
+    ...     def norm_sq() : ℝ:
+    ...         return this.x * this.x + this.y * this.y
+    ... a = Vec(3.0, 4.0)
+    ... a.x
+    ... a.y
+    ... a.norm_sq()
+    ... '''
+
+    # Execute code and verify outputs
+    >>> run_phyk(src)
+    3.0 ∈ ℝ
+    4.0 ∈ ℝ
+    25.0 ∈ ℝ
+    """
+    name = "physika-class"
 
     def lexer_rules(self) -> dict:
+        """
+        Adds two new tokens, ``CLASS`` reserved keyword (``"class"``) and
+        ``DOT`` token (``"."``) for field and method access.
 
-        def t_DOT(t):
+        Returns
+        -------
+        dict
+            Dictionary with reserved keywords, tokens and tokens functions
+
+        Examples
+        --------
+        >>> from physika.features import ClassFeature
+        >>> rules = ClassFeature().lexer_rules()
+        >>> rules["reserved"]
+        {'class': 'CLASS'}
+        >>> rules["tokens"]
+        ['CLASS', 'DOT']
+
+        """
+        def t_DOT(t: Any) -> Any:
+            # regex matches a dot (".") for field and method access
             r"\."
             return t
 
-        return {"tokens": ["DOT"], "token_funcs": [t_DOT]}
+        return {
+            "reserved": {"class": "CLASS"},
+            "tokens": ["CLASS", "DOT"],
+            "token_funcs": [t_DOT],
+        }
 
     def parser_rules(self) -> list:
+        """
+        Override ``parser_rules`` handler for new grammar rules.
+
+        Sixteen PLY grammar functions (see ``make_parser_rules``) handle class
+        declarations with and without constructor parameters, field declarations
+        , method definitions, and single or two tuple valued returns.
+
+        Returns
+        -------
+        list
+            List of PLY grammar functions to be injected into ``physika.parser``.
+
+        Examples
+        --------
+        >>> from physika.features import ClassFeature
+        >>> rules = ClassFeature().parser_rules()
+        >>> len(rules)
+        16
+        >>> rules[0].__name__
+        'p_statement_class_no_params'
+        """
         return make_parser_rules()
 
     def type_rules(self) -> dict:
+        """
+        Registers two type-checking handlers that validate field access and
+        method calls on class instances. ``field_access``infers ``obj.field``
+        by looking up the field name in the class_env and returns its declared
+        type. Raises an error if the field does not exist or if a class
+        constructor is not instance. ``method_call`` infers 
+        ``obj.method(args)`` by checking the number of arguments and types
+        against the method's declared parameters and returning its declared
+        return type. Raises an error if the method does not exist
+        or if argument types do not match.
+
+        Returns
+        -------
+        dict
+            Dispatch table mapping ``"field_access"`` and ``"method_call"`` AST
+            tags to their type inference handlers.
+
+        Examples
+        --------
+        >>> from physika.features import ClassFeature
+        >>> rules = ClassFeature().type_rules()
+        >>> sorted(rules.keys())
+        ['field_access', 'method_call']
+        """
         from physika.utils.types import TInstance, Substitution
         from physika.utils.type_checker_utils import from_typespec, type_to_str
         from typing import Callable, Any
@@ -680,18 +821,26 @@ class StructFeature(ELF):
                 Expression that is being called on a non-initialized class
                 (``field_access`` or ``method_call``).
 
+            Returns
+            -------
+            bool
+                True if trying to accesing a field without class instance, False
+                otherwise.
+
             Examples
             --------
-            >>> from 
-            Classes cannot be used direclty:
-            class Particle:
-                x:ℝ
-            
-            Particle.x gives an error
-            # Must be instances
-            p : Particle = Particle(1.0)
-            p.x
-            Outputs -> 1.0 𝛜 ℝ
+            >>> from physika.features import ClassFeature
+            >>> rules = ClassFeature().type_rules()
+            >>> check_field = rules["field_access"]
+            >>> class_env = {"Particle": {"class_params": [("x", "ℝ")], "fields": [], "methods": {}}}
+            >>> # Wrong Particle.x, needs to be an instance first
+            >>> node = ("field_access", ("var", "Particle"), "x")
+            >>> def infer(expr, env, s):
+            ...     return None, s
+            >>> errors = []
+            >>> _ = check_field(node, {}, {}, {}, class_env, errors.append, infer)
+            >>> errors[0]
+            "'Particle' is a class constructor, not an instance; use an instance to access field 'x'"
             """
 
             # ('field_access', ('var', 'Vect'), 'x')
@@ -715,6 +864,53 @@ class StructFeature(ELF):
             add_error: Callable[[str], None],
             infer_expr: Callable[..., tuple],
         ) -> tuple[Any, Substitution]:
+            """
+            Type rules for ``field_access`` AST node.
+
+            Infers the type of class instance, then looks ``field`` in the class
+            definition to return its declared type. Registers an error if the
+            field does not exist or if a class constructor is used
+            directly instead of an instance.
+
+            Parameters
+            ----------
+            node : tuple
+                AST node of the form ``("field_access", obj_expr, field_name)``.
+            env : dict
+                Current type environment mapping variable names to their types.
+            s : Substitution
+                Substitution dict containing bindings accumulated so far.
+            func_env : dict
+                Function definitions available in scope.
+            class_env : dict
+                Class definitions mapping class names to their parameters and
+                variables.
+            add_error : Callable[[str], None]
+                Callback to register a type error message.
+            infer_expr : Callable
+                Type inference function for sub-expressions.
+
+            Returns
+            -------
+            tuple[Any, Substitution]
+                The inferred field type and the updated substitution, or
+                ``(None, s)`` if the type cannot be resolved.
+
+            Examples
+            --------
+            >>> from physika.features import ClassFeature
+            >>> from physika.utils.types import TInstance, Substitution
+            >>> rules = ClassFeature().type_rules()
+            >>> check_field = rules["field_access"]
+            >>> s = Substitution()
+            >>> class_env = {"Vec": {"class_params": [("x", "ℝ"), ("y", "ℝ")], "fields": [], "methods": {}}}
+            >>> def infer(expr, env, s):
+            ...     return TInstance("Vec"), s
+            >>> node = ("field_access", ("var", "v"), "x")
+            >>> t, _ = check_field(node, {}, s, {}, class_env, print, infer)
+            >>> t
+            ('scalar',)
+            """
             _, obj_expr, field_name = node
 
             obj_type, s = infer_expr(obj_expr, env, s, func_env, class_env,
@@ -747,6 +943,56 @@ class StructFeature(ELF):
             add_error: Callable[[str], None],
             infer_expr: Callable[..., tuple],
         ) -> tuple[Any, Substitution]:
+            """
+            Type inference rules fpr ``method_call`` AST nodes.
+
+            Based on a ``method`` definition in a class, validates arguments
+            and types against the method's declared parameters. Returns its
+            declared return type.
+            
+            Registers an error if the method does not exist, argument count mismatches, or
+            argument types do not match.
+
+            Parameters
+            ----------
+            node : tuple
+                AST node of the form
+                ``("method_call", obj_expr, method_name, args)``.
+            env : dict
+                Current type environment mapping variable names to their types.
+            s : Substitution
+                Substitution dict containing bindings accumulated so far.
+            func_env : dict
+                Function definitions available in scope.
+            class_env : dict
+                Class definitions mapping class names to their definition dicts.
+            add_error : Callable[[str], None]
+                Callback to register a type error message.
+            infer_expr : Callable
+                Recursive type inference function for sub-expressions.
+
+            Returns
+            -------
+            tuple[Any, Substitution]
+                The inferred return type of the method and the updated
+                substitution, or ``(None, s)`` if the type cannot be resolved.
+
+            Examples
+            --------
+            >>> from physika.features import ClassFeature
+            >>> from physika.utils.types import TInstance, Substitution
+            >>> rules = ClassFeature().type_rules()
+            >>> check_method = rules["method_call"]
+            >>> s = Substitution()
+            >>> ke = {"params": [], "return_type": "R"}
+            >>> class_env = {"Particle": {"class_params": [("mass", "R")], "fields": [], "methods": {"ke": ke}}}
+            >>> def infer(expr, env, s):
+            ...     return TInstance("Particle"), s
+            >>> node = ("method_call", ("var", "p"), "ke", [])
+            >>> t, _ = check_method(node, {}, s, {}, class_env, print, infer)
+            >>> t
+            ('scalar',)
+            """
             _, obj_expr, method_name, args = node
 
             obj_type, s = infer_expr(obj_expr, env, s, func_env, class_env,
@@ -806,18 +1052,152 @@ class StructFeature(ELF):
         }
 
     def forward_rules(self) -> dict:
-        #         **ctx as keyword arguments. So **ctx in the handler signatures is
-        #   required to absorb them.
-        def emit_field_access(node, to_expr, **ctx):
+        """
+        Three code-generation handlers were defined. ``class_def`` emits a complete
+        ``nn.Module``. ``field_access` emits ``obj.field``. ``method_call``emits
+        ``obj.method(args)``.
+
+        Physika classes are fully differentiable using Pytroch as backend. Scalar
+        and tensor constructor parameters are converted to ``torch.as_tensor``
+        objects. Parameters used inside a forward method are wrapped in
+        ``nn.Parameter``.
+
+        Returns
+        -------
+        dict
+            Dictionary containg code generation handlers.
+
+        Examples
+        --------
+        >>> from physika.features import ClassFeature
+        >>> from physika.features.classes import build_class
+        >>> rules = ClassFeature().forward_rules()
+        >>> class_def = build_class([("mass", "ℝ")], [])
+        >>> code = rules["class_def"](("class_def", "Particle", class_def), **{})
+        
+        # Physika code:
+        # class Particle:
+        #   mass: ℝ
+
+        >>> nl = chr(10) # unicode for \n
+        >>> expected = nl.join([
+        ...     "class Particle(nn.Module):",
+        ...     "    def __init__(self, mass):",
+        ...     "        super().__init__()",
+        ...     "        self.mass = torch.as_tensor(mass).float()",
+        ...     "",
+        ...     "    @property",
+        ...     "    def params(self):",
+        ...     "        return list(self.parameters())",
+        ...     "",
+        ...     "    def update(self, lr, grads):",
+        ...     "        with torch.no_grad():",
+        ...     "            for p, g in zip(self.parameters(), grads):",
+        ...     "                if g is not None:",
+        ...     "                    p -= lr * g",
+        ... ])
+        >>> code == expected
+        True
+        """
+        def emit_field_access(node: tuple, to_expr: Callable, **ctx) -> str:
+            """
+            Emit a Python string attribute acces given a ``field_access`` ASTNode.
+
+            Parameters
+            ----------
+            node : tuple
+                AST node of the form ``("field_access", obj_expr, field_name)``.
+            to_expr : Callable
+                Recursive codegen function that converts an AST node to a
+                Python code string.
+            **ctx
+                Extra keyword arguments forwarded by the dispatch mechanism;
+                not used directly.
+
+            Returns
+            -------
+            str
+                Python attribute access string, e.g. ``"p.mass"``.
+
+            Examples
+            --------
+            >>> from physika.features import ClassFeature
+            >>> rules = ClassFeature().forward_rules()
+            >>> emit = rules["field_access"]
+            >>> node = ("field_access", ("var", "p"), "mass")
+            >>> emit(node, lambda n: n[1])
+            'p.mass'
+            """
             _, obj_expr, field_name = node
             return f"{to_expr(obj_expr)}.{field_name}"
 
-        def emit_method_call(node, to_expr, **ctx):
+        def emit_method_call(node: tuple, to_expr: Callable, **ctx) -> str:
+            """
+            Generates a ``method_call`` AST node as a Python method call.
+
+            Parameters
+            ----------
+            node : tuple
+                AST node of the form
+                ``("method_call", obj_expr, method_name, args)``.
+            to_expr : Callable
+                Recursive codegen function that converts an AST node to a
+                Python expression string.
+            **ctx
+                Extra keyword arguments forwarded by the dispatch mechanism;
+                not used directly.
+
+            Returns
+            -------
+            str
+                Python method call string, e.g. ``"p.ke()"``.
+
+            Examples
+            --------
+            >>> from physika.features import ClassFeature
+            >>> rules = ClassFeature().forward_rules()
+            >>> emit = rules["method_call"]
+            >>> node = ("method_call", ("var", "p"), "ke", [])
+            >>> emit(node, lambda n: n[1])
+            'p.ke()'
+            """
             _, obj_expr, method_name, args = node
             args_str = ", ".join(to_expr(a) for a in args)
             return f"{to_expr(obj_expr)}.{method_name}({args_str})"
 
-        def emit_class_def(node, **ctx):
+        def emit_class_def(node: tuple, **ctx) -> str:
+            """
+            Emit a ``class_def`` AST node as a full PyTorch ``nn.Module`` class.
+
+            Converts ``("class_def", name, class_def)`` into a Python source
+            string by calling to ``generate_class``, which produces the
+            ``__init__``, method defs, and ``params``/``update`` helpers.
+
+            Parameters
+            ----------
+            node : tuple
+                AST node of the form ``("class_def", name, class_def)`` where
+                ``class_def`` is the dict returned by ``build_class``.
+            **ctx
+                Extra keyword arguments forwarded by the dispatch mechanism;
+                not used directly.
+
+            Returns
+            -------
+            str
+                Full Python source string for an ``nn.Module`` subclass.
+
+            Examples
+            --------
+            >>> from physika.features import ClassFeature
+            >>> from physika.features.classes import build_class
+            >>> rules = ClassFeature().forward_rules()
+            >>> emit = rules["class_def"]
+            >>> class_def = build_class([("mass", "ℝ")], [])
+            >>> code = emit(("class_def", "Particle", class_def))
+            >>> "class Particle(nn.Module):" in code
+            True
+            """
             _, name, class_def = node
             return generate_class(name, class_def)
 

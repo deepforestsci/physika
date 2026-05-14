@@ -1,4 +1,4 @@
 from physika.elf import REGISTRY
-from physika.features.classes import StructFeature
+from physika.features.classes import ClassFeature
 
-REGISTRY.register(StructFeature())
+REGISTRY.register(ClassFeature())
