@@ -1,5 +1,5 @@
 import pytest
-from conftest import exec_phyk
+from tests.conftest import exec_phyk
 
 
 @pytest.fixture(scope="module")
