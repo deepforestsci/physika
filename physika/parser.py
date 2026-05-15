@@ -1,6 +1,13 @@
 import ply.yacc as yacc
 from physika.lexer import tokens  # noqa: F401
 from physika.utils.parser_utils import find_indexed_arrays
+import sys
+from pathlib import Path
+from physika.elf import REGISTRY
+import physika.lexer as lexer_mod
+if REGISTRY.features != []:
+# At import time registers ELF defined at physika.features.__init__.py
+    import physika.features as _  # noqa: F401
 
 symbol_table: dict[str, dict] = {}
 print_separator: bool = False
@@ -1796,5 +1803,11 @@ def p_statemet_equation_decl(p):
     #   p[7] — expression on RHS
     p[0] = ("equation_decl", p[1], p[5], p[7])
 
-
-parser = yacc.yacc()
+if REGISTRY.features != []:
+    REGISTRY.add_lexer_rules(lexer_mod)
+    # refresh after ELF have added new tokens
+    tokens = lexer_mod.tokens  # noqa: F811
+    REGISTRY.add_parser_rules(sys.modules[__name__])
+    parser = yacc.yacc(outputdir=str(Path(__file__).parent))
+else:
+    parser = yacc.yacc()

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Callable, Literal, Union, cast
 from physika.utils.print_utils import print_unified_ast
-
+from physika.elf import REGISTRY
 # AST TYPE DEFINITIONS
 # The parser produces a tree of tagged tuples.  Every non-leaf node is a
 # tuple whose first element is a string (tag) and whose remaining elements are
@@ -781,6 +781,17 @@ def ast_to_torch_expr(node: ASTNode,
     elif op == "string":
         # Equation string literal
         return repr(node[1])
+    
+    # Adds expression tags from ELF features
+    elf_result = REGISTRY.dispatch_forward(
+        op,
+        node,
+        to_expr=lambda n: ast_to_torch_expr(n, indent, current_loop_var),
+        loop_var=current_loop_var,
+        indent=indent,
+    )
+    if elf_result is not None:
+        return elf_result
 
     return f"/* unknown: {node} */"
 
@@ -1680,6 +1691,15 @@ def generate_statement(stmt: ASTNode,
 
         return "\n".join(branch_lines)
 
+    # Adds ELF features statement tags
+    elf_result = REGISTRY.dispatch_forward(
+        op,
+        stmt,
+        to_expr=lambda n: ast_to_torch_expr(n),
+        indent=0,
+    )
+    if elf_result is not None:
+        return elf_result
     return f"# Unknown: {stmt}"
 
 

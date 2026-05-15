@@ -3,8 +3,8 @@ from typing import Dict, Set, Any
 from physika.utils.ast_utils import (ast_uses_solve, ast_uses_func,
                                      collect_grad_targets, generate_function,
                                      generate_class, generate_statement,
-                                     ast_uses_sympy)
-
+                                     ast_uses_sympy, ast_to_torch_expr)
+from physika.elf import REGISTRY
 
 def from_ast_to_torch(unified_ast: Dict[str, Any],
                       print_code: bool = True) -> str:
@@ -186,7 +186,15 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     if unified_ast["classes"]:
         code_lines.append("# === Classes ===")
         for name, class_def in unified_ast["classes"].items():
-            code_lines.append(generate_class(name, class_def))
+            if REGISTRY.features != []:
+                node = ("class_def", name, class_def)
+                class_code = REGISTRY.dispatch_forward("class_def",
+                                                    node,
+                                                    to_expr=ast_to_torch_expr)
+                assert class_code is not None
+                code_lines.append(class_code)
+            else:
+                code_lines.append(generate_class(name, class_def))
             code_lines.append("")
 
     # Generate program statements
