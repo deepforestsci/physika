@@ -1,5 +1,6 @@
 from typing import Any, Callable, Optional, Tuple
-from physika.utils.types import Substitution, Type, TVar, TDim, T_NAT, new_var, new_dim  # noqa: E501
+from physika.utils.types import Substitution, Type, new_var, T_NAT, new_dim, TVar, TDim  # noqa: E501
+from physika.elf import REGISTRY
 
 
 class StmtContext:
@@ -914,4 +915,18 @@ def infer_stmts(
         handler = STMT_DISPATCH.get(stmt[0])
         if handler is not None:
             handler(stmt, ctx)
+        else:
+            # ELF type rule dispatcher for new stmts
+            if REGISTRY.has_type_rule(stmt[0]):
+                from physika.utils.infer_expr import infer_expr
+                _, ctx.s = REGISTRY.dispatch_type(
+                    stmt[0],
+                    stmt,
+                    ctx.env,
+                    ctx.s,
+                    ctx.func_env,
+                    ctx.class_env,
+                    ctx.add_error,
+                    infer_expr,
+                )
     return ctx.env, ctx.s
