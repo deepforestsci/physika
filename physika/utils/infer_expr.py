@@ -1380,6 +1380,14 @@ def infer_expr(
             return handler(node, ctx, new_dim)
         return handler(node, ctx)
 
+    # ELF type rule dispatcher
+    from physika.elf import REGISTRY as REGISTRY
+    if REGISTRY.has_type_rule(node[0]):
+        result = REGISTRY.dispatch_type(node[0], node, env, s, func_env,
+                                        class_env, add_error, infer_expr)
+        if result is not None:
+            return result
+
     # No handler registered for this tag — report and return unknown type.
     add_error(f"Unknown expression type: {node[0]}")
     return None, s

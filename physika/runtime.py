@@ -166,6 +166,15 @@ def train(
     """
     trained_model = copy.deepcopy(model)
 
+    # Promote plain float tensor attributes to nn.Parameter so the optimizer
+    # can track and update them (e.g. when weights were passed as tensors).
+    for attr_name in list(vars(trained_model).keys()):
+        attr_val = getattr(trained_model, attr_name, None)
+        if (isinstance(attr_val, torch.Tensor)
+                and not isinstance(attr_val, nn.Parameter)
+                and attr_val.is_floating_point()):
+            setattr(trained_model, attr_name, nn.Parameter(attr_val.detach()))
+
     for param in trained_model.parameters():
         param.requires_grad_(True)
 
@@ -331,8 +340,9 @@ def compute_grad(
             # Scalar output
             (grad, ) = torch.autograd.grad(out,
                                            cast(torch.Tensor, x),
-                                           retain_graph=True)
-            return grad.detach()
+                                           retain_graph=True,
+                                           create_graph=True)
+            return grad
         else:
             # Tensor output
             # compute Jacobian by rows from pre built graph

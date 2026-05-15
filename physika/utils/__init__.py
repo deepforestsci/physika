@@ -1,6 +1,6 @@
 from physika.utils.ast_utils import (  # noqa: F401
     ASTNode, ast_uses_solve, ast_uses_func, collect_grad_targets,
-    replace_class_params, ast_to_torch_expr, generate_function, generate_class,
+    replace_class_params, ast_to_torch_expr, generate_function,
     generate_statement, build_unified_ast)
 from physika.utils.parser_utils import find_indexed_arrays  # noqa: F401
 from physika.utils.print_utils import (  # noqa: F401
