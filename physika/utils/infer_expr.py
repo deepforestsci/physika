@@ -3,6 +3,7 @@ from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstan
 from physika.utils.ast_utils import ASTNode
 from physika.elf import REGISTRY
 
+
 class ExprContext:
     """
     Data class represeting the context in which an expression is being inferred.
