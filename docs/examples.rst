@@ -97,6 +97,11 @@ Factorial (recursive)
 Classes
 -------
 
+Physika classes
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../examples/physika_class.phyk
+   :language: text
 
 Neural network classes
 ~~~~~~~~~~~~~~~~~~~~~~
