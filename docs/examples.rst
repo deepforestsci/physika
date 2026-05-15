@@ -62,7 +62,7 @@ Differentiable conditional
 Differentiable sin / cos
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. literalinclude:: ../examples/diff_sincos.phyk
+.. literalinclude:: ../examples/diff_functions.phyk
    :language: text
 
 Threshold optimisation (gradient descent)
