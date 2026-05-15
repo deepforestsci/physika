@@ -14,21 +14,35 @@ def sigma(x):
 class FullyConnectedNetwork(nn.Module):
     def __init__(self, f, W, B, w, b, n):
         super().__init__()
-        self.f = f
-        self.W = nn.Parameter(torch.tensor(W).float() if not isinstance(W, torch.Tensor) else W.clone().detach().float())
-        self.B = nn.Parameter(torch.tensor(B).float() if not isinstance(B, torch.Tensor) else B.clone().detach().float())
-        self.w = nn.Parameter(torch.tensor(w).float() if not isinstance(w, torch.Tensor) else w.clone().detach().float())
-        self.b = nn.Parameter(torch.tensor(b).float() if not isinstance(b, torch.Tensor) else b.clone().detach().float())
-        self.n = n
+        self.f = torch.as_tensor(f).float() if isinstance(f, (int, float, torch.Tensor)) else f
+        self.W = nn.Parameter(torch.as_tensor(W).float())
+        self.B = nn.Parameter(torch.as_tensor(B).float())
+        self.w = nn.Parameter(torch.as_tensor(w).float())
+        self.b = nn.Parameter(torch.as_tensor(b).float())
+        self.n = torch.as_tensor(n).float() if isinstance(n, (int, float, torch.Tensor)) else n
 
     def forward(self, x):
+        this = self
         x = torch.as_tensor(x).float()
         for k in range(len(self.W)):
             x = self.f(((self.W[int(k)] @ x) + self.B[int(k)]))
         return ((self.w @ x) + self.b)
 
     def loss(self, y, target):
+        this = self
+        y = torch.as_tensor(y).float()
+        target = torch.as_tensor(target).float()
         return ((y - target) ** 2.0)
+
+    @property
+    def params(self):
+        return list(self.parameters())
+
+    def update(self, lr, grads):
+        with torch.no_grad():
+            for p, g in zip(self.parameters(), grads):
+                if g is not None:
+                    p -= lr * g
 
 # === Program ===
 X = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 1.0, 1.0]])

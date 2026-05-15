@@ -37,9 +37,10 @@ def classify(x):
 class PiecewiseNet(nn.Module):
     def __init__(self, threshold):
         super().__init__()
-        self.threshold = nn.Parameter(torch.tensor(threshold).float() if not isinstance(threshold, torch.Tensor) else threshold.clone().detach().float())
+        self.threshold = nn.Parameter(torch.as_tensor(threshold).float())
 
     def forward(self, x):
+        this = self
         x = torch.as_tensor(x).float()
         if x > self.threshold:
             y = (x * x)
@@ -48,7 +49,20 @@ class PiecewiseNet(nn.Module):
         return y
 
     def loss(self, pred, target):
+        this = self
+        pred = torch.as_tensor(pred).float()
+        target = torch.as_tensor(target).float()
         return ((pred - target) ** 2)
+
+    @property
+    def params(self):
+        return list(self.parameters())
+
+    def update(self, lr, grads):
+        with torch.no_grad():
+            for p, g in zip(self.parameters(), grads):
+                if g is not None:
+                    p -= lr * g
 
 # === Program ===
 a = torch.tensor(2.0, requires_grad=True)
