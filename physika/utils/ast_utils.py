@@ -238,7 +238,7 @@ def collect_grad_targets(node: ASTNode, targets: set[str]) -> None:
     if not isinstance(node, (tuple, list)):
         return
     if isinstance(node, tuple) and len(node) >= 2:
-        if node[0] == "call" and node[1] == "grad" and len(node) >= 3:
+        if node[0] in ("call", "call_index") and node[1] == "grad" and len(node) >= 3:
             args = node[2]
             if len(args) >= 2 and isinstance(args[1],
                                              tuple) and args[1][0] == "var":

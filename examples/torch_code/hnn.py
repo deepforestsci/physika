@@ -25,10 +25,11 @@ class HamiltonianNet(nn.Module):
         h = ((self.w2 @ tanh(((self.W1 @ x) + self.b1))) + self.b2)
         return h
 
-    def loss(self, H, target):
+    def loss(self, H, target, x):
         this = self
         H = torch.as_tensor(H).float()
         target = torch.as_tensor(target).float()
+        x = torch.as_tensor(x).float()
         lo = (((compute_grad(H, x)[int(1)] - target[int(0)]) ** 2.0) + (((0.0 - compute_grad(H, x)[int(0)]) - target[int(1)]) ** 2.0))
         return lo
 
