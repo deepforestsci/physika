@@ -4,13 +4,14 @@ tokens = ("ID", "NUMBER", "TYPE", "STRING", "PLUS", "MINUS", "TIMES", "DIVIDE",
           "INTDIV", "MATMUL", "POWER", "EQUALS", "EQEQ", "NEQ", "LT", "GT",
           "LEQ", "GEQ", "PLUSEQ", "COLON", "COMMA", "ARROW", "LPAREN",
           "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE", "INDENT", "DEDENT",
-          "DEF", "RETURN", "FOR", "IF", "ELSE", "LAMBDA", "TANGENT",
+          "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS", "LAMBDA", "TANGENT",
           "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION", "WALRUS")
 
 reserved = {
     "def": "DEF",
     "return": "RETURN",
     "for": "FOR",
+    "class": "CLASS",
     "if": "IF",
     "else": "ELSE",
     "Symbol": "SYMBOL",
