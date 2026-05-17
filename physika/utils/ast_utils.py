@@ -570,6 +570,19 @@ def ast_to_torch_expr(node: ASTNode,
         # Check if this is a nested array (contains other arrays)
         has_nested = any(
             isinstance(e, tuple) and e[0] == "array" for e in elements)
+
+        # helper function to recursively check if number is complex
+        def _has_complex(node):
+            if (isinstance(node, tuple) and len(node) >= 2 and node[0] == "num"
+                    and isinstance(node[1], complex)):
+                return True
+            # recursively traverse tuples/lists (nested arrays)
+            if isinstance(node, (tuple, list)):
+                return any(_has_complex(child) for child in node)
+            return False
+
+        contains_complex = any(_has_complex(e) for e in elements)
+
         if has_nested:
             # For nested arrays, generate list-of-lists and wrap in
             # torch.tensor
@@ -582,6 +595,8 @@ def ast_to_torch_expr(node: ASTNode,
                                              current_loop_var)
 
             inner_lists = [array_to_list(e) for e in elements]
+            if contains_complex:
+                return f"torch.tensor([{', '.join(inner_lists)}], dtype=torch.complex64)"  # noqa
             return f"torch.tensor([{', '.join(inner_lists)}])"
         else:
             all_numeric = all(
@@ -593,12 +608,23 @@ def ast_to_torch_expr(node: ASTNode,
                 for e in elements
             ]
             if all_numeric:
+                if contains_complex:
+                    return f"torch.tensor([{', '.join(elem_strs)}], dtype=torch.complex64)"  # noqa
                 return f"torch.tensor([{', '.join(elem_strs)}])"
             else:
-                # Elements may be tensors (e.g., x[1], sin(x[0]))
-                # use torch.stack
-                wrapped = [f"torch.as_tensor({s}).float()" for s in elem_strs]
-                return f"torch.stack([{', '.join(wrapped)}])"
+                if contains_complex:
+                    wrapped = [
+                        f"torch.as_tensor({s}, dtype=torch.complex64)"
+                        for s in elem_strs
+                    ]
+                    return f"torch.stack([{', '.join(wrapped)}])"
+                else:
+                    # Elements may be tensors (e.g., x[1], sin(x[0]))
+                    # use torch.stack
+                    wrapped = [
+                        f"torch.as_tensor({s}).float()" for s in elem_strs
+                    ]
+                    return f"torch.stack([{', '.join(wrapped)}])"
 
     elif op == "index":
         var_name = node[1]
