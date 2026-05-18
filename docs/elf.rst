@@ -162,3 +162,10 @@ Inside a Physika method body, the current instance is referred as ``this``. The 
 * An ``__init__`` method is generated from the constructor parameters. Scalar (``ℝ``) and tensor parameters are converted with ``torch.as_tensor`` objects. If the class defines learnable parameters (e.g. inside a forward method), these are wrapped in ``nn.Parameter``.
 * Each Physika method is emitted by ``emit_method``, walking down the AST, which handles ``this`` to ``self`` rewriting and fields substitution via ``replace_class_params``
 * A ``params`` property and an ``update`` method are appended to every generated class to support manual gradient-descent updates.
+
+**Example**
+
+The following physika program shows some example on Physika clases:
+
+.. literalinclude:: ../examples/physika_class.phyk
+   :language: text

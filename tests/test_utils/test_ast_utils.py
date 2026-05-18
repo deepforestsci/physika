@@ -93,18 +93,22 @@ def is_unified_ast(ast) -> bool:
     if set(ast.keys()) != {"functions", "classes", "program"}:
         return False
 
-    for key in ("functions", "classes"):
-        section = ast[key]
-        if not isinstance(section, dict):
+    if not isinstance(ast["functions"], dict):
+        return False
+    for name, definition in ast["functions"].items():
+        if not isinstance(name, str) or not isinstance(definition, dict):
             return False
-        for name, definition in section.items():
-            if not isinstance(name, str):
+        for field_val in definition.values():
+            if not is_ast_node(field_val):
                 return False
-            if not isinstance(definition, dict):
-                return False
-            for field_val in definition.values():
-                if not is_ast_node(field_val):
-                    return False
+
+    if not isinstance(ast["classes"], dict):
+        return False
+    for name, definition in ast["classes"].items():
+        if not isinstance(name, str) or not isinstance(definition, dict):
+            return False
+        # class defs contain lists (class_params, fields, methods)
+        # not ASTNodes
 
     if not isinstance(ast["program"], list):
         return False
@@ -146,14 +150,14 @@ def test_function_bodies_are_ast_nodes(phyk_file):
 
 @pytest.mark.parametrize("phyk_file", PHYK_FILES, ids=PHYK_IDS)
 def test_class_bodies_are_ast_nodes(phyk_file):
-    """Verify every class forward body is a valid ASTNode."""
+    """Verify every class method body is a valid ASTNode."""
     src = phyk_file.read_text()
     program_ast, sym_tb = parse_source(src)
     ast = build_unified_ast(program_ast, sym_tb)
     for name, class_def in ast["classes"].items():
-        assert is_ast_node(class_def["body"])
-        if class_def.get("has_loss"):
-            assert is_ast_node(class_def["loss_body"])
+        for method in class_def.get("methods", []):
+            if method.get("body") is not None:
+                assert is_ast_node(method["body"])
 
 
 @pytest.mark.parametrize("phyk_file", PHYK_FILES, ids=PHYK_IDS)

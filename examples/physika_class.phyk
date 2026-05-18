@@ -1,0 +1,88 @@
+# Physika classes
+
+class Vec:
+    x : ℝ
+    y : ℝ
+    def dot(other : Vec) : ℝ:
+        return this.x * other.x + this.y * other.y
+    def scale(s : ℝ) : Vec:
+        return Vec(this.x * s, this.y * s)
+    def norm_sq() : ℝ:
+        return this.x * this.x + this.y * this.y
+
+class Particle:
+    pos : ℝ[2]
+    vel : ℝ[2]
+    mass : ℝ
+    def kinetic_energy() : ℝ:
+        return 0.5 * this.mass * sum(this.vel * this.vel)
+    def step(force : ℝ[2], dt : ℝ) : Particle:
+        acc : ℝ[2] = force * (1.0 / this.mass)
+        new_vel : ℝ[2] = this.vel + acc * dt
+        new_pos : ℝ[2] = this.pos + this.vel * dt
+        return Particle(new_pos, new_vel, this.mass)
+
+# Vec
+a = Vec(3.0, 4.0)
+b = Vec(1.0, 0.0)
+a.x
+a.y
+dot_ab : ℝ = a.dot(b)
+dot_ab
+c = a.scale(4)
+c.x
+c.y
+
+
+# Particle object
+pos0 : ℝ[2] = [0.0, 10.0]
+vel0 : ℝ[2] = [1.0, 0.0]
+gravity : ℝ[2] = [0.0, -9.81]
+p = Particle(pos0, vel0, 9.0)
+ke0 : ℝ = p.kinetic_energy()
+ke0
+p1 = p.step(gravity, 0.5)
+p1.pos
+p2 = p1.step(gravity, 0.5)
+p2.pos
+
+# Computing grads through Physika class methods
+# grad(Particle.kinetic_enery, v)
+def ke_wrt_vel(vel : ℝ[2]) : ℝ:
+    particle : Particle = Particle(pos0, vel, 1.0)
+    return particle.kinetic_energy()
+
+v : ℝ[2] = [2.0, 3.4]
+ke0_v : ℝ = ke_wrt_vel(v)
+ke0_v
+dKE_dv : ℝ[2] = grad(ke_wrt_vel(v), v)
+dKE_dv
+
+# grad of kinetic energy w.r.t. a velocity component:
+def ke_vy(vy : ℝ) : ℝ:
+    # v is composed of [vx, vy]
+    # Lets differentiate kinetic energy wrt vy component
+    p : Particle = Particle(pos0, [1.0, vy], 2.0)
+    return p.kinetic_energy()
+
+vy0 : ℝ = 3.0
+ke_vy(vy0)
+grad(ke_vy(vy0), vy0)    # d(0.5*2*(1**2 + vy**2))/d(vy) = 2*vy = 6
+
+# grad(Vec.norm_sq, x)
+def norm_sq_wrt_x(x : ℝ) : ℝ:
+    vec : Vec = Vec(x, 4.0)
+    return vec.norm_sq()
+
+x0 : ℝ = 3.0
+norm_sq_wrt_x(x0)
+grad(norm_sq_wrt_x(x0), x0)
+
+# Directly computing grad of a method w.r.t. the input:
+x1 : ℝ = 5.0
+vec : Vec = Vec(x1, 4.0)
+grad(vec.norm_sq(), x1)    # d(x**2 + 4**2)/dx = 2x = 10
+
+x1 : ℝ = 5.0
+vec : Vec = Vec(x1, 4.0)
+grad(vec.x, x1)    # d(x)/dx = 1
