@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any, Union, Callable
 import itertools
 
 
@@ -571,3 +571,243 @@ class Substitution(dict):
             if k not in result:
                 result[k] = v
         return result
+
+
+def check_function(
+    name: str,
+    fdef: dict,
+    func_env: dict,
+    class_env: dict,
+    add_error: Callable[[str], None],
+) -> None:
+    """
+    Checks that a function defined in Physika is well typed.
+
+    ``check_function`` creates a local environment from the body statements,
+    declared parameter and return types, and runs ``infer_stmts`` over the
+    function body statements. Then, at unification step, the return expression
+    is type checked against the declared return type.
+
+    Class defintions (name, class constructors/fields, TInstance) are stored in
+    ``func_env`` for checking class instances used in a function.
+
+    Parameters
+    ----------
+    name : str
+        Function name, used only for error messages.
+    fdef : dict
+        Function definition dict from ``unified_ast["functions"]``, with
+        keys ``"params"``, ``"statements"``, ``"body"``, ``"return_type"``.
+    func_env : dict
+        Function signature registry ``{name: ([param_types], ret_type)}``.
+    class_env : dict
+        Global class definition registry, used by ``infer_expr`` to resolve
+        constructor calls.
+    add_error : Callable[[str], None]
+        Callback that receives the type error, if any, as string.
+
+    Examples
+    --------
+    >>> from physika.utils.types import check_function
+    >>> errors = []
+    >>> fdef = {"params": [("x", "ℝ")], "statements": [], "body": ("var", "x"), "return_type": "ℝ"}  # noqa: E501
+    >>> check_function("identity", fdef, {}, {}, errors.append)
+    >>> errors
+    []
+    """
+    from physika.utils.type_checker_utils import from_typespec, unify, type_to_str  # noqa: E501
+    from physika.utils.infer_expr import infer_expr
+    from physika.utils.infer_stmts import infer_stmts
+
+    params = fdef["params"]
+    stmts = fdef.get("statements", [])
+    body = fdef.get("body")
+    return_type = from_typespec(fdef.get("return_type"))
+
+    local_env = {pn: (from_typespec(pt) or new_var()) for pn, pt in params}
+
+    s = Substitution()
+
+    # infers types of right hand side statements (body statements), unifies
+    # with declared types and add/resolved bindings from Substitution s.
+    final_env, s = infer_stmts(
+        stmts, local_env, s, func_env, class_env,
+        lambda msg: add_error(f"In function '{name}': {msg}"), name,
+        return_type)
+
+    # Infers and checks types of function's return expressions
+    if body is not None:
+        body_t, s = infer_expr(
+            body, final_env, s, func_env, class_env,
+            lambda msg: add_error(f"In function '{name}': {msg}"))
+        body_t = s.apply(body_t) if body_t is not None else None
+        if return_type is not None and body_t is not None:
+            try:
+                s = unify(return_type, body_t, s)
+            except TypeError as e:
+                add_error(
+                    f"In function '{name}': return type mismatch: "
+                    f"declared {type_to_str(return_type)}, got {type_to_str(body_t)}: {e}"  # noqa: E501
+                )
+
+
+def check_class(
+    name: str,
+    cdef: dict,
+    func_env: dict,
+    class_env: dict,
+    add_error: Callable[[str], None],
+) -> None:
+    """
+    Check types of a Physika class object.
+
+    Adds class parameters, fields, methods and body statements into a local
+    environment, runs ``infer_stmts``, and unifies the return expression type
+    against the declared return type.
+
+    Parameters
+    ----------
+    name : str
+        Class name for adding error messages.
+    cdef : dict
+        Class definition dict from ``unified_ast["classes"]``, with keys
+        ``"class_params"``, ``"statements"``, ``"body"``, ``"return_type"``.
+    func_env : dict
+        Function signature registry.
+    class_env : dict
+        Class definition registry.
+    add_error : Callable[[str], None]
+        Callback that receives error string.
+
+    Examples
+    --------
+    >>> from physika.utils.types import check_class
+    >>> errors = []
+    >>> cdef = {
+    ...     "class_params": [("w", "ℝ")],
+    ...     "statements": [],
+    ...     "body": ("mul", ("var", "w"), ("var", "x")),
+    ... }
+    >>> check_class("Linear", cdef, {}, {}, errors.append)
+    >>> errors
+    []
+    """
+    from physika.utils.type_checker_utils import from_typespec, unify, type_to_str  # noqa: E501
+    from physika.utils.infer_expr import infer_expr
+    from physika.utils.infer_stmts import infer_stmts
+
+    methods = cdef.get("methods", [])
+    fields = list(cdef.get("class_params", [])) + list(cdef.get("fields", []))
+
+    # add constructor details to func_env
+    func_env[name] = (
+        [from_typespec(pt) or new_var() for _, pt in fields],
+        TInstance(name),
+    )
+
+    # Add class details to class_env
+    class_env[name] = {
+        "fields": fields,
+        "methods": {
+            m["name"]: {
+                "params": m.get("params", []),
+                "return_type": m.get("return_type")
+            }
+            for m in methods
+        },
+    }
+
+    local_env = {pn: (from_typespec(pt) or new_var()) for pn, pt in fields}
+    local_env["this"] = TInstance(name)
+
+    for method in methods:
+
+        method_name = method.get("name")
+        method_params = method.get("params", [])
+        method_stmts = method.get("statements", [])
+        body = method.get("body")
+        return_type = from_typespec(method.get("return_type"))
+
+        # register method params in local_env
+        for pn, pt in method_params:
+            local_env[pn] = from_typespec(pt) or new_var()
+
+        # check body statements
+        s = Substitution()
+        final_env, s = infer_stmts(
+            method_stmts,
+            local_env,
+            s,
+            func_env,
+            class_env,
+            lambda msg: add_error(
+                f"In class '{name}', method '{method_name}': {msg}"),
+            name,
+            return_type,
+        )
+
+        # Body are return expressions
+        if body is not None:
+            body_t, s = infer_expr(
+                body, final_env, s, func_env, class_env, lambda msg: add_error(
+                    f"In class '{name}', method '{method_name}': {msg}"))
+            if return_type is not None and body_t is not None:
+                try:
+                    s = unify(return_type, s.apply(body_t), s)
+                except TypeError as e:
+                    add_error(
+                        f"In class '{name}', method '{method_name}': return type mismatch: "  # noqa: E501
+                        f"declared {type_to_str(return_type)}, "
+                        f"got {type_to_str(s.apply(body_t))}: {e}")
+
+
+def check_statement(
+    stmt: Any,
+    type_env: dict,
+    func_env: dict,
+    class_env: dict,
+    add_error: Callable[[str], None],
+) -> None:
+    """
+    Check types of a program statement.
+
+    Calls ``infer_stmts`` to check types of Physika valid statements
+    and adds error message, if any.
+
+    Parameters
+    ----------
+    stmt : Any
+        ASTNode tuple for statements. For example:
+        ``("decl", "x", "ℝ", ("num", 3.0), 1)``.
+    type_env : dict
+        Mutable type environment that updates as declarations are processed.
+    func_env : dict
+        Global function signature registry.
+    class_env : dict
+        Global class definition registry.
+    add_error : Callable[[str], None]
+        Callback that receives a error string.
+
+    Examples
+    --------
+    >>> from physika.utils.types import check_statement
+    >>> from physika.utils.types import T_REAL
+    >>> errors = []
+    >>> env = {}
+    >>> check_statement(("decl", "x", "ℝ", ("num", 3.0), 1), env, {}, {}, errors.append)  # noqa: E501
+    >>> errors
+    []
+    >>> env["x"] == T_REAL
+    True
+    """
+    from physika.utils.infer_stmts import infer_stmts
+
+    if stmt is None:
+        return
+    line = stmt[-1] if len(stmt) > 1 and isinstance(stmt[-1], int) else None
+
+    prefix_line_msg = f"Line {line}: " if line is not None else ""
+    updated_env, _ = infer_stmts(
+        [stmt], type_env, Substitution(), func_env, class_env,
+        lambda msg: add_error(f"{prefix_line_msg}{msg}"))
+    type_env.update(updated_env)

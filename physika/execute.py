@@ -2,7 +2,7 @@ import sys
 import physika.runtime
 from physika.lexer import lexer
 from physika.parser import parser, symbol_table
-from physika.type_checker import type_check
+from physika.type_checker import TypeChecker
 from physika.codegen import from_ast_to_torch
 from physika.utils.print_utils import print_type_check_results
 from physika.utils.ast_utils import build_unified_ast
@@ -24,7 +24,7 @@ def main():
                                     print_ast=print_ast)
 
     # Type checking
-    type_status = type_check(unified_ast)
+    type_status = TypeChecker(unified_ast).run()
     print_type_check_results(type_status)
 
     # Generate PyTorch code and execute it

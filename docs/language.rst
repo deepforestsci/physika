@@ -1009,6 +1009,37 @@ Returns the updated ``(env, s)`` pair::
        {}, Substitution(), {}, {}, errors.append)
    # env == {"x": ℝ, "y": ℝ},  errors == []
 
+
+``TypeChecker`` class
+------------------------
+Finally, these components are used to build a type checker system for Physika programs.
+Physika's type checker performs three passes over the unified AST:
+
+    1. **Signature registration**: All function and class signatures are
+       stored in ``func_env`` and ``class_env`` before any body is examined.
+       Class constructors are stored in ``func_env`` as
+       ``(field_types, TInstance(name))``.
+
+    2. **Body checking** (``check_function``, ``check_class``): For each
+       ``def`` and ``class``, ``infer_stmts`` walks statements in order,
+       threading ``s`` through every expression to build a local type
+       environment.  The return expression is inferred and unified against
+       the declared return type. A mismatch is recorded as an error prefixed
+       with the function or class name.
+
+    3. **Program statement checking** (``check_statement``): Top-level
+       stmts nodes are checked in source order.
+       The line number is read from the last element of each statement tuple
+       and prepended to error messages.
+
+Type mismatches are accumulated in ``self.errors`` as plain strings.
+
+Below is a figure of Physika's ``TypeChecker`` describing the mentioned workflow:
+
+.. image:: _static/type-checker.png
+   :alt: TypeChecker workflow diagram
+   :align: center
+
 Symbolic methods
 ----------------
 
