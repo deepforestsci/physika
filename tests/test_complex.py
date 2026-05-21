@@ -1,5 +1,5 @@
 import pytest
-from conftest import exec_phyk
+from tests.conftest import exec_phyk
 import torch
 
 r_tol = 1e-02
