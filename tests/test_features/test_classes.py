@@ -8,7 +8,7 @@ from physika.utils.ast_utils import build_unified_ast
 from physika.utils.types import TScalar, TTensor, TInstance, Substitution
 import sys
 import os
-from conftest import exec_phyk
+from tests.conftest import exec_phyk
 import torch
 
 
