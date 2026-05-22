@@ -13,8 +13,9 @@ def get_1d_array_length(x: ℝ[m]): ℝ:
 def append(x: ℝ[m], var: ℝ): ℝ[n]:
     new_length: ℝ = get_1d_array_length(x) + 1
     results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
     for i:ℕ(new_length):
-        if i<get_1d_array_length(x):
+        if i<len_x:
             results[i] = x[i]
         else:
             results[i] = var

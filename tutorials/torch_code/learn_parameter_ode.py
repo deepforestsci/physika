@@ -21,8 +21,9 @@ def get_1d_array_length(x):
 def append(x, var):
     new_length = (get_1d_array_length(x) + 1)
     results = zero_1d_array(new_length)
+    len_x = get_1d_array_length(x)
     for i in range(int(0), int(new_length)):
-        if i < get_1d_array_length(x):
+        if i < len_x:
             results[int(i)] = x[int(i)]
         else:
             results[int(i)] = var

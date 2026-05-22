@@ -13,14 +13,15 @@ def get_1d_array_length(x: ℝ[m]): ℝ:
 def append(x: ℝ[m], var: ℝ): ℝ[n]:
     new_length: ℝ = len(x) + 1
     results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
     for i:ℕ(new_length):
-        if i<len(x):
+        if i<len_x:
             results[i] = x[i]
         else:
             results[i] = var
     return results
 
-def f(state: ℝ[2], θ: ℝ[4]): ℝ:
+def f(state: ℝ[2], θ: ℝ[4]): ℝ[2]:
     x: ℝ = state[0]
     y: ℝ = state[1]
     α: ℝ = θ[0]
@@ -44,10 +45,10 @@ def rk4_step(state: ℝ[2], θ: ℝ[4]): R[2]:
 dt: ℝ = 0.1
 timesteps: ℝ = 100
 
-def solver(θ: ℝ[4]): ℝ[m]:
+def solver(θ: ℝ[4]): ℝ[2, m]:
     state: ℝ[2] = [10.0, 1.0]
-    x_array: ℝ[0] = [10.0]
-    y_array: ℝ[0] = [1.0]
+    x_array: ℝ[1] = [10.0]
+    y_array: ℝ[1] = [1.0]
     for i:ℕ(timesteps):
         results = rk4_step(state, θ)
         x = results[0]
@@ -58,12 +59,14 @@ def solver(θ: ℝ[4]): ℝ[m]:
     return [x_array, y_array]
 
 true_theta: ℝ[4] = [1.5, 1.0, 3.0, 1.0]
-true_results: ℝ[m] = solver(true_theta)
+true_results: ℝ[2, m] = solver(true_theta)
 true_x: ℝ[m] = true_results[0]
 true_y: ℝ[m] = true_results[1]
 
-def adjoint_grad(θ: ℝ[4]): ℝ:
-    states: ℝ[m] = solver(θ)
+
+
+def adjoint_grad(θ: ℝ[4]): ℝ[n]:
+    states: ℝ[2, m] = solver(θ)
     x_array: ℝ[m] = states[0]
     y_array: ℝ[m] = states[1]
     m: ℝ = get_1d_array_length(x_array)
