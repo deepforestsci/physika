@@ -29,6 +29,11 @@ def f(x):
 x = 1.0
 physika_print(torch_funcs_with_scalar_R(x))
 physika_print(check_diff_torch_funcs(5.0))
+x_matrix = torch.tensor([[1, (-1), 0], [(-1), 0, 0], [0, 0, 0]])
+rolled_neg = torch.roll(x_matrix, (-1))
+rolled_pos = torch.roll(x_matrix, 1)
+physika_print(rolled_neg)
+physika_print(rolled_pos)
 x0 = torch.tensor((-1.5), requires_grad=True)
 physika_print(f(x0))
 physika_print(compute_grad(lambda _dx0: f(_dx0), x0))

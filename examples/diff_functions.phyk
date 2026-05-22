@@ -1,19 +1,41 @@
-def torch_funcs_with_scalar_R(x: R): R[m]:
-    result_sin: R = sin(x)
-    result_cos: R = cos(x)
-    result_exp: R = exp(x)
-    result_sqrt: R = sqrt(x)
-    result_log: R = log(x)
-    result_abs: R = abs(x)
+# -------------------------------------------------
+# single arg functions
+# -------------------------------------------------
+
+def torch_funcs_with_scalar_R(x: ℝ): ℝ[m]:
+    result_sin: ℝ = sin(x)
+    result_cos: ℝ = cos(x)
+    result_exp: ℝ = exp(x)
+    result_sqrt: ℝ = sqrt(x)
+    result_log: ℝ = log(x)
+    result_abs: ℝ = abs(x)
     return [result_sin, result_cos, result_exp, result_sqrt, result_log, result_abs]
 
-def check_diff_torch_funcs(x: R): R[m]:
+def check_diff_torch_funcs(x: ℝ): ℝ:
     results = grad(torch_funcs_with_scalar_R, x)
     return results
 
-x: R = 1.0
+x: ℝ = 1.0
 torch_funcs_with_scalar_R(x)
 check_diff_torch_funcs(5.0)
+
+
+# -------------------------------------------------
+# multiple args functions
+# -------------------------------------------------
+
+x_matrix: ℝ[3, 3] = [
+    [1, -1, 0],
+    [-1, 0, 0],
+    [0, 0, 0]
+]
+rolled_neg: ℝ[3, 3] = torch.roll(x_matrix, -1)
+rolled_pos: ℝ[3, 3] = torch.roll(x_matrix, 1)
+
+rolled_neg
+rolled_pos
+
+
 
 # -------------------------------------------------
 # Differentiable sin/cos in conditional statement
