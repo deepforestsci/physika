@@ -17,6 +17,7 @@ from physika.utils.type_checker_utils import (
     make_tensor,
     unify,
     unify_dim,
+    type_promotion,
     broadcast_op,
     matmul_op,
 )
@@ -434,6 +435,15 @@ class TestUnifyDim:
         assert s == {"δ0": TDim("δ1")}
 
 
+class TestTypePromotion:
+    """Tests for ``type_promotion``"""
+
+    def test_type_promotion(self):
+        assert type_promotion(T_REAL, T_NAT) == T_REAL
+        assert type_promotion(T_REAL, T_COMPLEX) == T_COMPLEX
+        assert type_promotion(T_NAT, T_COMPLEX) == T_COMPLEX
+
+
 class TestBroadcast:
     """
     Tests for ``broadcast_op``.
@@ -446,6 +456,7 @@ class TestBroadcast:
         """scalar OP scalar should return scalar."""
         assert broadcast_op(T_REAL, T_REAL) == T_REAL
         assert broadcast_op(T_NAT, T_NAT) == T_NAT
+        assert broadcast_op(T_COMPLEX, T_COMPLEX) == T_COMPLEX
 
     def test_tensor_wins_over_scalar_left(self):
         """tensor OP scalar should return a tensor."""
