@@ -1101,7 +1101,7 @@ def broadcast_op(t1: Optional[Type], t2: Optional[Type]) -> Optional[Type]:
 
     Examples
     --------
-    >>> from physika.utils.ty Optional[Type]pe_checker_utils import broadcast_op
+    >>> from physika.utils.type_checker_utils import broadcast_op
     >>> from physika.utils.types import T_REAL, TTensor
     >>> broadcast_op(T_REAL, T_REAL)
     ℝ
