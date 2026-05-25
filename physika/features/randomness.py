@@ -1,7 +1,8 @@
-from physika.elf import ELF as LanguageFeature
+from typing import Tuple, List, Callable
 
 
-def extract_dist_args(args: list[tuple, tuple], n_params: int) -> tuple[list, list, str]:
+def extract_dist_args(args: List[Tuple],
+                      n_params: int) -> Tuple[List, List, str]:
     """
     Split distribution args into (param_args, shape_args, mode).
 
@@ -25,7 +26,7 @@ def extract_dist_args(args: list[tuple, tuple], n_params: int) -> tuple[list, li
     .. [1] John Schulman, Nicolas Heess, Theophane Weber, and Pieter Abbeel.
            Gradient estimation using stochastic computation graphs. Advances
            in neural information processing systems, 28, 2015.
-    
+
     Example
     -------
     >>> from physika.features.randomness import extract_dist_args
@@ -52,8 +53,8 @@ def extract_dist_args(args: list[tuple, tuple], n_params: int) -> tuple[list, li
     """
 
     # strip grad mode from args passed to a probability distribution
-    if args and isinstance(args[-1], tuple) and args[-1][0] in (
-            "string", "equation_string"):
+    if args and isinstance(
+            args[-1], tuple) and args[-1][0] in ("string", "equation_string"):
         remaining = list(args[:-1])
         mode = args[-1][1]
     else:
@@ -64,8 +65,8 @@ def extract_dist_args(args: list[tuple, tuple], n_params: int) -> tuple[list, li
     return param_args, shape_args, mode
 
 
-def sample(dist_expr: str, shape_args: list, mode: str,
-                 default_mode: str, to_expr: callable) -> str:
+def sample(dist_expr: str, shape_args: List[Tuple], mode: str,
+           default_mode: str, to_expr: Callable) -> str:
     """
     Emit PyTorch source code for a stochastic node in a Physika program.
 
@@ -127,9 +128,9 @@ def sample(dist_expr: str, shape_args: list, mode: str,
     >>> shape_nodes = [("num", 20.0), ("num", 1.0)]
     >>> to_expr = lambda node: str(node[1])
     >>> # 2D reparam normal sample, shape (20, 1)
-    >>> sample("torch.distributions.Normal(0.0, 1.0)", shape_nodes, "none", "reparam", to_expr)
+    >>> sample("torch.distributions.Normal(0.0, 1.0)", shape_nodes, "none", "reparam", to_expr)  # noqa: E501
     'torch.distributions.Normal(0.0, 1.0).rsample((int(20.0), int(1.0),))'
-    
+
     >>> # Bernoulli (score function sample)
     >>> sample("torch.distributions.Bernoulli(0.3)", [], "score", "score", str)
     'torch.distributions.Bernoulli(0.3).sample().detach()'
@@ -151,9 +152,11 @@ def sample(dist_expr: str, shape_args: list, mode: str,
     else:
         return f"{dist_expr}.sample({shape or ''})"
 
-def normal_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
+
+def normal_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     """
-    Emit Pytorch code for sampling from a Normal distribution based on args (mean, std).
+    Emit Pytorch code for sampling from a Normal distribution based on args
+    (mean, std).
 
     Parameters
     ----------
@@ -161,8 +164,8 @@ def normal_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
         List that contains the arguments passed to a probability
         distribution.
     to_expr : callable
-        ``ast_to_torch_expr`` to transform AST elements for normal distribution to
-        valid torch code as strings.
+        ``ast_to_torch_expr`` to transform AST elements for normal distribution
+        to valid torch code as strings.
 
     Example
     -------
@@ -179,9 +182,10 @@ def normal_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
     return sample(dist, shape_args, mode, "reparam", to_expr)
 
 
-def uniform_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
+def uniform_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     """
-    Emit Pytorch code for sampling from a Uniform distribution based on args (lo, hi).
+    Emit Pytorch code for sampling from a Uniform distribution based on args
+    (lo, hi).
 
     Parameters
     ----------
@@ -189,8 +193,8 @@ def uniform_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
         List that contains the arguments passed to a probability
         distribution.
     to_expr : callable
-        ``ast_to_torch_expr`` to transform AST elements for normal distribution to
-        valid torch code as strings.
+        ``ast_to_torch_expr`` to transform AST elements for normal distribution
+        to valid torch code as strings.
 
     Example
     -------
@@ -207,9 +211,10 @@ def uniform_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
     return sample(dist, shape_args, mode, "reparam", to_expr)
 
 
-def beta_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
+def beta_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     """
-    Emit Pytorch code for sampling from a Beta distribution based on args (alpha, beta).
+    Emit Pytorch code for sampling from a Beta distribution based on args
+    (alpha, beta).
 
     Parameters
     ----------
@@ -217,8 +222,8 @@ def beta_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
         List that contains the arguments passed to a probability
         distribution.
     to_expr : callable
-        ``ast_to_torch_expr`` to transform AST elements for beta distribution to
-        valid torch code as strings.
+        ``ast_to_torch_expr`` to transform AST elements for beta distribution
+        to valid torch code as strings.
 
     Example
     -------
@@ -235,9 +240,10 @@ def beta_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
     return sample(dist, shape_args, mode, "reparam", to_expr)
 
 
-def gamma_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
+def gamma_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     """
-    Emit Pytorch code for sampling from a Gamma distribution based on args (concentration, rate).
+    Emit Pytorch code for sampling from a Gamma distribution based on args
+    (concentration, rate).
 
     Parameters
     ----------
@@ -245,8 +251,8 @@ def gamma_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
         List that contains the arguments passed to a probability
         distribution.
     to_expr : callable
-        ``ast_to_torch_expr`` to transform AST elements for gamma distribution to
-        valid torch code as strings.
+        ``ast_to_torch_expr`` to transform AST elements for gamma distribution
+        to valid torch code as strings.
 
     Example
     -------
@@ -263,9 +269,10 @@ def gamma_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
     return sample(dist, shape_args, mode, "reparam", to_expr)
 
 
-def bernoulli_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
+def bernoulli_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     """
-    Emit Pytorch code for sampling from a Bernoulli distribution based on args (p).
+    Emit Pytorch code for sampling from a Bernoulli distribution based
+    on args (p).
 
     Parameters
     ----------
@@ -273,8 +280,8 @@ def bernoulli_dist(args: list[tuple, tuple], to_expr: callable, **ctx) -> str:
         List that contains the arguments passed to a probability
         distribution.
     to_expr : callable
-        ``ast_to_torch_expr`` to transform AST elements for bernoulli distribution to
-        valid torch code as strings.
+        ``ast_to_torch_expr`` to transform AST elements for bernoulli
+        distribution to valid torch code as strings.
 
     Example
     -------
