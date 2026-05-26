@@ -1,0 +1,68 @@
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def append(x: ℝ[m], var: ℝ): ℝ[n]:
+    new_length: ℝ = get_1d_array_length(x) + 1
+    results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
+    for i:ℕ(new_length):
+        if i<len_x:
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+# training code
+# dy/dt = -θy
+# here, θ is a parameter to learn
+
+def f(y: ℝ, θ: ℝ): ℝ:
+    return -θ * y
+
+timesteps: ℕ = 10
+dt: R = 0.1
+
+def solver(θ: ℝ): ℝ[m]:
+    y: ℝ = 1.0
+    y_array: ℝ[1] = [1.0]
+    for i:ℕ(timesteps):
+        dy = f(y, θ)
+        y += dt * dy
+        y_array = append(y_array, y)
+    return y_array
+
+true_theta: ℝ = 2.0
+y_true: ℝ[m] = solver(true_theta)
+
+def calculate_loss(θ: ℝ): ℝ:
+    y_predicted: ℝ[n] = solver(θ)
+    L: ℝ = 0.0
+    m: ℝ = get_1d_array_length(y_predicted)
+    for i:ℕ(m):
+        L += (y_predicted[i] - y_true[i]) ** 2
+    return L/m
+
+θ: ℝ = 1.0
+learning_rate: ℝ = 0.1
+
+# ------------------------------------------------------------------
+# set epoch value to 1000, here we have set it to 1 to just test 
+# physika code through tests/test_tutorials.py
+# ------------------------------------------------------------------
+epochs: ℝ = 1
+
+for i:ℕ(epochs):
+    g = grad(calculate_loss, θ)
+    θ = θ - learning_rate * g
+
+y_predicted: ℝ[m] = solver(θ)
+#plot_trajectories(y_true, y_predicted)

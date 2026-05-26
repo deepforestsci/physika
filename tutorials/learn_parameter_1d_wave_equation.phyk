@@ -1,0 +1,88 @@
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def linspace(start: ℝ, end: ℝ, n: ℕ): ℝ[n]:
+    x: ℝ[n] = zero_1d_array(n)
+    dx: ℝ = (end - start) / (n - 1)
+    for i:ℕ(0, n):
+        x[i] = start + i * dx
+    return x
+
+def wave_equation(u: ℝ[m], dx: ℝ, c: ℝ): ℝ[m]:
+    nx: ℕ = get_1d_array_length(u)
+    f: ℝ[m] = zero_1d_array(nx)
+    for i:ℕ(1, nx-1):
+        f[i] = (c**2 / dx**2) * (u[i-1] - 2*u[i] + u[i+1])
+    return f
+
+def solver(c: ℝ, u0: ℝ[m], dx: ℝ, dt: ℝ, nt: ℝ): ℝ[m]:
+    u_prev: ℝ[m] = u0
+    u_curr: ℝ[m] = u0
+    nx: ℕ = get_1d_array_length(u0)
+    for n:ℕ(0, nt):
+        accel = wave_equation(u_curr, dx, c)
+        u_next = 2*u_curr - u_prev + dt**2 * accel
+        u_next[0] = 0
+        u_next[nx-1] = 0
+        u_prev = u_curr
+        u_curr = u_next
+    return u_curr
+
+nx: ℝ = 30
+nt: ℝ = 30
+
+a: ℝ = 0
+b: ℝ = 1
+t0: ℝ = 0
+tf: ℝ = 1
+
+dx: ℝ = (b-a)/(nx-1)
+dt: ℝ = (tf-t0)/(nt-1)
+
+
+pi: ℝ = 3.14
+true_c: ℝ = 0.5
+
+x: R[m] = linspace(a, b, nx)
+u0: ℝ[nx] = zero_1d_array(nx)
+for i:ℕ(0, nx):
+    u0[i] = sin(2 * pi * x[i])
+
+
+true_values: R[m] = solver(true_c, u0, dx, dt, nt)
+
+
+def calculate_loss(c: ℝ): ℝ:
+    predictions: R[m] = solver(c, u0, dx, dt, nt)
+    loss: ℝ = 0.0
+    for i:ℕ(0, nx):
+        diff = predictions[i] - true_values[i]
+        loss += diff ** 2
+    return loss / nx
+
+
+c: ℝ = 0.1
+learning_rate: ℝ = 0.01
+
+# ------------------------------------------------------------------
+# set epoch value to 200, here we have set it to 1 to just test 
+# physika code through tests/test_tutorials.py
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+for i:ℕ(epochs):
+    physika_print(i)
+    g = grad(calculate_loss, c)
+    c = c - learning_rate * g
+
+pred_values: ℝ[m] = solver(c, u0, dx, dt, nt)
+#plot_trajectories(true_values, pred_values)

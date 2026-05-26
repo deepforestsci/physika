@@ -1,0 +1,103 @@
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def append(x: ℝ[m], var: ℝ): ℝ[n]:
+    new_length: ℝ = len(x) + 1
+    results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
+    for i:ℕ(new_length):
+        if i<len_x:
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+def f(state: ℝ[2], θ: ℝ[4]): ℝ[2]:
+    x: ℝ = state[0]
+    y: ℝ = state[1]
+    α: ℝ = θ[0]
+    β: ℝ = θ[1]
+    γ: ℝ = θ[2]
+    δ: ℝ = θ[3]
+    dx: ℝ = (α * x) - (β * x * y)
+    dy: ℝ = - (γ * y) + (δ * x * y)
+    return [dx, dy]
+
+def rk4_step(state: ℝ[2], θ: ℝ[4]): R[2]:
+    k1: ℝ[2] = f(state, θ)
+    k2_state: ℝ[2] = state + 0.5 * dt * k1
+    k2: ℝ[2] = f(k2_state, θ)
+    k3_state: ℝ[2] = state + 0.5 * dt * k2
+    k3: ℝ[2] = f(k3_state, θ)
+    k4_state: ℝ[2] = state + dt * k3
+    k4: ℝ[2] = f(k4_state, θ)
+    return state + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+dt: ℝ = 0.1
+timesteps: ℝ = 100
+
+def solver(θ: ℝ[4]): ℝ[2, m]:
+    state: ℝ[2] = [10.0, 1.0]
+    x_array: ℝ[1] = [10.0]
+    y_array: ℝ[1] = [1.0]
+    for i:ℕ(timesteps):
+        results = rk4_step(state, θ)
+        x = results[0]
+        y = results[1]
+        x_array = append(x_array, x)
+        y_array = append(y_array, y)
+        state = results
+    return [x_array, y_array]
+
+true_theta: ℝ[4] = [1.5, 1.0, 3.0, 1.0]
+true_results: ℝ[2, m] = solver(true_theta)
+true_x: ℝ[m] = true_results[0]
+true_y: ℝ[m] = true_results[1]
+
+
+
+def adjoint_grad(θ: ℝ[4]): ℝ[n]:
+    states: ℝ[2, m] = solver(θ)
+    x_array: ℝ[m] = states[0]
+    y_array: ℝ[m] = states[1]
+    m: ℝ = get_1d_array_length(x_array)
+    s: ℝ[2] = [
+        2 * (x_array[m-1] - true_x[m-1]),
+        2 * (y_array[m-1] - true_y[m-1])
+    ]
+    L: ℝ[4] = zero_1d_array(4)
+    for i:ℕ(m-1):
+        idx = m - 1 - i
+        x = x_array[idx]
+        y = y_array[idx]
+        state = [x, y]
+        J_state = grad(rk4_step(state, θ), state)
+        J_theta = grad(rk4_step(state, θ), θ)
+        L += s @ J_theta
+        s = s @ J_state
+    return L
+
+θ: ℝ[4] = [1.0, 0.7, 2.5, 0.7]  
+learning_rate: ℝ = 0.0005
+
+# ------------------------------------------------------------------
+# set epoch value to 2000, here we have set it to 1 to just test 
+# physika code through tests/test_tutorials.py
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+for i:ℕ(epochs):
+    g = adjoint_grad(θ)
+    θ = θ - learning_rate * g
+
+pred_results = solver(θ)
+#plot_trajectories(true_results, pred_results)

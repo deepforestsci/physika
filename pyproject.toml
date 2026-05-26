@@ -9,6 +9,7 @@ column_limit = 79
 [tool.yapfignore]
 ignore_patterns = [
     "examples/**",
+    "tutorials/**",
     "parsetab.py",
     "parser.out",
     "**/*.egg-info/**",

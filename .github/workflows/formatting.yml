@@ -38,8 +38,8 @@ jobs:
       - name: flake8 (code style)
         if: success() || failure()
         run: |
-          flake8 . --exclude examples,parsetab.py,parser.out,*.egg-info --statistics --count
+          flake8 . --exclude examples,tutorials,parsetab.py,parser.out,*.egg-info --statistics --count
 
       - name: mypy (type annotations)
         if: success() || failure()
-        run: mypy . --ignore-missing-imports --exclude examples/ --exclude parsetab.py
+        run: mypy . --ignore-missing-imports --exclude examples/ --exclude tutorials/ --exclude parsetab.py

@@ -1,0 +1,74 @@
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def linspace(start: ℝ, end: ℝ, n: ℕ): ℝ[n]:
+    x: ℝ[n] = zero_1d_array(n)
+    dx: ℝ = (end - start) / (n - 1)
+    for i:ℕ(0, n):
+        x[i] = start + i * dx
+    return x
+
+def heat_equation(T: ℝ[m], dx: ℝ, α: ℝ): ℝ[m]:
+    nx: ℝ = get_1d_array_length(T)
+    f: ℝ[m] = zero_1d_array(nx) 
+    for i:ℕ(1, nx-1):
+        f[i] = α / dx ** 2 * (T[i-1] - 2*T[i] + T[i+1])
+    return f
+
+def solver(α:ℝ, T0: ℝ[m], dx: ℝ, dt:ℝ, nt: ℝ): ℝ[m]:
+    T: ℝ[m] = T0
+    last_index: ℝ = get_1d_array_length(T)
+    for i:ℕ(0, nt):
+        T = T + dt * heat_equation(T, dx, α)
+    T[0] = 0
+    T[last_index-1] = 0
+    return T
+
+lx: ℝ = 1.0
+nx: ℝ = 21
+dx: ℝ = lx / (nx - 1)
+x: ℝ[nx] = linspace(0, lx, nx)
+
+true_alpha: ℝ = 0.4
+fourier: ℝ = 0.49
+dt: ℝ = fourier * dx**2 / true_alpha
+nt: ℝ = 100
+
+T0: ℝ[nx] = zero_1d_array(nx)
+for i:ℕ(0, nx):
+    T0[i] = exp(-50 * (x[i] -0.5)**2)
+
+true_values: ℝ[m] = solver(true_alpha, T0, dx, dt, nt)
+
+def calculate_loss(α: ℝ): ℝ:
+    predictions: R[m] = solver(α, T0, dx, dt, nt)
+    loss: ℝ = 0.0
+    for i:ℕ(0, nx):
+        diff = predictions[i] - true_values[i]
+        loss += diff ** 2
+    return loss / nx
+
+α: ℝ = 0.1
+learning_rate: ℝ = 0.1
+
+# ------------------------------------------------------------------
+# set epoch value to 500, here we have set it to 1 to just test 
+# physika code through tests/test_tutorials.py
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+for i:ℕ(epochs):
+    g = grad(calculate_loss, α)
+    α = α - learning_rate * g 
+
+pred_values: ℝ[m] = solver(α, T0, dx, dt, nt)
+#plot_trajectories(true_values, pred_values)
