@@ -29,8 +29,8 @@ x_matrix: ℝ[3, 3] = [
     [-1, 0, 0],
     [0, 0, 0]
 ]
-rolled_neg: ℝ[3, 3] = torch.roll(x_matrix, -1)
-rolled_pos: ℝ[3, 3] = torch.roll(x_matrix, 1)
+rolled_neg: ℝ[3, 3] = roll(x_matrix, -1)
+rolled_pos: ℝ[3, 3] = roll(x_matrix, 1)
 
 rolled_neg
 rolled_pos
