@@ -849,3 +849,17 @@ class TestAstToTorch:
         assert all(
             abs(exp - true) < r_tol
             for exp, true in zip(expected_values, true_values))
+
+    def test_torch_roll_correctness(self, name_space):
+        """
+        Verify correctness of torch.roll for both positive and
+        negative rolls
+        """
+        x_matrix = torch.tensor([[1, -1, 0], [-1, 0, 0], [0, 0, 0]])
+        expected_rolled_neg = torch.roll(x_matrix, -1)
+
+        assert torch.equal(expected_rolled_neg, name_space["rolled_neg"])
+
+        expected_rolled_pos = torch.roll(x_matrix, 1)
+
+        assert torch.equal(expected_rolled_pos, name_space["rolled_pos"])

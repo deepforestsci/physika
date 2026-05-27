@@ -647,9 +647,15 @@ def ast_to_torch_expr(node: ASTNode,
             "mean": "torch.mean",
             "real": "torch.real",
         }
+        multi_arg_funcs = {
+            "roll": "torch.roll",
+        }
 
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
+
+        elif func_name in multi_arg_funcs:
+            return f"{multi_arg_funcs[func_name]}({', '.join(arg_strs)})"
 
         elif func_name == "grad":
             # grad(output, input) -> compute_grad(output, input)
