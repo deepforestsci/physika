@@ -9,7 +9,7 @@ y
 # -------------------------------------------
 # Addition and Subtraction
 # -------------------------------------------
-complex_add = x + y
+complex_add: ℂ = x + y
 complex_add
 
 x - y
@@ -28,7 +28,7 @@ x - y
 # 12 + 14j
 # -------------------------------------------
 
-complex_mul = x * y
+complex_mul: ℂ = x * y
 complex_mul
 
 
@@ -43,7 +43,7 @@ complex_mul
 # square_root(10)
 # -> 3.162
 # -------------------------------------------
-def magnitude(z: C): C:
+def magnitude(z: ℂ): ℂ:
     return abs(z)
 
 magnitude(x)
