@@ -11,29 +11,26 @@ def fact(n):
     else:
         return (n * fact((n - 1.0)))
 
-def sigma(x):
-    return (1.0 / (1.0 + torch.exp((0.0 - x))))
+def f(x):
+    if x > 0:
+        return torch.cos(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    else:
+        return torch.sin(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
 
-# === Classes ===
-class FullyConnectedNetwork(nn.Module):
-    def __init__(self, f, W, B, w, b, n):
-        super().__init__()
-        self.f = f
-        self.W = nn.Parameter(torch.tensor(W).float() if not isinstance(W, torch.Tensor) else W.clone().detach().float())
-        self.B = nn.Parameter(torch.tensor(B).float() if not isinstance(B, torch.Tensor) else B.clone().detach().float())
-        self.w = nn.Parameter(torch.tensor(w).float() if not isinstance(w, torch.Tensor) else w.clone().detach().float())
-        self.b = nn.Parameter(torch.tensor(b).float() if not isinstance(b, torch.Tensor) else b.clone().detach().float())
-        self.n = n
-
-    def forward(self, x):
-        x = torch.as_tensor(x).float()
-        for k in range(len(self.W)):
-            x = self.f(((self.W[int(k)] @ x) + self.B[int(k)]))
-        return ((self.w @ x) + self.b)
-
-    def loss(self, y, target):
-        return ((y - target) ** 2.0)
+def torch_funcs_with_scalar_R(x):
+    result_sin = torch.sin(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    result_cos = torch.cos(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    result_exp = torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    result_sqrt = torch.sqrt(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    result_log = torch.log(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    result_abs = torch.abs(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    return torch.stack([torch.as_tensor(result_sin).float(), torch.as_tensor(result_cos).float(), torch.as_tensor(result_exp).float(), torch.as_tensor(result_sqrt).float(), torch.as_tensor(result_log).float(), torch.as_tensor(result_abs).float()])
 
 # === Program ===
-physika_print(fact(1.0))
-physika_print(sigma(torch.tensor([1.0])))
+x = 1.0
+fact_results = fact(x)
+physika_print(fact_results)
+torch_funcs_results = torch_funcs_with_scalar_R(x)
+physika_print(torch_funcs_results)
+f_results = f(x)
+physika_print(f_results)

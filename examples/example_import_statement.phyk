@@ -1,8 +1,21 @@
+# ----------------------------------
+# example with single import
+# ----------------------------------
+
 from factorial import fact
 
-fact(1.0)
+x: ℝ = 1.0
+fact_results: ℝ = fact(x)
+fact_results
 
+# ----------------------------------
+# example with multiple imports
+# ----------------------------------
 
-from train_fully_connected import sigma
+from diff_functions import f, torch_funcs_with_scalar_R
 
-sigma([1.0])
+torch_funcs_results: ℝ[6] = torch_funcs_with_scalar_R(x)
+torch_funcs_results
+
+f_results: ℝ = f(x)
+f_results
