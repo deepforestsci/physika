@@ -169,3 +169,60 @@ The following physika program shows some example on Physika clases:
 
 .. literalinclude:: ../examples/physika_class.phyk
    :language: text
+
+
+Random sampling
+~~~~~~~~~~~~~~~
+``RandomnessFeature`` ELF adds support for random sampling from probability distributions.
+Physika random sampling syntax allows users to declare a random variable with a distribution (and its arguments) and shape.
+
+.. code-block:: text
+
+    # Sample a scalar from a normal distribution with mean 0 and std 1
+    x : ℝ ~ Normal(0.0, 1.0)
+
+    # Sample a 3x2 matrix from a normal distribution with mean 0 and std 1
+    y : ℝ[3, 2] ~ for i : ℕ(3) → ε : ℝ[2] ~ Normal(μ, σ, 2)
+
+    # Sample a 10x5x2 tensor from a normal distribution with mean 0 and std 1
+    z : ℝ[10, 5, 2] ~ for i : ℕ(10) → for j : ℕ(5) → ε : ℝ[2] ~ Normal(μ, σ, 2)
+
+Physika supports differentiable sampling following Stochastich Computation Graphs (SCG) framework [1]_, where sampling statements
+are represented as stochastic nodes in the computation graph and gradients are computed by backpropagating through these nodes
+with the reparameterization trick (for continous distributions) or score function estimators (for non-continous distributions).
+``RandomnessFeature`` default code generation emits reparameterized sampling for continous distributions (``Normal/Gaussian``, 
+``Beta``, ``Uniform``, ``Gamma``) and score function estimators
+for ``Bernoulli``.
+
+Aliases for probability distributions are also supported, for ``Normal``, ``Uniform``, ``Beta`` distributions. These are as follows::
+    
+* ``𝒩`` → ``Normal``
+* ``𝒰`` → ``Uniform``
+* ``ℬ`` → ``Beta``
+
+**Type checking**
+
+``RandomnessFeature`` checks that sampling statements are well-typed by verifying that the distribution call is consistent with the declared type of the variable being sampled.
+If type annotations are not included, type system infers an registers in type enviroment to continue checking Physika programs.
+
+The number of size arguments in the distribution call must match the rank of the declared type.
+A scalar declaration (``ℝ``) requires no size args, and a 1D array declaration (``ℝ[n]``) requires one and so on.
+A mismatch is recorded as a type error:
+
+  .. code-block:: text
+
+      # Error: declared ℝ but Normal(...) produces a ℝ[n] sample
+      x : ℝ ~ Normal(0.0, 1.0, 100)
+
+      # Error: declared ℝ[100] but Normal(...) produces a ℝ sample
+      x : ℝ[100] ~ Normal(0.0, 1.0)
+
+When ranks match, each declared dimension is compared against the corresponding size argument.
+
+
+References
+----------
+
+.. [1] John Schulman, Nicolas Heess, Theophane Weber, and Pieter Abbeel.
+       Gradient estimation using stochastic computation graphs. Advances
+       in neural information processing systems, 28, 2015.

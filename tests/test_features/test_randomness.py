@@ -14,6 +14,7 @@ def parse_physika(src):
     import physika.parser as pm
     from physika.lexer import lexer
     pm.symbol_table.clear()
+    lexer.lexer.lineno = 1  # reset PLY line counter for deterministic output
     program_ast = pm.parser.parse(src, lexer=lexer)
     return build_unified_ast(program_ast, pm.symbol_table)
 
@@ -385,7 +386,7 @@ class TestLexerParserRules:
         ast = parse_physika("x : ℝ ~ Normal(0.0, 1.0)\n")
         stmt = ast["program"][0]
         print(stmt)
-        assert ('typed_sample', 'x', 'ℝ', ('call', 'Normal', [('num', 0.0), ('num', 1.0)]), 2) == stmt
+        assert ('typed_sample', 'x', 'ℝ', ('call', 'Normal', [('num', 0.0), ('num', 1.0)]), 1) == stmt
 
     def test_func_body_stmt_sample(self):
         """
@@ -427,7 +428,7 @@ class TestLexerParserRules:
                     ('for_expr', 'i', ('num', 10), # for i : ℕ(10)
                         ('typed_sample_expr', 'ε', ('tensor', [(2, 'invariant')]), # ε : ℝ[2]
                             ('call', 'Normal', #  Normal(...)
-                                [('num', 0.0), ('num', 1.0), ('num', 2)]))), 9) == stmt # Normal(0.0, 1.0, 2)
+                                [('num', 0.0), ('num', 1.0), ('num', 2)]))), 1) == stmt # Normal(0.0, 1.0, 2)
    
 
     def test_func_factor_sample_expr(self):
@@ -612,6 +613,10 @@ class TestRandomnessIntegration:
         # z: ℝ[10,2]= for i : ℕ(10) → ε : ℝ[2] ~ Normal(μ, σ, 2)
         z = ns_dict["z"]
         assert z.shape == torch.Size([10, 2])
+        # Physika code:
+        # z_3d: ℝ[10, 5, 2]= for i : ℕ(10) → for j : ℕ(5) → ε : ℝ[2] ~ Normal(μ, σ, 2)
+        z_3d = ns_dict["z_3d"]
+        assert z_3d.shape == torch.Size([10, 5, 2])
         # Physika code:
         # x : ℝ = 3.0
         # y : ℝ[3, 2] = sample_normal2D(x) where x=3
