@@ -786,6 +786,8 @@ def from_typespec(ts: Any) -> Optional[Type]:
             # Converts dimensions to TDim
             dims = tuple(
                 (TDim(d) if isinstance(d, str) else d, v) for d, v in ts[2])
+            if not isinstance(base_type, TScalar):
+                raise TypeError(f"Invalid tensor base type: {base_type}")
             return TTensor(base_type, dims)
         if ts[0] == "func_type":
             # Recursively convert parameter and return type specs
@@ -1170,6 +1172,10 @@ def matmul_op(t1: Optional[Type], t2: Optional[Type],
     >>> errors
     ['Matmul inner dimension mismatch: ℝ[3] @ ℝ[4]; different dims 3 ≠ 4']
     """
+    if not isinstance(t1, TTensor):
+        return None
+    if not isinstance(t2, TTensor):
+        return None
     if t1 is None or t2 is None:
         return None
     s1 = get_tensor_shape(t1)

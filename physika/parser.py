@@ -78,7 +78,7 @@ def p_type_tensor(p):
         base_type = "ℂ"
     else:
         base_type = "ℝ"
-    p[0] = ("tensor",base_type, p[3])
+    p[0] = ("tensor", base_type, p[3])
 
 
 def p_dimension_list_single(p):

@@ -152,21 +152,21 @@ class TTensor:
 
     Examples
     --------
-    >>> from physika.utils.types import TTensor, TDim
+    >>> from physika.utils.types import TTensor, TDim, T_REAL
     >>> # int literal size from a concrete annotation:
-    >>> TTensor(((5, "invariant"),))         # arr : ℝ[5]
+    >>> TTensor(T_REAL, ((5, "invariant"),))         # arr : ℝ[5]
     ℝ[5]
-    >>> TTensor(((3, "invariant"), (4, "invariant")))   # mat : ℝ[3, 4]
+    >>> TTensor(T_REAL, ((3, "invariant"), (4, "invariant")))   # mat : ℝ[3, 4]
     ℝ[3,4]
     >>> # str symbolic size from a generic parameter annotation:
-    >>> TTensor((("n", "invariant"),))       # u : ℝ[n]
+    >>> TTensor(T_REAL, (("n", "invariant"),))       # u : ℝ[n]
     ℝ[n]
-    >>> TTensor((("n", "invariant"), ("m", "invariant")))  # A : ℝ[n, m]
+    >>> TTensor(T_REAL, (("n", "invariant"), ("m", "invariant")))  # A : ℝ[n, m]
     ℝ[n,m]
     >>> # TDim unknown dimension, resolved at unification step:
-    >>> TTensor(((TDim("δ0"), "invariant"),))
+    >>> TTensor(T_REAL, ((TDim("δ0"), "invariant"),))
     ℝ[δ0]
-    >>> TTensor(((TDim("δ0"), "invariant"), (TDim("δ1"), "invariant")))
+    >>> TTensor(T_REAL, ((TDim("δ0"), "invariant"), (TDim("δ1"), "invariant")))
     ℝ[δ0,δ1]
     """
     base_type: TScalar
@@ -208,10 +208,10 @@ class TTensor:
 
         Examples
         --------
-        >>> from physika.utils.types import TTensor
-        >>> repr(TTensor(((3, "invariant"), (4, "invariant"))))
+        >>> from physika.utils.types import TTensor, T_REAL
+        >>> repr(TTensor(T_REAL, ((3, "invariant"), (4, "invariant"))))
         'ℝ[3,4]'
-        >>> repr(TTensor((("n", "invariant"),)))
+        >>> repr(TTensor(T_REAL, (("n", "invariant"),)))
         'ℝ[n]'
         """
         ds = [str(d) for d, _ in self.dims]
@@ -224,7 +224,7 @@ class TFunc:
     A function type ``(p0, p1, ...): return_type``.
 
     Used in ``func_env`` to store registered function signatures and
-    in ``infer_expr`` to check call argument types against the
+    in ``infer_expr`` to check call argument tyT_REALpes against the
     declared parameter types.
 
     Parameters
@@ -424,7 +424,7 @@ class Substitution(dict):
     ℝ
     >>> s.apply(TVar("α1"))
     α1
-    >>> s.apply(TTensor(((TDim("δ0"), "invariant"),)))
+    >>> s.apply(TTensor(T_REAL, ((TDim("δ0"), "invariant"),)))
     ℝ[3]
     """
 
