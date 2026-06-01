@@ -472,6 +472,39 @@ def _lhs_var_name(expr: ASTNode) -> str | None:
     return None
 
 
+def _has_complex(node: ASTNode) -> bool:
+    """
+    Recursively determine whether an AST subtree contains a complex literal.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST subtree.
+
+    Returns
+    -------
+    bool
+        True if subtree contains complex number else False.
+
+    Examples
+    --------
+    >>> from physika.utils.ast_utils import _has_complex
+    >>> _has_complex(("array", [("num", 1), ("num", 5)]))
+    False
+    >>> _has_complex(("array", [("complex", 3j), ("complex", 2j)]))
+    True
+    >>> _has_complex(("array", [('add', ('num', 1), ('complex', 3j,),), ('add', ('num', 2), ('complex', 5j,),)]))  # noqa
+    True
+    """
+    if (isinstance(node, tuple) and len(node) >= 2 and node[0] == "complex"
+            and isinstance(node[1], complex)):
+        return True
+    # recursively traverse tuples/lists (nested arrays)
+    if isinstance(node, (tuple, list)):
+        return any(_has_complex(child) for child in node)
+    return False
+
+
 def ast_to_torch_expr(node: ASTNode,
                       indent: int = 0,
                       current_loop_var: str | set[str] | None = None) -> str:
@@ -574,17 +607,6 @@ def ast_to_torch_expr(node: ASTNode,
         # Check if this is a nested array (contains other arrays)
         has_nested = any(
             isinstance(e, tuple) and e[0] == "array" for e in elements)
-
-        # helper function to recursively check if number is complex
-        def _has_complex(node):
-            if (isinstance(node, tuple) and len(node) >= 2
-                    and node[0] == "complex" and isinstance(node[1], complex)):
-                return True
-            # recursively traverse tuples/lists (nested arrays)
-            if isinstance(node, (tuple, list)):
-                return any(_has_complex(child) for child in node)
-            return False
-
         contains_complex = any(_has_complex(e) for e in elements)
 
         if has_nested:

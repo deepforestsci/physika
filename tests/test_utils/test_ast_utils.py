@@ -15,6 +15,7 @@ from physika.utils.ast_utils import (
     StmtTag,
     BodyStmtTag,
     TypeTag,
+    _has_complex,
     ast_to_torch_expr,
     condition_to_expr,
     emit_body_stmts,
@@ -176,6 +177,23 @@ def test_ast_matches_expected(phyk_file):
     actual = build_unified_ast(program_ast, sym_tb)
     expected = load_expected_ast(phyk_file.stem)
     assert actual == expected
+
+
+class TestHelperFunctions:
+    """
+    Tests for all helper functions used in ``physika/utils/ast_utils.py``.
+    """
+
+    def test_has_complex(self):
+        """Tests for ``_has_complex`` function"""
+        num_expected_value = False
+        num_expr_eq = _has_complex(("array", [("num", 1), ("num", 5)]))
+        assert num_expected_value == num_expr_eq
+
+        complex_expected_value = True
+        complex_expr_eq = _has_complex(("array", [("complex", 1j),
+                                                  ("complex", 5j)]))
+        assert complex_expected_value == complex_expr_eq
 
 
 class TestConditionToExpr:
