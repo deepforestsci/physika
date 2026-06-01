@@ -122,6 +122,12 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     for stmt in unified_ast["program"]:
         collect_grad_targets(stmt, grad_target_vars)
 
+    # for func_def in unified_ast["functions"].values():
+    #     for stmt in func_def.get("statements", []):
+    #         collect_grad_targets(stmt, grad_target_vars)
+    #     if func_def.get("body"):
+    #         collect_grad_targets(func_def["body"], grad_target_vars)
+
     # Check for grad usage in classes and program statements
     needs_grad = False
     for class_def in unified_ast["classes"].values():
@@ -180,7 +186,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     if unified_ast["functions"]:
         code_lines.append("# === Functions ===")
         for name, func_def in unified_ast["functions"].items():
-            code_lines.append(generate_function(name, func_def))
+            code_lines.append(generate_function(name, func_def, grad_target_vars))
             code_lines.append("")
 
     # Generate classes

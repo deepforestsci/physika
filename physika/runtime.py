@@ -345,14 +345,16 @@ def compute_grad(
         else:
             # Tensor output
             # compute Jacobian by rows from pre built graph
+            # x_t = cast(torch.Tensor, x)
+            # rows = [
+            #     torch.autograd.grad(out.reshape(-1)[i], x_t,
+            #                         retain_graph=True)[0].detach()
+            #     for i in range(out.numel())
+            # ]
+            # return torch.stack(rows).reshape(*out.shape, *x_t.shape).detach()
             x_t = cast(torch.Tensor, x)
-            rows = [
-                torch.autograd.grad(out.reshape(-1)[i], x_t,
-                                    retain_graph=True)[0].detach()
-                for i in range(out.numel())
-            ]
-            return torch.stack(rows).reshape(*out.shape, *x_t.shape).detach()
-
+            jac = torch.autograd.functional.jacobian(lambda v: out, x_t)
+            return jac.detach()
 
 def simulate(
     model: nn.Module,
