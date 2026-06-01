@@ -364,20 +364,32 @@ def p_loop_var_list_multi(p):
     p[0] = p[1] + [p[2]]
 
 
-def p_func_body_stmt_for_accum(p):
+def p_func_body_stmt_for_implicit(p):
     """func_body_stmt : FOR loop_var_list COLON NEWLINE INDENT func_loop_body DEDENT"""  # noqa: E501
-    # Accumulation loop with multiple loop variables.
-    # Example:
+    # Implicit for loop with multiple loop variables.
+    # Example 1 (+=):
     # A : ℝ[2, 2] = [[1, 2], [3, 4]]
     # B : ℝ[2, 2] = [[0, 1], [1, 0]]
     # C : ℝ[2, 2]
     # for i j k:
     #     C[i, j] += A[i, k] * B[k, j]
+    # 
+    # Example 2 (=):
+    # x: R[4] = [1, 2, 3, 4]
+    # y: R[4] = [0, 5, 6, 7]
+    # results : ℝ[n, m]
+    # for i j:
+    #    results[i, j] = u[i] * v[j]
+    # 
     # Parameters:
     # p[2] — loop variable list [i, j, k]
     # p[6] — loop body statements
+    # 
     # Returns:
-    #  ("body_for_accum", loop_vars, loop_body)
+    #  if body_for_accum:
+    #       ("body_for_accum", loop_vars, loop_body)
+    #  if body_for_map:
+    #       ("body_for_map", loop_vars, loop_body)
     loop_vars = p[2]
     loop_body = p[6]
 
