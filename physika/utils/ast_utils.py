@@ -52,6 +52,7 @@ BodyStmtTag = Literal[
     "body_for",  # for k: ...        for-loop inside function body
     "body_zeros_decl",  # C : ℝ[n,o]        type annotation for an accumulation
     #                                           target
+    "body_for_map",
     "body_for_accum",  # for i j k: ...    accumulation loop. emits
     #                                          torch.stack
     #                                          per target

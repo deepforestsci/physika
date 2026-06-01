@@ -623,6 +623,69 @@ def stmt_for_assign(stmt: Any, ctx: StmtContext) -> None:
         new_var()
 
 
+def stmt_for_eq(stmt: Any, ctx: StmtContext) -> None:
+    """
+    Infer types for ``=`` index assignment inside a for loop body.
+
+    Handles indexed assignment statements of the form:
+
+    - ``("loop_index_assign_nd", arr_name, idx_exprs, rhs)``
+
+    A Physika program that triggers this handler looks like:
+
+    def outer_product(u : ℝ[n], v : ℝ[m]): ℝ[n, m]:
+        results : ℝ[n, m]
+        for i j:
+            results[i, j] = u[i] * v[j] # stmt_for_eq node
+        return results
+
+    Parameters
+    ----------
+    stmt : tuple
+        AST node of the form
+        ``("loop_index_assign_nd", arr_name, idx_exprs, rhs)``.
+    ctx : StmtContext
+        Current inference context.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_stmts import stmt_for_eq, StmtContext
+    >>> from physika.utils.types import Substitution, T_REAL, TTensor
+    >>> errors = []
+    >>> ctx = StmtContext(
+    ...     env={'results': TTensor(((3, 'invariant'),
+    ...                               (3, 'invariant')))},
+    ...     s=Substitution(), func_name='outer_product',
+    ...     return_type=T_REAL, add_error=errors.append,
+    ...     func_env={}, class_env={})
+    >>> stmt_for_eq(
+    ...     ('loop_index_assign_nd', 'results',
+    ...      [('var', 'i'), ('var', 'j')],
+    ...      ('num', 1.0)), ctx)
+    >>> errors
+    []
+    """
+    from physika.utils.type_checker_utils import get_tensor_shape, unify_dim
+    from physika.utils.infer_expr import infer_expr
+    op = stmt[0]
+    _, ctx.s = infer_expr(stmt[-1], ctx.env, ctx.s, ctx.func_env,
+                          ctx.class_env, ctx.add_error)
+    if op == "loop_index_assign_nd":
+        _, arr_name, idx_exprs, _ = stmt
+        arr_t = ctx.s.apply(ctx.env[arr_name]) if arr_name in ctx.env else None
+        shape = get_tensor_shape(arr_t)
+        if shape is not None:
+            for idx_expr, dim in zip(idx_exprs, shape):
+                idx_t, ctx.s = infer_expr(idx_expr, ctx.env, ctx.s,
+                                          ctx.func_env, ctx.class_env,
+                                          ctx.add_error)
+                if isinstance(idx_t, (TVar, TDim, str, int)):
+                    try:
+                        ctx.s = unify_dim(idx_t, dim, ctx.s)
+                    except TypeError as e:
+                        ctx.add_error(f"Index mismatch for '{arr_name}': {e}")
+
+
 def stmt_for_pluseq(stmt: Any, ctx: StmtContext) -> None:
     """
     Infer types for ``+=`` accumulation statements inside a for loop body.
@@ -831,6 +894,8 @@ STMT_DISPATCH: dict = {
     "body_for_accum": stmt_body_for_accum,
     "for_assign": stmt_for_assign,
     "loop_assign": stmt_for_assign,
+    "loop_index_assign_nd": stmt_for_eq,
+    "body_for_map": stmt_for_eq,
     "for_pluseq": stmt_for_pluseq,
     "loop_index_pluseq": stmt_for_pluseq,
 }
