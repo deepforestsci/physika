@@ -50,6 +50,8 @@ def p_type_scalar(p):
         p[0] = "ℤ"
     elif p[1] == "ℕ":
         p[0] = "ℕ"
+    elif p[1] == "ℂ":
+        p[0] = "ℂ"
     else:
         p[0] = "ℝ"
 
@@ -106,7 +108,7 @@ def p_dimension_type_as_symbol(p):
     """dimension_spec : TYPE"""
     # N lexes as TYPE(ℕ); map back to the ASCII letter so user intent is
     # preserved
-    mapping = {"ℕ": "N", "ℝ": "R", "ℤ": "Z"}
+    mapping = {"ℕ": "N", "ℝ": "R", "ℤ": "Z", "ℂ": "C"}
     p[0] = (mapping.get(p[1], p[1]), "invariant")
 
 
@@ -1059,6 +1061,11 @@ def p_func_factor_number(p):
     p[0] = ("num", p[1])
 
 
+def p_func_factor_complex(p):
+    """func_factor : COMPLEX"""
+    p[0] = ("complex", p[1])
+
+
 def p_func_factor_id(p):
     """func_factor : ID"""
     p[0] = ("var", p[1])
@@ -1272,6 +1279,12 @@ def p_factor_call(p):
     func_name = p[1]
     args = p[3]
     p[0] = ("call", func_name, args)
+
+
+def p_factor_complex(p):
+    """factor : COMPLEX"""
+    # Return AST node for complex literal
+    p[0] = ("complex", p[1])
 
 
 def p_factor_number(p):

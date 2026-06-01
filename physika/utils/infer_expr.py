@@ -77,6 +77,37 @@ def expr_num(node: Any,
     return T_REAL, ctx.s
 
 
+def expr_complex(node: Any,
+                 ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    The type of a complex literal is always ``ℂ``.
+
+    Parameters
+    ----------
+    node : tuple
+        AST node of the form ``("complex", value)`` where *value* is an
+        ``complex``.
+    ctx : ExprContext
+        Current inference context.
+
+    Returns
+    -------
+    tuple[Type, Substitution]
+        Always ``(T_COMPLEX, ctx.s)``.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_complex
+    >>> from physika.utils.infer_expr import T_COMPLEX
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({}, Substitution(), {}, {}, [].append)
+    >>> t, _= expr_complex(("complex", 3j), ctx)
+    >>> t
+    ℂ
+    """
+    return T_COMPLEX, ctx.s
+
+
 def expr_imaginary(node: Any,
                    ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
     """
@@ -1252,6 +1283,7 @@ def expr_cond(node, ctx):
 EXPR_DISPATCH: dict = {
     "num": expr_num,
     "var": expr_var,
+    "complex": expr_complex,
     "imaginary": expr_imaginary,
     "array": expr_array,
     "index": expr_index,

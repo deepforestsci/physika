@@ -22,6 +22,13 @@ Types
 
    x : ℤ = 3
 
+ℂ Complex
+~~~~~~~~~
+
+.. code-block:: text
+
+   x : ℂ = 3 + 1j
+
 1-D array
 ~~~~~~~~~
 

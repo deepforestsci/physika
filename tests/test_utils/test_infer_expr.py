@@ -11,6 +11,7 @@ from physika.utils.types import (
 from physika.utils.infer_expr import (
     ExprContext,
     expr_num,
+    expr_complex,
     expr_imaginary,
     expr_var,
     expr_array,
@@ -175,6 +176,40 @@ class TestExprNum:
         ctx = make_ctx(env={"x": T_REAL, "y": TTensor(((3, "invariant"), ))})
         t, _ = expr_num(("num", 7.0), ctx)
         assert t == T_REAL
+
+
+class TestExprComplex:
+    """Tests for ``expr_complex``."""
+
+    def test_complex(self):
+        """Any complex literal must infer to ℂ."""
+        ctx = make_ctx()
+        t, s = expr_complex(("complex", 3j), ctx)
+        assert t == T_COMPLEX
+
+    def test_complex_zero(self):
+        """Zero imaginary literal must infer to ℂ."""
+        ctx = make_ctx()
+        t, _ = expr_complex(("complex", 0j), ctx)
+        assert t == T_COMPLEX
+
+    def test_complex_substitution_unchanged(self):
+        """
+        The substitution dict does not contain new bindings.
+        """
+        existing = Substitution({"α0": T_NAT})
+        ctx = make_ctx(s=existing)
+        _, s_out = expr_complex(("complex", 1.0), ctx)
+        assert s_out == existing
+
+    def test_complex_env_context(self):
+        """expr_complex infer type with a non-empty environment."""
+        ctx = make_ctx(env={
+            "x": T_COMPLEX,
+            "y": TTensor(((3, "invariant"), ))
+        })
+        t, _ = expr_complex(("complex", 7j), ctx)
+        assert t == T_COMPLEX
 
 
 class TestExprImaginary:
