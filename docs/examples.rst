@@ -202,7 +202,7 @@ or ``6.674e-11`` are valid numeric literals.
 Import statements
 -----------------
 
-Physika supports importing functions, classes from other modules.
+Physika supports importing functions, classes from other Physika modules.
 
 .. literalinclude:: ../examples/example_import_statement.phyk
    :language: text
