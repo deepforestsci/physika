@@ -82,12 +82,12 @@ Grid and Physical Constants
 
 .. code-block:: text
 
-    Nx   : ℕ = 1024
-    x    : ℝ[Nx] = linspace(-200, 200, Nx)
-    dx   : ℝ = 0.3910
+    Nx: ℕ = 1024
+    x: ℝ[Nx] = linspace(-200, 200, Nx)
+    dx: ℝ = 0.3910
 
-    hbar : ℝ = 1.0
-    mass : ℝ = 1.0
+    hbar: ℝ = 1.0
+    mass: ℝ = 1.0
 
 The timestep is chosen using the CFL stability condition for the
 Schrödinger equation:
@@ -103,9 +103,9 @@ where :math:`\alpha = 0.2` is the CFL factor keeping the simulation stable:
 .. code-block:: text
 
     cfl_factor : ℝ = 0.2
-    dt         : ℝ = cfl_factor * (mass * dx**2) / hbar
-    t_final    : ℝ = 100.0
-    Nt         : ℕ = 3271
+    dt: ℝ = cfl_factor * (mass * dx**2) / hbar
+    t_final: ℝ = 100.0
+    Nt: ℕ = 3271
 
 
 The Initial Condition — Gaussian Wave Packet
@@ -133,11 +133,11 @@ This is a product of three parts:
 
 .. code-block:: text
 
-    x0    : ℝ = -50.0    # initial position
-    k0    : ℝ = 2.0      # wavenumber (controls momentum)
-    sigma : ℝ = 10.0     # width of the wave packet
+    x0: ℝ = -50.0    # initial position
+    k0: ℝ = 2.0      # wavenumber (controls momentum)
+    sigma: ℝ = 10.0     # width of the wave packet
 
-    psi0 = (1 / sigma*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * sigma**2))
+    psi0: ℂ[Nx] = (1 / sigma*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * sigma**2))
 
 
 Discretizing the RHS
@@ -231,13 +231,12 @@ sensitively on :math:`V_0`, which is why it is a learnable parameter.
 .. code-block:: text
 
     def make_potential(V_value: ℝ): ℝ[m]:
-        V = zero_1d_array(Nx)
+        x: ℝ[Nx] = linspace(-200, 200, Nx)
+        V: ℝ[Nx] = zero_1d_array(Nx)
         for i:ℕ(0, Nx):
             if abs(x[i]) < 15:
                 V[i] = V_value
         return V
-
-    V = make_potential(1.8)    # true barrier height
 
 
 
@@ -265,6 +264,7 @@ every 5 steps to build the history:
 .. code-block:: text
 
     def solver(V: ℝ[m]): ℝ[m]:
+        x: ℝ[Nx] = linspace(-200, 200, Nx)
         psi0: ℂ[Nx] = ((1 / sigma*sqrt(3.14)) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * sigma**2))) 
         psi: ℂ[Nx] = psi0
         history: ℝ[1] = [0]
@@ -304,7 +304,7 @@ produce the ground truth wavefunction history:
 .. code-block:: text
 
     V = make_potential(1.8)
-    true_values  = solver(V)
+    true_values = solver(V)
 
     create_plot(true_values, psi0, x, V)
 
@@ -468,8 +468,8 @@ Adam recovers the true barrier height of :math:`1.8`:
         physika_print(new_barrier_height)
 
     pred_V = make_potential(new_barrier_height)
-    pred_results = solver(new_V)
-    create_plot(pred_results, psi0, x, V)
+    pred_results = solver(pred_V)
+    create_plot(pred_results, psi0, x, pred_V)
 
 ``grad()`` differentiates through the entire solver — through all RK4 steps,
 through the complex arithmetic of ``schrodinger_rhs``, and through
@@ -500,7 +500,7 @@ Full code
             x[i] = start + i * dx
         return x
 
-        Nx   : ℕ = 1024
+    Nx   : ℕ = 1024
     x: ℝ[Nx] = linspace(-200, 200, Nx)
     dx: ℝ = 0.3910
 
@@ -516,25 +516,27 @@ Full code
     k0: ℝ = 2.0      # wavenumber (controls momentum)
     sigma: ℝ = 10.0     # width of the wave packet
 
-    psi0 = (1 / sigma*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * sigma**2))
+    psi0: ℂ[Nx] = (1 / sigma*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * sigma**2))
 
-    def schrodinger_rhs(psi: ℝ[m], V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℝ[o]:
+
+
+    def schrodinger_rhs(psi: ℂ[m], V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℂ[o]:
         psi_xx: ℂ[Nx] = (roll(psi, -1) - 2*psi + roll(psi, 1)) / (dx**2)
         H_psi: ℂ[Nx] = -(hbar**2 / (2*mass)) * psi_xx + V * psi
         result: ℂ[Nx] = -1j / hbar * H_psi
         return result
 
-        def make_potential(V_value: ℝ): ℝ[m]:
+
+    def make_potential(V_value: ℝ): ℝ[m]:
         V = zero_1d_array(Nx)
+        x: ℝ[Nx] = linspace(-200, 200, Nx)
         for i:ℕ(0, Nx):
             if abs(x[i]) < 15:
                 V[i] = V_value
         return V
 
-    V = make_potential(1.8)    # true barrier height
 
-
-    def RK4_step(psi: ℝ[m], dt: ℝ, V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℝ[o]:
+    def RK4_step(psi: ℂ[m], dt: ℝ, V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℂ[o]:
         k1 = schrodinger_rhs(psi, V, dx, hbar, mass)
         k2 = schrodinger_rhs(psi + 0.5 * dt * k1, V, dx, hbar, mass)
         k3 = schrodinger_rhs(psi + 0.5 * dt * k2, V, dx, hbar, mass)
@@ -542,7 +544,8 @@ Full code
         psi_next = psi + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
         return psi_next
 
-    def solver(V: ℝ[m]): ℝ[m]:
+    def solver(V: ℝ[m]): ℂ[m]:
+        x: ℝ[Nx] = linspace(-200, 200, Nx)
         psi0: ℂ[Nx] = ((1 / sigma*sqrt(3.14)) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * sigma**2)))
         psi: ℂ[Nx] = psi0
         history: ℝ[1] = [0]
@@ -554,6 +557,7 @@ Full code
                 history = append_row(history, psi)
                 counter = 0
         return history
+
 
 
     V = make_potential(1.8)
@@ -576,7 +580,7 @@ Full code
 
     def adam(bh: ℝ, g: ℝ, m: ℝ, v: ℝ, t: ℝ, lr: ℝ) : ℝ[4]:
         beta1: ℝ = 0.9
-        beta2: ℝ = 0.999V: ℝ[Nx] = make_potential(1.8)
+        beta2: ℝ = 0.999
         eps: ℝ = 1e-8
         m_new: ℝ = beta1 * m + (1.0 - beta1) * g
         v_new: ℝ = beta2 * v + (1.0 - beta2) * g**2
@@ -590,7 +594,9 @@ Full code
     t_adam: ℝ = 1.0
     lr: ℝ = 0.1
 
-    epochs: N = 40
+    epochs: N = 1
+
+    epochs: N = 1
 
     for i:ℕ(epochs):
         physika_print(i)
@@ -603,8 +609,8 @@ Full code
         physika_print(new_barrier_height)
 
     pred_V = make_potential(new_barrier_height)
-    pred_results = solver(new_V)
-    create_plot(pred_results, psi0, x, V)
+    pred_results = solver(pred_V)
+    create_plot(pred_results, psi0, x, pred_V)
 
 
 
