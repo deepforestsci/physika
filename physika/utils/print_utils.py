@@ -282,15 +282,20 @@ def _infer_type(v: Any) -> str:
     'ℝ[3]'
     >>> _infer_type(complex(1, 2))
     'ℂ'
+    >>> _infer_type(torch.tensor([1j, 2j, 3j]))
+    'ℂ[3]'
     """
     if isinstance(v, complex):
         if v.imag == 0:
             return "ℝ"
         return "ℂ"
     if isinstance(v, torch.Tensor) and v.is_complex():
-        if v.imag.abs().max() < 1e-10:
-            return "ℝ"
-        return "ℂ"
+        if v.numel() == 1:
+            return "ℂ"
+        if v.dim() == 1:
+            return f"ℂ[{v.shape[0]}]"
+        dims = ",".join(str(d) for d in v.shape)
+        return f"ℂ[{dims}]"
     if isinstance(v, torch.Tensor):
         if v.numel() == 1:
             return "ℝ"
