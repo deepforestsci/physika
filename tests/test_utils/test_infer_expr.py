@@ -209,7 +209,7 @@ class TestExprComplex:
         """expr_complex infer type with a non-empty environment."""
         ctx = make_ctx(env={
             "x": T_COMPLEX,
-            "y": TTensor(((3, "invariant"), ))
+            "y": TTensor(T_COMPLEX, ((3j, "invariant"), ))
         })
         t, _ = expr_complex(("complex", 7j), ctx)
         assert t == T_COMPLEX
