@@ -224,7 +224,7 @@ class TFunc:
     A function type ``(p0, p1, ...): return_type``.
 
     Used in ``func_env`` to store registered function signatures and
-    in ``infer_expr`` to check call argument tyT_REALpes against the
+    in ``infer_expr`` to check call argument types against the
     declared parameter types.
 
     Parameters
