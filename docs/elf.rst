@@ -194,11 +194,67 @@ with the reparameterization trick (for continous distributions) or score functio
 ``Beta``, ``Uniform``, ``Gamma``) and score function estimators
 for ``Bernoulli``.
 
+Estimators can be defined per distribution by given "reparam", "socre", or "none" argument, for example::
+
+    # Sampling using pathwise derivative estimator (reparameterization trick)
+    x : ℝ ~ Normal(0.0, 1.0, "reparam")
+
+    # Sampling using score function estimator
+    y : ℝ ~ Normal(0.0, 1.0, "score")
+
+
+Supported Distributions
+^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+   :widths: 14 20 22 14 12 18
+   :header-rows: 1
+
+   * - Name
+     - Physika syntax
+     - Parameters
+     - Default estimator
+     - Unicode alias
+     - PyTorch backend
+   * - **Normal**
+     - ``x ~ Normal(μ, σ)``
+     - μ: mean, σ: std dev
+     - ``reparam``
+     - ``𝒩``
+     - ``torch.distributions.Normal``
+   * - **Uniform**
+     - ``x ~ Uniform(a, b)``
+     - a: lower bound, b: upper bound
+     - ``reparam``
+     - ``𝒰``
+     - ``torch.distributions.Uniform``
+   * - **Beta**
+     - ``x ~ Beta(α, β)``
+     - α: concentration1, β: concentration0
+     - ``reparam``
+     - ``ℬ``
+     - ``torch.distributions.Beta``
+   * - **Gamma**
+     - ``x ~ Gamma(k, θ)``
+     - k: concentration, θ: rate
+     - ``reparam``
+     - ``Γ``
+     - ``torch.distributions.Gamma``
+   * - **Bernoulli**
+     - ``x ~ Bernoulli(p)``
+     - p: probability of 1
+     - ``score`` (fixed)
+     - —
+     - ``torch.distributions.Bernoulli``
+
 Aliases for probability distributions are also supported, for ``Normal``, ``Uniform``, ``Beta`` distributions. These are as follows::
     
 * ``𝒩`` → ``Normal``
 * ``𝒰`` → ``Uniform``
 * ``ℬ`` → ``Beta``
+
+For adding new distributions, new lexer and code generation rules must be added to ``RandomnessFeature``. First, add a function handler to emit Pytorch code for the new distribution at ``features/randomness.py``.
+Including an alias for a distribution is optional and must be done at ``lexer_rules()`` method. Finally, add the newly defined distribution emit code handler at ``forward_rules()`` dispatch table as ``"call:NewDist": make_call_emit(new_dist),``
 
 **Type checking**
 
