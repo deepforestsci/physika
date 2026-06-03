@@ -441,6 +441,17 @@ The Adam Optimizer
 We use Adam instead of plain gradient descent because the loss landscape
 for the barrier height is nonlinear and benefits from adaptive learning rates:
 
+.. math::
+
+    \begin{align*}
+    m_t &= \beta_1 m_{t-1} + (1 - \beta_1) g_t \\
+    v_t &= \beta_2 v_{t-1} + (1 - \beta_2) g_t^2 \\
+    \hat{m}_t &= \frac{m_t}{1 - \beta_1^t} \\
+    \hat{v}_t &= \frac{v_t}{1 - \beta_2^t} \\
+    \theta_t &= \theta_{t-1} - \frac{\eta \cdot \hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon}
+    \end{align*}
+
+
 .. code-block:: text
 
     def adam(bh: ℝ, g: ℝ, m: ℝ, v: ℝ, t: ℝ, lr: ℝ) : ℝ[4]:
