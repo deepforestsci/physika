@@ -6,7 +6,7 @@ setup(
     url="https://github.com/deepforestsci/physika",
     license='MIT',
     python_requires=">=3.9",
-    install_requires=["torch", "ply", "numpy"],
+    install_requires=["torch", "ply", "numpy", "matplotlib"],
     packages=find_packages(),
     project_urls={
         'Source': 'https://github.com/deepforestsci/physika',
