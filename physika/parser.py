@@ -1080,6 +1080,13 @@ def p_func_factor_call(p):
     """func_factor : ID LPAREN func_args RPAREN"""
     p[0] = ("call", p[1], p[3])
 
+def p_func_factor_partial(p):
+    """func_factor : PARTIAL LPAREN func_args RPAREN"""
+    p[0] = ("call", "diff", p[3])
+
+def p_func_factor_nabla(p):
+    """func_factor : NABLA LPAREN func_args RPAREN"""
+    p[0] = ("call", "grad", p[3])
 
 def p_func_factor_index(p):
     """func_factor : ID LBRACKET func_expr RBRACKET"""
@@ -1280,6 +1287,13 @@ def p_factor_call(p):
     args = p[3]
     p[0] = ("call", func_name, args)
 
+def p_factor_nabla(p):
+    """factor : NABLA LPAREN args RPAREN"""
+    p[0] = ("call", "grad", p[3])
+
+def p_factor_partial(p):
+    """factor : PARTIAL LPAREN args RPAREN"""
+    p[0] = ("call", "diff", p[3])
 
 def p_factor_complex(p):
     """factor : COMPLEX"""
