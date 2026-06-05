@@ -862,7 +862,7 @@ class TestStmtForEq:
         dimension.
         """
         errors = []
-        mat = TTensor(((3, 'invariant'), (4, 'invariant')))
+        mat = TTensor(T_REAL, ((3, 'invariant'), (4, 'invariant')))
         ctx = make_stmt_ctx(env={'results': mat}, errors=errors)
         # Simulate i, j registered by stmt_body_for_accum before this stmt
         i_dim = new_dim()
