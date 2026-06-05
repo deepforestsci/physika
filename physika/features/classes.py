@@ -656,6 +656,7 @@ def make_parser_rules():
         #   p[5] - argument list
         p[0] = ("body_expr", ("method_call", p[1], p[3], p[5] or []))
 
+<<<<<<< HEAD
     def p_func_body_stmt_field_assign(p):
         """func_body_stmt : func_factor DOT ID EQUALS func_expr NEWLINE"""
         # Field assignment on an instance inside a method.
@@ -693,6 +694,18 @@ def make_parser_rules():
         #   p[3] - method name
         #   p[5] - argument list
         p[0] = ("body_expr", ("method_call", ("var", p[1]), p[3], p[5] or []))
+=======
+    def p_func_loop_stmt_method_call(p):
+        """func_loop_stmt : ID DOT ID LPAREN func_args RPAREN NEWLINE"""
+        # Method call as a statement inside a for-loop body.
+        # Example:
+        #   this.update(lr, grads)
+        # Parameters:
+        #   p[1] - object (func_factor)
+        #   p[3] - method name
+        #   p[5] - argument list
+        p[0] = ("loop_method_call", p[1], p[3], p[5] or [])
+>>>>>>> ccca7f50 (added support for method class as a statment)
 
     return [
         p_statement_class_no_params,
@@ -711,10 +724,14 @@ def make_parser_rules():
         p_method_call,
         p_type_class,
         p_func_body_stmt_method_call,
+<<<<<<< HEAD
         p_func_body_stmt_field_assign,
         p_class_method_void,
         p_func_loop_stmt_field_assign,
         p_func_loop_stmt_method_call,
+=======
+        p_func_loop_stmt_method_call
+>>>>>>> ccca7f50 (added support for method class as a statment)
     ]
 
 
@@ -846,7 +863,11 @@ class ClassFeature(ELF):
         >>> from physika.features import ClassFeature
         >>> rules = ClassFeature().parser_rules()
         >>> len(rules)
+<<<<<<< HEAD
         20
+=======
+        17
+>>>>>>> ccca7f50 (added support for method class as a statment)
         >>> rules[0].__name__
         'p_statement_class_no_params'
         """
