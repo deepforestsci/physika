@@ -668,7 +668,7 @@ def make_parser_rules():
         p[0] = ("body_field_assign", p[1], p[3], p[5])
 
     def p_func_loop_stmt_field_assign(p):
-        """func_loop_stmt : func_factor DOT ID EQUALS func_expr NEWLINE"""
+        """func_loop_stmt : ID DOT ID EQUALS func_expr NEWLINE"""
         # Field assignment on an instance inside a for loop.
         # Example:
         #   this.b = b
@@ -676,10 +676,10 @@ def make_parser_rules():
         #   p[1] - object expression ("var", "this")
         #   p[3] - field name
         #   p[5] - value expression
-        p[0] = ("body_field_assign", p[1], p[3], p[5])
+        p[0] = ("body_field_assign", ("var", p[1]), p[3], p[5])
 
     def p_func_loop_stmt_method_call(p):
-        """func_loop_stmt : func_factor DOT ID LPAREN func_args RPAREN NEWLINE"""
+        """func_loop_stmt : ID DOT ID LPAREN func_args RPAREN NEWLINE"""
         # Method call used as a statement inside a for loop of a class method.
         # Example:
         # class PhysikaClass:
@@ -692,7 +692,7 @@ def make_parser_rules():
         #   p[1] - class instance expression ("var", "this")
         #   p[3] - method name
         #   p[5] - argument list
-        p[0] = ("body_expr", ("method_call", p[1], p[3], p[5] or []))
+        p[0] = ("body_expr", ("method_call", ("var", p[1]), p[3], p[5] or []))
 
     return [
         p_statement_class_no_params,
