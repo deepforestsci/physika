@@ -9,7 +9,7 @@ from physika.runtime import compute_grad
 
 from physika.lexer import lexer
 from physika.parser import parser, symbol_table
-from physika.import_manager import resolve_imports
+from physika.utils.import_manager import resolve_imports
 from physika.utils.ast_utils import (
     build_unified_ast,
     ExprTag,

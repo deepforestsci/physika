@@ -3,7 +3,7 @@ from physika.lexer import lexer
 from physika.parser import parser, symbol_table
 from physika.utils.ast_utils import build_unified_ast
 from physika.codegen import from_ast_to_torch
-from physika.import_manager import resolve_imports
+from physika.utils.import_manager import resolve_imports
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
 

@@ -1,5 +1,5 @@
 from pathlib import Path
-from physika.import_manager import find_module, resolve_imports
+from physika.utils.import_manager import find_module, resolve_imports
 from physika.parser import symbol_table
 from physika.lexer import lexer
 

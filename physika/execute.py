@@ -6,7 +6,7 @@ from physika.type_checker import TypeChecker
 from physika.codegen import from_ast_to_torch
 from physika.utils.print_utils import print_type_check_results
 from physika.utils.ast_utils import build_unified_ast
-from physika.import_manager import resolve_imports
+from physika.utils.import_manager import resolve_imports
 from pathlib import Path
 
 

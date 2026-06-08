@@ -25,7 +25,7 @@ def find_module(module_name: str, source_file_path: Path) -> Path:
     >>> from pathlib import Path
     >>> from physika.import_manager import find_module
     >>> source_file_path = Path(
-    ...     "/home/zap/repos/physika/examples/example_import_statement.phyk"
+    ...     "examples/example_import_statement.phyk"
     ... )
     >>> module_path = find_module(
     ...     "factorial",
@@ -67,7 +67,7 @@ def resolve_imports(local_program_ast: list, source_file_path: Path) -> list:
     ...     ('expr', ('call', 'fact', [('num', 1.0)]), 0)
     ... ]
     >>> source_file_path = Path(
-    ...     "/home/zap/repos/physika/examples/example_import_statement.phyk"
+    ...     "examples/example_import_statement.phyk"
     ... )
     >>> resolved = resolve_imports(
     ...     local_program_ast,
