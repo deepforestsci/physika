@@ -37,7 +37,7 @@ def f(state, θ):
     δ = θ[int(3)]
     dx = ((α * x) - ((β * x) * y))
     dy = ((-(γ * y)) + ((δ * x) * y))
-    return torch.stack([torch.as_tensor(dx).float(), torch.as_tensor(dy).float()])
+    return torch.stack([torch.as_tensor(dx), torch.as_tensor(dy)])
 
 def rk4_step(state, θ):
     k1 = f(state, θ)
@@ -60,20 +60,20 @@ def solver(θ):
         x_array = append(x_array, x)
         y_array = append(y_array, y)
         state = results
-    return torch.stack([torch.as_tensor(x_array).float(), torch.as_tensor(y_array).float()])
+    return torch.stack([torch.as_tensor(x_array), torch.as_tensor(y_array)])
 
 def adjoint_grad(θ):
     states = solver(θ)
     x_array = states[int(0)]
     y_array = states[int(1)]
     m = get_1d_array_length(x_array)
-    s = torch.stack([torch.as_tensor((2 * (x_array[int((m - 1))] - true_x[int((m - 1))]))).float(), torch.as_tensor((2 * (y_array[int((m - 1))] - true_y[int((m - 1))]))).float()])
+    s = torch.stack([torch.as_tensor((2 * (x_array[int((m - 1))] - true_x[int((m - 1))]))), torch.as_tensor((2 * (y_array[int((m - 1))] - true_y[int((m - 1))])))])
     L = zero_1d_array(4)
     for i in range(int(0), int((m - 1))):
         idx = ((m - 1) - i)
         x = x_array[int(idx)]
         y = y_array[int(idx)]
-        state = torch.stack([torch.as_tensor(x).float(), torch.as_tensor(y).float()])
+        state = torch.stack([torch.as_tensor(x), torch.as_tensor(y)])
         J_state = compute_grad(lambda _dstate: rk4_step(_dstate, θ), state)
         J_theta = compute_grad(lambda _dθ: rk4_step(state, _dθ), θ)
         L = L + (s @ J_theta)
