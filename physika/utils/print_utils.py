@@ -189,7 +189,8 @@ def print_unified_ast(unified_ast: dict[str, Any]) -> str:
     lines.append("\nClasses:")
     for name, class_def in unified_ast["classes"].items():
         lines.append(f"  {name}:")
-        lines.append(f"    class_params: {_pformat(class_def['class_params'])}")
+        lines.append(
+            f"    class_params: {_pformat(class_def['class_params'])}")
         lines.append(f"    class_fields: {_pformat(class_def['fields'])}")
         lines.append(f"    class_methods: {_pformat(class_def['methods'])}")
 
