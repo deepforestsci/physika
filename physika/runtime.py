@@ -318,7 +318,9 @@ def compute_grad(
             out = f
         else:
             out = torch.tensor(float(f))
-        grads = torch.autograd.grad(out, x, create_graph=False,
+        grads = torch.autograd.grad(out,
+                                    x,
+                                    create_graph=False,
                                     allow_unused=True)
         result = []
         for g, p in zip(grads, x):
@@ -923,4 +925,3 @@ def animate(func: Any, *args: Any) -> None:
         print(
             "[animate] No visualization backend available (install pyvista or matplotlib)"  # noqa: E501
         )
-

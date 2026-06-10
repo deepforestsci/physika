@@ -350,7 +350,6 @@ class TestLexerParserRules:
     of the AST node.
     """
 
-
     def test_seed_parser(self):
         """
         Test for parsing physika.seed function calls in different

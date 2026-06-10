@@ -521,7 +521,9 @@ class RandomnessFeature(ELF):
             return t
 
         return {
-            "reserved": {"physika": "PHYSIKA"},
+            "reserved": {
+                "physika": "PHYSIKA"
+            },
             "tokens": ["TILDE", "PHYSIKA"],
             "token_funcs": [
                 t_TILDE, t_DIST_NORMAL, t_DIST_GAMMA, t_DIST_BETA,
@@ -533,9 +535,10 @@ class RandomnessFeature(ELF):
         """
         Handler for new grammar rules.
 
-        Nine new PLY grammar functions: 
+        Nine new PLY grammar functions:
+
         - Seven for random sampling at top-level, function/method bodies,
-            and for-loops.
+          and for-loops.
         - Two for ``physika.seed(n)`` at top-level and inside function bodies.
 
         Returns
@@ -605,14 +608,19 @@ class RandomnessFeature(ELF):
             p[0] = ("seed", p[5])
 
         def p_func_body_stmt_seed(p):
-            """func_body_stmt : PHYSIKA DOT ID LPAREN func_expr RPAREN NEWLINE"""
+            """func_body_stmt : PHYSIKA DOT ID LPAREN func_expr RPAREN NEWLINE"""  # noqa: E501
             p[0] = ("seed", p[5])
 
         return [
-            p_sample_untyped, p_sample_typed, p_statement_sample,
-            p_func_body_stmt_sample, p_for_statement_sample,
-            p_func_factor_sample_expr, p_for_sample,
-            p_statement_seed, p_func_body_stmt_seed,
+            p_sample_untyped,
+            p_sample_typed,
+            p_statement_sample,
+            p_func_body_stmt_sample,
+            p_for_statement_sample,
+            p_func_factor_sample_expr,
+            p_for_sample,
+            p_statement_seed,
+            p_func_body_stmt_seed,
         ]
 
     def type_rules(self) -> dict:
@@ -710,14 +718,49 @@ class RandomnessFeature(ELF):
                 dist_args = list(call_node[2])
                 # after stripping any mode string, the last declared_rank
                 # args are the shape args.
-                if dist_args and isinstance(dist_args[-1], tuple) and dist_args[-1][0] in ("string", "equation_string"):  # noqa: E501
+                if dist_args and isinstance(
+                        dist_args[-1], tuple) and dist_args[-1][0] in (
+                            "string", "equation_string"):  # noqa: E501
                     dist_args = dist_args[:-1]
-                if declared_rank > 0:
-                    shape_args = dist_args[-declared_rank:]
+
+                actual_shape_args = get_shape_args(dist_args, env)
+                actual_rank = len(actual_shape_args)
+                if actual_rank > 0 and declared_rank == 0:
+                    # concrete shape args present but scalar declared
+                    add_error(
+                        f"'{name}': declared ℝ but {func_name}(...) produces a ℝ[n] sample"  # noqa: E501
+                    )
+                elif actual_rank == 0 and declared_rank > 0:
+                    # no shape args detected
+                    # error when all declared dims are concrete ints
+                    declared_dims = [d[0] for d in declared_type.dims]
+                    if all(isinstance(d, int) for d in declared_dims):
+                        add_error(
+                            f"'{name}': declared {declared_type} but {func_name}(...) produces a ℝ sample"  # noqa: E501
+                        )
+                    else:
+                        # symbolic dim case
+                        shape_args = dist_args[-declared_rank:]
+                        for i, shape_arg in enumerate(shape_args):
+                            actual = get_dim(shape_arg, env)
+                            declared = get_dim(declared_type.dims[i][0], env)
+                            if declared != actual:
+                                if isinstance(declared, int) and isinstance(
+                                        actual, int):
+                                    add_error(
+                                        f"'{name}': declared {declared_type}. "
+                                        f"{func_name}(...) in dim[{i}] infers {actual} but declared {declared}"  # noqa: E501
+                                    )
+                                elif isinstance(declared, str) and isinstance(
+                                        actual, str):
+                                    add_error(
+                                        f"'{name}': declared {declared_type}. "
+                                        f"{func_name}(...) in dim[{i}] infers {actual} but declared {declared}"  # noqa: E501
+                                    )
                 else:
-                    shape_args = []
-                # check for dimension type mismatch
-                if isinstance(declared_type, TTensor):
+                    # check each dimension for concrete mismatches
+                    shape_args = dist_args[
+                        -declared_rank:] if declared_rank > 0 else []
                     for i, shape_arg in enumerate(shape_args):
                         actual = get_dim(shape_arg, env)
                         declared = get_dim(declared_type.dims[i][0], env)

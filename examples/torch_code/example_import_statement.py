@@ -24,7 +24,7 @@ def torch_funcs_with_scalar_R(x):
     result_sqrt = torch.sqrt(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
     result_log = torch.log(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
     result_abs = torch.abs(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    return torch.stack([torch.as_tensor(result_sin).float(), torch.as_tensor(result_cos).float(), torch.as_tensor(result_exp).float(), torch.as_tensor(result_sqrt).float(), torch.as_tensor(result_log).float(), torch.as_tensor(result_abs).float()])
+    return torch.stack([torch.as_tensor(result_sin), torch.as_tensor(result_cos), torch.as_tensor(result_exp), torch.as_tensor(result_sqrt), torch.as_tensor(result_log), torch.as_tensor(result_abs)])
 
 # === Program ===
 x = 1.0
