@@ -7,7 +7,7 @@ from physika.runtime import simulate
 
 # === Functions ===
 def pendulum(x):
-    return torch.stack([torch.as_tensor(x[int(1)]).float(), torch.as_tensor((0.0 - ((9.81 / 1.0) * torch.sin(x[int(0)] if isinstance(x[int(0)], torch.Tensor) else torch.tensor(float(x[int(0)])))))).float()])
+    return torch.stack([torch.as_tensor(x[int(1)]), torch.as_tensor((0.0 - ((9.81 / 1.0) * torch.sin(x[int(0)] if isinstance(x[int(0)], torch.Tensor) else torch.tensor(float(x[int(0)]))))))])
 
 # === Classes ===
 class RK4(nn.Module):

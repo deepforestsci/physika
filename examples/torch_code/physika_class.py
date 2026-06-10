@@ -11,7 +11,7 @@ def ke_wrt_vel(vel):
     return particle.kinetic_energy()
 
 def ke_vy(vy):
-    p = Particle(pos0, torch.stack([torch.as_tensor(1.0).float(), torch.as_tensor(vy).float()]), 2.0)
+    p = Particle(pos0, torch.stack([torch.as_tensor(1.0), torch.as_tensor(vy)]), 2.0)
     return p.kinetic_energy()
 
 def norm_sq_wrt_x(x):

@@ -7,7 +7,7 @@ from physika.runtime import simulate
 
 # === Functions ===
 def spring_pendulum(x):
-    return torch.stack([torch.as_tensor(x[int(2)]).float(), torch.as_tensor(x[int(3)]).float(), torch.as_tensor(((((x[int(0)] * x[int(3)]) * x[int(3)]) - (9.81 * torch.cos(x[int(1)] if isinstance(x[int(1)], torch.Tensor) else torch.tensor(float(x[int(1)]))))) - (50.0 * (x[int(0)] - 1.0)))).float(), torch.as_tensor((((0.0 - ((2.0 * x[int(2)]) * x[int(3)])) - (9.81 * torch.sin(x[int(1)] if isinstance(x[int(1)], torch.Tensor) else torch.tensor(float(x[int(1)]))))) / x[int(0)])).float()])
+    return torch.stack([torch.as_tensor(x[int(2)]), torch.as_tensor(x[int(3)]), torch.as_tensor(((((x[int(0)] * x[int(3)]) * x[int(3)]) - (9.81 * torch.cos(x[int(1)] if isinstance(x[int(1)], torch.Tensor) else torch.tensor(float(x[int(1)]))))) - (50.0 * (x[int(0)] - 1.0)))), torch.as_tensor((((0.0 - ((2.0 * x[int(2)]) * x[int(3)])) - (9.81 * torch.sin(x[int(1)] if isinstance(x[int(1)], torch.Tensor) else torch.tensor(float(x[int(1)]))))) / x[int(0)]))])
 
 # === Classes ===
 class RK4(nn.Module):

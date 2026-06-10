@@ -26,6 +26,7 @@ from physika.utils.ast_utils import (
     _decompose_chain,
     _infer_range,
     _lhs_var_name,
+    generate_statement,
 )
 
 VALID_TAGS = set(
@@ -888,3 +889,30 @@ class TestAstToTorch:
         expected_rolled_pos = torch.roll(x_matrix, 1)
 
         assert torch.equal(expected_rolled_pos, name_space["rolled_pos"])
+
+
+class TestGenerateStatement:
+    """
+    Test suite for ``generate_statement`` function that generate a
+    PyTorch code string for a program-level statement.
+    """
+
+    def test_decl_statement(self):
+        """
+        Verify correctness of ``decl`` block from ``generate_statement``.
+        """
+        assert generate_statement(("decl", "x", "ℝ", ("num", 3.0), 1),
+                                  set()) == 'x = 3.0'
+        assert generate_statement(
+            ("decl", "x", "ℂ", ("num", 3j), 1),
+            set()) == 'x = torch.tensor(3j, dtype=torch.complex64)'
+        assert generate_statement(("decl", "t", ("tensor", [(3, "invariant")]),
+                                   ("array", [("num", 1.0), ("num", 2.0),
+                                              ("num", 3.0)]), 1),
+                                  set()) == 't = torch.tensor([1.0, 2.0, 3.0])'
+        assert generate_statement(
+            ("decl", "t",
+             ("tensor", [(3, "invariant")]), ("array", [("complex", 1j),
+                                                        ("complex", 2j),
+                                                        ("complex", 3j)]), 1),
+            set()) == 't = torch.tensor([1j, 2j, 3j], dtype=torch.complex64)'
