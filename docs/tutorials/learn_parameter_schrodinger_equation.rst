@@ -81,6 +81,38 @@ Helper functions
         for i:ℕ(0, n):
             x[i] = start + i * dx
         return x
+    
+    def get_1d_array_length(x: ℝ[m]): ℝ:
+        total: ℝ = 0
+        temp: ℝ = 0
+        for i:
+            temp = x[i]
+            total += 1
+        return total
+
+    def get_2d_array_num_rows(x: ℂ[m, n]): ℝ:
+        total: ℝ = 0
+        temp: ℝ = 0
+        for i:
+            temp = x[i]
+            total += 1
+        return total
+
+    def zero_complex_2d_array(rows: ℝ, cols: ℝ): ℂ[m, n]:
+        results: ℂ[rows, cols] = for i:N(rows) -> for j:N(cols) -> j * 1j
+        return results
+    
+    def append_row(x: ℂ[m, n], row: ℂ[n]): ℂ[k, n]:
+        rows: ℝ = get_2d_array_num_rows(x)
+        cols: ℝ = get_1d_array_length(x[0])
+        new_rows: ℝ = rows + 1
+        new_array: ℝ[new_rows, cols] = zero_complex_2d_array(new_rows, cols)
+        for i:ℕ(0, rows):
+            for j:ℕ(0, cols):
+                new_array[i, j] = x[i, j]
+        for j:ℕ(0, cols):
+            new_array[rows, j] = row[j]
+        return new_array
 
 Grid and Physical Constants
 -----------------------------
@@ -291,12 +323,14 @@ every 5 steps to build the history:
 
 
 .. note::
-    ``append_row`` is not a built-in Physika function. Add the
-    following helper function to ``physika/runtime.py``:
+    The current implementation of ``append_row`` can become a performance bottleneck for long simulations. To speed up
+    training, replace ``append_row`` with ``append_row_runtime`` inside the ``solver``
+    function and add the following implementation to ``physika/runtime.py``.
+    
 
     .. code-block:: python
 
-        def append_row(arr, val):
+        def append_row_runtime(arr, val):
             # val is an array — stack as new row
             if isinstance(arr, torch.Tensor) and arr.dim() == 1 and arr.shape[0] != val.shape[0]:
                 # first call — arr is placeholder [0], start fresh
@@ -316,7 +350,7 @@ produce the ground truth wavefunction history:
 .. code-block:: text
 
     V: ℝ[Nx] = make_potential(1.8)
-    true_values: ℂ[m] = solver(V)
+    true_values: ℂ[m, n] = solver(V)
 
     create_plot(true_values, psi0, x, V)
 
@@ -403,8 +437,8 @@ Intial guess
 
     guess_barrier_height: ℝ = 6.0
     guess_V: ℝ[Nx] = make_potential(guess_barrier_height)
-    guess_values: ℂ[m] = solver(guess_V)
-    create_plot(guess_values, psi0, x, V)
+    guess_values: ℂ[m, n] = solver(guess_V)
+    create_plot(guess_values, psi0, x, guess_V)
 
 
 .. figure:: /_static/tutorial_files/initial_guess_plot.gif
@@ -431,7 +465,7 @@ complex difference at each point, then square it:
 
     def calculate_loss(barrier_height: ℝ): ℝ:
         V_current: ℝ[Nx] = make_potential(barrier_height)
-        pred: ℂ[m] = solver(V_current)
+        pred: ℂ[m, n] = solver(V_current)
         loss: ℝ = mean(abs(pred - true_values)**2)
         return loss
 
@@ -489,8 +523,8 @@ Adam recovers the true barrier height of :math:`1.8`:
         v_adam = result[2]
         t_adam = result[3]
 
-    pred_V = make_potential(guess_barrier_height)
-    pred_results = solver(pred_V)
+    pred_V: ℝ[Nx] = make_potential(guess_barrier_height)
+    pred_results: ℂ[m, n] = solver(pred_V)
     create_plot(pred_results, psi0, x, pred_V)
 
 ``grad()`` differentiates through the entire solver — through all RK4 steps,
@@ -521,8 +555,41 @@ Full code
         for i:ℕ(0, n):
             x[i] = start + i * dx
         return x
+    
+    def get_1d_array_length(x: ℝ[m]): ℝ:
+        total: ℝ = 0
+        temp: ℝ = 0
+        for i:
+            temp = x[i]
+            total += 1
+        return total
+
+    def get_2d_array_num_rows(x: ℂ[m, n]): ℝ:
+        total: ℝ = 0
+        temp: ℝ = 0
+        for i:
+            temp = x[i]
+            total += 1
+        return total
+
+    def zero_complex_2d_array(rows: ℝ, cols: ℝ): ℂ[m, n]:
+        results: ℂ[rows, cols] = for i:N(rows) -> for j:N(cols) -> j * 1j
+        return results
+    
+    def append_row(x: ℂ[m, n], row: ℂ[n]): ℂ[k, n]:
+        rows: ℝ = get_2d_array_num_rows(x)
+        cols: ℝ = get_1d_array_length(x[0])
+        new_rows: ℝ = rows + 1
+        new_array: ℝ[new_rows, cols] = zero_complex_2d_array(new_rows, cols)
+        for i:ℕ(0, rows):
+            for j:ℕ(0, cols):
+                new_array[i, j] = x[i, j]
+        for j:ℕ(0, cols):
+            new_array[rows, j] = row[j]
+        return new_array
 
     Nx: ℕ = 1024
+    Nt: ℕ = 3271
     x: ℝ[Nx] = linspace(-200, 200, Nx)
     dx: ℝ = 0.3910
 
@@ -532,7 +599,6 @@ Full code
     cfl_factor: ℝ = 0.2
     dt: ℝ = cfl_factor * (mass * dx**2) / hbar
     t_final: ℝ = 100.0
-    Nt: ℕ = 3271
 
     x0: ℝ = -50.0    # initial position
     k0: ℝ = 2.0      # wavenumber (controls momentum)
@@ -566,12 +632,12 @@ Full code
         return psi_next
 
 
-    def solver(V: ℝ[m]): ℂ[m]:
+    def solver(V: ℝ[m]): ℂ[m, n]:
         x: ℝ[Nx] = linspace(-200, 200, Nx)
         psi0: ℂ[Nx] = ((1 / sigma*sqrt(3.14)) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * sigma**2)))
-        psi: ℂ[Nx] = psi0
-        history: ℂ[1] = [0j]
+        history: ℂ[1, Nx] = [psi0]
         counter: ℕ = 0
+        psi = psi0
         for i:ℕ(0, Nt):
             psi = RK4_step(psi, dt, V, dx, hbar, mass)
             counter = counter + 1
@@ -583,19 +649,18 @@ Full code
 
 
     V: ℝ[Nx] = make_potential(1.8)
-    true_values: ℂ[m] = solver(V)
-
-    #create_plot(true_values, psi0, x, V)
+    true_values: ℂ[m, n] = solver(V)
+    create_plot(true_values, psi0, x, V)
 
     guess_barrier_height: ℝ = 6.0
     guess_V: ℝ[Nx] = make_potential(guess_barrier_height)
-    guess_values: ℂ[m] = solver(guess_V)
-    #create_plot(guess_values, psi0, x, V)
+    guess_values: ℂ[m, n] = solver(guess_V)
+    create_plot(guess_values, psi0, x, guess_V)
 
 
     def calculate_loss(barrier_height: ℝ): ℝ:
         V_current: ℝ[Nx] = make_potential(barrier_height)
-        pred: ℂ[m] = solver(V_current)
+        pred: ℂ[m, n] = solver(V_current)
         loss: ℝ = mean(abs(pred - true_values)**2)
         return loss
 
@@ -627,8 +692,8 @@ Full code
         v_adam = result[2]
         t_adam = result[3]
 
-    pred_V = make_potential(guess_barrier_height)
-    pred_results = solver(pred_V)
+    pred_V: ℝ[Nx] = make_potential(guess_barrier_height)
+    pred_results: ℂ[m, n] = solver(pred_V)
     create_plot(pred_results, psi0, x, pred_V)
 
 
@@ -640,4 +705,4 @@ References
 - `Quantum tunneling simulation code <https://www.astro.utoronto.ca/~mhvk/AST1410/python/quantum_tunneling.py>`_
 - `Schrödinger FDTD - SciPy Cookbook <https://scipy-cookbook.readthedocs.io/items/SchrodingerFDTD.html>`_
 - `Schrödinger FDTD PDF Notes <https://scipy-cookbook.readthedocs.io/_static/items/attachments/SchrodingerFDTD/Schrodinger%5FFDTD.pdf>`_
-- `Wave Functions and Operators - Fiveable Computational Chemistry <https://fiveable.me/computational-chemistry/unit-3/wave-functions-operators/study-guide/kLX80x0GqycgGNHp>`_
+- `Wave Functions and Operators - Fiveable Computational Chemistry <https://fiveable.me/computational-chemistry/unit-3/wave-functions-operators/study-guide/kLX80x0GqycgGNHp>`
