@@ -711,10 +711,6 @@ class RandomnessFeature(ELF):
 
             if isinstance(call_node, tuple) and call_node[0] == "call":
                 func_name = call_node[1]
-                if isinstance(declared_type, TTensor):
-                    declared_rank = len(declared_type.dims)
-                else:
-                    declared_rank = 0
                 dist_args = list(call_node[2])
                 # after stripping any mode string, the last declared_rank
                 # args are the shape args.
@@ -725,22 +721,47 @@ class RandomnessFeature(ELF):
 
                 actual_shape_args = get_shape_args(dist_args, env)
                 actual_rank = len(actual_shape_args)
-                if actual_rank > 0 and declared_rank == 0:
-                    # concrete shape args present but scalar declared
-                    add_error(
-                        f"'{name}': declared ℝ but {func_name}(...) produces a ℝ[n] sample"  # noqa: E501
-                    )
-                elif actual_rank == 0 and declared_rank > 0:
-                    # no shape args detected
-                    # error when all declared dims are concrete ints
-                    declared_dims = [d[0] for d in declared_type.dims]
-                    if all(isinstance(d, int) for d in declared_dims):
+                if isinstance(declared_type, TTensor):
+                    declared_rank = len(declared_type.dims)
+                    if actual_rank > 0 and declared_rank == 0:
+                        # concrete shape args present but scalar declared
                         add_error(
-                            f"'{name}': declared {declared_type} but {func_name}(...) produces a ℝ sample"  # noqa: E501
+                            f"'{name}': declared ℝ but {func_name}(...) produces a ℝ[n] sample"  # noqa: E501
                         )
+                    elif actual_rank == 0 and declared_rank > 0:
+                        # no shape args detected
+                        # error when all declared dims are concrete ints
+                        declared_dims = [d[0] for d in declared_type.dims]
+                        if all(isinstance(d, int) for d in declared_dims):
+                            add_error(
+                                f"'{name}': declared {declared_type} but {func_name}(...) produces a ℝ sample"  # noqa: E501
+                            )
+                        else:
+                            # symbolic dim case
+                            shape_args = dist_args[-declared_rank:]
+                            for i, shape_arg in enumerate(shape_args):
+                                actual = get_dim(shape_arg, env)
+                                declared = get_dim(declared_type.dims[i][0],
+                                                   env)
+                                if declared != actual:
+                                    if isinstance(declared,
+                                                  int) and isinstance(
+                                                      actual, int):
+                                        add_error(
+                                            f"'{name}': declared {declared_type}. "  # noqa: E501
+                                            f"{func_name}(...) in dim[{i}] infers {actual} but declared {declared}"  # noqa: E501
+                                        )
+                                    elif isinstance(declared,
+                                                    str) and isinstance(
+                                                        actual, str):
+                                        add_error(
+                                            f"'{name}': declared {declared_type}. "  # noqa: E501
+                                            f"{func_name}(...) in dim[{i}] infers {actual} but declared {declared}"  # noqa: E501
+                                        )
                     else:
-                        # symbolic dim case
-                        shape_args = dist_args[-declared_rank:]
+                        # check each dimension for concrete mismatches
+                        shape_args = dist_args[
+                            -declared_rank:] if declared_rank > 0 else []
                         for i, shape_arg in enumerate(shape_args):
                             actual = get_dim(shape_arg, env)
                             declared = get_dim(declared_type.dims[i][0], env)
@@ -758,25 +779,11 @@ class RandomnessFeature(ELF):
                                         f"{func_name}(...) in dim[{i}] infers {actual} but declared {declared}"  # noqa: E501
                                     )
                 else:
-                    # check each dimension for concrete mismatches
-                    shape_args = dist_args[
-                        -declared_rank:] if declared_rank > 0 else []
-                    for i, shape_arg in enumerate(shape_args):
-                        actual = get_dim(shape_arg, env)
-                        declared = get_dim(declared_type.dims[i][0], env)
-                        if declared != actual:
-                            if isinstance(declared, int) and isinstance(
-                                    actual, int):
-                                add_error(
-                                    f"'{name}': declared {declared_type}. "
-                                    f"{func_name}(...) in dim[{i}] infers {actual} but declared {declared}"  # noqa: E501
-                                )
-                            elif isinstance(declared, str) and isinstance(
-                                    actual, str):
-                                add_error(
-                                    f"'{name}': declared {declared_type}. "
-                                    f"{func_name}(...) in dim[{i}] infers {actual} but declared {declared}"  # noqa: E501
-                                )
+                    # declared ℝ
+                    if actual_rank > 0:
+                        add_error(
+                            f"'{name}': declared ℝ but {func_name}(...) produces a ℝ[n] sample"  # noqa: E501
+                        )
 
             env[name] = declared_type
             return declared_type, s
