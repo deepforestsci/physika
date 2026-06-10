@@ -413,7 +413,7 @@ class TestLexerParserRules:
                             "    return z\n")
         stmts = ast["functions"]["f"]["statements"]
         print(stmts)
-        assert [('typed_sample', 'z', ('tensor', [(5, 'invariant')]),
+        assert [('typed_sample', 'z', ('tensor', 'ℝ', [(5, 'invariant')]),
                  ('call', 'Normal', [('var', 'μ'), ('num', 1.0),
                                      ('num', 5)]))] == stmts
 
@@ -430,7 +430,7 @@ class TestLexerParserRules:
         assert (
             'decl',
             'z',
-            ('tensor', [(10, 'invariant'), (2, 'invariant')]),
+            ('tensor', 'ℝ', [(10, 'invariant'), (2, 'invariant')]),
             # z : ℝ[10, 2]
             (
                 'for_expr',
@@ -439,7 +439,7 @@ class TestLexerParserRules:
                 (
                     'typed_sample_expr',
                     'ε',
-                    ('tensor', [(2, 'invariant')]),  # ε : ℝ[2]
+                    ('tensor', 'ℝ', [(2, 'invariant')]),  # ε : ℝ[2]
                     (
                         'call',
                         'Normal',  # Normal(...)
@@ -484,7 +484,7 @@ class TestTypeRules:
         check = RandomnessFeature().type_rules()["typed_sample"]
         errors = []
         env = {("__val__", "n"): 100}
-        node = ("typed_sample", "x", ("tensor", [(100, "invariant")]),
+        node = ("typed_sample", "x", ("tensor", 'ℝ', [(100, "invariant")]),
                 ("call", "Normal", [("num", 0.0), ("num", 1.0), ("num", 100)]))
         t, _ = check(node, env, Substitution(), {}, {}, errors.append, None)
         assert errors == []
@@ -508,7 +508,7 @@ class TestTypeRules:
         # declared ℝ[n] but Normal(mu, sigma) produces scalar
         check = RandomnessFeature().type_rules()["typed_sample"]
         errors = []
-        node = ("typed_sample", "x", ("tensor", [(100, "invariant")]),
+        node = ("typed_sample", "x", ("tensor", 'ℝ', [(100, "invariant")]),
                 ("call", "Normal", [("num", 0.0), ("num", 1.0)]))
         check(node, {}, Substitution(), {}, {}, errors.append, None)
         assert len(errors) == 1
@@ -518,7 +518,7 @@ class TestTypeRules:
         # declared ℝ[2] but produces ℝ[3]
         check = RandomnessFeature().type_rules()["typed_sample"]
         errors = []
-        node = ("typed_sample", "x", ("tensor", [(2, "invariant")]),
+        node = ("typed_sample", "x", ("tensor", 'ℝ', [(2, "invariant")]),
                 ("call", "Normal", [("num", 0.0), ("num", 1.0), ("num", 3)]))
         check(node, {}, Substitution(), {}, {}, errors.append, None)
         assert len(errors) == 1

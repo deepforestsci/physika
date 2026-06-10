@@ -795,7 +795,7 @@ class RandomnessFeature(ELF):
                         dim = shape_args[0][1]
                     else:
                         dim = shape_args[0]
-                    return TTensor(((dim, "invariant"), )), s
+                    return TTensor(T_REAL, ((dim, "invariant"), )), s
             return T_REAL, s
 
         return {

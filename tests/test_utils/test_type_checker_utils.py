@@ -51,27 +51,28 @@ class TestFromTypespec:
 
         assert from_typespec("string") == T_STRING
 
-        result = from_typespec(("tensor", [(3, "invariant")]))
-        assert result == TTensor(((3, "invariant"), ))
+        result = from_typespec(("tensor", T_REAL, [(3, "invariant")]))
+        assert result == TTensor(T_REAL, ((3, "invariant"), ))
 
-        result = from_typespec(("tensor", [(2, "invariant"),
-                                           (4, "invariant")]))
-        assert result == TTensor(((2, "invariant"), (4, "invariant")))
+        result = from_typespec(("tensor", T_REAL, [(2, "invariant"),
+                                                   (4, "invariant")]))
+        assert result == TTensor(T_REAL, ((2, "invariant"), (4, "invariant")))
 
         # "n" must become TDim("n") for unification step
-        result = from_typespec(("tensor", [("n", "invariant")]))
-        assert result == TTensor(((TDim("n"), "invariant"), ))
+        result = from_typespec(("tensor", T_REAL, [("n", "invariant")]))
+        assert result == TTensor(T_REAL, ((TDim("n"), "invariant"), ))
 
         # ℝ[n, 4], where "n" symbolic, 4 concrete
-        result = from_typespec(("tensor", [("n", "invariant"),
-                                           (4, "invariant")]))
-        assert result == TTensor(((TDim("n"), "invariant"), (4, "invariant")))
+        result = from_typespec(("tensor", T_REAL, [("n", "invariant"),
+                                                   (4, "invariant")]))
+        assert result == TTensor(T_REAL,
+                                 ((TDim("n"), "invariant"), (4, "invariant")))
 
         # ℝ[n, m, o]
-        result = from_typespec(("tensor", [("n", "invariant"),
-                                           ("m", "invariant"),
-                                           ("o", "invariant")]))
-        assert result == TTensor((
+        result = from_typespec(("tensor", T_REAL, [("n", "invariant"),
+                                                   ("m", "invariant"),
+                                                   ("o", "invariant")]))
+        assert result == TTensor(T_REAL, (
             (TDim("n"), "invariant"),
             (TDim("m"), "invariant"),
             (TDim("o"), "invariant"),
@@ -81,8 +82,9 @@ class TestFromTypespec:
         assert result == TFunc((T_REAL, ), T_REAL)
 
         result = from_typespec(
-            ("func_type", "ℝ", ("tensor", [(3, "invariant")])))
-        assert result == TFunc((T_REAL, ), TTensor(((3, "invariant"), )))
+            ("func_type", "ℝ", ("tensor", T_REAL, [(3, "invariant")])))
+        assert result == TFunc((T_REAL, ), TTensor(T_REAL,
+                                                   ((3, "invariant"), )))
 
         result = from_typespec(("struct_type", "Ray"))
         assert result == TInstance("Ray")
@@ -105,10 +107,10 @@ class TestOccursIn:
 
         assert occurs_in(TDim("δ0"), TDim("δ0")) is True
 
-        t = TTensor(((TDim("δ0"), "invariant"), ))
+        t = TTensor(T_REAL, ((TDim("δ0"), "invariant"), ))
         assert occurs_in(TDim("δ0"), t) is True
 
-        t = TTensor(((TDim("δ1"), "invariant"), ))
+        t = TTensor(T_REAL, ((TDim("δ1"), "invariant"), ))
         assert occurs_in(TDim("δ0"), t) is False
 
         f = TFunc((TVar("α0"), ), T_REAL)
@@ -120,7 +122,7 @@ class TestOccursIn:
         f = TFunc((T_REAL, ), T_NAT)
         assert occurs_in(TVar("α0"), f) is False
 
-        t = TTensor(((3, "invariant"), ))
+        t = TTensor(T_REAL, ((3, "invariant"), ))
         assert occurs_in(TDim("δ0"), t) is False
 
 
@@ -133,10 +135,10 @@ class TestGetShape:
         Test that get_tensor_shape return a list of dimensions for TTensor
         types and None for non-tensor types.
         """
-        t = TTensor(((3, "invariant"), (4, "invariant")))
+        t = TTensor(T_REAL, ((3, "invariant"), (4, "invariant")))
         assert get_tensor_shape(t) == [3, 4]
 
-        t = TTensor(((5, "invariant"), ))
+        t = TTensor(T_REAL, ((5, "invariant"), ))
         assert get_tensor_shape(t) == [5]
 
         assert get_tensor_shape(T_REAL) is None
@@ -147,7 +149,7 @@ class TestGetShape:
         f = TFunc((T_REAL, ), T_REAL)
         assert get_tensor_shape(f) is None
 
-        t = TTensor(((TDim("n"), "invariant"), (3, "invariant")))
+        t = TTensor(T_REAL, ((TDim("n"), "invariant"), (3, "invariant")))
         shape = get_tensor_shape(t)
         assert shape == [TDim("n"), 3]
 
@@ -161,22 +163,25 @@ class TestMakeTensor:
         of dimensions.
         """
         # 1D tensor
-        assert make_tensor([3]) == TTensor(((3, "invariant"), ))
+        assert make_tensor(T_REAL, [3]) == TTensor(T_REAL,
+                                                   ((3, "invariant"), ))
 
         # 2D tensor
-        assert make_tensor([2, 3]) == TTensor(
-            ((2, "invariant"), (3, "invariant")))
+        assert make_tensor(T_REAL, [2, 3]) == TTensor(T_REAL,
+                                                      ((2, "invariant"),
+                                                       (3, "invariant")))
 
         # Symbolic dim
-        result = make_tensor([TDim("n"), 4])
-        assert result == TTensor(((TDim("n"), "invariant"), (4, "invariant")))
+        result = make_tensor(T_REAL, [TDim("n"), 4])
+        assert result == TTensor(T_REAL,
+                                 ((TDim("n"), "invariant"), (4, "invariant")))
 
         # test that get_tensor_shape and make_tensot interoperability
         dims = [2, 3, 4]
-        t = make_tensor(dims)
+        t = make_tensor(T_REAL, dims)
         assert get_tensor_shape(t) == dims
         dims = [TDim("n"), 3]
-        t = make_tensor(dims)
+        t = make_tensor(T_REAL, dims)
         assert get_tensor_shape(t) == dims
 
 
@@ -287,7 +292,7 @@ class TestUnify:
         Checks that unifying a scalar type with a tensor type raises a
         TypeError.
         """
-        t = TTensor(((3, "invariant"), ))
+        t = TTensor(T_REAL, ((3, "invariant"), ))
         with pytest.raises(TypeError):
             unify(T_REAL, t, self.s())
         with pytest.raises(TypeError):
@@ -298,7 +303,7 @@ class TestUnify:
         Tests that unifying two tensors with the same shape returns an
         empty substitution.
         """
-        t = TTensor(((3, "invariant"), (4, "invariant")))
+        t = TTensor(T_REAL, ((3, "invariant"), (4, "invariant")))
         result = unify(t, t, self.s())
         assert result == {}
 
@@ -307,8 +312,8 @@ class TestUnify:
         Tests that unifying two tensors with different ranks raises a
         TypeError.
         """
-        t1 = TTensor(((3, "invariant"), ))
-        t2 = TTensor(((3, "invariant"), (4, "invariant")))
+        t1 = TTensor(T_REAL, ((3, "invariant"), ))
+        t2 = TTensor(T_REAL, ((3, "invariant"), (4, "invariant")))
         with pytest.raises(TypeError, match="Rank mismatch"):
             unify(t1, t2, self.s())
 
@@ -318,8 +323,8 @@ class TestUnify:
         with a concrete dimension binds the symbolic dimension to the concrete
         one.
         """
-        t1 = TTensor(((TDim("δ0"), "invariant"), ))
-        t2 = TTensor(((5, "invariant"), ))
+        t1 = TTensor(T_REAL, ((TDim("δ0"), "invariant"), ))
+        t2 = TTensor(T_REAL, ((5, "invariant"), ))
         s = unify(t1, t2, self.s())
         assert s.apply_dim(TDim("δ0")) == 5
         assert s == {"δ0": 5}
@@ -465,19 +470,19 @@ class TestBroadcast:
 
     def test_tensor_wins_over_scalar_left(self):
         """tensor OP scalar should return a tensor."""
-        t = TTensor(((3, "invariant"), ))
+        t = TTensor(T_REAL, ((3, "invariant"), ))
         assert broadcast_op(t, T_REAL) == t
 
     def test_tensor_wins_over_scalar_right(self):
         """scalar OP tensor should return a tensor."""
-        t = TTensor(((4, "invariant"), ))
+        t = TTensor(T_REAL, ((4, "invariant"), ))
         assert broadcast_op(T_REAL, t) == t
 
     def test_both_tensors_returns_t1(self):
         """tensor OP tensor should return t1."""
         # Shape verified by unify step.
-        t1 = TTensor(((3, "invariant"), ))
-        t2 = TTensor(((3, "invariant"), ))
+        t1 = TTensor(T_REAL, ((3, "invariant"), ))
+        t2 = TTensor(T_REAL, ((3, "invariant"), ))
         assert broadcast_op(t1, t2) is t1
 
     def test_none_returns(self):
@@ -486,11 +491,11 @@ class TestBroadcast:
         Unknown right operand should return t1.
         Both unknown should return None.
         """
-        t = TTensor(((5, "invariant"), ))
+        t = TTensor(T_REAL, ((5, "invariant"), ))
         assert broadcast_op(None, t) == t
         assert broadcast_op(None, T_REAL) == T_REAL
 
-        t = TTensor(((5, "invariant"), ))
+        t = TTensor(T_REAL, ((5, "invariant"), ))
         assert broadcast_op(t, None) == t
         assert broadcast_op(T_REAL, None) == T_REAL
 
@@ -498,12 +503,13 @@ class TestBroadcast:
 
     def test_2d_tensor_wins_over_scalar(self):
         """2D tensor OP scalar should return 2D tensor."""
-        t = TTensor(((2, "invariant"), (3, "invariant")))
+        t = TTensor(T_REAL, ((2, "invariant"), (3, "invariant")))
         assert broadcast_op(T_REAL, t) == t
         assert broadcast_op(t, T_REAL) == t
 
         # for higher rank tensors as well
-        t = TTensor(((1, "invariant"), (2, "invariant"), (3, "invariant"),
+        t = TTensor(T_REAL,
+                    ((1, "invariant"), (2, "invariant"), (3, "invariant"),
                      (3, "invariant"), (5, "invariant"), (6, "invariant")))
         assert broadcast_op(T_REAL, t) == t
         assert broadcast_op(t, T_REAL) == t
@@ -529,7 +535,7 @@ class TestMatmulResult:
         """
         Either operand None should return None.
         """
-        t = TTensor(((3, "invariant"), ))
+        t = TTensor(T_REAL, ((3, "invariant"), ))
         errors, cb = self.fresh_errors()
         assert matmul_op(None, t, cb) is None
         assert matmul_op(t, None, cb) is None
@@ -540,7 +546,7 @@ class TestMatmulResult:
         """
         ℝ[n] @ ℝ[n] should return ℝ where n is a positive integer.
         """
-        t = TTensor(((3, "invariant"), ))
+        t = TTensor(T_REAL, ((3, "invariant"), ))
         errors, cb = self.fresh_errors()
         assert matmul_op(t, t, cb) == T_REAL
         assert errors == []
@@ -550,8 +556,8 @@ class TestMatmulResult:
         ℝ[m,n] @ ℝ[n] should raise an error (mixed rank)
         """
         m, n = 2, 3
-        t1 = TTensor(((m, "invariant"), (n, "invariant")))
-        t2 = TTensor(((n, "invariant"), ))
+        t1 = TTensor(T_REAL, ((m, "invariant"), (n, "invariant")))
+        t2 = TTensor(T_REAL, ((n, "invariant"), ))
         errors, cb = self.fresh_errors()
         assert matmul_op(t1, t2, cb) is None
         assert len(errors) == 1
@@ -560,8 +566,8 @@ class TestMatmulResult:
         assert err_msg in errors[0]
 
         n, p = 3, 4
-        t1 = TTensor(((n, "invariant"), ))
-        t2 = TTensor(((n, "invariant"), (p, "invariant")))
+        t1 = TTensor(T_REAL, ((n, "invariant"), ))
+        t2 = TTensor(T_REAL, ((n, "invariant"), (p, "invariant")))
         errors, cb = self.fresh_errors()
         assert matmul_op(t1, t2, cb) is None
         assert len(errors) == 1
@@ -574,10 +580,10 @@ class TestMatmulResult:
         ℝ[m, n] @ ℝ[n, p] should return ℝ[m, p] (matrix-matrix).
         """
         m, n, p = 2, 3, 4
-        t1 = TTensor(((m, "invariant"), (n, "invariant")))
-        t2 = TTensor(((n, "invariant"), (p, "invariant")))
+        t1 = TTensor(T_REAL, ((m, "invariant"), (n, "invariant")))
+        t2 = TTensor(T_REAL, ((n, "invariant"), (p, "invariant")))
         errors, cb = self.fresh_errors()
-        assert matmul_op(t1, t2, cb) == make_tensor([m, p])
+        assert matmul_op(t1, t2, cb) == make_tensor(T_REAL, [m, p])
         assert errors == []
 
     def test_batched_3d_3d(self):
@@ -585,25 +591,30 @@ class TestMatmulResult:
         ℝ[b, m, n] @ ℝ[b, n, p] should return ℝ[b, m, p]
         """
         b, m, n, p = 5, 2, 3, 4
-        t1 = TTensor(((b, "invariant"), (m, "invariant"), (n, "invariant")))
-        t2 = TTensor(((b, "invariant"), (n, "invariant"), (p, "invariant")))
+        t1 = TTensor(T_REAL,
+                     ((b, "invariant"), (m, "invariant"), (n, "invariant")))
+        t2 = TTensor(T_REAL,
+                     ((b, "invariant"), (n, "invariant"), (p, "invariant")))
         errors, cb = self.fresh_errors()
-        assert matmul_op(t1, t2, cb) == make_tensor([b, m, p])
+        assert matmul_op(t1, t2, cb) == make_tensor(T_REAL, [b, m, p])
         assert errors == []
 
         # batch broadcasting:
         # ℝ[1, m, n] @ ℝ[b, n, p] should return ℝ[b, m, p]
         b, m, n, p = 5, 2, 3, 4
-        t1 = TTensor(((1, "invariant"), (m, "invariant"), (n, "invariant")))
-        t2 = TTensor(((b, "invariant"), (n, "invariant"), (p, "invariant")))
+        t1 = TTensor(T_REAL,
+                     ((1, "invariant"), (m, "invariant"), (n, "invariant")))
+        t2 = TTensor(T_REAL,
+                     ((b, "invariant"), (n, "invariant"), (p, "invariant")))
         errors, cb = self.fresh_errors()
-        assert matmul_op(t1, t2, cb) == make_tensor([b, m, p])
+        assert matmul_op(t1, t2, cb) == make_tensor(T_REAL, [b, m, p])
         assert errors == []
 
         # ℝ[n] @ ℝ[b,n,p] should raise an error (mixed rank)
         b, n, p = 5, 3, 4
-        t1 = TTensor(((n, "invariant"), ))
-        t2 = TTensor(((b, "invariant"), (n, "invariant"), (p, "invariant")))
+        t1 = TTensor(T_REAL, ((n, "invariant"), ))
+        t2 = TTensor(T_REAL,
+                     ((b, "invariant"), (n, "invariant"), (p, "invariant")))
         errors, cb = self.fresh_errors()
         assert matmul_op(t1, t2, cb) is None
         assert len(errors) == 1
@@ -613,8 +624,9 @@ class TestMatmulResult:
 
         # ℝ[b,m,n] @ ℝ[n] should raise an error (mixed rank)
         b, m, n = 5, 2, 3
-        t1 = TTensor(((b, "invariant"), (m, "invariant"), (n, "invariant")))
-        t2 = TTensor(((n, "invariant"), ))
+        t1 = TTensor(T_REAL,
+                     ((b, "invariant"), (m, "invariant"), (n, "invariant")))
+        t2 = TTensor(T_REAL, ((n, "invariant"), ))
         errors, cb = self.fresh_errors()
         assert matmul_op(t1, t2, cb) is None
         assert len(errors) == 1
@@ -624,18 +636,22 @@ class TestMatmulResult:
         """
         ℝ[m,n] @ ℝ[n,p] should return ℝ[m,p] where m,n,p are symbolic types.
         """
-        t1 = TTensor(((TDim("m"), "invariant"), (TDim("n"), "invariant")))
-        t2 = TTensor(((TDim("n"), "invariant"), (TDim("p"), "invariant")))
+        t1 = TTensor(T_REAL,
+                     ((TDim("m"), "invariant"), (TDim("n"), "invariant")))
+        t2 = TTensor(T_REAL,
+                     ((TDim("n"), "invariant"), (TDim("p"), "invariant")))
         errors, cb = self.fresh_errors()
-        assert matmul_op(t1, t2, cb) == make_tensor([TDim("m"), TDim("p")])
+        assert matmul_op(t1, t2,
+                         cb) == make_tensor(T_REAL,
+                                            [TDim("m"), TDim("p")])
         assert errors == []
 
     def test_dot_product_mismatch(self):
         """
         ℝ[3] @ ℝ[4] should raise an error.
         """
-        t1 = TTensor(((3, "invariant"), ))
-        t2 = TTensor(((4, "invariant"), ))
+        t1 = TTensor(T_REAL, ((3, "invariant"), ))
+        t2 = TTensor(T_REAL, ((4, "invariant"), ))
         errors, cb = self.fresh_errors()
         result = matmul_op(t1, t2, cb)
         assert result == T_REAL
@@ -645,11 +661,11 @@ class TestMatmulResult:
 
     def test_matrix_matrix_mismatch(self):
         """ℝ[2,3] @ ℝ[4,5] should raise an error."""
-        t1 = TTensor(((2, "invariant"), (3, "invariant")))
-        t2 = TTensor(((4, "invariant"), (5, "invariant")))
+        t1 = TTensor(T_REAL, ((2, "invariant"), (3, "invariant")))
+        t2 = TTensor(T_REAL, ((4, "invariant"), (5, "invariant")))
         errors, cb = self.fresh_errors()
         result = matmul_op(t1, t2, cb)
-        assert result == make_tensor([2, 5])
+        assert result == make_tensor(T_REAL, [2, 5])
         assert len(errors) == 1
         assert "3" in errors[0] and "4" in errors[0]
         assert "different dims 3 ≠ 4" in errors[0]
@@ -657,8 +673,10 @@ class TestMatmulResult:
     def test_batched_mismatch(self):
         """
         ℝ[3,2,4] @ ℝ[5,4,6] should raise an error"""
-        t1 = TTensor(((3, "invariant"), (2, "invariant"), (4, "invariant")))
-        t2 = TTensor(((5, "invariant"), (4, "invariant"), (6, "invariant")))
+        t1 = TTensor(T_REAL,
+                     ((3, "invariant"), (2, "invariant"), (4, "invariant")))
+        t2 = TTensor(T_REAL,
+                     ((5, "invariant"), (4, "invariant"), (6, "invariant")))
         errors, cb = self.fresh_errors()
         matmul_op(t1, t2, cb)
         assert len(errors) == 1
@@ -669,8 +687,10 @@ class TestMatmulResult:
         """
         ℝ[6,2,3] @ ℝ[4,6,2,3,4] should raise an error
         """
-        t1 = TTensor(((6, "invariant"), (2, "invariant"), (3, "invariant")))
-        t2 = TTensor(((4, "invariant"), (6, "invariant"), (2, "invariant"),
+        t1 = TTensor(T_REAL,
+                     ((6, "invariant"), (2, "invariant"), (3, "invariant")))
+        t2 = TTensor(T_REAL,
+                     ((4, "invariant"), (6, "invariant"), (2, "invariant"),
                       (3, "invariant"), (4, "invariant")))
         errors, cb = self.fresh_errors()
         assert matmul_op(t1, t2, cb) is None
@@ -682,10 +702,10 @@ class TestMatmulResult:
         """
         ℝ[1,1,2,3] @ ℝ[4,6,3,4] should return ℝ[4,6,2,4]
         """
-        t1 = TTensor(((1, "invariant"), (1, "invariant"), (2, "invariant"),
-                      (3, "invariant")))
-        t2 = TTensor(((4, "invariant"), (6, "invariant"), (3, "invariant"),
-                      (4, "invariant")))
+        t1 = TTensor(T_REAL, ((1, "invariant"), (1, "invariant"),
+                              (2, "invariant"), (3, "invariant")))
+        t2 = TTensor(T_REAL, ((4, "invariant"), (6, "invariant"),
+                              (3, "invariant"), (4, "invariant")))
         errors, cb = self.fresh_errors()
-        assert matmul_op(t1, t2, cb) == make_tensor([4, 6, 2, 4])
+        assert matmul_op(t1, t2, cb) == make_tensor(T_REAL, [4, 6, 2, 4])
         assert errors == []

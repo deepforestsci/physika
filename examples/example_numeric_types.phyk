@@ -4,7 +4,7 @@
 a : ℤ = 10
 b : ℤ = 3
 z_add = a + b
-z_array: Z[2] = [1, 2]
+z_array: ℤ[2] = [1, 2]
 
 a
 b

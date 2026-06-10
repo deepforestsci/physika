@@ -76,11 +76,11 @@ def get_tensor_shape(t: TypeSpec) -> List[int] | None:
     --------
     >>> from physika.utils.type_checker_utils import get_tensor_shape
     >>> from physika.utils.types import TTensor, TDim, T_REAL
-    >>> get_tensor_shape(TTensor(((3, "invariant"),)))
+    >>> get_tensor_shape(TTensor(T_REAL, ((3, "invariant"),)))
     [3]
-    >>> get_tensor_shape(TTensor(((2, "invariant"), (4, "invariant"))))
+    >>> get_tensor_shape(TTensor(T_REAL, ((2, "invariant"), (4, "invariant"))))
     [2, 4]
-    >>> get_tensor_shape(TTensor(((TDim("n"), "invariant"), (3, "invariant"))))
+    >>> get_tensor_shape(TTensor(T_REAL, ((TDim("n"), "invariant"), (3, "invariant"))))  # noqa
     [n, 3]
     >>> get_tensor_shape(T_REAL) is None
     True
@@ -763,11 +763,13 @@ def from_typespec(ts: Any) -> Optional[Type]:
     >>> from physika.utils.types import T_REAL, TTensor
     >>> from_typespec("ℝ")
     ℝ
-    >>> from_typespec(("tensor", [(3, "invariant"), (4, "invariant")]))
+    >>> from_typespec(("tensor", "ℝ", [(3, "invariant"), (4, "invariant")]))
     ℝ[3,4]
     >>> from_typespec(None) is None
     True
     """
+    if isinstance(ts, (TScalar, TTensor, TFunc, TInstance)):
+        return ts
     if ts is None:
         return None
     if ts in ("ℝ", "R"):
@@ -778,12 +780,17 @@ def from_typespec(ts: Any) -> Optional[Type]:
         return T_COMPLEX
     if ts == "string":
         return T_STRING
+    if ts in ("ℤ", "Z"):
+        return T_REAL
     if isinstance(ts, tuple):
         if ts[0] == "tensor":
+            base_type = from_typespec(ts[1])
             # Converts dimensions to TDim
             dims = tuple(
-                (TDim(d) if isinstance(d, str) else d, v) for d, v in ts[1])
-            return TTensor(dims)
+                (TDim(d) if isinstance(d, str) else d, v) for d, v in ts[2])
+            if not isinstance(base_type, TScalar):
+                raise TypeError(f"Invalid tensor base type: {base_type}")
+            return TTensor(base_type, dims)
         if ts[0] == "func_type":
             # Recursively convert parameter and return type specs
             return TFunc((from_typespec(ts[1]), ), from_typespec(ts[2]))
@@ -824,7 +831,7 @@ def occurs_in(var: Union[TVar, TDim], t: Type) -> bool:
     True
     >>> occurs_in(TVar("α0"), T_REAL)
     False
-    >>> occurs_in(TDim("δ0"), TTensor(((TDim("δ0"), "invariant"),)))
+    >>> occurs_in(TDim("δ0"), TTensor(T_REAL, ((TDim("δ0"), "invariant"),)))
     True
     """
     if isinstance(t, (TVar, TDim)):
@@ -839,7 +846,7 @@ def occurs_in(var: Union[TVar, TDim], t: Type) -> bool:
     return False
 
 
-def make_tensor(dims: list) -> TTensor:
+def make_tensor(base_type: TScalar, dims: list) -> TTensor:
     """
     Construct a ``TTensor`` from a list of dimension values.
 
@@ -861,10 +868,11 @@ def make_tensor(dims: list) -> TTensor:
     Examples
     --------
     >>> from physika.utils.type_checker_utils import make_tensor
-    >>> make_tensor([2, 3])
+    >>> from physika.utils.types import T_REAL
+    >>> make_tensor(T_REAL, [2, 3])
     ℝ[2,3]
     """
-    return TTensor(tuple((d, "invariant") for d in dims))
+    return TTensor(base_type, tuple((d, "invariant") for d in dims))
 
 
 def unify(t1: Type, t2: Type, s: Substitution) -> Substitution:
@@ -964,7 +972,6 @@ def unify(t1: Type, t2: Type, s: Substitution) -> Substitution:
         if t1.class_name != t2.class_name:
             raise TypeError(f"Instance mismatch: {t1} vs {t2}")
         return s
-
     raise TypeError(f"Cannot unify {type_to_str(t1)} with {type_to_str(t2)}")
 
 
@@ -1105,7 +1112,7 @@ def broadcast_op(t1: Optional[Type], t2: Optional[Type]) -> Optional[Type]:
     >>> from physika.utils.types import T_REAL, TTensor
     >>> broadcast_op(T_REAL, T_REAL)
     ℝ
-    >>> broadcast_op(T_REAL, TTensor(((3, "invariant"),)))
+    >>> broadcast_op(T_REAL, TTensor(T_REAL, ((3, "invariant"),)))
     ℝ[3]
     """
     if t1 is None or t2 is None:
@@ -1153,20 +1160,24 @@ def matmul_op(t1: Optional[Type], t2: Optional[Type],
     >>> from physika.utils.type_checker_utils import matmul_op
     >>> from physika.utils.types import TTensor, T_REAL
     >>> errors = []
-    >>> matmul_op(TTensor(((2,"invariant"),(3,"invariant"))), TTensor(((3,"invariant"),(4,"invariant"))), errors.append)
+    >>> matmul_op(TTensor(T_REAL, ((2,"invariant"),(3,"invariant"))), TTensor(T_REAL, ((3,"invariant"),(4,"invariant"))), errors.append)
     ℝ[2,4]
-    >>> matmul_op(TTensor(((3,"invariant"),)), TTensor(((3,"invariant"),)), errors.append)
+    >>> matmul_op(TTensor(T_REAL, ((3,"invariant"),)), TTensor(T_REAL, ((3,"invariant"),)), errors.append)
     ℝ
     >>> # batched: ℝ[5,2,3] @ ℝ[5,3,4] → ℝ[5,2,4]
-    >>> matmul_op(TTensor(((5,"invariant"),(2,"invariant"),(3,"invariant"))), TTensor(((5,"invariant"),(3,"invariant"),(4,"invariant"))), errors.append)
+    >>> matmul_op(TTensor(T_REAL, ((5,"invariant"),(2,"invariant"),(3,"invariant"))), TTensor(T_REAL, ((5,"invariant"),(3,"invariant"),(4,"invariant"))), errors.append)
     ℝ[5,2,4]
     >>> errors  # no errors yet
     []
-    >>> matmul_op(TTensor(((3,"invariant"),)), TTensor(((4,"invariant"),)), errors.append)  # noqa: E501
+    >>> matmul_op(TTensor(T_REAL, ((3,"invariant"),)), TTensor(T_REAL, ((4,"invariant"),)), errors.append)  # noqa: E501
     ℝ
     >>> errors
     ['Matmul inner dimension mismatch: ℝ[3] @ ℝ[4]; different dims 3 ≠ 4']
     """
+    if not isinstance(t1, TTensor):
+        return None
+    if not isinstance(t2, TTensor):
+        return None
     if t1 is None or t2 is None:
         return None
     s1 = get_tensor_shape(t1)
@@ -1175,8 +1186,8 @@ def matmul_op(t1: Optional[Type], t2: Optional[Type],
         return t1 if s2 is None else t2
 
     r1, r2 = len(s1), len(s2)
-    lhs = "ℝ[" + ",".join(str(d) for d in s1) + "]"
-    rhs = "ℝ[" + ",".join(str(d) for d in s2) + "]"
+    lhs = f"{t1.base_type}[" + ",".join(str(d) for d in s1) + "]"
+    rhs = f"{t1.base_type}[" + ",".join(str(d) for d in s2) + "]"
 
     # Case both tensors are rank 1, which returns a scalar
     # if dims are compatible.
@@ -1184,7 +1195,7 @@ def matmul_op(t1: Optional[Type], t2: Optional[Type],
         if not dims_compatible(s1[0], s2[0]):
             add_error(f"Matmul inner dimension mismatch: {lhs} @ {rhs}"
                       f"; different dims {s1[0]} ≠ {s2[0]}")
-        return T_REAL
+        return t1.base_type
 
     # Mixed rank:
     # if one 1D and one 2D or higher, returns error.
@@ -1232,4 +1243,4 @@ def matmul_op(t1: Optional[Type], t2: Optional[Type],
             # for symbolic or variable dims
             result_batch.append(d1 if not isinstance(d1, int) else d2)
 
-    return make_tensor(result_batch + [s1[-2], s2[-1]])
+    return make_tensor(t1.base_type, result_batch + [s1[-2], s2[-1]])

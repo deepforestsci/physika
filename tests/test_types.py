@@ -134,9 +134,9 @@ class TestHMTypes:
         TTensors are identified by their shape, which is a tuple of
         (size, "invariant") pairs.
         """
-        t1 = TTensor(((3, "invariant"), (4, "invariant")))
-        t2 = TTensor(((3, "invariant"), (4, "invariant")))
-        t3 = TTensor(((3, "invariant"), ))
+        t1 = TTensor(T_REAL, ((3, "invariant"), (4, "invariant")))
+        t2 = TTensor(T_REAL, ((3, "invariant"), (4, "invariant")))
+        t3 = TTensor(T_REAL, ((3, "invariant"), ))
         assert repr(t1) == "ℝ[3,4]"
         assert repr(t3) == "ℝ[3]"
         assert t1 == t2
@@ -148,20 +148,22 @@ class TestHMTypes:
         with pytest.raises(dataclasses.FrozenInstanceError):
             t1.dims = ()  # type: ignore[misc]
 
-        assert repr(TTensor(((TDim("δ0"), "invariant"), ))) == "ℝ[δ0]"
+        assert repr(TTensor(T_REAL, ((TDim("δ0"), "invariant"), ))) == "ℝ[δ0]"
         assert repr(
-            TTensor(((TDim("δ0"), "invariant"), (TDim("δ1"),
-                                                 "invariant")))) == "ℝ[δ0,δ1]"
-        assert repr(TTensor(
-            ((TDim("n"), "invariant"), (3, "invariant")))) == "ℝ[n,3]"
+            TTensor(T_REAL, ((TDim("δ0"), "invariant"),
+                             (TDim("δ1"), "invariant")))) == "ℝ[δ0,δ1]"
         assert repr(
-            TTensor(((TDim("n"), "invariant"), (TDim("m"),
-                                                "invariant")))) == "ℝ[n,m]"
+            TTensor(T_REAL,
+                    ((TDim("n"), "invariant"), (3, "invariant")))) == "ℝ[n,3]"
+        assert repr(
+            TTensor(T_REAL, ((TDim("n"), "invariant"),
+                             (TDim("m"), "invariant")))) == "ℝ[n,m]"
 
         with pytest.raises(TypeError, match="TVar"):
-            TTensor(((TVar("α0"), "invariant"), ))
+            TTensor(T_REAL, ((TVar("α0"), "invariant"), ))
 
-        t = TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
+        t = TTensor(T_REAL,
+                    ((2, "invariant"), (3, "invariant"), (4, "invariant")))
         assert repr(t) == "ℝ[2,3,4]"
 
     def test_TFunc(self):
@@ -171,7 +173,8 @@ class TestHMTypes:
         """
         f1 = TFunc((TScalar("ℝ"), ), TScalar("ℝ"))
         f2 = TFunc((TScalar("ℝ"), ), TScalar("ℝ"))
-        f3 = TFunc((TScalar("ℝ"), TTensor(((3, "invariant"), ))), TScalar("ℝ"))
+        f3 = TFunc((TScalar("ℝ"), TTensor(T_REAL, ((3, "invariant"), ))),
+                   TScalar("ℝ"))
         assert repr(f1) == "(ℝ) → ℝ"
         assert repr(f3) == "(ℝ, ℝ[3]) → ℝ"
         assert f1 == f2
@@ -184,8 +187,8 @@ class TestHMTypes:
             f1.ret = T_NAT
 
         f4 = TFunc(
-            (TTensor(((TDim("n"), "invariant"), )),
-             TTensor(((TDim("m"), "invariant"), ))),
+            (TTensor(T_REAL, ((TDim("n"), "invariant"), )),
+             TTensor(T_REAL, ((TDim("m"), "invariant"), ))),
             TScalar("ℝ"),
         )
         assert repr(f4) == "(ℝ[n], ℝ[m]) → ℝ"
@@ -310,8 +313,8 @@ class TestSubstitution:
         assert Substitution().apply(TVar("α0")) == TVar("α0")
         # applying empty substitution to concrete types returns the same type
         assert s.apply(T_REAL) == T_REAL
-        assert s.apply(TTensor(((3, "invariant"), ))) == TTensor(
-            ((3, "invariant"), ))
+        assert s.apply(TTensor(T_REAL, ((3, "invariant"), ))) == TTensor(
+            T_REAL, ((3, "invariant"), ))
         assert s.apply(TFunc((TScalar("ℝ"), ), TScalar("ℝ"))) == TFunc(
             (TScalar("ℝ"), ), TScalar("ℝ"))
 
@@ -341,21 +344,21 @@ class TestSubstitution:
         resolves bound TDims
         """
         s = Substitution({"δ0": 3})
-        t = TTensor(((TDim("δ0"), "invariant"), ))
+        t = TTensor(T_REAL, ((TDim("δ0"), "invariant"), ))
         result = s.apply(t)
-        assert result == TTensor(((3, "invariant"), ))
+        assert result == TTensor(T_REAL, ((3, "invariant"), ))
 
         # applying substitution to TTensor with concrete dims
         # leaves them unchanged
         s = Substitution({"α0": T_REAL})
-        t = TTensor(((3, "invariant"), (4, "invariant")))
+        t = TTensor(T_REAL, ((3, "invariant"), (4, "invariant")))
         assert s.apply(t) == t
 
         # applying substitution chain to solve bound dims
         s = Substitution({"δ0": TDim("δ1"), "δ1": 5})
-        t = TTensor(((TDim("δ0"), "invariant"), ))
+        t = TTensor(T_REAL, ((TDim("δ0"), "invariant"), ))
         result = s.apply(t)
-        assert result == TTensor(((5, "invariant"), ))
+        assert result == TTensor(T_REAL, ((5, "invariant"), ))
 
     def test_apply_tfunc(self):
         """
@@ -478,9 +481,9 @@ class TestCheckFunction:
         # tensor case
         errors = []
         fdef = make_fdef(
-            params=[("v", ("tensor", [(3, "invariant")]))],
+            params=[("v", ("tensor", T_REAL, [(3, "invariant")]))],
             body=("var", "v"),
-            return_type=("tensor", [(3, "invariant")]),
+            return_type=("tensor", T_REAL, [(3, "invariant")]),
         )
         check_function("f", fdef, {}, {}, errors.append)
         assert errors == []
@@ -499,7 +502,7 @@ class TestCheckFunction:
         fdef = make_fdef(
             params=[("x", "ℝ")],
             body=("var", "x"),
-            return_type=("tensor", [(3, "invariant")]),
+            return_type=("tensor", T_REAL, [(3, "invariant")]),
         )
 
         check_function("f", fdef, {}, {}, errors.append)
@@ -511,8 +514,8 @@ class TestCheckFunction:
     def test_statement_type_mismatch(self):
         """Body statement v : ℝ[3] = 1.0"""
         errors = []
-        bad_stmt = ("body_decl", "v", ("tensor", [(3, "invariant")]), ("num",
-                                                                       1.0))
+        bad_stmt = ("body_decl", "v", ("tensor", T_REAL, [(3, "invariant")]),
+                    ("num", 1.0))
         fdef = make_fdef(
             params=[("x", "ℝ")],
             stmts=[bad_stmt],
@@ -576,7 +579,7 @@ class TestCheckFunction:
         fdef = make_fdef(
             params=[("x", "ℝ"), ("y", "ℝ")],
             body=("call", "sq", [("var", "x")]),
-            return_type=("tensor", [(3, "invariant")]),
+            return_type=("tensor", T_REAL, [(3, "invariant")]),
         )
         check_function("bad_types", fdef, func_env, {}, errors.append)
         # Bad typed function
@@ -694,7 +697,7 @@ class TestCheckFunction:
 
         # type mismatch inside body_for body is reported
         errors = []
-        func_env = {"f": ([("tensor", [(3, "invariant")])], "ℝ")}
+        func_env = {"f": ([("tensor", T_REAL, [(3, "invariant")])], "ℝ")}
         # f expects ℝ[3] but receives a scalar inside a for loop
         fdef = make_fdef(
             params=[("x", "ℝ")],
@@ -769,7 +772,7 @@ class TestCheckClass:
         method = make_method(
             "bad",
             body=("field_access", ("var", "this"), "x"),
-            return_type=("tensor", [(2, "invariant")]),
+            return_type=("tensor", T_REAL, [(2, "invariant")]),
         )
         cdef = make_cdef(
             class_params=[("x", "ℝ"), ("y", "ℝ")],
@@ -789,7 +792,7 @@ class TestCheckClass:
         errors = []
         # v : ℝ[3] = this.x  — this.x
         # inferred is ℝ, declared is ℝ[3]
-        bad_stmt = ("body_decl", "v", ("tensor", [(3, "invariant")]),
+        bad_stmt = ("body_decl", "v", ("tensor", T_REAL, [(3, "invariant")]),
                     ("field_access", ("var", "this"), "x"))
         method = make_method(
             "bad_decl",
@@ -844,13 +847,13 @@ class TestCheckClass:
         m1 = make_method(
             "m1",
             body=("field_access", ("var", "this"), "x"),
-            return_type=("tensor", [(2, "invariant")]),
+            return_type=("tensor", T_REAL, [(2, "invariant")]),
         )
         # declared return ℝ[3] but inferred is ℝ
         m2 = make_method(
             "m2",
             body=("field_access", ("var", "this"), "y"),
-            return_type=("tensor", [(3, "invariant")]),
+            return_type=("tensor", T_REAL, [(3, "invariant")]),
         )
 
         cdef = make_cdef(
@@ -905,7 +908,7 @@ class TestCheckStatement:
         env = {}
         lineno = 7
         check_statement(
-            ("decl", "v", ("tensor", [(3, "invariant")]),
+            ("decl", "v", ("tensor", T_REAL, [(3, "invariant")]),
              ("num", 0.0), lineno),
             env,
             {},
@@ -921,11 +924,16 @@ class TestCheckStatement:
         errors = []
         env = {}
         stmts = [
-            ("decl", "z", ("tensor", [(1, "invariant")]), ("num", 9.0), 1),
-            ("decl", "z", ("tensor", [(2, "invariant")]), ("num", 9.0), 2),
-            ("decl", "z", ("tensor", [(3, "invariant")]), ("num", 9.0), 3),
-            ("decl", "z", ("tensor", [(5, "invariant")]), ("num", 9.0), 5),
-            ("decl", "z", ("tensor", [(7, "invariant")]), ("num", 9.0), 7),
+            ("decl", "z", ("tensor", T_REAL, [(1, "invariant")]), ("num", 9.0),
+             1),
+            ("decl", "z", ("tensor", T_REAL, [(2, "invariant")]), ("num", 9.0),
+             2),
+            ("decl", "z", ("tensor", T_REAL, [(3, "invariant")]), ("num", 9.0),
+             3),
+            ("decl", "z", ("tensor", T_REAL, [(5, "invariant")]), ("num", 9.0),
+             5),
+            ("decl", "z", ("tensor", T_REAL, [(7, "invariant")]), ("num", 9.0),
+             7),
         ]
         for stmt in stmts:
             check_statement(stmt, env, {}, {}, errors.append)
@@ -1122,7 +1130,7 @@ class TestCheckStatement:
         # type error inside a for_loop body is reported
         errors = []
         env = {}
-        func_env = {"f": ([("tensor", [(1, "invariant")])], "ℝ")}
+        func_env = {"f": ([("tensor", T_REAL, [(1, "invariant")])], "ℝ")}
         # body calls f with wrong args nujmber
         bad_call = ("expr", ("call", "f", [("num", 1.0)]))
         check_statement(

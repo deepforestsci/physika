@@ -1,5 +1,5 @@
-EXPECTED = {'functions': {'f': {'params': [('x', ('tensor', [('m', 'invariant')]))],
-                     'return_type': ('tensor', [('m', 'invariant')]),
+EXPECTED = {'functions': {'f': {'params': [('x', ('tensor', 'ℝ', [('m', 'invariant')]))],
+                     'return_type': ('tensor', 'ℝ', [('m', 'invariant')]),
                      'body': ('add',
                               ('pow', ('var', 'x'), ('num', 2)),
                               ('num', 1)),
@@ -22,7 +22,7 @@ EXPECTED = {'functions': {'f': {'params': [('x', ('tensor', [('m', 'invariant')]
              ('func_def', 'f'),
              ('decl',
               'μ',
-              ('tensor', [(1, 'invariant')]),
+              ('tensor', 'ℝ', [(1, 'invariant')]),
               ('array', [('num', 2)]),
               23),
              ('expr', ('call', 'grad', [('var', 'f'), ('var', 'μ')]), 0)]}
