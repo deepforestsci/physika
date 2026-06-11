@@ -391,7 +391,7 @@ def generate_class(name: str, class_def: dict) -> str:
         "    def params(self):",
         "        return list(self.parameters())",
         "",
-        "    def update(self, lr, grads):",
+        "    def update(self, lr, *grads):",
         "        with torch.no_grad():",
         "            for p, g in zip(self.parameters(), grads):",
         "                if g is not None:",
@@ -693,16 +693,6 @@ def make_parser_rules():
         #   p[3] - method name
         #   p[5] - argument list
         p[0] = ("body_expr", ("method_call", ("var", p[1]), p[3], p[5] or []))
-    def p_func_loop_stmt_method_call(p):
-        """func_loop_stmt : ID DOT ID LPAREN func_args RPAREN NEWLINE"""
-        # Method call as a statement inside a for-loop body.
-        # Example:
-        #   this.update(lr, grads)
-        # Parameters:
-        #   p[1] - object (func_factor)
-        #   p[3] - method name
-        #   p[5] - argument list
-        p[0] = ("loop_method_call", p[1], p[3], p[5] or [])
 
     return [
         p_statement_class_no_params,
@@ -725,7 +715,6 @@ def make_parser_rules():
         p_class_method_void,
         p_func_loop_stmt_field_assign,
         p_func_loop_stmt_method_call,
-        p_func_loop_stmt_method_call
     ]
 
 
