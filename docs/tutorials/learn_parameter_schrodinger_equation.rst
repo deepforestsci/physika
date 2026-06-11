@@ -248,7 +248,7 @@ all spatial points simultaneously:
 
 .. code-block:: text
 
-    def schrodinger_rhs(psi: ℝ[m], V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℝ[o]:
+    def schrodinger_rhs(psi: ℂ[m], V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℂ[o]:
         psi_xx: ℂ[Nx] = (roll(psi, -1) - 2*psi + roll(psi, 1)) / (dx**2)
         H_psi: ℂ[Nx] = -(hbar**2 / (2*mass)) * psi_xx + V * psi
         result: ℂ[Nx] = -1j / hbar * H_psi
