@@ -2,8 +2,9 @@ from typing import Dict, Set, Any
 
 from physika.utils.ast_utils import (ast_uses_solve, ast_uses_func,
                                      collect_grad_targets, generate_function,
-                                     generate_class, generate_statement,
-                                     ast_uses_sympy, ast_to_torch_expr)
+                                     generate_statement, ast_uses_sympy,
+                                     ast_to_torch_expr)
+from physika.features.classes import generate_class
 from physika.elf import REGISTRY
 
 
