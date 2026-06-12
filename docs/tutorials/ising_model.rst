@@ -845,7 +845,7 @@ Full Code
    p_before     # sigmoid(0) = 0.5
    p_after      # mean-field solution
    p_ref        # reference
-   plot_ising_result(spins_before, spins_after, J, h)
+   # plot_ising_result(spins_before, spins_after, J, h) # Uncomment to plot results if function is in runtime.py
 
 
 References
