@@ -465,12 +465,4 @@ EXPECTED = {'functions': {'tanh': {'params': [('z', 'ℝ')],
               78),
              ('expr', ('var', 'p_before'), 0),
              ('expr', ('var', 'p_after'), 0),
-             ('expr', ('var', 'p_ref'), 0),
-             ('expr',
-              ('call',
-               'plot_ising_result',
-               [('var', 'spins_before'),
-                ('var', 'spins_after'),
-                ('var', 'J'),
-                ('var', 'h')]),
-              0)]}
+             ('expr', ('var', 'p_ref'), 0)]}
