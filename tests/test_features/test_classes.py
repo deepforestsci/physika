@@ -322,7 +322,7 @@ class TestGenerateClass:
         assert "@property" in code
         assert "def params(self):" in code
         assert "return list(self.parameters())" in code
-        assert "def update(self, lr, *grads):" in code
+        assert "def update(self, lr, grads):" in code
         assert "p -= lr * g" in code
 
     def test_constructur_params_and_forward(self):

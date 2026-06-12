@@ -78,7 +78,7 @@ class FullyConnectedNetwork(nn.Module):
                 dB = compute_grad(current_loss, self.B)
                 dw = compute_grad(current_loss, self.w)
                 db = compute_grad(current_loss, self.b)
-                self.update(lr, dW, dB, dw, db)
+                self.update(lr, self.params)
             last_loss = (epoch_loss / len_dataset)
         return last_loss
 
@@ -99,7 +99,7 @@ class FullyConnectedNetwork(nn.Module):
     def params(self):
         return list(self.parameters())
 
-    def update(self, lr, *grads):
+    def update(self, lr, grads):
         with torch.no_grad():
             for p, g in zip(self.parameters(), grads):
                 if g is not None:
