@@ -8,7 +8,7 @@ stochastic computation graphs (SCGs), score-function (SF) estimator implemented 
 The Ising Model
 ---------------
 
-In statistical mechanics, the 1D Ising model simulates ferromagnetism. It uses discrete
+In statistical mechanics, the 1D Ising model simulates ferromagnetism [Peierls1936]_. It uses discrete
 variables to represent atomic magnetic dipole moments ("spins" ), which are restricted
 to one of two possible states: ``+1`` or ``-1``.
 
@@ -391,7 +391,7 @@ Stochastic Computation Graphs (SCGs)
 ------------------------------------
 
 A stochastic computation graph (SCG) is a directed
-graph whose nodes are either [Schulman et al., 2015]:
+graph whose nodes are either [Schulman2015]_:
 
 - Deterministic nodes: Smooth functions whose gradients flow
   through by standard backpropagation.
@@ -413,7 +413,7 @@ function of :math:`\ell` and differentiate through it.
 Score-Function Estimator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For discrete distributions we use the score-function estimator [Williams, 1992]:
+For discrete distributions we use the score-function estimator [Schulman2015]_:
 
 .. math::
 
@@ -851,10 +851,12 @@ Full Code
 References
 ----------
 
-- Williams, R. J. Simple statistical gradient-following algorithms for connectionist reinforcement learning. Machine Learning, 8(3):229–256, 1992. ISSN 1573-0565. doi: 10.1007/BF00992696. URL https://doi.org/10.1007/BF00992696.
+.. [Schulman2015] Schulman, J., Heess, N., Weber, T., and Abbeel, P. Gradient
+   estimation using stochastic computation graphs. *NeurIPS*, 2015.
+   `arXiv:1506.05254 <https://arxiv.org/abs/1506.05254>`_.
 
-- Schulman, J., Heess, N., Weber, T., and Abbeel, P. Gradient estimation using stochastic computation graphs, 2016. URL https://arxiv.org/abs/1506.05254.
-
-- Peierls, R. On ising’s model of ferromagnetism. Mathematical Proceedings of the Cambridge Philosophical Society, 32(3):477–481, 1936. doi: 10.1017/S0305004100019174.
+.. [Peierls1936] Peierls, R. On Ising’s model of ferromagnetism. *Mathematical
+   Proceedings of the Cambridge Philosophical Society*, 32(3):477–481, 1936.
+   doi: `10.1017/S0305004100019174 <https://doi.org/10.1017/S0305004100019174>`_.
 
 
