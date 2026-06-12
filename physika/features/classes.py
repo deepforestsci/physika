@@ -846,7 +846,7 @@ class ClassFeature(ELF):
         >>> from physika.features import ClassFeature
         >>> rules = ClassFeature().parser_rules()
         >>> len(rules)
-        20
+        21
         >>> rules[0].__name__
         'p_statement_class_no_params'
         """

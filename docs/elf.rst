@@ -163,12 +163,21 @@ Inside a Physika method body, the current instance is referred as ``this``. The 
 * Each Physika method is emitted by ``emit_method``, walking down the AST, which handles ``this`` to ``self`` rewriting and fields substitution via ``replace_class_params``
 * A ``params`` property and an ``update`` method are appended to every generated class to support manual gradient-descent updates.
 
-**Example**
+**Example 1 :-**
 
 The following physika program shows some example on Physika clases:
 
 .. literalinclude:: ../examples/physika_class.phyk
    :language: text
+
+
+**Example 2 :-**
+
+Fully Connected Neural network example with ``this.update`` to train model with Stochastic Gradient Descent (SGD) optimizer.
+
+.. literalinclude:: ../examples/train_fully_connected.phyk
+   :language: text
+
 
 
 Random sampling
