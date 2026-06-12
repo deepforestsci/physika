@@ -49,11 +49,7 @@ def sigma(x: ℝ[a,b]): ℝ[a,b]:
 # Network Definition: 2-layer FCN with custom MSE loss
 # R[3] -> R[3] -> R[3] -> R
 # ------------------------------------------------------------
-class FullyConnectedNetwork:
-    W: ℝ[2,3,3]
-    B: ℝ[2,3,1]
-    w: ℝ[1,3]
-    b: ℝ
+class FullyConnectedNetwork(W: ℝ[2,3,3], B: ℝ[2,3,1], w: ℝ[1,3], b: ℝ):
     def λ(x: ℝ[3, 1]) → ℝ:
         for k:
             x = sigma(W[k] @ x + B[k])
@@ -74,7 +70,7 @@ class FullyConnectedNetwork:
                 dB = grad(current_loss, this.B)
                 dw = grad(current_loss, this.w)
                 db = grad(current_loss, this.b)
-                this.update(lr, dW, dB, dw, db)
+                this.update(lr, this.params)
             last_loss = epoch_loss / len_dataset
         return last_loss
     def evaluate(X: ℝ[4, 3, 1], y: ℝ[4]) → ℝ:

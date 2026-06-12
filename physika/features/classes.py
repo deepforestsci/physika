@@ -391,7 +391,7 @@ def generate_class(name: str, class_def: dict) -> str:
         "    def params(self):",
         "        return list(self.parameters())",
         "",
-        "    def update(self, lr, *grads):",
+        "    def update(self, lr, grads):",
         "        with torch.no_grad():",
         "            for p, g in zip(self.parameters(), grads):",
         "                if g is not None:",
