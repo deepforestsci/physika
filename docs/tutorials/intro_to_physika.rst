@@ -160,7 +160,7 @@ and reports it:
 Output::
 
    Type errors found:
-     ✗ Shape mismatch in add: ℝ[3] vs ℝ[5]
+   ✗ Line 0: Shape mismatch in add: ℝ[3] vs ℝ[5]
    1 type error(s) found.
 
 The program never runs. The error is caught at compile time and the offending
@@ -314,29 +314,43 @@ the same way. See the Differentiable For Loops section of :doc:`/language`.
 A complete program
 ------------------
 
-This last program combines a function, a loop, and ``grad`` into one task:
-finding the minimum of ``f(x) = (x - 3)²`` by gradient descent. Starting from
-``x = 0``, each step moves ``x`` a little way along the negative gradient, that
-is, downhill toward the minimum:
+A 2 kg mass hangs from a spring of stiffness ``k = 4 N/m`` under gravity. Its
+potential energy is ``U(x) = ½kx² − mgx``, and the mass comes to rest at the
+position where that energy is lowest. Rather than solve for that position by
+hand, we let the mass relax: at each step it moves a little way along the force
+``−U'(x)``, which ``grad`` provides, until it settles. This final program uses
+everything from the tour at once, a function for ``U``, a loop for the
+relaxation steps, and ``grad`` for the force:
 
 .. code-block:: text
 
-   # find the minimum of f(x) = (x - 3)² by gradient descent
-   def f(x : ℝ): ℝ:
-       return (x - 3.0) * (x - 3.0)
+   # a 2 kg mass on a spring (k = 4 N/m) under gravity
+   # potential energy U(x) = ½kx² − mgx
+   def U(x : ℝ): ℝ:
+       return 0.5 * 4.0 * x * x - 2.0 * 9.8 * x
 
+   # let the mass relax: step downhill along the force −U'(x)
    x : ℝ = 0.0
-   for i : ℕ(50):
-       x = x - 0.1 * grad(f(x), x)
+   for i : ℕ(60):
+       x = x - 0.05 * grad(U(x), x)
    x
 
 Output::
 
-   2.999957323074341 ∈ ℝ
+   ✓ No type errors found
+   4.899992942810059 ∈ ℝ
 
-After 50 steps ``x`` has reached ``3``, where ``f`` is smallest. Gradient
-descent like this, driven by ``grad``, is how the other tutorials fit physical
-models to data.
+The mass settles at ``x ≈ 4.9 m``, which is exactly the equilibrium ``mg/k``
+found by balancing the spring force against gravity. We never wrote that answer,
+or the force: ``grad`` supplied the force at each step, and the loop did the
+rest.
+
+.. figure:: ../_static/tutorial_files/intro_equilibrium.png
+   :align: center
+   :width: 70%
+
+   The mass rolls down its potential-energy curve and comes to rest at the
+   equilibrium ``x = mg/k = 4.9 m``.
 
 Run the program with ``--print-code`` to see the PyTorch it compiles to:
 
@@ -351,15 +365,16 @@ Run the program with ``--print-code`` to see the PyTorch it compiles to:
    from physika.runtime import compute_grad
 
    # === Functions ===
-   def f(x):
-      return ((x - 3.0) * (x - 3.0))
+   def U(x):
+       return ((((0.5 * 4.0) * x) * x) - ((2.0 * 9.8) * x))
 
    # === Program ===
    x = torch.tensor(0.0, requires_grad=True)
-   for i in range(int(0), int(50)):
-      x = (x - (0.1 * compute_grad(lambda _dx: f(_dx), x)))
+   for i in range(int(0), int(60)):
+       x = (x - (0.05 * compute_grad(lambda _dx: U(_dx), x)))
    physika_print(x)
    === End Pytorch code ===
+
 
 Where to go next
 ----------------
