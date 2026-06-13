@@ -3,7 +3,8 @@ Tutorials
 
 .. toctree::
    :maxdepth: 1
-
+   
+   intro_to_physika 
    learn_parameter_ode
    learn_parameter_pde
    learn_parameter_lotka_volterra_ode
