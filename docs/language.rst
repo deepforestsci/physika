@@ -1294,6 +1294,21 @@ Lowercase Letters
      - omega
 
 
+Letterlike Symbols
+~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 15 20
+
+   * - Symbol
+     - Unicode
+     - Name
+   * - ℏ
+     - U+210F
+     - Planck Constant Over Two Pi
+
+
 Import statements
 -----------------
 
