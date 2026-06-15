@@ -1,3 +1,6 @@
+  ✓ No type errors found
+
+=== Physika generated Pytorch code ===
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -92,14 +95,14 @@ def calculate_loss(barrier_height):
     return loss
 
 def adam(bh, g, m, v, t, lr):
-    beta1 = 0.9
-    beta2 = 0.999
-    eps = 1e-08
-    m_new = ((beta1 * m) + ((1.0 - beta1) * g))
-    v_new = ((beta2 * v) + ((1.0 - beta2) * (g ** 2)))
-    m_hat = (m_new / (1.0 - (beta1 ** t)))
-    v_hat = (v_new / (1.0 - (beta2 ** t)))
-    bh_new = (bh - ((lr * m_hat) / (torch.sqrt(v_hat if isinstance(v_hat, torch.Tensor) else torch.tensor(float(v_hat))) + eps)))
+    β1 = 0.9
+    β2 = 0.999
+    ε = 1e-08
+    m_new = ((β1 * m) + ((1.0 - β1) * g))
+    v_new = ((β2 * v) + ((1.0 - β2) * (g ** 2)))
+    m_hat = (m_new / (1.0 - (β1 ** t)))
+    v_hat = (v_new / (1.0 - (β2 ** t)))
+    bh_new = (bh - ((lr * m_hat) / (torch.sqrt(v_hat if isinstance(v_hat, torch.Tensor) else torch.tensor(float(v_hat))) + ε)))
     return torch.stack([torch.as_tensor(bh_new), torch.as_tensor(m_new), torch.as_tensor(v_new), torch.as_tensor((t + 1.0))])
 
 # === Program ===
@@ -136,3 +139,6 @@ for i in range(int(0), int(epochs)):
     t_adam = result[int(3)]
 pred_V = make_potential(guess_barrier_height)
 pred_results = solver(pred_V)
+=== End Pytorch code ===
+
+0 ∈ ℝ
