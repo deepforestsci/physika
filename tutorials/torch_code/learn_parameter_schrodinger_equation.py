@@ -1,6 +1,3 @@
-  ✓ No type errors found
-
-=== Physika generated Pytorch code ===
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -139,6 +136,3 @@ for i in range(int(0), int(epochs)):
     t_adam = result[int(3)]
 pred_V = make_potential(guess_barrier_height)
 pred_results = solver(pred_V)
-=== End Pytorch code ===
-
-0 ∈ ℝ
