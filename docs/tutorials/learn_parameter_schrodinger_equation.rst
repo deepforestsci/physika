@@ -77,11 +77,11 @@ Helper functions
 
     def linspace(start: ℝ, end: ℝ, n: ℕ): ℝ[n]:
         x: ℝ[n] = zero_1d_array(n)
-        dx: ℝ = (end - start) / (n - 1)
+        Δx: ℝ = (end - start) / (n - 1)
         for i:ℕ(0, n):
-            x[i] = start + i * dx
+            x[i] = start + i * Δx
         return x
-    
+
     def get_1d_array_length(x: ℝ[m]): ℝ:
         total: ℝ = 0
         temp: ℝ = 0
@@ -99,9 +99,9 @@ Helper functions
         return total
 
     def zero_complex_2d_array(rows: ℝ, cols: ℝ): ℂ[m, n]:
-        results: ℂ[rows, cols] = for i:N(rows) -> for j:N(cols) -> j * 1j
+        results: ℂ[rows, cols] = for i:ℕ(rows) -> for j:N(cols) -> j * 1j
         return results
-    
+
     def append_row(x: ℂ[m, n], row: ℂ[n]): ℂ[k, n]:
         rows: ℝ = get_2d_array_num_rows(x)
         cols: ℝ = get_1d_array_length(x[0])
@@ -123,7 +123,7 @@ Grid and Physical Constants
     x: ℝ[Nx] = linspace(-200, 200, Nx)
     dx: ℝ = 0.3910
 
-    hbar: ℝ = 1.0
+    ℏ: ℝ = 1.0
     mass: ℝ = 1.0
 
 The timestep is chosen using the CFL (Courant–Friedrichs–Lewy) stability
@@ -144,7 +144,7 @@ below 1 ensures the wavefunction evolves stably without numerical blow-up:
 .. code-block:: text
 
     cfl_factor : ℝ = 0.2
-    dt: ℝ = cfl_factor * (mass * dx**2) / hbar
+    dt: ℝ = cfl_factor * (mass * Δx**2) / ℏ
     t_final: ℝ = 100.0
     Nt: ℕ = 3271
 
@@ -176,9 +176,9 @@ This is a product of three parts:
 
     x0: ℝ = -50.0    # initial position
     k0: ℝ = 2.0      # wavenumber (controls momentum)
-    sigma: ℝ = 10.0     # width of the wave packet
+    σ: ℝ = 10.0     # width of the wave packet
 
-    psi0: ℂ[Nx] = (1 / sigma*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * sigma**2))
+    ψ0: ℂ[Nx] = (1 / σ*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * σ**2))
 
 
 Discretizing the RHS
@@ -248,10 +248,10 @@ all spatial points simultaneously:
 
 .. code-block:: text
 
-    def schrodinger_rhs(psi: ℂ[m], V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℂ[o]:
-        psi_xx: ℂ[Nx] = (roll(psi, -1) - 2*psi + roll(psi, 1)) / (dx**2)
-        H_psi: ℂ[Nx] = -(hbar**2 / (2*mass)) * psi_xx + V * psi
-        result: ℂ[Nx] = -1j / hbar * H_psi
+    def schrodinger_rhs(ψ: ℂ[m], V: ℝ[n], Δx: ℝ, ℏ: ℝ, mass: ℝ): ℂ[o]:
+        ψ_xx: ℂ[Nx] = (roll(ψ, -1) - 2*ψ + roll(ψ, 1)) / (Δx**2)
+        H_ψ: ℂ[Nx] = -(ℏ**2 / (2*mass)) * ψ + V * ψ
+        result: ℂ[Nx] = -1j / ℏ * H_ψ
         return result
 
 
@@ -293,13 +293,13 @@ RHS function changes:
 
 .. code-block:: text
 
-    def RK4_step(psi: ℂ[m], dt: ℝ, V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℂ[o]:
-        k1: ℂ[Nx] = schrodinger_rhs(psi, V, dx, hbar, mass)
-        k2: ℂ[Nx] = schrodinger_rhs(psi + 0.5 * dt * k1, V, dx, hbar, mass)
-        k3: ℂ[Nx] = schrodinger_rhs(psi + 0.5 * dt * k2, V, dx, hbar, mass)
-        k4: ℂ[Nx] = schrodinger_rhs(psi + dt * k3, V, dx, hbar, mass)
-        psi_next: ℂ[Nx] = psi + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
-        return psi_next
+    def RK4_step(ψ: ℂ[m], dt: ℝ, V: ℝ[n], Δx: ℝ, ℏ: ℝ, mass: ℝ): ℂ[o]:
+        k1: ℂ[Nx] = schrodinger_rhs(ψ, V, Δx, ℏ, mass)
+        k2: ℂ[Nx] = schrodinger_rhs(ψ + 0.5 * dt * k1, V, Δx, ℏ, mass)
+        k3: ℂ[Nx] = schrodinger_rhs(ψ + 0.5 * dt * k2, V, Δx, ℏ, mass)
+        k4: ℂ[Nx] = schrodinger_rhs(ψ + dt * k3, V, Δx, ℏ, mass)
+        ψ_next: ℂ[Nx] = ψ + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+        return ψ_next
 
 
 The full solver runs the wave packet forward in time, storing a snapshot
@@ -307,17 +307,17 @@ every 5 steps to build the history:
 
 .. code-block:: text
 
-    def solver(V: ℝ[m]): ℝ[m]:
+    def solver(V: ℝ[m]): ℂ[m, n]:
         x: ℝ[Nx] = linspace(-200, 200, Nx)
-        psi0: ℂ[Nx] = ((1 / sigma*sqrt(3.14)) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * sigma**2))) 
-        psi: ℂ[Nx] = psi0
-        history: ℝ[1] = [0]
+        ψ0: ℂ[Nx] = ((1 / σ*sqrt(3.14)) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * σ**2)))
+        history: ℂ[1, Nx] = [ψ0]
         counter: ℕ = 0
+        ψ = ψ0
         for i:ℕ(0, Nt):
-            psi = RK4_step(psi, dt, V, dx, hbar, mass)
+            ψ = RK4_step(ψ, dt, V, Δx, ℏ, mass)
             counter = counter + 1
             if counter == 5:
-                history = append_row(history, psi)
+                history = append_row(history, ψ)
                 counter = 0
         return history
 
@@ -352,7 +352,7 @@ produce the ground truth wavefunction history:
     V: ℝ[Nx] = make_potential(1.8)
     true_values: ℂ[m, n] = solver(V)
 
-    create_plot(true_values, psi0, x, V)
+    create_plot(true_values, ψ0, x, V)
 
 
 .. note::
@@ -442,7 +442,7 @@ Intial guess
     guess_barrier_height: ℝ = 6.0
     guess_V: ℝ[Nx] = make_potential(guess_barrier_height)
     guess_values: ℂ[m, n] = solver(guess_V)
-    create_plot(guess_values, psi0, x, guess_V)
+    create_plot(guess_values, ψ0, x, guess_V)
 
 
 .. figure:: /_static/tutorial_files/initial_guess_plot.gif
@@ -493,14 +493,14 @@ for the barrier height is nonlinear and benefits from adaptive learning rates:
 .. code-block:: text
 
     def adam(bh: ℝ, g: ℝ, m: ℝ, v: ℝ, t: ℝ, lr: ℝ) : ℝ[4]:
-        beta1: ℝ = 0.9
-        beta2: ℝ = 0.999V: ℝ[Nx] = make_potential(1.8)
-        eps: ℝ = 1e-8
-        m_new: ℝ = beta1 * m + (1.0 - beta1) * g
-        v_new: ℝ = beta2 * v + (1.0 - beta2) * g**2
-        m_hat: ℝ = m_new / (1.0 - beta1**t)
-        v_hat: ℝ = v_new / (1.0 - beta2**t)
-        bh_new: ℝ = bh - lr * m_hat / (sqrt(v_hat) + eps)
+        β1: ℝ = 0.9
+        β2: ℝ = 0.999
+        ε: ℝ = 1e-8
+        m_new: ℝ = β1 * m + (1.0 - β1) * g
+        v_new: ℝ = β2 * v + (1.0 - β2) * g**2
+        m_hat: ℝ = m_new / (1.0 - β1**t)
+        v_hat: ℝ = v_new / (1.0 - β2**t)
+        bh_new: ℝ = bh - lr * m_hat / (sqrt(v_hat) + ε)
         return [bh_new, m_new, v_new, t + 1.0]
 
 Training Loop
@@ -555,11 +555,11 @@ Full code
 
     def linspace(start: ℝ, end: ℝ, n: ℕ): ℝ[n]:
         x: ℝ[n] = zero_1d_array(n)
-        dx: ℝ = (end - start) / (n - 1)
+        Δx: ℝ = (end - start) / (n - 1)
         for i:ℕ(0, n):
-            x[i] = start + i * dx
+            x[i] = start + i * Δx
         return x
-    
+
     def get_1d_array_length(x: ℝ[m]): ℝ:
         total: ℝ = 0
         temp: ℝ = 0
@@ -577,9 +577,9 @@ Full code
         return total
 
     def zero_complex_2d_array(rows: ℝ, cols: ℝ): ℂ[m, n]:
-        results: ℂ[rows, cols] = for i:N(rows) -> for j:N(cols) -> j * 1j
+        results: ℂ[rows, cols] = for i:ℕ(rows) -> for j:N(cols) -> j * 1j
         return results
-    
+
     def append_row(x: ℂ[m, n], row: ℂ[n]): ℂ[k, n]:
         rows: ℝ = get_2d_array_num_rows(x)
         cols: ℝ = get_1d_array_length(x[0])
@@ -595,26 +595,26 @@ Full code
     Nx: ℕ = 1024
     Nt: ℕ = 3271
     x: ℝ[Nx] = linspace(-200, 200, Nx)
-    dx: ℝ = 0.3910
+    Δx: ℝ = 0.3910
 
-    hbar: ℝ = 1.0
+    ℏ: ℝ = 1.0
     mass: ℝ = 1.0
 
     cfl_factor: ℝ = 0.2
-    dt: ℝ = cfl_factor * (mass * dx**2) / hbar
+    dt: ℝ = cfl_factor * (mass * Δx**2) / ℏ
     t_final: ℝ = 100.0
 
     x0: ℝ = -50.0    # initial position
     k0: ℝ = 2.0      # wavenumber (controls momentum)
-    sigma: ℝ = 10.0     # width of the wave packet
+    σ: ℝ = 10.0     # width of the wave packet
 
-    psi0: ℂ[Nx] = (1 / sigma*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * sigma**2))
+    ψ0: ℂ[Nx] = (1 / σ*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * σ**2))
 
 
-    def schrodinger_rhs(psi: ℂ[m], V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℂ[o]:
-        psi_xx: ℂ[Nx] = (roll(psi, -1) - 2*psi + roll(psi, 1)) / (dx**2)
-        H_psi: ℂ[Nx] = -(hbar**2 / (2*mass)) * psi_xx + V * psi
-        result: ℂ[Nx] = -1j / hbar * H_psi
+    def schrodinger_rhs(ψ: ℂ[m], V: ℝ[n], Δx: ℝ, ℏ: ℝ, mass: ℝ): ℂ[o]:
+        ψ_xx: ℂ[Nx] = (roll(ψ, -1) - 2*ψ + roll(ψ, 1)) / (Δx**2)
+        H_ψ: ℂ[Nx] = -(ℏ**2 / (2*mass)) * ψ + V * ψ
+        result: ℂ[Nx] = -1j / ℏ * H_ψ
         return result
 
 
@@ -627,26 +627,26 @@ Full code
         return V
 
 
-    def RK4_step(psi: ℂ[m], dt: ℝ, V: ℝ[n], dx: ℝ, hbar: ℝ, mass: ℝ): ℂ[o]:
-        k1: ℂ[Nx] = schrodinger_rhs(psi, V, dx, hbar, mass)
-        k2: ℂ[Nx] = schrodinger_rhs(psi + 0.5 * dt * k1, V, dx, hbar, mass)
-        k3: ℂ[Nx] = schrodinger_rhs(psi + 0.5 * dt * k2, V, dx, hbar, mass)
-        k4: ℂ[Nx] = schrodinger_rhs(psi + dt * k3, V, dx, hbar, mass)
-        psi_next: ℂ[Nx] = psi + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
-        return psi_next
+    def RK4_step(ψ: ℂ[m], dt: ℝ, V: ℝ[n], Δx: ℝ, ℏ: ℝ, mass: ℝ): ℂ[o]:
+        k1: ℂ[Nx] = schrodinger_rhs(ψ, V, Δx, ℏ, mass)
+        k2: ℂ[Nx] = schrodinger_rhs(ψ + 0.5 * dt * k1, V, Δx, ℏ, mass)
+        k3: ℂ[Nx] = schrodinger_rhs(ψ + 0.5 * dt * k2, V, Δx, ℏ, mass)
+        k4: ℂ[Nx] = schrodinger_rhs(ψ + dt * k3, V, Δx, ℏ, mass)
+        ψ_next: ℂ[Nx] = ψ + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+        return ψ_next
 
 
     def solver(V: ℝ[m]): ℂ[m, n]:
         x: ℝ[Nx] = linspace(-200, 200, Nx)
-        psi0: ℂ[Nx] = ((1 / sigma*sqrt(3.14)) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * sigma**2)))
-        history: ℂ[1, Nx] = [psi0]
+        ψ0: ℂ[Nx] = ((1 / σ*sqrt(3.14)) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * σ**2)))
+        history: ℂ[1, Nx] = [ψ0]
         counter: ℕ = 0
-        psi = psi0
+        ψ = ψ0
         for i:ℕ(0, Nt):
-            psi = RK4_step(psi, dt, V, dx, hbar, mass)
+            ψ = RK4_step(ψ, dt, V, Δx, ℏ, mass)
             counter = counter + 1
             if counter == 5:
-                history = append_row(history, psi)
+                history = append_row(history, ψ)
                 counter = 0
         return history
 
@@ -654,12 +654,12 @@ Full code
 
     V: ℝ[Nx] = make_potential(1.8)
     true_values: ℂ[m, n] = solver(V)
-    create_plot(true_values, psi0, x, V)
+    create_plot(true_values, ψ0, x, V)
 
     guess_barrier_height: ℝ = 6.0
     guess_V: ℝ[Nx] = make_potential(guess_barrier_height)
     guess_values: ℂ[m, n] = solver(guess_V)
-    create_plot(guess_values, psi0, x, guess_V)
+    create_plot(guess_values, ψ0, x, guess_V)
 
 
     def calculate_loss(barrier_height: ℝ): ℝ:
@@ -670,14 +670,14 @@ Full code
 
 
     def adam(bh: ℝ, g: ℝ, m: ℝ, v: ℝ, t: ℝ, lr: ℝ) : ℝ[4]:
-        beta1: ℝ = 0.9
-        beta2: ℝ = 0.999
-        eps: ℝ = 1e-8
-        m_new: ℝ = beta1 * m + (1.0 - beta1) * g
-        v_new: ℝ = beta2 * v + (1.0 - beta2) * g**2
-        m_hat: ℝ = m_new / (1.0 - beta1**t)
-        v_hat: ℝ = v_new / (1.0 - beta2**t)
-        bh_new: ℝ = bh - lr * m_hat / (sqrt(v_hat) + eps)
+        β1: ℝ = 0.9
+        β2: ℝ = 0.999
+        ε: ℝ = 1e-8
+        m_new: ℝ = β1 * m + (1.0 - β1) * g
+        v_new: ℝ = β2 * v + (1.0 - β2) * g**2
+        m_hat: ℝ = m_new / (1.0 - β1**t)
+        v_hat: ℝ = v_new / (1.0 - β2**t)
+        bh_new: ℝ = bh - lr * m_hat / (sqrt(v_hat) + ε)
         return [bh_new, m_new, v_new, t + 1.0]
 
     m_adam: ℝ = 0.0
@@ -698,7 +698,7 @@ Full code
 
     pred_V: ℝ[Nx] = make_potential(guess_barrier_height)
     pred_results: ℂ[m, n] = solver(pred_V)
-    create_plot(pred_results, psi0, x, pred_V)
+    create_plot(pred_results, ψ0, x, pred_V)
 
 
 

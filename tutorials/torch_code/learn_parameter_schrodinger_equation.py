@@ -12,9 +12,9 @@ def zero_1d_array(len):
 
 def linspace(start, end, n):
     x = zero_1d_array(n)
-    dx = ((end - start) / (n - 1))
+    Δx = ((end - start) / (n - 1))
     for i in range(int(0), int(n)):
-        x[int(i)] = (start + (i * dx))
+        x[int(i)] = (start + (i * Δx))
     return x
 
 def get_1d_array_length(x):
@@ -49,10 +49,10 @@ def append_row(x, row):
         new_array[int(rows), int(j)] = row[int(j)]
     return new_array
 
-def schrodinger_rhs(psi, V, dx, hbar, mass):
-    psi_xx = (((torch.roll(psi, (-1)) - (2 * psi)) + torch.roll(psi, 1)) / (dx ** 2))
-    H_psi = (((-((hbar ** 2) / (2 * mass))) * psi_xx) + (V * psi))
-    result = (((-1j) / hbar) * H_psi)
+def schrodinger_rhs(ψ, V, Δx, ℏ, mass):
+    ψ_xx = (((torch.roll(ψ, (-1)) - (2 * ψ)) + torch.roll(ψ, 1)) / (Δx ** 2))
+    H_ψ = (((-((ℏ ** 2) / (2 * mass))) * ψ) + (V * ψ))
+    result = (((-1j) / ℏ) * H_ψ)
     return result
 
 def make_potential(V_value):
@@ -63,25 +63,25 @@ def make_potential(V_value):
             V[int(i)] = V_value
     return V
 
-def RK4_step(psi, dt, V, dx, hbar, mass):
-    k1 = schrodinger_rhs(psi, V, dx, hbar, mass)
-    k2 = schrodinger_rhs((psi + ((0.5 * dt) * k1)), V, dx, hbar, mass)
-    k3 = schrodinger_rhs((psi + ((0.5 * dt) * k2)), V, dx, hbar, mass)
-    k4 = schrodinger_rhs((psi + (dt * k3)), V, dx, hbar, mass)
-    psi_next = (psi + ((dt / 6.0) * (((k1 + (2 * k2)) + (2 * k3)) + k4)))
-    return psi_next
+def RK4_step(ψ, dt, V, Δx, ℏ, mass):
+    k1 = schrodinger_rhs(ψ, V, Δx, ℏ, mass)
+    k2 = schrodinger_rhs((ψ + ((0.5 * dt) * k1)), V, Δx, ℏ, mass)
+    k3 = schrodinger_rhs((ψ + ((0.5 * dt) * k2)), V, Δx, ℏ, mass)
+    k4 = schrodinger_rhs((ψ + (dt * k3)), V, Δx, ℏ, mass)
+    ψ_next = (ψ + ((dt / 6.0) * (((k1 + (2 * k2)) + (2 * k3)) + k4)))
+    return ψ_next
 
 def solver(V):
     x = linspace((-200), 200, Nx)
-    psi0 = (((((1 / sigma) * torch.sqrt(3.14 if isinstance(3.14, torch.Tensor) else torch.tensor(float(3.14)))) ** 0.5) * torch.exp(((1j * k0) * x) if isinstance(((1j * k0) * x), torch.Tensor) else torch.tensor(float(((1j * k0) * x))))) * torch.exp(((-((x - x0) ** 2)) / (2 * (sigma ** 2))) if isinstance(((-((x - x0) ** 2)) / (2 * (sigma ** 2))), torch.Tensor) else torch.tensor(float(((-((x - x0) ** 2)) / (2 * (sigma ** 2)))))))
-    history = torch.stack([torch.as_tensor(psi0)])
+    ψ0 = (((((1 / σ) * torch.sqrt(3.14 if isinstance(3.14, torch.Tensor) else torch.tensor(float(3.14)))) ** 0.5) * torch.exp(((1j * k0) * x) if isinstance(((1j * k0) * x), torch.Tensor) else torch.tensor(float(((1j * k0) * x))))) * torch.exp(((-((x - x0) ** 2)) / (2 * (σ ** 2))) if isinstance(((-((x - x0) ** 2)) / (2 * (σ ** 2))), torch.Tensor) else torch.tensor(float(((-((x - x0) ** 2)) / (2 * (σ ** 2)))))))
+    history = torch.stack([torch.as_tensor(ψ0)])
     counter = 0
-    psi = psi0
+    ψ = ψ0
     for i in range(int(0), int(Nt)):
-        psi = RK4_step(psi, dt, V, dx, hbar, mass)
+        ψ = RK4_step(ψ, dt, V, Δx, ℏ, mass)
         counter = (counter + 1)
         if counter == 5:
-            history = append_row(history, psi)
+            history = append_row(history, ψ)
             counter = 0
     return history
 
@@ -106,16 +106,16 @@ def adam(bh, g, m, v, t, lr):
 Nx = 102
 Nt = 327
 x = linspace((-200), 200, Nx)
-dx = 0.391
-hbar = 1.0
+Δx = 0.391
+ℏ = 1.0
 mass = 1.0
 cfl_factor = 0.2
-dt = ((cfl_factor * ((mass * dx) ** 2)) / hbar)
+dt = ((cfl_factor * ((mass * Δx) ** 2)) / ℏ)
 t_final = 100.0
 x0 = (-50.0)
 k0 = 2.0
-sigma = 10.0
-psi0 = (((((1 / sigma) * torch.sqrt(3.14 if isinstance(3.14, torch.Tensor) else torch.tensor(float(3.14)))) ** 0.5) * torch.exp(((1j * k0) * x) if isinstance(((1j * k0) * x), torch.Tensor) else torch.tensor(float(((1j * k0) * x))))) * torch.exp(((-((x - x0) ** 2)) / ((2 * sigma) ** 2)) if isinstance(((-((x - x0) ** 2)) / ((2 * sigma) ** 2)), torch.Tensor) else torch.tensor(float(((-((x - x0) ** 2)) / ((2 * sigma) ** 2))))))
+σ = 10.0
+ψ0 = (((((1 / σ) * torch.sqrt(3.14 if isinstance(3.14, torch.Tensor) else torch.tensor(float(3.14)))) ** 0.5) * torch.exp(((1j * k0) * x) if isinstance(((1j * k0) * x), torch.Tensor) else torch.tensor(float(((1j * k0) * x))))) * torch.exp(((-((x - x0) ** 2)) / ((2 * σ) ** 2)) if isinstance(((-((x - x0) ** 2)) / ((2 * σ) ** 2)), torch.Tensor) else torch.tensor(float(((-((x - x0) ** 2)) / ((2 * σ) ** 2))))))
 V = make_potential(1.8)
 true_values = solver(V)
 guess_barrier_height = torch.tensor(6.0, requires_grad=True)
