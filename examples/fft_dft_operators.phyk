@@ -1,0 +1,45 @@
+# ------------------------------------------------------------------------
+# Plane-wave DFT transforms: op_J (real -> reciprocal) and op_I (its
+# inverse, reciprocal -> real), built on the general fft / ifft and
+# reshape primitives.
+#
+# A DFT field is stored as a FLAT complex vector of length n = s1*s2*s3,
+# one entry per real-space grid point.  The transform itself must be 3-D
+# (electrons live in 3-D space), so each operator reshapes the flat field
+# onto the (s1, s2, s3) grid, transforms, and flattens back.
+
+# ------------------------------------------------------------------------
+# Operators
+# ------------------------------------------------------------------------
+
+# Forward transformation from real space to reciprocal space.
+def op_J(W: ℂ[m], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[k]:
+    n = s1 * s2 * s3
+    cube = reshape(W, s1, s2, s3)
+    spec = fft(cube)
+    flat = reshape(spec, n)
+    return flat / n
+
+# Backwards transformation from reciprocal space to real space.
+def op_I(W: ℂ[m], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[k]:
+    n = s1 * s2 * s3
+    cube = reshape(W, s1, s2, s3)
+    field = ifft(cube)
+    flat = reshape(field, n)
+    return flat * n
+
+
+# ------------------------------------------------------------------------
+# Demo: round trip on a synthetic field
+#
+# A fixed flat field on a 2 x 2 x 2 grid (n = 8). 
+# ------------------------------------------------------------------------
+
+field: ℂ[8] = [1 + 0j, 2 + 1j, 0 + 3j, -1 + 0j, 2 + 0j, 1 - 1j, 0 + 0j, 3 + 2j]
+
+spectrum: ℂ[8] = op_J(field, 2, 2, 2)
+recovered: ℂ[8] = op_I(spectrum, 2, 2, 2)
+
+physika_print(field)
+physika_print(spectrum)
+physika_print(recovered)

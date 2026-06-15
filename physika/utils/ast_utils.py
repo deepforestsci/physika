@@ -699,6 +699,8 @@ def ast_to_torch_expr(node: ASTNode,
             "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
+            "fft": "torch.fft.fftn",     
+            "ifft": "torch.fft.ifftn",   
         }
         multi_arg_funcs = {
             "roll": "torch.roll",
@@ -709,7 +711,12 @@ def ast_to_torch_expr(node: ASTNode,
 
         elif func_name in multi_arg_funcs:
             return f"{multi_arg_funcs[func_name]}({', '.join(arg_strs)})"
-
+        
+        elif func_name == "reshape":
+            # reshape(x, d1, d2, ...) -> torch.reshape(x, (int(d1), ...)).
+            dims = ", ".join(f"int({a})" for a in arg_strs[1:])
+            return f"torch.reshape({arg_strs[0]}, ({dims},))"
+        
         elif func_name == "grad":
             # grad(output, input) -> compute_grad(output, input)
             inner = args[0]
