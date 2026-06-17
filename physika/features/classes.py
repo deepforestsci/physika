@@ -348,10 +348,11 @@ def generate_class(name: str, class_def: dict) -> str:
                 f"        self.{pname} = torch.as_tensor({pname}).float() "
                 f"if isinstance({pname}, (int, float, torch.Tensor)) else {pname}"  # noqa :E501
             )
-    
+
     learnable_names = [
         pname for pname, ptype in constructor_params
-        if is_learnable(ptype) or (isinstance(ptype, tuple) and ptype[0] == "tensor")
+        if is_learnable(ptype) or (
+            isinstance(ptype, tuple) and ptype[0] == "tensor")
     ]
     params_list = ", ".join(f"self.{p}" for p in learnable_names)
     class_lines.append(f"        self.learnable_params = [{params_list}]")
