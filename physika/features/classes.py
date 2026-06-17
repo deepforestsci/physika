@@ -147,8 +147,8 @@ def build_class(constructor_params: Optional[list], body_items: list) -> dict:
     """
     fields = [(item[1], item[2]) for item in body_items
               if item[0] == "field_decl"]
+    fields.append(("learnable_params", "Any"))
     methods = [item[1] for item in body_items if item[0] == "method_def"]
-
     if constructor_params is None:
         # no parameters defined, fields becomes constructor params
         return {"class_params": fields, "fields": [], "methods": methods}
@@ -218,9 +218,30 @@ def emit_method(method: dict, all_params: list, to_expr: Callable,
         stmt_method_lines: list[str] = []
         emit_body_stmts(statements, 2, stmt_method_lines, list(param_names),
                         set(), to_expr, scalar_only)
+
+        param_name_set = {
+            p[0] if isinstance(p, tuple) else p
+            for p in all_params
+        }
         for line in stmt_method_lines:
             line_sub = re.sub(r'\bthis\b', 'self', line)
-            method_lines.append(replace_class_params(line_sub, all_params))
+            line_sub = replace_class_params(line_sub, all_params)
+
+            # detect field assignment: self.X = expr
+            field_assign = re.match(r'^(\s+)(self\.\w+)\s*=\s*(.+)$', line_sub)
+            if field_assign:
+                indent = field_assign.group(1)
+                field = field_assign.group(2)
+                expr = field_assign.group(3)
+                # check if field is a learnable parameter
+                field_name = field.split('.')[1]
+                if field_name in param_name_set:
+                    method_lines.append(f"{indent}with torch.no_grad():")
+                    method_lines.append(f"{indent}    {field}.copy_({expr})")
+                else:
+                    method_lines.append(line_sub)
+            else:
+                method_lines.append(replace_class_params(line_sub, all_params))
 
     if body is not None:
         this_re = r'\bthis\b'
@@ -330,8 +351,21 @@ def generate_class(name: str, class_def: dict) -> str:
                 f"        self.{pname} = torch.as_tensor({pname}).float() "
                 f"if isinstance({pname}, (int, float, torch.Tensor)) else {pname}"  # noqa :E501
             )
+    learnable_names = [
+        pname for pname, ptype in constructor_params
+        if is_learnable(ptype) or (
+            isinstance(ptype, tuple) and ptype[0] == "tensor")
+    ]
+
+    #params_list = ", ".join(f"self.{p}" for p in learnable_names)
+    #class_lines.append(f"        self.learnable_params = [{params_list}]")
+    class_lines.append(
+        f"        self.learnable_params = list(self.parameters())")
+
     # Fields should not be learnable (register_buffer)
     for fname, ftype in fields:
+        if fname == "learnable_params":
+            continue
         if isinstance(ftype, tuple) and ftype[0] == "tensor":
             # Only use torch.zeros if all dims are concrete integers.
             raw_dims = ftype[1]
@@ -391,7 +425,7 @@ def generate_class(name: str, class_def: dict) -> str:
         "    def params(self):",
         "        return list(self.parameters())",
         "",
-        "    def update(self, lr, grads):",
+        "    def update(self, lr, *grads):",
         "        with torch.no_grad():",
         "            for p, g in zip(self.parameters(), grads):",
         "                if g is not None:",

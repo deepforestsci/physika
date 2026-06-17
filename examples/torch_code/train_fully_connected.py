@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 
 from physika.runtime import physika_print
-from physika.runtime import train
-from physika.runtime import evaluate
 
 # === Functions ===
 def get_1d_array_length(x):
@@ -27,6 +25,10 @@ def zero_2d_array(rows, cols):
     results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i))]])
     return results
 
+def get_3d_array_depth(x):
+    depth = get_1d_array_length(X)
+    return depth
+
 def sigma(x):
     rows = get_2d_array_num_rows(x)
     cols = get_1d_array_length(x[int(0)])
@@ -38,13 +40,12 @@ def sigma(x):
 
 # === Classes ===
 class FullyConnectedNetwork(nn.Module):
-    def __init__(self, W, B, w, b, n):
+    def __init__(self, W, B, w, b):
         super().__init__()
         self.W = nn.Parameter(torch.as_tensor(W).float())
         self.B = nn.Parameter(torch.as_tensor(B).float())
         self.w = nn.Parameter(torch.as_tensor(w).float())
         self.b = nn.Parameter(torch.as_tensor(b).float())
-        self.n = torch.as_tensor(n).float() if isinstance(n, (int, float, torch.Tensor)) else n
 
     def forward(self, x):
         this = self
@@ -60,11 +61,45 @@ class FullyConnectedNetwork(nn.Module):
         target = torch.as_tensor(target).float()
         return ((y - target) ** 2.0)
 
+    def train(self, X, y, epochs, lr):
+        this = self
+        X = torch.as_tensor(X).float()
+        y = torch.as_tensor(y).float()
+        lr = torch.as_tensor(lr).float()
+        len_dataset = get_3d_array_depth(X)
+        last_loss = 0
+        for i in range(int(0), int(epochs)):
+            epoch_loss = 0
+            for j in range(int(0), int(len_dataset)):
+                pred = self(X[int(j)])
+                current_loss = self.loss(pred, y[int(j)])
+                epoch_loss = (epoch_loss + current_loss)
+                dW = compute_grad(current_loss, self.W)
+                dB = compute_grad(current_loss, self.B)
+                dw = compute_grad(current_loss, self.w)
+                db = compute_grad(current_loss, self.b)
+                self.update(lr, dW, dB, dw, db)
+            last_loss = (epoch_loss / len_dataset)
+        return last_loss
+
+    def evaluate(self, X, y):
+        this = self
+        X = torch.as_tensor(X).float()
+        y = torch.as_tensor(y).float()
+        x = 1.5
+        len_dataset = get_3d_array_depth(X)
+        total_loss = 0
+        for j in range(int(0), int(len_dataset)):
+            pred = self(X[int(j)])
+            current_loss = self.loss(pred, y[int(j)])
+            total_loss = (total_loss + current_loss)
+        return (total_loss / len_dataset)
+
     @property
     def params(self):
         return list(self.parameters())
 
-    def update(self, lr, grads):
+    def update(self, lr, *grads):
         with torch.no_grad():
             for p, g in zip(self.parameters(), grads):
                 if g is not None:
@@ -77,15 +112,15 @@ W = torch.tensor([[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], [[0.2, 0.
 B = torch.tensor([[[0.1], [0.2], [0.3]], [[0.1], [0.2], [0.3]]])
 w = torch.tensor([[0.5, 0.5, 0.5]])
 b = 0.1
-net = FullyConnectedNetwork(W, B, w, b, 2)
-loss_before = evaluate(net, X, y)
+net = FullyConnectedNetwork(W, B, w, b)
+loss_before = net.evaluate(X, y)
 physika_print(loss_before)
-epochs = 1000
+epochs = 100
 lr = 0.1
-net_trained = train(net, X, y, epochs, lr)
-loss_after = evaluate(net_trained, X, y)
+net_trained = net.train(X, y, epochs, lr)
+loss_after = net.evaluate(X, y)
 physika_print(loss_after)
-physika_print(net_trained(torch.tensor([1.0, 0.0, 0.0])))
-physika_print(net_trained(torch.tensor([0.0, 1.0, 0.0])))
-physika_print(net_trained(torch.tensor([0.0, 0.0, 1.0])))
-physika_print(net_trained(torch.tensor([1.0, 1.0, 1.0])))
+physika_print(net(torch.tensor([1.0, 0.0, 0.0])))
+physika_print(net(torch.tensor([0.0, 1.0, 0.0])))
+physika_print(net(torch.tensor([0.0, 0.0, 1.0])))
+physika_print(net(torch.tensor([1.0, 1.0, 1.0])))
