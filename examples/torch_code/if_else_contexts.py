@@ -38,6 +38,7 @@ class PiecewiseNet(nn.Module):
     def __init__(self, threshold):
         super().__init__()
         self.threshold = nn.Parameter(torch.as_tensor(threshold).float())
+        self.learnable_params = [self.threshold]
 
     def forward(self, x):
         this = self
