@@ -24,6 +24,7 @@ class Vec(nn.Module):
         super().__init__()
         self.x = torch.as_tensor(x).float()
         self.y = torch.as_tensor(y).float()
+        self.learnable_params = [self.x, self.y]
 
     def dot(self, other):
         this = self
@@ -54,6 +55,7 @@ class Particle(nn.Module):
         self.pos = torch.as_tensor(pos).float()
         self.vel = torch.as_tensor(vel).float()
         self.mass = torch.as_tensor(mass).float()
+        self.learnable_params = [self.pos, self.vel, self.mass]
 
     def kinetic_energy(self):
         this = self

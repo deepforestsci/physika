@@ -14,10 +14,11 @@ def tanh(x):
 class HamiltonianNet(nn.Module):
     def __init__(self, W1, b1, w2, b2):
         super().__init__()
-        self.W1 = nn.Parameter(torch.as_tensor(W1))
-        self.b1 = nn.Parameter(torch.as_tensor(b1))
-        self.w2 = nn.Parameter(torch.as_tensor(w2))
-        self.b2 = nn.Parameter(torch.as_tensor(b2))
+        self.W1 = nn.Parameter(torch.as_tensor(W1).float())
+        self.b1 = nn.Parameter(torch.as_tensor(b1).float())
+        self.w2 = nn.Parameter(torch.as_tensor(w2).float())
+        self.b2 = nn.Parameter(torch.as_tensor(b2).float())
+        self.learnable_params = [self.W1, self.b1, self.w2, self.b2]
 
     def forward(self, x):
         this = self
