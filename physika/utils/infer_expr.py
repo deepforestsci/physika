@@ -1040,7 +1040,7 @@ def expr_call(node: Any,
         # TODO: We should add support to get the tangent space type (e.g. Tₓ)
         return (arg_types[1] if len(arg_types) >= 2 else None), s
     if func_name == "reshape":
-        dims = []
+        dims: list[tuple[Union[int, TDim], str]] = []
         for d in args[1:]:
             if isinstance(d, tuple) and d[0] == "num" and d[1] >= 0:
                 dims.append((int(d[1]), "invariant"))

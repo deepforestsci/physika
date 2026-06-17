@@ -13,7 +13,7 @@ def fft_ns():
 
 
 class TestDFTTransforms:
-    """Tests for the plane-wave DFT operators op_J / op_I (fft / ifft + reshape)."""
+    """Plane-wave DFT operators op_J / op_I (fft / ifft + reshape)."""
 
     @pytest.mark.parametrize("var", ["field", "spectrum", "recovered"])
     def test_shape(self, fft_ns, var):
@@ -25,8 +25,10 @@ class TestDFTTransforms:
 
     def test_roundtrip_recovers_field(self, fft_ns):
         # op_I is the exact inverse of op_J: op_I(op_J(W)) == W.
-        assert torch.allclose(fft_ns["recovered"], fft_ns["field"],
-                              rtol=r_tol, atol=a_tol)
+        assert torch.allclose(fft_ns["recovered"],
+                              fft_ns["field"],
+                              rtol=r_tol,
+                              atol=a_tol)
 
     def test_opJ_is_genuine_3d_transform(self, fft_ns):
         # The decisive test: op_J must equal a true 3-D FFT of the field
@@ -35,14 +37,18 @@ class TestDFTTransforms:
         field = fft_ns["field"]
         n = field.numel()
         expected = torch.fft.fftn(field.reshape(2, 2, 2)).reshape(-1) / n
-        assert torch.allclose(fft_ns["spectrum"], expected,
-                              rtol=r_tol, atol=a_tol)
+        assert torch.allclose(fft_ns["spectrum"],
+                              expected,
+                              rtol=r_tol,
+                              atol=a_tol)
 
     def test_opJ_dc_is_mean(self, fft_ns):
         # Because op_J divides by n, bin 0 (DC) is the mean of the field.
         field = fft_ns["field"]
-        assert torch.allclose(fft_ns["spectrum"][0], field.sum() / field.numel(),
-                              rtol=r_tol, atol=a_tol)
+        assert torch.allclose(fft_ns["spectrum"][0],
+                              field.sum() / field.numel(),
+                              rtol=r_tol,
+                              atol=a_tol)
 
     @pytest.mark.parametrize("vec", [
         [1 + 0j, 2 + 0j, 3 + 0j, 4 + 0j, 5 + 0j, 6 + 0j, 7 + 0j, 8 + 0j],
