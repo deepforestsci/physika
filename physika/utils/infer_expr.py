@@ -1079,7 +1079,7 @@ def expr_call(node: Any,
                     resolved_dims.append((dim, variance))
             ret = TTensor(tuple(resolved_dims))
         return ret, s
-    
+
     if func_name == "this":
         this_type = ctx.env.get("this")
 
