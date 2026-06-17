@@ -1079,7 +1079,20 @@ def expr_call(node: Any,
                     resolved_dims.append((dim, variance))
             ret = TTensor(tuple(resolved_dims))
         return ret, s
+    
+    if func_name == "this":
+        this_type = ctx.env.get("this")
 
+        if isinstance(this_type, TInstance):
+            class_info = ctx.class_env.get(this_type.class_name)
+            if class_info is not None:
+                methods = class_info.get("methods", {})
+
+                if "λ" in methods:
+                    lambda_info = methods["λ"]
+
+                    ret_type = from_typespec(lambda_info.get("return_type"))
+                    return ret_type, s
     # Unknown call
     return None, s
 
