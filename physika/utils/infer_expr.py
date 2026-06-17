@@ -1039,10 +1039,6 @@ def expr_call(node: Any,
     if func_name == "grad":
         # TODO: We should add support to get the tangent space type (e.g. Tₓ)
         return (arg_types[1] if len(arg_types) >= 2 else None), s
-    if func_name in ("fft", "ifft"):
-        if arg_types:
-            return arg_types[0], s
-        return T_COMPLEX, s
     if func_name == "reshape":
         dims = []
         for d in args[1:]:

@@ -698,16 +698,21 @@ def ast_to_torch_expr(node: ASTNode,
             "abs": "torch.abs",
             "sum": "torch.sum",
             "mean": "torch.mean",
-            "real": "torch.real",
-            "fft": "torch.fft.fftn",     
-            "ifft": "torch.fft.ifftn",   
+            "real": "torch.real",   
         }
+        # Single-arg tensor transforms: share torch_funcs' tensor-guard | wrapper, but have no sympy equivalent (kept out of lambdify).
+        tensor_funcs = {
+            "fft": "torch.fft.fftn",
+            "ifft": "torch.fft.ifftn",
+        }
+        single_arg_funcs = {**torch_funcs, **tensor_funcs}
+        
         multi_arg_funcs = {
             "roll": "torch.roll",
         }
 
-        if func_name in torch_funcs:
-            return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
+        if func_name in single_arg_funcs:
+            return f"{single_arg_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))" 
 
         elif func_name in multi_arg_funcs:
             return f"{multi_arg_funcs[func_name]}({', '.join(arg_strs)})"

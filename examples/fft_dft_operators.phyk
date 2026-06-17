@@ -40,6 +40,6 @@ field: ℂ[8] = [1 + 0j, 2 + 1j, 0 + 3j, -1 + 0j, 2 + 0j, 1 - 1j, 0 + 0j, 3 + 2j
 spectrum: ℂ[8] = op_J(field, 2, 2, 2)
 recovered: ℂ[8] = op_I(spectrum, 2, 2, 2)
 
-physika_print(field)
-physika_print(spectrum)
-physika_print(recovered)
+field
+spectrum
+recovered

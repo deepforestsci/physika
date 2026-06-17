@@ -15,6 +15,14 @@ def fft_ns():
 class TestDFTTransforms:
     """Tests for the plane-wave DFT operators op_J / op_I (fft / ifft + reshape)."""
 
+    @pytest.mark.parametrize("var", ["field", "spectrum", "recovered"])
+    def test_shape(self, fft_ns, var):
+        assert fft_ns[var].shape == (8, )
+
+    @pytest.mark.parametrize("var", ["field", "spectrum", "recovered"])
+    def test_dtype(self, fft_ns, var):
+        assert fft_ns[var].dtype == torch.complex64
+
     def test_roundtrip_recovers_field(self, fft_ns):
         # op_I is the exact inverse of op_J: op_I(op_J(W)) == W.
         assert torch.allclose(fft_ns["recovered"], fft_ns["field"],
@@ -35,3 +43,15 @@ class TestDFTTransforms:
         field = fft_ns["field"]
         assert torch.allclose(fft_ns["spectrum"][0], field.sum() / field.numel(),
                               rtol=r_tol, atol=a_tol)
+
+    @pytest.mark.parametrize("vec", [
+        [1 + 0j, 2 + 0j, 3 + 0j, 4 + 0j, 5 + 0j, 6 + 0j, 7 + 0j, 8 + 0j],
+        [0j, 0j, 0j, 0j, 0j, 0j, 0j, 0j],
+        [1 + 1j, 2 - 1j, 3j, -1 + 0j, 2 + 0j, 1 - 1j, 0j, 3 + 2j],
+    ])
+    def test_opI_inverts_opJ(self, fft_ns, vec):
+        op_J = fft_ns["op_J"]
+        op_I = fft_ns["op_I"]
+        W = torch.tensor(vec, dtype=torch.complex64)
+        out = op_I(op_J(W, 2, 2, 2), 2, 2, 2)
+        assert torch.allclose(out, W, rtol=r_tol, atol=a_tol)
