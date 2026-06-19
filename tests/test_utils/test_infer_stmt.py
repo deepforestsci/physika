@@ -166,7 +166,7 @@ class TestInferTypeMethod:
 
     def test_tensor_var(self):
         """Tensor variable returns its tensor type."""
-        vec = TTensor(((3, "invariant"), ))
+        vec = TTensor(T_REAL, ((3, "invariant"), ))
         ctx = make_stmt_ctx(env={"v": vec})
         assert ctx.infer_type(("var", "v")) == vec
 
@@ -215,9 +215,9 @@ class TestStmtBodyDecl:
     def test_tensor_declared_and_inferred(self):
         """Inferred array ℝ[3] matches declared ℝ[3]."""
         errors = []
-        a_type = TTensor(((3, 'invariant'), ))
+        a_type = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(errors=errors)
-        stmt = ('body_decl', 'v', ('tensor', [(3, 'invariant')]),
+        stmt = ('body_decl', 'v', ('tensor', T_REAL, [(3, 'invariant')]),
                 ('array', [('num', 1.0), ('num', 2.0), ('num', 3.0)]))
         stmt_body_decl(stmt, ctx)
         assert ctx.env['v'] == a_type
@@ -235,7 +235,8 @@ class TestStmtBodyDecl:
         """Declared ℝ[3] but infers ℝ."""
         errors = []
         ctx = make_stmt_ctx(func_name='f', errors=errors)
-        stmt = ('body_decl', 'v', ('tensor', [(3, 'invariant')]), ('num', 2.0))
+        stmt = ('body_decl', 'v', ('tensor', T_REAL, [(3, 'invariant')]),
+                ('num', 2.0))
         stmt_body_decl(stmt, ctx)
         assert len(errors) == 1
         assert errors == [
@@ -273,41 +274,45 @@ class TestStmtBodyDecl:
         Indexing a ℝ[3,4] matrix infers to ℝ[4] — declared ℝ[4] matches.
         """
         errors = []
-        mat = TTensor(((3, 'invariant'), (4, 'invariant')))
+        mat = TTensor(T_REAL, ((3, 'invariant'), (4, 'invariant')))
         ctx = make_stmt_ctx(env={'A': mat}, errors=errors)
-        stmt_body_decl(('body_decl', 'r', ('tensor', [(4, 'invariant')]),
-                        ('index', 'A', ('num', 0.0))), ctx)
-        assert ctx.env['r'] == TTensor(((4, 'invariant'), ))
+        stmt_body_decl(
+            ('body_decl', 'r', ('tensor', T_REAL, [(4, 'invariant')]),
+             ('index', 'A', ('num', 0.0))), ctx)
+        assert ctx.env['r'] == TTensor(T_REAL, ((4, 'invariant'), ))
         assert errors == []
 
     def test_slice(self):
         """Slicing ℝ[6] with literal bounds infers ℝ[3] type"""
         errors = []
-        vec = TTensor(((6, 'invariant'), ))
-        sliced = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((6, 'invariant'), ))
+        sliced = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec}, errors=errors)
-        stmt_body_decl(('body_decl', 's', ('tensor', [(3, 'invariant')]),
-                        ('slice', 'v', ('num', 1.0), ('num', 4.0))), ctx)
+        stmt_body_decl(
+            ('body_decl', 's', ('tensor', T_REAL, [(3, 'invariant')]),
+             ('slice', 'v', ('num', 1.0), ('num', 4.0))), ctx)
         assert ctx.env['s'] == sliced
         assert errors == []
 
     def test_for_expr(self):
         """for i : ℕ(3) infers ℝ[3] type"""
         errors = []
-        vec3 = TTensor(((3, 'invariant'), ))
+        vec3 = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(errors=errors)
-        stmt_body_decl(('body_decl', 'v', ('tensor', [(3, 'invariant')]),
-                        ('for_expr', 'i', ('num', 3.0), ('num', 1.0))), ctx)
+        stmt_body_decl(
+            ('body_decl', 'v', ('tensor', T_REAL, [(3, 'invariant')]),
+             ('for_expr', 'i', ('num', 3.0), ('num', 1.0))), ctx)
         assert ctx.env['v'] == vec3
         assert errors == []
 
     def test_index_mismatch(self):
         """Declared ℝ[4] but index of ℝ[4] yields ℝ — mismatch reported."""
         errors = []
-        vec = TTensor(((4, 'invariant'), ))
+        vec = TTensor(T_REAL, ((4, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec}, func_name='f', errors=errors)
-        stmt_body_decl(('body_decl', 'x', ('tensor', [(4, 'invariant')]),
-                        ('index', 'v', ('num', 0.0))), ctx)
+        stmt_body_decl(
+            ('body_decl', 'x', ('tensor', T_REAL, [(4, 'invariant')]),
+             ('index', 'v', ('num', 0.0))), ctx)
         assert len(errors) == 1
         assert errors == [
             "In 'f': 'x' declared ℝ[4], inferred ℝ: Cannot unify tensor ℝ[4] with scalar ℝ"  # noqa: E501
@@ -341,7 +346,7 @@ class TestStmtBodyAssign:
         stmt_body_assign(('body_assign', 'v', ('array', [('num', 1.0),
                                                          ('num', 2.0),
                                                          ('num', 3.0)])), ctx)
-        assert ctx.env['v'] == TTensor(((3, 'invariant'), ))
+        assert ctx.env['v'] == TTensor(T_REAL, ((3, 'invariant'), ))
         assert errors == []
 
     def test_no_type_error(self):
@@ -352,7 +357,7 @@ class TestStmtBodyAssign:
         stmt_body_assign(('body_assign', 'x', ('array', [('num', 1.0),
                                                          ('num', 2.0)])), ctx)
         assert errors == []
-        assert ctx.env['x'] == TTensor(((2, 'invariant'), ))
+        assert ctx.env['x'] == TTensor(T_REAL, ((2, 'invariant'), ))
 
     def test_env_updated(self):
         """Assigned variable is used in following assignments."""
@@ -371,8 +376,8 @@ class TestStmtBodyAssign:
         in env.
         """
         errors = []
-        vec = TTensor(((6, 'invariant'), ))
-        sliced = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((6, 'invariant'), ))
+        sliced = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec}, errors=errors)
         stmt_body_assign(
             ('body_assign', 's', ('slice', 'v', ('num', 1.0), ('num', 4.0))),
@@ -383,7 +388,7 @@ class TestStmtBodyAssign:
     def test_for_expr_scalar_body(self):
         """Assigning for i : ℕ(3) → num registers ℝ[3] in env."""
         errors = []
-        vec3 = TTensor(((3, 'invariant'), ))
+        vec3 = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(errors=errors)
         stmt_body_assign(('body_assign', 'v', ('for_expr', 'i', ('num', 3.0),
                                                ('num', 1.0))), ctx)
@@ -415,7 +420,7 @@ class TestStmtBodyIfReturn:
     def test_return_type_mismatch(self):
         """Return type ℝ[3] does not match declared ℝ."""
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec},
                             func_name='f',
                             return_type=T_REAL,
@@ -439,7 +444,7 @@ class TestStmtBodyIfReturn:
           TTensor!=T_REAL
         """
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec},
                             func_name='f',
                             return_type=T_REAL,
@@ -476,7 +481,7 @@ class TestStmtBodyIfElseReturn:
     def test_branchs_types_mismatch(self):
         """If branch returns ℝ[3], else returns ℝ"""
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec},
                             func_name='f',
                             return_type=T_REAL,
@@ -494,7 +499,7 @@ class TestStmtBodyIfElseReturn:
     def test_return_type_mismatch(self):
         """Both branches return ℝ but declared return type is ℝ[3]"""
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'x': T_REAL},
                             func_name='f',
                             return_type=vec,
@@ -513,7 +518,7 @@ class TestStmtBodyIfElseReturn:
           TTensor!=T_REAL
         """
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec},
                             func_name='f',
                             return_type=T_REAL,
@@ -558,7 +563,7 @@ class TestStmtBodyIfElse:
         Then and else branches are inferred independently.
         """
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec},
                             func_name='f',
                             return_type=T_REAL,
@@ -575,7 +580,7 @@ class TestStmtBodyIfElse:
         since these are not the return values. variable assingments can be
         used to perform more operations and then return."""
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'x': T_REAL},
                             func_name='f',
                             return_type=vec,
@@ -603,7 +608,7 @@ class TestStmtBodyIfElse:
         bad_decl = (
             "body_decl",
             "v",
-            ("tensor", [(3, 'invariant')]),  # ℝ
+            ("tensor", T_REAL, [(3, 'invariant')]),  # ℝ
             ("num", 2.0))  # ℝ
         stmt_body_if_else(("body_if_else", cond, [bad_decl], []), ctx)
         assert len(errors) == 1
@@ -647,7 +652,7 @@ class TestStmtBodyFor:
 
     def test_body_for_assigns(self):
         errors = []
-        arr_type = TTensor(((4, 'invariant'), ))
+        arr_type = TTensor(T_REAL, ((4, 'invariant'), ))
         ctx = make_stmt_ctx(env={'arr': arr_type},
                             func_name='f',
                             return_type=T_REAL,
@@ -666,7 +671,7 @@ class TestStmtBodyFor:
         All body statements are type-checked and hoisted to env.
         """
         errors = []
-        arr_type = TTensor(((4, 'invariant'), ))
+        arr_type = TTensor(T_REAL, ((4, 'invariant'), ))
         ctx = make_stmt_ctx(env={'arr': arr_type}, errors=errors)
         # for i:
         #   a = arr[i] # ℝ
@@ -687,7 +692,8 @@ class TestStmtBodyFor:
         ctx = make_stmt_ctx(func_name='f', errors=errors)
         # v : ℝ[3] = 1.0
         # inferred ℝ, declared ℝ[3]
-        bad = ('body_decl', 'v', ('tensor', [(3, 'invariant')]), ('num', 1.0))
+        bad = ('body_decl', 'v', ('tensor', T_REAL, [(3, 'invariant')]),
+               ('num', 1.0))
         stmt_body_for(('body_for', 'i', [bad], []), ctx)
         assert len(errors) == 1
         assert "In 'f': 'v' declared ℝ[3], inferred ℝ: Cannot unify tensor ℝ[3] with scalar ℝ" in errors[  # noqa: E501
@@ -740,7 +746,8 @@ class TestStmtBodyForRange:
         errors = []
         ctx = make_stmt_ctx(func_name='f', errors=errors)
         # v : ℝ[3] = 1.0 — inferred ℝ ≠ declared ℝ[3]
-        bad = ('body_decl', 'v', ('tensor', [(3, 'invariant')]), ('num', 1.0))
+        bad = ('body_decl', 'v', ('tensor', T_REAL, [(3, 'invariant')]),
+               ('num', 1.0))
         stmt_body_for_range(
             ('body_for_range', 'i', ('num', 0), ('num', 10), [bad]), ctx)
         assert len(errors) == 1
@@ -764,17 +771,20 @@ class TestStmtBodyZerosDecl:
         errors = []
         ctx = make_stmt_ctx(errors=errors)
         stmt_body_zeros_decl(
-            ('body_zeros_decl', 'v', ('tensor', [(4, 'invariant')])), ctx)
-        assert ctx.env['v'] == TTensor(((4, 'invariant'), ))
+            ('body_zeros_decl', 'v', ('tensor', T_REAL, [(4, 'invariant')])),
+            ctx)
+        assert ctx.env['v'] == TTensor(T_REAL, ((4, 'invariant'), ))
 
         # Case ℝ[3,3]
         """Declaring ℝ[3,3] registers a TTensor with two dimensions."""
         errors = []
         ctx = make_stmt_ctx(errors=errors)
         stmt_body_zeros_decl(
-            ('body_zeros_decl', 'C', ('tensor', [(3, 'invariant'),
-                                                 (3, 'invariant')])), ctx)
-        assert ctx.env['C'] == TTensor(((3, 'invariant'), (3, 'invariant')))
+            ('body_zeros_decl', 'C', ('tensor', T_REAL, [(3, 'invariant'),
+                                                         (3, 'invariant')])),
+            ctx)
+        assert ctx.env['C'] == TTensor(T_REAL,
+                                       ((3, 'invariant'), (3, 'invariant')))
 
     def test_none_type_adds_tvar(self):
         """None type_spec stores a new TVar."""
@@ -820,7 +830,7 @@ class TestStmtForAssign:
 
         # case ℝ[3]
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec}, errors=errors)
         stmt_for_assign(('loop_assign', 'w', ('var', 'v')), ctx)
         assert ctx.env['w'] == vec
@@ -852,7 +862,7 @@ class TestStmtForEq:
         dimension.
         """
         errors = []
-        mat = TTensor(((3, 'invariant'), (4, 'invariant')))
+        mat = TTensor(T_REAL, ((3, 'invariant'), (4, 'invariant')))
         ctx = make_stmt_ctx(env={'results': mat}, errors=errors)
         # Simulate i, j registered by stmt_body_for_accum before this stmt
         i_dim = new_dim()
@@ -886,7 +896,7 @@ class TestStmtForPluseq:
         loop_index_pluseq unifies each loop var's TDim to the array dimension.
         """
         errors = []
-        mat = TTensor(((3, 'invariant'), (4, 'invariant')))
+        mat = TTensor(T_REAL, ((3, 'invariant'), (4, 'invariant')))
         ctx = make_stmt_ctx(env={'C': mat}, errors=errors)
         # Simulate i, j registered by stmt_body_for_accum before this stmt
         i_dim = new_dim()
@@ -934,7 +944,7 @@ class TestStmtLoopIf:
     def test_tensor_condition_reports_error(self):
         """Using a ℝ[3] tensor as a comparison operand reports an error."""
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec},
                             func_name='f',
                             return_type=T_REAL,
@@ -977,7 +987,7 @@ class TestStmtLoopIfElse:
     def test_tensor_condition_reports_error(self):
         """ℝ[3] tensor as condition operand reports an error."""
         errors = []
-        vec = TTensor(((3, 'invariant'), ))
+        vec = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'v': vec},
                             func_name='f',
                             return_type=T_REAL,
@@ -1025,10 +1035,11 @@ class TestInferStmts:
         """infer_stmts dispatches body_zeros_decl."""
         errors = []
         env, _ = infer_stmts([('body_zeros_decl', 'C',
-                               ('tensor', [(2, 'invariant'),
-                                           (2, 'invariant')]))], {},
+                               ('tensor', T_REAL, [(2, 'invariant'),
+                                                   (2, 'invariant')]))], {},
                              Substitution(), {}, {}, errors.append)
-        assert env['C'] == TTensor(((2, 'invariant'), (2, 'invariant')))
+        assert env['C'] == TTensor(T_REAL,
+                                   ((2, 'invariant'), (2, 'invariant')))
 
     def test_multiple_stmts_body_assign(self):
         """Statements types are inferred and added to env."""
@@ -1060,11 +1071,11 @@ class TestStmtDecl:
         errors = []
         ctx = make_stmt_ctx(errors=errors)
         stmt_decl(
-            ('decl', 'v', ('tensor', [(3, 'invariant')]),
+            ('decl', 'v', ('tensor', T_REAL, [(3, 'invariant')]),
              ('array', [('num', 1.0), ('num', 2.0), ('num', 3.0)])),
             ctx,
         )
-        assert ctx.env['v'] == TTensor(((3, 'invariant'), ))
+        assert ctx.env['v'] == TTensor(T_REAL, ((3, 'invariant'), ))
         assert errors == []
 
     def test_type_mismatch(self):
@@ -1072,7 +1083,8 @@ class TestStmtDecl:
         errors = []
         ctx = make_stmt_ctx(errors=errors)
         stmt_decl(
-            ('decl', 't', ('tensor', [(3, 'invariant')]), ('num', 0.0)),
+            ('decl', 't', ('tensor', T_REAL, [(3, 'invariant')]),
+             ('num', 0.0)),
             ctx,
         )
         print(errors)
@@ -1104,7 +1116,7 @@ class TestStmtAssign:
                                        ('num', 3.0)])),
             ctx,
         )
-        assert ctx.env['v'] == TTensor(((3, 'invariant'), ))
+        assert ctx.env['v'] == TTensor(T_REAL, ((3, 'invariant'), ))
         assert errors == []
 
     def test_expression_rhs(self):
@@ -1147,8 +1159,8 @@ class TestStmtExpr:
     def test_shape_mismatch_caught(self):
         """A shape error inside the expression is reported as an error."""
         errors = []
-        v2 = TTensor(((2, 'invariant'), ))
-        v3 = TTensor(((3, 'invariant'), ))
+        v2 = TTensor(T_REAL, ((2, 'invariant'), ))
+        v3 = TTensor(T_REAL, ((3, 'invariant'), ))
         ctx = make_stmt_ctx(env={'a': v2, 'b': v3}, errors=errors)
         stmt_expr(
             ('expr', ('add', ('var', 'a'), ('var', 'b'))),

@@ -94,7 +94,7 @@ class StmtContext:
         >>> from physika.utils.types import Substitution, T_REAL, TTensor
         >>> errors = []
         >>> ctx = StmtContext(
-        ...     env={"v": TTensor(((3, "invariant"),))}, s=Substitution(), func_env={}, class_env={},  # noqa: E501
+        ...     env={"v": TTensor(T_REAL, ((3, "invariant"),))}, s=Substitution(), func_env={}, class_env={},  # noqa: E501
         ...     add_error=errors.append, func_name="f", return_type=T_REAL,
         ... )
         >>> ctx.infer_type(("num", 2.0))
@@ -153,7 +153,7 @@ def stmt_body_decl(stmt: Tuple, ctx: StmtContext) -> None:
     >>> stmt_body_decl(stmt, ctx)
     >>> print(errors)
     []
-    >>> mismatch_stmt = ('body_decl', 'v', ('tensor', [(3, 'invariant')]), ('num', 2.0))  # noqa: E501
+    >>> mismatch_stmt = ('body_decl', 'v', ('tensor', T_REAL, [(3, 'invariant')]), ('num', 2.0))  # noqa: E501
     >>> mismatch_errors = []
     >>> ctx2 = StmtContext(
     ...     env={}, s=Substitution(), func_env={}, class_env={},
@@ -511,7 +511,7 @@ def stmt_body_zeros_decl(stmt: Any, ctx: StmtContext) -> None:
     ...                   return_type=T_REAL, add_error=errors.append,
     ...                   func_env={}, class_env={})
     >>> stmt_body_zeros_decl(('body_zeros_decl', 'C',
-    ...                       ('tensor', [(3, 'invariant'), (3, 'invariant')])), ctx)    # noqa: E501
+    ...                       ('tensor', T_REAL, [(3, 'invariant'), (3, 'invariant')])), ctx)    # noqa: E501
     >>> ctx.env['C']
     ℝ[3,3]
     >>> errors
@@ -653,7 +653,7 @@ def stmt_for_eq(stmt: Any, ctx: StmtContext) -> None:
     >>> from physika.utils.types import Substitution, T_REAL, TTensor
     >>> errors = []
     >>> ctx = StmtContext(
-    ...     env={'results': TTensor(((3, 'invariant'),
+    ...     env={'results': TTensor(T_REAL, ((3, 'invariant'),
     ...                               (3, 'invariant')))},
     ...     s=Substitution(), func_name='outer_product',
     ...     return_type=T_REAL, add_error=errors.append,
@@ -717,7 +717,7 @@ def stmt_for_pluseq(stmt: Any, ctx: StmtContext) -> None:
     >>> from physika.utils.types import Substitution, T_REAL, TTensor
     >>> errors = []
     >>> ctx = StmtContext(
-    ...     env={'C': TTensor(((3, 'invariant'), (3, 'invariant')))},
+    ...     env={'C': TTensor(T_REAL, ((3, 'invariant'), (3, 'invariant')))},
     ...     s=Substitution(), func_name='f', return_type=T_REAL,
     ...     add_error=errors.append, func_env={}, class_env={})
     >>> stmt_for_pluseq(('for_pluseq', 'C', [], ('num', 1.0)), ctx)
