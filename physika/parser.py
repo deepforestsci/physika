@@ -610,6 +610,11 @@ def p_func_loop_body_multi(p):
     p[0] = p[1] + ([p[2]] if p[2] else [])
 
 
+def p_func_loop_stmt_decl(p):
+    """func_loop_stmt : ID COLON type_spec EQUALS func_expr NEWLINE"""
+    p[0] = ("loop_decl", p[1], p[3], p[5])
+
+
 def p_func_loop_stmt_assign(p):
     """func_loop_stmt : ID EQUALS func_expr NEWLINE"""
     # Assignment inside a loop body
@@ -937,6 +942,11 @@ def p_for_statement_index_assign_nd(p):
     # Returns:
     #   ("for_index_assign_nd", arr_name, [idx_exprs], rhs)
     p[0] = ("for_index_assign_nd", p[1], p[3], p[6])
+
+
+def p_for_statement_decl(p):
+    """for_statement : ID COLON type_spec EQUALS func_expr NEWLINE"""
+    p[0] = ("for_decl", p[1], p[3], p[5])
 
 
 def p_for_statement_assign(p):
