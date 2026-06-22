@@ -1,0 +1,71 @@
+# -----------------------
+# Real type (ℝ)
+# notations: ℝ  \mathbb{R}  \R  R
+# -----------------------
+r_unicode : ℝ = 3.14
+r_mathbb : \mathbb{R} = 2.5
+r_latex : \R = 1.5
+r_ascii : R = 0.5
+
+r_unicode
+r_mathbb
+r_latex
+r_ascii
+
+r_vector : ℝ[3] = [1.0, 2.0, 3.0]
+r_matrix : R[2, 2] = [[1.0, 2.0], [3.0, 4.0]]
+
+r_vector
+r_matrix
+
+
+# -----------------------
+# Integer type (ℤ)
+# notations: ℤ  \mathbb{Z}  \Z  Z
+# -----------------------
+z_unicode : ℤ = 10
+z_mathbb : \mathbb{Z} = -4
+z_latex : \Z = 7
+z_ascii : Z = 42
+
+z_unicode
+z_mathbb
+z_latex
+z_ascii
+
+z_vector : Z[3] = [1, 2, 3]
+z_vector
+
+
+# -----------------------
+# Natural type (ℕ)
+# notations: ℕ  \mathbb{N}  \N  N
+# -----------------------
+n_unicode : ℕ = 5
+n_mathbb : \mathbb{N} = 8
+n_latex : \N = 3
+n_ascii : N = 1
+
+n_unicode
+n_mathbb
+n_latex
+n_ascii
+
+n_vector : N[4] = [0, 1, 2, 3]
+n_vector
+
+
+# -----------------------
+# Complex type (ℂ)
+# notations: ℂ  \mathbb{C}  \C
+# -----------------------
+c_unicode : ℂ = 3 + 1j
+c_mathbb : \mathbb{C} = 5 + 3j
+c_latex : \C = 2 + 7j
+
+c_unicode
+c_mathbb
+c_latex
+
+c_vector : \C[2] = [1 + 2j, 3 + 4j]
+c_vector
