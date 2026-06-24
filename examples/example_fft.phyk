@@ -1,9 +1,7 @@
 # ------------------------------------------------------------
 # Fast Fourier Transform (FFT) in Physika
 # ------------------------------------------------------------
-
-# ------------------------------------------------------------
-# Standard FFTs: complex spectrum, same shape as the input
+# Standard FFTs:
 # ------------------------------------------------------------
 
 x : ℂ[4] = [1 + 2j, 3 + 1j, 0 + 4j, 2 + 0j]
@@ -32,7 +30,7 @@ ifftn(X3)
 
 
 # ------------------------------------------------------------
-# Real FFTs: half the spectrum, real input only
+# Real FFTs: 
 # ------------------------------------------------------------
 
 xr : ℝ[8] = [3.0, 1.0, 4.0, 1.0, 5.0, 9.0, 2.0, 6.0]
@@ -58,3 +56,26 @@ Xr3 = rfftn(xr3)
 
 Xr3
 irfftn(Xr3)
+
+# ------------------------------------------------------------
+# The FFT is differentiable
+# ------------------------------------------------------------
+
+# A signal x, and a target spectrum t we want it to have.
+s : ℝ[4] = [1.0, 2.0, 0.0, 3.0]
+t : ℂ[4] = [4 + 0j, 0 + 1j, 2 + 3j, 0 + 0j]
+
+spec = fft(s)
+diff : ℂ[4] = spec - t
+loss = sum(abs(diff) * abs(diff))
+g = grad(loss, s)
+
+# One step downhill
+s2 : ℝ[4] = s - 0.05 * g
+spec2 = fft(s2)
+diff2 : ℂ[4] = spec2 - t
+loss2 = sum(abs(diff2) * abs(diff2))
+
+g
+loss
+loss2

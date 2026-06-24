@@ -59,7 +59,7 @@ Physika provides the standard and real discrete Fourier transforms:
   complex spectrum of the same shape, transforming the last axis, the last two
   axes, and every axis, respectively.
 - ``rfft`` / ``rfft2`` / ``rfftn``  take real input only and transform the last axis, 
-- the last two axes, and every axis, respectively, returning the non-redundant half along the last axis.
+- the last two axes, and every axis, respectively, and returning the non-redundant half along the last axis.
 
 Each transform has an inverse written with an ``i`` prefix (``ifft``,
 ``irfft``, ``ifftn``, and so on).
@@ -69,6 +69,9 @@ Each transform has an inverse written with an ``i`` prefix (``ifft``,
    The transforms run on their default axes; choosing specific axes and
    passing a normalisation mode are not yet supported, so the forward
    transform is unscaled and the inverse divides by ``n`` (PyTorch's default).
+
+All transforms are differentiable; ``grad`` propagates through them to the
+input, as shown in the final section of the example.
 
 .. literalinclude:: ../examples/example_fft.phyk
    :language: text
