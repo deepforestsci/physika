@@ -50,6 +50,31 @@ Tensors (contravariant / covariant)
 
 ----
 
+Fast Fourier Transform
+----------------------
+
+Physika provides the standard and real discrete Fourier transforms:
+
+- ``fft`` / ``fft2`` / ``fftn`` accept complex or real input and return a
+  complex spectrum of the same shape, transforming the last axis, the last two
+  axes, and every axis, respectively.
+- ``rfft`` / ``rfft2`` / ``rfftn``  take real input only and transform the last axis, 
+- the last two axes, and every axis, respectively, returning the non-redundant half along the last axis.
+
+Each transform has an inverse written with an ``i`` prefix (``ifft``,
+``irfft``, ``ifftn``, and so on).
+
+.. note::
+
+   The transforms run on their default axes; choosing specific axes and
+   passing a normalisation mode are not yet supported, so the forward
+   transform is unscaled and the inverse divides by ``n`` (PyTorch's default).
+
+.. literalinclude:: ../examples/example_fft.phyk
+   :language: text
+
+----
+
 Control Flow Operators & Differentiation
 ----------------------------------------
 

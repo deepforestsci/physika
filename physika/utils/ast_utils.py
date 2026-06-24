@@ -702,6 +702,18 @@ def ast_to_torch_expr(node: ASTNode,
         }
         multi_arg_funcs = {
             "roll": "torch.roll",
+            "fft": "torch.fft.fft",
+            "ifft": "torch.fft.ifft",
+            "fft2": "torch.fft.fft2",
+            "ifft2": "torch.fft.ifft2",
+            "fftn": "torch.fft.fftn",
+            "ifftn": "torch.fft.ifftn",
+            "rfft": "torch.fft.rfft",
+            "irfft": "torch.fft.irfft",
+            "rfft2": "torch.fft.rfft2",
+            "irfft2": "torch.fft.irfft2",
+            "rfftn": "torch.fft.rfftn",
+            "irfftn": "torch.fft.irfftn",
         }
 
         if func_name in torch_funcs:
