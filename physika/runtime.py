@@ -9,6 +9,112 @@ import torch.optim as optim
 
 from physika.utils.print_utils import _from_torch, _infer_type
 
+import numpy as np
+import gensim.downloader as api
+
+# ============================================================
+# Tiny Shakespeare Utilities
+# ============================================================
+
+
+def load_text(path: str):
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+    return text
+
+
+def load_chars(text):
+    chars = sorted(list(set(text)))
+    return chars
+
+
+def create_char_vocab(text: str):
+    chars = sorted(list(set(text)))
+    vocab_size = len(chars)
+    char_to_idx = {ch: i for i, ch in enumerate(chars)}
+    idx_to_char = {i: ch for ch, i in char_to_idx.items()}
+    return (chars, vocab_size, char_to_idx, idx_to_char)
+
+
+def encode(text: str, char_to_idx):
+    return np.array([char_to_idx[ch] for ch in text])
+
+
+def decode(indices, idx_to_char):
+    return "".join([idx_to_char[int(i)] for i in indices])
+
+
+def get_token_ids(chars, text):
+    char_to_idx = {ch: i for i, ch in enumerate(chars)}
+    token_ids = [char_to_idx[ch] for ch in text]
+    return token_ids
+
+
+def transpose(x):
+    return x.T
+
+
+def substring(text: str, start: int, end: int):
+    return text[start:end]
+
+
+def generate(model, start_text, chars, max_new_chars=100):
+    char_to_idx = {ch: i for i, ch in enumerate(chars)}
+    current_text = start_text
+
+    for _ in range(max_new_chars):
+
+        token_ids = get_token_ids(char_to_idx, current_text)
+
+        next_idx = model.predict_next_index(token_ids)
+
+        next_char = chars[int(next_idx)]
+
+        current_text += next_char
+
+    return current_text
+
+
+embedding_model = None
+
+
+def load_embedding_model(temp):
+    global embedding_model
+    if embedding_model is None:
+        embedding_model = api.load("glove-twitter-25")
+    return embedding_model
+
+
+def get_embedding(word: str):
+    model = load_embedding_model(1)
+    if word in model:
+        vec = model[word]
+    else:
+        vec = np.zeros(model.vector_size)
+    return torch.tensor(vec, dtype=torch.float32)
+
+
+def tokenize_and_embed(sentence: str):
+    tokens = sentence.split()
+    embeddings = torch.stack([get_embedding(token) for token in tokens])
+    return embeddings
+
+
+def add_positional_encoding(embeddings: torch.Tensor):
+    sequence_len = embeddings.shape[0]
+    embedding_dim = embeddings.shape[1]
+    pos_enc_matrix = torch.zeros((sequence_len, embedding_dim),
+                                 dtype=torch.float32)
+    for pos in range(sequence_len):
+        for i in range(embedding_dim):
+            if i % 2 == 0:
+                pos_enc_matrix[pos, i] = torch.sin(
+                    torch.tensor(pos / (10000**(i / embedding_dim))))
+            else:
+                pos_enc_matrix[pos, i] = torch.cos(
+                    torch.tensor(pos / (10000**(i / embedding_dim))))
+    return embeddings + pos_enc_matrix
+
 
 def physika_print(value: Any) -> None:
     """Pretty-print a Physika value with its inferred type annotation.
