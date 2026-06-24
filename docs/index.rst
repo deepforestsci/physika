@@ -34,3 +34,4 @@ snippets.
    api
    tutorials/index
    elf
+   motivation
