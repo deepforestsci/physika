@@ -1,0 +1,78 @@
+class Simple(v: ℝ):
+    def get() → ℝ, ℝ:
+        return this.v, this.v
+    def sum_pairs(n: ℕ) → ℝ:
+        total : ℝ = 0.0
+        for k : ℕ(n):
+            a, b = this.get()
+            total = total + a + b
+        return total
+
+class Pair(a: ℝ, b: ℝ):
+    def get() → ℝ, ℝ:
+        return this.a, this.b
+    def sum() → ℝ:
+        x, y = this.get()
+        return x + y
+
+class Model(a: ℝ, b: ℝ):
+    def pair() → ℝ, ℝ:
+        return this.a, this.b
+    def run(steps: ℕ) → ℝ:
+        x, y = this.pair()
+        total : ℝ = x + y
+        for k : ℕ(steps):
+            p, q = this.pair()
+            total = total + p + q
+        return total
+
+class Grid(v: ℝ):
+    def compute(n: ℕ) → ℝ:
+        arr : ℝ[3] = for i : ℕ(3) → this.v
+        total : ℝ = 0.0
+        for k : ℕ(n):
+            a: ℝ, b: ℝ, c: ℝ = arr
+            total = total + a + b + c
+        return total
+
+class Point(x: ℝ, y: ℝ):
+    def get() → ℝ, ℝ:
+        return this.x, this.y
+
+p : Point = Point(1.0, 2.0)
+a: ℝ, b: ℝ = p.get()
+result : ℝ = a + b
+a
+b
+result
+
+class Vec4(w: ℝ, x: ℝ, y: ℝ, z: ℝ):
+    def f() → ℝ, ℝ, ℝ, ℝ:
+        return this.w * 10, this.x * 10, this.y * 10, this.z * 10
+
+v : Vec4 = Vec4(0.5, 1.0, 2.0, 3.0)
+a: ℝ, b: ℝ, c: ℝ, d: ℝ = v.f()
+a
+b
+c
+d
+
+class Tensors(a: ℝ[3], b: ℝ[3]):
+    def sum_parts() → ℝ[3]:
+        x: ℝ[3], y: ℝ[3] = this.a, this.b
+        return x + y
+
+class Vec2(x: ℝ, y: ℝ):
+    def f() → ℝ, ℝ:
+        return this.x * 10, this.y * 10
+
+v : Vec2 = Vec2(0.5, 1.0)
+a: ℝ, b: ℝ = v.f()
+a
+b
+
+a: ℝ, b: ℝ, c: ℝ, d: ℝ = 1, 2, 3, 4
+a
+b
+c
+d

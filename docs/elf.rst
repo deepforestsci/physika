@@ -280,6 +280,65 @@ When ranks match, each declared dimension is compared against the corresponding 
 ``RandomnessFeature`` also supports setting random seeds in Physika programs with ``physika.seed(expr)``, where ``expr`` is a scalar expression that evaluates to an integer.
 The emitted code for this function is ``torch.manual_seed(int(expr))``, ensuring reproducibility of random sampling from distributions across runs.
 
+
+Tuple unpack
+~~~~~~~~~~~~
+
+``TupleUnpackFeature`` adds tuple unpacking support for Physika programs.
+This ELF covers two main use cases.
+
+- **Literal comma assignment**: Assign multiple variables from a comma separated
+list of values in a single statement, with type annotations:
+
+.. code-block:: text
+
+    a: ℝ, b: ℝ, c: ℝ, d: ℝ = 1, 2, 3, 4
+
+- **Tuple unpacking from a function or class method**: Bind the individual
+return values of a multi-return function or method to named variables:
+
+.. code-block:: text
+
+    class Vec2(x: ℝ, y: ℝ):
+        def f() → ℝ, ℝ:
+            return this.x * 10, this.y * 10
+
+    v : Vec2 = Vec2(0.5, 1.0)
+    a: ℝ, b: ℝ = v.f()
+    a
+    b
+
+**Parser rules**
+
+New AST node types are produced by the new parser rules, as follows:
+* ``("stmt_tuple_unpack", names, rhs)`` for top-level statement
+  and for-loop body unpack. ``names`` is either a ``id_list`` (``["a","b"]``)
+  or a ``typed_id_list`` (``[("a","ℝ"),("b","ℝ")]``). ``rhs`` is the RHS
+  expression or an ``("expr_list", [...])`` node for literal comma values.
+* ``("body_tuple_unpack", names, rhs)`` when inside a function body.
+* ``("loop_tuple_unpack", names, rhs)`` when inside a ``for k:`` loop body
+  within a function or class method.
+* ``("expr_list", [e1, e2, ...])`` for comma-separated literal RHS values.
+* ``("return_type", ...)``when having multi-type return annotation ``→ ℝ, ℝ`` on class
+  methods, stored as ``("tuple_type", [t1, t2, ...])``.
+
+**Type checking**
+
+Each declared type (LHS) is
+verified against the inferred type of its corresponding RHS element. For
+literal comma RHS (``expr_list``), types are inferred element by element. For
+single expression RHS (a function call returning a tuple), each unpacked
+variable is assumed to be ``ℝ``. All
+unpacked names are registered in the type environment so subsequent statements
+can reference them without errors.
+
+**Code generation**
+
+Each tuple-unpack node is emitted as a plain Python unpacking assignment:
+``a, b = expr``. ``expr_list`` node
+joins its elements with ``", "`` so ``a: ℝ, b: ℝ = 1.0, 2.0`` would get emitted as
+``a, b = 1.0, 2.0`
+
 References
 ----------
 

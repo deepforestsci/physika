@@ -1095,9 +1095,10 @@ def emit_body_stmts(
             lines.append(f"{prefix}{name}[{idx_code}] = {val_code}")
         elif stmt_op == "body_tuple_unpack":
             _, var_names, expr = stmt
+            names = [n if isinstance(n, str) else n[0] for n in var_names]
             expr_code = generate_solve_call(expr)
-            lines.append(f"{prefix}{', '.join(var_names)} = {expr_code}")
-            known_vars.extend(var_names)
+            lines.append(f"{prefix}{', '.join(names)} = {expr_code}")
+            known_vars.extend(names)
         elif stmt_op == "body_if_return":
             _, cond, return_expr = stmt
             cond_code = condition_to_expr(cond)

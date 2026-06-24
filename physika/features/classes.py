@@ -101,7 +101,8 @@ def unwrap_return(ret: Optional[tuple]) -> Optional[tuple]:
     if ret[0] == "return_single":
         return ret[1]
     if ret[0] == "return_tuple":
-        return ("tuple_return", ret[1], ret[2])
+        # to support n return values
+        return ("tuple_return", *ret[1:])
     return None
 
 
@@ -225,13 +226,11 @@ def emit_method(method: dict, all_params: list, to_expr: Callable,
     if body is not None:
         this_re = r'\bthis\b'
         if isinstance(body, tuple) and body[0] == "tuple_return":
-            _, e1, e2 = body
-            e1_sub = re.sub(this_re, 'self', to_expr(e1))
-            e2_sub = re.sub(this_re, 'self', to_expr(e2))
-
-            r1 = replace_class_params(e1_sub, all_params)
-            r2 = replace_class_params(e2_sub, all_params)
-            method_lines.append(f"        return ({r1}, {r2})")
+            parts = []
+            for e in body[1:]:
+                e_sub = re.sub(this_re, 'self', to_expr(e))
+                parts.append(replace_class_params(e_sub, all_params))
+            method_lines.append(f"        return ({', '.join(parts)})")
         else:
             body_sub = re.sub(this_re, 'self', to_expr(body))
             ret = replace_class_params(body_sub, all_params)
@@ -472,9 +471,9 @@ def make_parser_rules():
         p[0] = ("method_def", p[1])
 
     def p_class_method_params_body(p):
-        """class_method : DEF LAMBDA LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
-                        | DEF ID    LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
-                        | DEF ID    LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""
+        """class_method : DEF LAMBDA LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
+                        | DEF ID    LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
+                        | DEF ID    LPAREN params RPAREN COLON return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""
         # Method with params and statements.
         #  methods; arrow → or colon : return-type separator.
         # Example:
@@ -496,9 +495,9 @@ def make_parser_rules():
         }
 
     def p_class_method_params_simple(p):
-        """class_method : DEF LAMBDA LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT class_method_return DEDENT
-                        | DEF ID    LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT class_method_return DEDENT
-                        | DEF ID    LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT class_method_return DEDENT"""
+        """class_method : DEF LAMBDA LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT class_method_return DEDENT
+                        | DEF ID    LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT class_method_return DEDENT
+                        | DEF ID    LPAREN params RPAREN COLON return_type COLON NEWLINE INDENT class_method_return DEDENT"""
         # Method with params and a single return expression (no statements between return and method definition).  # noqa :E501
         # Example:
         #   def dot(other: Vec) → ℝ:
@@ -517,8 +516,8 @@ def make_parser_rules():
         }
 
     def p_class_method_no_params_body(p):
-        """class_method : DEF ID LPAREN RPAREN ARROW type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
-                        | DEF ID LPAREN RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""
+        """class_method : DEF ID LPAREN RPAREN ARROW return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
+                        | DEF ID LPAREN RPAREN COLON return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""
         # Method with no params and intermediate statements before the return.
         # Example:
         #   def ke() : ℝ:
@@ -538,8 +537,8 @@ def make_parser_rules():
         }
 
     def p_class_method_no_params_simple(p):
-        """class_method : DEF ID LPAREN RPAREN ARROW type_spec COLON NEWLINE INDENT class_method_return DEDENT
-                        | DEF ID LPAREN RPAREN COLON type_spec COLON NEWLINE INDENT class_method_return DEDENT"""
+        """class_method : DEF ID LPAREN RPAREN ARROW return_type COLON NEWLINE INDENT class_method_return DEDENT
+                        | DEF ID LPAREN RPAREN COLON return_type COLON NEWLINE INDENT class_method_return DEDENT"""
         # Method with no params and a single return expression.
         # Example:
         #   def norm_sq() : ℝ:
@@ -603,14 +602,13 @@ def make_parser_rules():
         p[0] = ("return_single", p[2])
 
     def p_class_method_return_tuple(p):
-        """class_method_return : RETURN func_expr COMMA func_expr NEWLINE"""
-        # Two value tuple return at the end of a class method.
+        """class_method_return : RETURN return_expr_list NEWLINE"""
+        # N-value tuple return at the end of a class method.
         # Example:
-        #   return new_pos, new_vel
+        #   return new_pos, new_vel, new_acc
         # Parameters:
-        #   p[2] - first expression
-        #   p[4] - second expression
-        p[0] = ("return_tuple", p[2], p[4])
+        #   p[2] - list of expressions from return_expr_list
+        p[0] = ("return_tuple", *p[2])
 
     def p_field_access(p):
         """factor      : factor DOT ID
