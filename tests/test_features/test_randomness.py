@@ -374,10 +374,10 @@ class TestLexerParserRules:
         assert stmts == [("seed", ("var", "s"))]
 
     def test_parser_rules_structure(self):
-        """parser_rules() returns 7 callable PLY functions"""
+        """parser_rules() returns 11 callable PLY functions"""
         rules = RandomnessFeature().parser_rules()
         assert isinstance(rules, list)
-        assert len(rules) == 9
+        assert len(rules) == 11
         for rule in rules:
             assert callable(rule)
             # functions must be p_-prefixed
@@ -635,6 +635,42 @@ class TestForwardRules:
         code = from_ast_to_torch(ast, print_code=False)
         assert "torch.manual_seed(int(0))" in code
 
+    def test_dual_sample_emit_scalar(self):
+        """
+        dual_sample with scalar declared type infers 0 shape args from _type1,
+        so all args after stripping the mode string are treated as dist params.
+        """
+        rules = RandomnessFeature().forward_rules()
+        # b : ℝ, lp : ℝ ~ Bernoulli(0.5)  — scalar sample, scalar log_prob
+        node = ("dual_sample", "b", "ℝ", "lp", "ℝ",
+                ("call", "Bernoulli", [("num", 0.5)]))
+        result = rules["dual_sample"](node, ast_to_torch_expr)
+        assert result == (
+            "_dist_b = torch.distributions.Bernoulli(0.5)\n"
+            "b = _dist_b.sample().detach()\n"
+            "lp = _dist_b.log_prob(b)"
+        )
+
+    def test_dual_sample_emit_vector(self):
+        """
+        dual_sample with vector declared type uses tensor rank to split
+        the last declared rank args as shape args.
+        """
+        rules = RandomnessFeature().forward_rules()
+        # b_s : ℝ[10], lp : ℝ[10] ~ Bernoulli(0.5, 10)
+        # vector log_prob
+        node = ("dual_sample", "b_s", ("tensor", [(10, "invariant")]),
+                "lp", ("tensor", [(10, "invariant")]),
+                ("call", "Bernoulli", [("num", 0.5), ("num", 10),
+                                       ("string", "score-function")]))
+        result = rules["dual_sample"](node, ast_to_torch_expr)
+        assert result == (
+            "_dist_b_s = torch.distributions.Bernoulli(0.5)\n"
+            "b_s = _dist_b_s.sample((int(10),)).detach()\n"
+            "lp = _dist_b_s.log_prob(b_s)"
+        )
+
+
     def test_typed_sample_expr_emit(self):
         """
         Checks that the generated PyTorch code for a for-expr with a
@@ -645,7 +681,7 @@ class TestForwardRules:
         code = from_ast_to_torch(ast, print_code=False)
         expected = (
             "z = torch.stack(["
-            "torch.distributions.Normal(0.0, 1.0).rsample((int(3),)) "
+            "torch.as_tensor(torch.distributions.Normal(0.0, 1.0).rsample((int(3),))).float() "
             # ε : ℝ[3] ~ 𝒩(0.0, 1.0, 3)
             "for _fi_i in range(int(3)) "  # for i : ℕ(3)
             "for i in [torch.tensor(float(_fi_i))]])")

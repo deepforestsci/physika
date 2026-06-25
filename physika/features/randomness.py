@@ -535,10 +535,11 @@ class RandomnessFeature(ELF):
         """
         Handler for new grammar rules.
 
-        Nine new PLY grammar functions:
+        Eleven new PLY grammar functions:
 
         - Seven for random sampling at top-level, function/method bodies,
           and for-loops.
+        - Two for score-function estimator ``name1 : T1, name2 : T2 ~ Dist(args)`` syntax.
         - Two for ``physika.seed(n)`` at top-level and inside function bodies.
 
         Returns
@@ -552,7 +553,7 @@ class RandomnessFeature(ELF):
         >>> from physika.features import RandomnessFeature
         >>> rules = RandomnessFeature().parser_rules()
         >>> len(rules)
-        9
+        11
         >>> rules[0].__name__
         'p_sample_untyped'
         """
@@ -603,6 +604,14 @@ class RandomnessFeature(ELF):
                 body = ("sample_expr", samp_name, call_node)
             p[0] = ("for_expr", p[2], p[6], body)
 
+        def p_statement_dual_sample(p):
+            """statement : ID COLON type_spec COMMA ID COLON type_spec TILDE func_factor NEWLINE"""  # noqa: E501
+            p[0] = ("dual_sample", p[1], p[3], p[5], p[7], p[9])
+
+        def p_func_body_stmt_dual_sample(p):
+            """func_body_stmt : ID COLON type_spec COMMA ID COLON type_spec TILDE func_factor NEWLINE"""  # noqa: E501
+            p[0] = ("dual_sample", p[1], p[3], p[5], p[7], p[9])
+
         def p_statement_seed(p):
             """statement : PHYSIKA DOT ID LPAREN func_expr RPAREN NEWLINE"""
             p[0] = ("seed", p[5])
@@ -619,6 +628,8 @@ class RandomnessFeature(ELF):
             p_for_statement_sample,
             p_func_factor_sample_expr,
             p_for_sample,
+            p_statement_dual_sample,
+            p_func_body_stmt_dual_sample,
             p_statement_seed,
             p_func_body_stmt_seed,
         ]
@@ -645,7 +656,7 @@ class RandomnessFeature(ELF):
         >>> from physika.features import RandomnessFeature
         >>> rules = RandomnessFeature().type_rules()
         >>> sorted(rules.keys())
-        ['sample_expr', 'typed_sample', 'typed_sample_expr']
+        ['dual_sample', 'sample_expr', 'typed_sample', 'typed_sample_expr']
         """
 
         def typed_sample_type(node: tuple, env: dict, s: Substitution,
@@ -862,10 +873,98 @@ class RandomnessFeature(ELF):
                     return TTensor(((dim, "invariant"), )), s
             return T_REAL, s
 
+        def check_dual_sample(node: tuple, env: dict, s: Substitution,
+                              func_env: dict, class_env: dict,
+                              add_error: Callable, infer_expr: Callable):
+            """
+            Check ``name1 : T1, name2 : T2 ~ Dist(...)`` is
+            well typed.
+
+            Compare ``name1`` against the distribution shape args.  Validates
+            ``name2`` (log_prob) against ``name1``'s type: must be ``ℝ``
+            or have the same shape as the sample.  Reports a type
+            error for concrete dimension mismatches like ``b_s : ℝ[2]`` with
+            ``Bernoulli(p, n)``.
+
+            Examples
+            --------
+            >>> from physika.features import RandomnessFeature
+            >>> from physika.utils.types import Substitution, TTensor
+            >>> rules = RandomnessFeature().type_rules()
+            >>> check = rules["dual_sample"]
+            >>> s = Substitution()
+            >>> # Correct: both ℝ[n]
+            >>> env = {}
+            >>> errors = []
+            >>> node = ("dual_sample",
+            ...         "b_s", ("tensor", [("n", "invariant")]),
+            ...         "log_prob", ("tensor", [("n", "invariant")]),
+            ...         ("call", "Bernoulli",
+            ...          [("var", "p"), ("var", "n"), ("string", "score-function")]))
+            >>> t, _ = check(node, env, s, {}, {}, errors.append, None)
+            >>> errors
+            []
+            >>> # Error: b_s : ℝ[2] declared but distribution produces ℝ[n]
+            >>> env2 = {}
+            >>> errors2 = []
+            >>> node2 = ("dual_sample",
+            ...          "b_s", ("tensor", [(2, "invariant")]),
+            ...          "log_prob", ("tensor", [(2, "invariant")]),
+            ...          ("call", "Bernoulli",
+            ...           [("var", "p"), ("var", "n"), ("string", "score-function")]))
+            >>> _, _ = check(node2, env2, s, {}, {}, errors2.append, None)
+            >>> len(errors2) > 0
+            True
+            >>> # Error: log_prob shape mismatches sample shape
+            >>> env3 = {("__val__", "n"): 10}
+            >>> errors3 = []
+            >>> node3 = ("dual_sample",
+            ...          "b_s", ("tensor", [(10, "invariant")]),
+            ...          "log_prob", ("tensor", [(5, "invariant")]),
+            ...          ("call", "Bernoulli",
+            ...           [("var", "p"), ("var", "n"), ("string", "score-function")]))
+            >>> _, _ = check(node3, env3, s, {}, {}, errors3.append, None)
+            >>> len(errors3) > 0
+            True
+            """
+            from physika.utils.type_checker_utils import from_typespec
+            from physika.utils.types import TTensor
+            _, name1, type_spec1, name2, type_spec2, call_node = node
+
+            # Validate name1 via typed_sample_type
+            fake1 = ("typed_sample", name1, type_spec1, call_node)
+            type1, s = typed_sample_type(fake1, env, s, func_env, class_env,
+                                         add_error, infer_expr)
+
+            # Register name2
+            type2 = from_typespec(type_spec2)
+            env[name2] = type2
+
+            # Check name2
+            # name2 must have the same type shape as name1
+            if isinstance(type2, TTensor) and isinstance(type1, TTensor):
+                if len(type2.dims) != len(type1.dims):
+                    add_error(
+                        f"'{name2}': declared {type2} but '{name1}' has "
+                        f"{len(type1.dims)} dimension(s) — log_prob shape must "
+                        f"match the sample or be declared ℝ for scalar sum"
+                    )
+                else:
+                    for i, (d2, d1) in enumerate(zip(type2.dims, type1.dims)):
+                        v2, v1 = d2[0], d1[0]
+                        if (isinstance(v2, int) and isinstance(v1, int)
+                                and v2 != v1):
+                            add_error(
+                                f"'{name2}': declared {type2} but '{name1}' "
+                                f"dim[{i}] is {v1}"
+                            )
+            return type1, s
+
         return {
             "typed_sample": typed_sample_type,
             "sample_expr": sample_expr_type,
             "typed_sample_expr": sample_expr_type,
+            "dual_sample": check_dual_sample,
         }
 
     def forward_rules(self) -> dict:
@@ -970,8 +1069,79 @@ class RandomnessFeature(ELF):
             'x = torch.distributions.Normal(0.0, 1.0).rsample()'
             """
             name = node[1]
-            call_node = node[3] if node[0] == "typed_sample" else node[2]
+            typed = node[0] in ("typed_sample", "body_typed_sample",
+                                 "for_typed_sample")
+            call_node = node[3] if typed else node[2]
             return f"{name} = {to_expr(call_node)}"
+
+        def dual_sample_emit(node: Tuple, to_expr: Callable, **ctx):
+            """
+            Emit a sample paired with its log-probability for computing
+            score-function estimator following SCGs.
+
+            The syntax is as follows:
+            
+            ``name1 : T1, name2 : T2 ~ Dist(args)`` where ``Dist`` is 
+            a non-differentiable distribution. At runtime, the distribution
+            object, the detached sample, and the accumulated log-probability
+            are emitted.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("dual_sample", name1, type1, name2, type2, call_node)``
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit sub-expressions.
+
+            Returns
+            -------
+            str
+                Pytorch source string for sampling and log_prob.
+
+            Examples
+            --------
+            >>> from physika.features import RandomnessFeature
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = RandomnessFeature().forward_rules()
+            >>> # log_prob : ℝ[n] (per element)
+            >>> node = ("dual_sample", "b_s", ("tensor", [(10, "invariant")]),
+            ...         "lp", ("tensor", [(10, "invariant")]),
+            ...         ("call", "Bernoulli", [("num", 0.5), ("num", 10),
+            ...                                ("string", "score-function")]))
+            >>> print(rules["dual_sample"](node, ast_to_torch_expr))
+            _dist_b_s = torch.distributions.Bernoulli(0.5)
+            b_s = _dist_b_s.sample((int(10),)).detach()
+            lp = _dist_b_s.log_prob(b_s)
+            >>> node = ("dual_sample", "b_s", ("tensor", [(10, "invariant")]),
+            ...         "lp", "ℝ",
+            ...         ("call", "Bernoulli", [("num", 0.5), ("num", 10),
+            ...                                ("string", "score-function")]))
+            >>> print(rules["dual_sample"](node, ast_to_torch_expr))
+            _dist_b_s = torch.distributions.Bernoulli(0.5)
+            b_s = _dist_b_s.sample((int(10),)).detach()
+            lp = _dist_b_s.log_prob(b_s).sum()
+            """
+            _, name1, _type1, name2, _type2, call_node = node
+            dist_name = call_node[1]
+            raw_args = list(call_node[2])
+            if raw_args and isinstance(raw_args[-1], tuple) and raw_args[-1][0] in ("string", "equation_string"):  # noqa: E501
+                raw_args = raw_args[:-1]
+            declared_rank = len(_type1[1]) if isinstance(_type1, tuple) and _type1[0] == "tensor" else 0  # noqa: E501
+            shape_args = raw_args[-declared_rank:] if declared_rank > 0 else []
+            param_args = raw_args[:-declared_rank] if declared_rank > 0 else raw_args
+            params_str = ", ".join(to_expr(a) for a in param_args)
+            dist_cls = f"torch.distributions.{dist_name}"
+            dist_var = f"_dist_{name1}"
+            shape = ""
+            if shape_args:
+                dims = ", ".join(f"int({to_expr(a)})" for a in shape_args)
+                shape = f"({dims},)"
+            logprob_expr = f"{dist_var}.log_prob({name1})"
+            return "\n".join([
+                f"{dist_var} = {dist_cls}({params_str})",
+                f"{name1} = {dist_var}.sample({shape}).detach()",
+                f"{name2} = {logprob_expr}",
+            ])
 
         def make_call_emit(fn: Callable):
             """
@@ -1046,6 +1216,7 @@ class RandomnessFeature(ELF):
             "typed_sample": sample_stmt_emit,
             "body_typed_sample": sample_stmt_emit,
             "for_typed_sample": sample_stmt_emit,
+            "dual_sample": dual_sample_emit,
             "call:Normal": make_call_emit(normal_dist),
             "call:Uniform": make_call_emit(uniform_dist),
             "call:Beta": make_call_emit(beta_dist),

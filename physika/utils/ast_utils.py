@@ -812,7 +812,7 @@ def ast_to_torch_expr(node: ASTNode,
         body_code = ast_to_torch_expr(body_expr, indent, active_vars)
         tmp = f"_fi_{loop_var}"
         return (f"torch.stack(["
-                f"{body_code} "
+                f"torch.as_tensor({body_code}).float() "
                 f"for {tmp} in range(int({n_code})) "
                 f"for {loop_var} in [torch.tensor(float({tmp}))]])")
 
@@ -1231,7 +1231,8 @@ def emit_body_stmts(
                 to_expr=expr_fn,
             )
             if elf_line is not None:
-                lines.append(f"{prefix}{elf_line}")
+                for sub_line in elf_line.split("\n"):
+                    lines.append(f"{prefix}{sub_line}")
                 var_name = stmt[1] if len(stmt) > 1 and isinstance(
                     stmt[1], str) else None
                 if var_name:
