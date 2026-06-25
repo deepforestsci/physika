@@ -812,7 +812,8 @@ def ast_to_torch_expr(node: ASTNode,
         body_code = ast_to_torch_expr(body_expr, indent, active_vars)
         tmp = f"_fi_{loop_var}"
         return (f"torch.stack(["
-                f"torch.as_tensor({body_code}).float() "
+                f"{body_code} "
+                # f"torch.as_tensor({body_code}).float() "
                 f"for {tmp} in range(int({n_code})) "
                 f"for {loop_var} in [torch.tensor(float({tmp}))]])")
 

@@ -642,14 +642,12 @@ class TestForwardRules:
         """
         rules = RandomnessFeature().forward_rules()
         # b : ℝ, lp : ℝ ~ Bernoulli(0.5)  — scalar sample, scalar log_prob
-        node = ("dual_sample", "b", "ℝ", "lp", "ℝ",
-                ("call", "Bernoulli", [("num", 0.5)]))
+        node = ("dual_sample", "b", "ℝ", "lp", "ℝ", ("call", "Bernoulli",
+                                                     [("num", 0.5)]))
         result = rules["dual_sample"](node, ast_to_torch_expr)
-        assert result == (
-            "_dist_b = torch.distributions.Bernoulli(0.5)\n"
-            "b = _dist_b.sample().detach()\n"
-            "lp = _dist_b.log_prob(b)"
-        )
+        assert result == ("_dist_b = torch.distributions.Bernoulli(0.5)\n"
+                          "b = _dist_b.sample().detach()\n"
+                          "lp = _dist_b.log_prob(b)")
 
     def test_dual_sample_emit_vector(self):
         """
@@ -659,17 +657,14 @@ class TestForwardRules:
         rules = RandomnessFeature().forward_rules()
         # b_s : ℝ[10], lp : ℝ[10] ~ Bernoulli(0.5, 10)
         # vector log_prob
-        node = ("dual_sample", "b_s", ("tensor", [(10, "invariant")]),
-                "lp", ("tensor", [(10, "invariant")]),
-                ("call", "Bernoulli", [("num", 0.5), ("num", 10),
-                                       ("string", "score-function")]))
+        node = ("dual_sample", "b_s", ("tensor", [(10, "invariant")]), "lp",
+                ("tensor", [(10, "invariant")]), ("call", "Bernoulli", [
+                    ("num", 0.5), ("num", 10), ("string", "score-function")
+                ]))
         result = rules["dual_sample"](node, ast_to_torch_expr)
-        assert result == (
-            "_dist_b_s = torch.distributions.Bernoulli(0.5)\n"
-            "b_s = _dist_b_s.sample((int(10),)).detach()\n"
-            "lp = _dist_b_s.log_prob(b_s)"
-        )
-
+        assert result == ("_dist_b_s = torch.distributions.Bernoulli(0.5)\n"
+                          "b_s = _dist_b_s.sample((int(10),)).detach()\n"
+                          "lp = _dist_b_s.log_prob(b_s)")
 
     def test_typed_sample_expr_emit(self):
         """
@@ -681,7 +676,7 @@ class TestForwardRules:
         code = from_ast_to_torch(ast, print_code=False)
         expected = (
             "z = torch.stack(["
-            "torch.as_tensor(torch.distributions.Normal(0.0, 1.0).rsample((int(3),))).float() "
+            "torch.as_tensor(torch.distributions.Normal(0.0, 1.0).rsample((int(3),))).float() "  # noqa: E501
             # ε : ℝ[3] ~ 𝒩(0.0, 1.0, 3)
             "for _fi_i in range(int(3)) "  # for i : ℕ(3)
             "for i in [torch.tensor(float(_fi_i))]])")

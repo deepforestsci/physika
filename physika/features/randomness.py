@@ -539,7 +539,8 @@ class RandomnessFeature(ELF):
 
         - Seven for random sampling at top-level, function/method bodies,
           and for-loops.
-        - Two for score-function estimator ``name1 : T1, name2 : T2 ~ Dist(args)`` syntax.
+        - Two for score-function estimator
+          ``name1 : T1, name2 : T2 ~ Dist(args)`` syntax.
         - Two for ``physika.seed(n)`` at top-level and inside function bodies.
 
         Returns
@@ -922,7 +923,7 @@ class RandomnessFeature(ELF):
             ...          "b_s", ("tensor", [(10, "invariant")]),
             ...          "log_prob", ("tensor", [(5, "invariant")]),
             ...          ("call", "Bernoulli",
-            ...           [("var", "p"), ("var", "n"), ("string", "score-function")]))
+            ...           [("var", "p"), ("var", "n"), ("string", "score-function")]))  # noqa: E501
             >>> _, _ = check(node3, env3, s, {}, {}, errors3.append, None)
             >>> len(errors3) > 0
             True
@@ -946,9 +947,8 @@ class RandomnessFeature(ELF):
                 if len(type2.dims) != len(type1.dims):
                     add_error(
                         f"'{name2}': declared {type2} but '{name1}' has "
-                        f"{len(type1.dims)} dimension(s) — log_prob shape must "
-                        f"match the sample or be declared ℝ for scalar sum"
-                    )
+                        f"{len(type1.dims)} dimension(s) — log_prob shape must "  # noqa: E501
+                        f"match the sample or be declared ℝ for scalar sum")
                 else:
                     for i, (d2, d1) in enumerate(zip(type2.dims, type1.dims)):
                         v2, v1 = d2[0], d1[0]
@@ -956,8 +956,7 @@ class RandomnessFeature(ELF):
                                 and v2 != v1):
                             add_error(
                                 f"'{name2}': declared {type2} but '{name1}' "
-                                f"dim[{i}] is {v1}"
-                            )
+                                f"dim[{i}] is {v1}")
             return type1, s
 
         return {
@@ -1070,7 +1069,7 @@ class RandomnessFeature(ELF):
             """
             name = node[1]
             typed = node[0] in ("typed_sample", "body_typed_sample",
-                                 "for_typed_sample")
+                                "for_typed_sample")
             call_node = node[3] if typed else node[2]
             return f"{name} = {to_expr(call_node)}"
 
@@ -1080,8 +1079,8 @@ class RandomnessFeature(ELF):
             score-function estimator following SCGs.
 
             The syntax is as follows:
-            
-            ``name1 : T1, name2 : T2 ~ Dist(args)`` where ``Dist`` is 
+
+            ``name1 : T1, name2 : T2 ~ Dist(args)`` where ``Dist`` is
             a non-differentiable distribution. At runtime, the distribution
             object, the detached sample, and the accumulated log-probability
             are emitted.
@@ -1124,11 +1123,14 @@ class RandomnessFeature(ELF):
             _, name1, _type1, name2, _type2, call_node = node
             dist_name = call_node[1]
             raw_args = list(call_node[2])
-            if raw_args and isinstance(raw_args[-1], tuple) and raw_args[-1][0] in ("string", "equation_string"):  # noqa: E501
+            if raw_args and isinstance(
+                    raw_args[-1], tuple) and raw_args[-1][0] in (
+                        "string", "equation_string"):  # noqa: E501
                 raw_args = raw_args[:-1]
-            declared_rank = len(_type1[1]) if isinstance(_type1, tuple) and _type1[0] == "tensor" else 0  # noqa: E501
+            declared_rank = len(_type1[1]) if isinstance(
+                _type1, tuple) and _type1[0] == "tensor" else 0  # noqa: E501
             shape_args = raw_args[-declared_rank:] if declared_rank > 0 else []
-            param_args = raw_args[:-declared_rank] if declared_rank > 0 else raw_args
+            param_args = raw_args[:-declared_rank] if declared_rank > 0 else raw_args  # noqa: E501
             params_str = ", ".join(to_expr(a) for a in param_args)
             dist_cls = f"torch.distributions.{dist_name}"
             dist_var = f"_dist_{name1}"
