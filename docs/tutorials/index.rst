@@ -17,4 +17,4 @@ Tutorials
    ising_model
    learn_flux_limiter_euler_equations
    fft_tutorial
-
+   fourier_neural_operator
