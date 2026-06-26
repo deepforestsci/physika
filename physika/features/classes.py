@@ -30,7 +30,7 @@ def is_learnable(type_spec: str) -> bool:
     >>> is_learnable("int")
     False
     """
-    if type_spec in ("ℝ", "R"):
+    if type_spec in ("ℝ", "R", "ℂ"):
         return True
     if isinstance(type_spec, tuple) and type_spec[0] == "tensor":
         return True
@@ -318,7 +318,7 @@ def generate_class(name: str, class_def: dict) -> str:
             if has_forward:
                 # adds nn.Parameter
                 class_lines.append(
-                    f"        self.{pname} = nn.Parameter(torch.as_tensor({pname}).float())"  # noqa :E501
+                    f"        self.{pname} = nn.Parameter(torch.as_tensor({pname}))"  # noqa :E501
                 )
             else:
                 # add tensor so grad flows through
