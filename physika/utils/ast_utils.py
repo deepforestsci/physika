@@ -1231,7 +1231,8 @@ def emit_body_stmts(
                 to_expr=expr_fn,
             )
             if elf_line is not None:
-                lines.append(f"{prefix}{elf_line}")
+                for sub_line in elf_line.split("\n"):
+                    lines.append(f"{prefix}{sub_line}")
                 var_name = stmt[1] if len(stmt) > 1 and isinstance(
                     stmt[1], str) else None
                 if var_name:

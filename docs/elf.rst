@@ -189,18 +189,54 @@ Physika random sampling syntax allows users to declare a random variable with a 
 
 Physika supports differentiable sampling following Stochastic Computation Graphs (SCG) framework [1]_, where sampling statements
 are represented as stochastic nodes in the computation graph and gradients are computed by backpropagating through these nodes
-with the reparameterization trick (for continous distributions) or score function estimators (for non-continous distributions).
-``RandomnessFeature`` default code generation emits reparameterized sampling for continous distributions (``Normal/Gaussian``, 
+with the reparameterization trick (for continuous distributions) or score function estimators (for non-continuous distributions).
+``RandomnessFeature`` default code generation emits reparameterized sampling for continuous distributions (``Normal/Gaussian``,
 ``Beta``, ``Uniform``, ``Gamma``) and score function estimators
 for ``Bernoulli``.
 
-Estimators can be defined per distribution by given "reparam", "socre", or "none" argument, for example::
+Estimators can be defined per distribution by passing ``"reparam"``, ``"score"``, ``score-function``, or ``"none"`` as a trailing string argument:
+
+.. code-block:: text
 
     # Sampling using pathwise derivative estimator (reparameterization trick)
     x : ℝ ~ Normal(0.0, 1.0, "reparam")
 
-    # Sampling using score function estimator
+    # Sampling using score function estimator (no log-probability)
     y : ℝ ~ Normal(0.0, 1.0, "score")
+
+    # Sampling using score function estimator
+    y : ℝ , log_prob : ℝ[n] ~ Bernoulli(1.0, n, "score-function")
+
+Score function estimator
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For non-differentiable distributions (e.g. ``Bernoulli``), the score function
+estimator requires not only the sample but also its log-probability so the
+gradient can be computed.  Physika syntax for SCG score-function estimator is as follows:
+
+.. code-block:: text
+
+    sample : ℝ, log_prob : ℝ ~ Dist(args, "score-function")
+
+``"score-function"`` is the grad mode string used for both sampling and log-prob (
+``"score"`` mode still works but does not emit a log-prob term).
+
+The two variables on the left-hand side receive:
+
+* ``sample``: a tensor (detached from grad graph) draw from the distribution.
+* ``log_prob``: per-element log-probability of that draw.
+
+**Example**
+
+Example with a Bernoulli distribution (non-continous):
+
+.. code-block:: text
+
+    b_s : ℝ[n], log_prob : ℝ[n] ~ Bernoulli(p, n, "score-function")
+
+
+The ``log_prob`` tensor can then be used directly in the loss to obtain the
+score-function gradient through ``sum(log_prob) · surrogate``.
 
 
 Supported Distributions
@@ -241,7 +277,7 @@ Supported Distributions
      - ``Γ``
      - ``torch.distributions.Gamma``
    * - **Bernoulli**
-     - ``x ~ Bernoulli(p)``
+     - ``x ~ Bernoulli(p)`` or ``x : T, lp : T ~ Bernoulli(p, ..., "score-function")``
      - p: probability of 1
      - ``score`` (fixed)
      - —
