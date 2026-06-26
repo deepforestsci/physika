@@ -234,18 +234,9 @@ Example with a Bernoulli distribution (non-continous):
 
     b_s : ℝ[n], log_prob : ℝ[n] ~ Bernoulli(p, n, "score-function")
 
-Equivalent Pytorch code:
-
-.. code-block:: python
-
-    _dist_b_s = torch.distributions.Bernoulli(p)
-    b_s = _dist_b_s.sample((int(n),)).detach()
-    log_prob = _dist_b_s.log_prob(b_s)
 
 The ``log_prob`` tensor can then be used directly in the loss to obtain the
-score-function gradient through ``sum(log_prob) · surrogate``.  See
-``tutorials/ising-1d.phyk`` for a complete example with a variational Ising
-model trained with the score-function estimator.
+score-function gradient through ``sum(log_prob) · surrogate``.
 
 
 Supported Distributions
