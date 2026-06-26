@@ -1,0 +1,35 @@
+# ============================================================
+# Fast Fourier Transform in Physika
+# Companion to docs/tutorials/fft_tutorial.rst
+# ============================================================
+
+# --- 1D: fft and ifft ---------------------------------------
+# Two cosines: a strong one at k=1 and a weaker one at k=3.
+Ns: ℕ = 9
+two_pi: ℝ = 6.283185307179586
+center: ℝ = 4.0
+
+f: ℝ[Ns] = for n: ℕ(Ns) -> cos(two_pi * (n - center) / Ns) + 0.5 * cos(two_pi * 3 * (n - center) / Ns)
+F: ℂ[Ns] = fft(f)
+abs(F)                    
+ifft(F)                 
+
+# --- 2D: fft2 and ifft2 -------------------------------------
+M: ℝ[3, 3] = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+G: ℂ[3, 3] = fft2(M)
+G                          
+ifft2(G)                     
+
+# --- N-D: fftn and ifftn ------------------------------------
+V: ℝ[2, 2, 2] = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
+S: ℂ[2, 2, 2] = fftn(V)
+S                            
+ifftn(S)                     
+
+# --- Gradient through the FFT -------------------------------
+# Spectral energy: sum of squared magnitudes. grad = 2N * x.
+def spectral_energy(x: ℝ[N]): ℝ:
+    return sum(abs(fft(x))**2)
+
+x: ℝ[N] = [1, 2, 3, 4, 5, 6, 7, 8]
+grad(spectral_energy(x), x)  # -> [16, 32, 48, 64, 80, 96, 112, 128]

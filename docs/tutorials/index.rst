@@ -13,3 +13,4 @@ Tutorials
    cnn_tutorial
    learn_parameter_schrodinger_equation
    ising_model
+   fft_tutorial
