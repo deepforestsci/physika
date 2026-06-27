@@ -108,7 +108,7 @@ Physika     PyTorch               Transform
 
 A call such as ``fft(x)`` compiles straight to ``torch.fft.fft(x)``. The input
 may be real or complex, and the transform always returns a complex spectrum, so
-its result is typed ``ℂ[N]``. Physika follows PyTorch's default normalization:
+its result is typed ``ℂ[N]``. Physika follows PyTorch's default normalization, where
 the forward transform is unnormalized and the inverse carries the :math:`1/N`
 factor, so ``ifft(fft(x))`` returns the original signal.
 
@@ -139,7 +139,7 @@ Output::
     [(-1.19+0j), 0j, (-0.076+0j), (0.516+0j), (1.5+0j), (0.516+0j), (-0.076+0j), 0j, (-1.19+0j)] ∈ ℂ[9]
 
 
-``fft`` recovers exactly the two frequencies the signal was built from: a peak of
+``fft`` recovers exactly the two frequencies the signal was built from. A peak of
 height 4.5 at :math:`k = 1` and a peak of height 2.25 at :math:`k = 3`, each
 mirrored at :math:`N - k` (so at :math:`k = 8` and :math:`k = 6`) by the
 conjugate symmetry. Each height is :math:`N/2` times the cosine's amplitude, so
@@ -186,7 +186,7 @@ zero because the grid was real.
 An N-dimensional transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The same extends to any rank: ``fftn`` and ``ifftn`` transform over every axis of
+The same extends to any rank. ``fftn`` and ``ifftn`` transform over every axis of
 an array, the form used on the three-dimensional grids of a physics simulation.
 Take a small 2x2x2 grid:
 
@@ -208,17 +208,11 @@ As in two dimensions, the corner coefficient is the sum of the grid (36), and
 ``ifftn`` recovers ``V``.
 
 
-These six built-ins cover the transforms in everyday use, but two related
-features of ``torch.fft`` are not yet exposed in Physika.
-
 .. note::
 
    The ``norm`` argument, which selects a different normalization, cannot be
-   passed: Physika has no string type, so every transform uses the default
-   convention described above. The real-input variants ``rfft`` and ``irfft``
-   are also left out, because they return a half-length spectrum and need the
-   original signal length to invert, which does not round-trip cleanly without
-   that extra argument.
+   passed because, Physika has no string type, so every transform uses the default
+   convention described above.
 
 Differentiating through the FFT
 -------------------------------
@@ -226,28 +220,29 @@ Differentiating through the FFT
 We now differentiate through the transform. Because the DFT is linear, it is a
 matrix multiply :math:`X = F x` with the constant matrix
 :math:`F_{kn} = e^{-2\pi i \, kn/N}`. The derivative of a linear map is the map
-itself, so the Jacobian :math:`\partial X / \partial x = F` is constant: it does
+itself, so the Jacobian :math:`\partial X / \partial x = F` is constant and does
 not depend on :math:`x`.
 
-Reverse-mode autodiff propagates a gradient backwards through this map. Given the
-gradient of a scalar loss :math:`L` with respect to the output, the cotangent
-:math:`\bar{X} = \partial L / \partial X`, the gradient with respect to the input
-is the adjoint of the Jacobian, its conjugate transpose, applied to that
-cotangent:
+``grad`` computes a gradient by running the computation forward and then passing
+derivatives back through it, from the output to the input. We begin with the
+gradient of a scalar loss :math:`L` with respect to the output,
+:math:`\bar{X} = \partial L / \partial X`, and want the gradient with respect to
+the input. Since the forward map is multiplication by :math:`F`, passing the
+gradient back through it applies the conjugate transpose :math:`F^{H}`, called the
+adjoint of :math:`F`:
 
 .. math::
 
     \bar{x} = \frac{\partial L}{\partial x} = F^{H} \, \bar{X}.
 
 For the DFT, the adjoint :math:`F^{H}` is the inverse transform up to the
-:math:`1/N` factor. So the backward pass of an FFT is itself an inverse FFT: the
-gradient is obtained by running an inverse transform on the cotangent. This makes
-the gradient exact and as cheap as the forward transform, :math:`O(N \log N)`.
+:math:`1/N` factor. So the backward pass of an FFT is itself an inverse FFT. The
+gradient is obtained by running an inverse transform on :math:`\bar{X}`. This
+makes the gradient exact and as cheap as the forward transform,
+:math:`O(N \log N)`.
 
 In Physika this needs no special handling. ``grad(expr, x)`` compiles to
-``compute_grad``, which calls ``torch.autograd.grad``, and because each transform
-is a plain ``torch.fft`` call on the graph, PyTorch applies the adjoint above for
-us.
+``compute_grad``, which calls ``torch.autograd.grad``.
 
 .. note::
 
@@ -271,13 +266,6 @@ a spectral loss, the kind used to shape a signal in the frequency domain:
 Output::
 
     [16.0, 32.0, 48.0, 64.0, 80.0, 96.0, 112.0, 128.0] ∈ ℝ[8]
-
-The gradient is the signal scaled by :math:`2N`. This is the adjoint at work: the
-loss runs a forward transform, its gradient runs the inverse, and the two compose
-back to :math:`N` times the identity, so the gradient points straight back along
-the signal (the factor 2 comes from squaring the magnitudes). Differentiation
-flowed through both the ``fft`` and the magnitude, with nothing written by hand.
-
 
 
 References
