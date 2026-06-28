@@ -115,9 +115,13 @@ class TestIsLearnable:
         """
         assert is_learnable("ℝ") is True
         assert is_learnable("R") is True
+        assert is_learnable("ℂ") is True
         assert is_learnable(("tensor", [(3, "invariant")])) is True
         assert is_learnable(("tensor", [(3, "invariant"),
                                         (4, "invariant")])) is True
+        assert is_learnable(("tensor", [(1 + 3j, "invariant")])) is True
+        assert is_learnable(("tensor", [(5 + 2j, "invariant"),
+                                        (4 + 7j, "invariant")])) is True
 
     def test_not_valid(self):
         """
@@ -126,7 +130,7 @@ class TestIsLearnable:
         # class instances type are not learnable parameters.
         assert is_learnable(("struct_type", "Particle")) is False
         # string annotations are not learnable
-        for t in ("int", "bool", "str", "ℕ", "ℂ", ""):
+        for t in ("int", "bool", "str", "ℕ", ""):
             assert is_learnable(t) is False, f"expected False for {t!r}"
 
 
@@ -336,7 +340,7 @@ class TestGenerateClass:
         # equovalent to:
         # class Linear(w: ℝ):
         #   def λ(x: ℝ) → ℝ:
-        assert "nn.Parameter(torch.as_tensor(w).float())" in code
+        assert "nn.Parameter(torch.as_tensor(w))" in code
 
 
 class TestMakeParserRules:
