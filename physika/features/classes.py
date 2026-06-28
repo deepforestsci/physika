@@ -211,8 +211,9 @@ def emit_method(method: dict, all_params: list, to_expr: Callable,
 
     for pname, ptype in params:
         if is_learnable(ptype):
-            method_lines.append(
-                f"        {pname} = torch.as_tensor({pname}).float()")
+            if pname != "learnable_grads":
+                method_lines.append(
+                    f"        {pname} = torch.as_tensor({pname}).float()")
 
     if statements:
         stmt_method_lines: list[str] = []
@@ -356,8 +357,6 @@ def generate_class(name: str, class_def: dict) -> str:
     ]
     params_list = ", ".join(f"self.{p}" for p in learnable_names)
     class_lines.append(f"        self.learnable_params = [{params_list}]")
-    #class_lines.append(
-    #    f"        self.learnable_params = list(self.parameters())")
 
     # Fields should not be learnable (register_buffer)
     for fname, ftype in fields:
