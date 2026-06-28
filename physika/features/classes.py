@@ -665,8 +665,43 @@ def make_parser_rules():
         #   p[5] - value expression
         p[0] = ("body_field_assign", p[1], p[3], p[5])
 
+    def p_member_expr_base(p):
+        """member_expr : ID"""
+        # Base case for member expression.
+        # Parameters:
+        #   p[1] - variable name
+        # Returns:
+        #   ("var", name)
+        p[0] = ("var", p[1])
+
+    def p_member_expr_field(p):
+        """member_expr : member_expr DOT ID"""
+        # Recursive field access on a member expression.
+        # Example:
+        #   this.x
+        #   this.model.bias
+        # Parameters:
+        #   p[1] - object expression
+        #   p[3] - field name
+        # Returns:
+        #   ("field_access", object, field_name)
+        p[0] = ("field_access", p[1], p[3])
+
+    def p_member_expr_method(p):
+        """member_expr : member_expr DOT ID LPAREN func_args RPAREN"""
+        # Recursive method call on a member expression.
+        # Example:
+        #   this.model.forward(x)
+        # Parameters:
+        #   p[1] - object expression
+        #   p[3] - method name
+        #   p[5] - argument list
+        # Returns:
+        #   ("method_call", object, method_name, args)
+        p[0] = ("method_call", p[1], p[3], p[5] or [])
+
     def p_func_loop_stmt_field_assign(p):
-        """func_loop_stmt : ID DOT ID EQUALS func_expr NEWLINE"""
+        """func_loop_stmt : member_expr DOT ID EQUALS func_expr NEWLINE"""
         # Field assignment on an instance inside a for loop.
         # Example:
         #   this.b = b
@@ -674,10 +709,10 @@ def make_parser_rules():
         #   p[1] - object expression ("var", "this")
         #   p[3] - field name
         #   p[5] - value expression
-        p[0] = ("body_field_assign", ("var", p[1]), p[3], p[5])
+        p[0] = ("body_field_assign", p[1], p[3], p[5])
 
     def p_func_loop_stmt_method_call(p):
-        """func_loop_stmt : ID DOT ID LPAREN func_args RPAREN NEWLINE"""
+        """func_loop_stmt : member_expr DOT ID LPAREN func_args RPAREN NEWLINE"""
         # Method call used as a statement inside a for loop of a class method.
         # Example:
         # class PhysikaClass:
@@ -690,7 +725,7 @@ def make_parser_rules():
         #   p[1] - class instance expression ("var", "this")
         #   p[3] - method name
         #   p[5] - argument list
-        p[0] = ("body_expr", ("method_call", ("var", p[1]), p[3], p[5] or []))
+        p[0] = ("body_expr", ("method_call", p[1], p[3], p[5] or []))
 
     return [
         p_statement_class_no_params,
@@ -711,6 +746,9 @@ def make_parser_rules():
         p_func_body_stmt_method_call,
         p_func_body_stmt_field_assign,
         p_class_method_void,
+        p_member_expr_base,
+        p_member_expr_field,
+        p_member_expr_method,
         p_func_loop_stmt_field_assign,
         p_func_loop_stmt_method_call,
     ]
