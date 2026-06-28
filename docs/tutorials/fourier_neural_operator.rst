@@ -602,4 +602,10 @@ Full code
     compare_states(pred, test_y[test_idx])
 
 
+References
+----------
 
+- `Fourier Neural Operator for Parametric Partial Differential Equations <https://arxiv.org/pdf/2010.08895>`_
+- `How a Fourier Neural Operator Learns to Solve PDEs — and Where it Falls Short <https://www.physicsx.ai/newsroom/how-a-fourier-neural-operator-learns-to-solve-pdes----and-where-it-falls-short>`_
+- `Fourier Neural Operator 1D Implementation — GitHub <https://github.com/wenhangao21/fourier_neural_operator/blob/master/fourier_1d.py>`_
+- `heat1d-pde-dataset — Hugging Face <https://huggingface.co/datasets/nick-leland/heat1d-pde-dataset>`_
