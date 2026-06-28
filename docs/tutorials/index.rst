@@ -12,3 +12,4 @@ Tutorials
    learn_parameter_1d_wave_equation
    cnn_tutorial
    learn_parameter_schrodinger_equation
+   fourier_neural_operator
