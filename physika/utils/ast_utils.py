@@ -1534,9 +1534,7 @@ def generate_statement(stmt: ASTNode,
             if type_spec == "\u211d":
                 return f"{name} = torch.tensor({expr_code}, requires_grad=True)"  # noqa: E501
             if isinstance(type_spec, tuple) and type_spec[0] == "tensor":
-                if type_spec[1] == "ℂ":
-                    return f"{name} = torch.as_tensor({expr_code}, dtype=torch.complex64).requires_grad_(True)"  # noqa: E501
-                return f"{name} = torch.as_tensor({expr_code}).float().requires_grad_(True)"  # noqa: E501
+                return f"{name} = torch.as_tensor({expr_code}).requires_grad_(True)"  # noqa: E501
 
         # Tensor value
         if isinstance(type_spec, tuple) and type_spec[0] == "tensor":
