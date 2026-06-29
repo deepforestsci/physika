@@ -1,24 +1,51 @@
 # basic declarations
-α: R = 1.0
-β: R = 2.0
-x: R = 1e5
-y: R = 3e5
+α: ℝ = 1.0
+β: ℝ = 2.0
+x: ℝ = 1e5
+y: ℝ = 3e5
 
 
 # numeric operations
-results = α + β
+results: ℝ = α + β
 results
-z = x + y
+z: ℝ = x + y
 z
 
+
 # create array
-greek_letters_array = [α, β]
+greek_letters_array: ℝ[2] = [α, β]
 greek_letters_array
 
 
 # check gradients correctness
-def f(x: R[m]): R[m]:
+def f(x: ℝ[m]): ℝ[m]:
     return x**2 + 1
 
-μ: R[1] = [2.0]
+μ: ℝ[1] = [2]
 grad(f, μ) # should return 4
+
+
+# Physical constants
+
+ℏ : ℝ = 1.0546e-34    # reduced Planck constant
+σ : ℝ = 5.6704e-8     # Stefan-Boltzmann constant
+ψ : ℝ = 0.5           # wavefunction amplitude
+
+
+# if-else 
+threshold : ℝ = 1.5
+if α < threshold:
+    result_if = α * β
+else:
+    result_if = α + β
+result_if
+
+
+# for-loop
+Ω : ℝ[5] = [0.1, 0.2, 0.3, 0.4, 0.5] 
+sum_Ω: ℝ = 0
+
+for i:
+    sum_Ω += Ω[i]
+
+sum_Ω
