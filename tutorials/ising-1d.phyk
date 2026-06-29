@@ -26,32 +26,29 @@ def mean_field_reference(J: ℝ, h: ℝ, β: ℝ, iters: ℕ): ℝ:
         m = tanh(β * (2.0 * J * m + h))
     return (1.0 + m) * 0.5
 
-
 class MeanFieldIsing(logit_p: ℝ):
     baseline : ℝ
-    def λ(n: ℕ) → ℝ[n]:
+    def λ(n: ℕ) → ℝ[n], ℝ[n]:
         p : ℝ = 1.0 / (1.0 + exp(-this.logit_p))
-        b_s : ℝ[n] ~ Bernoulli(p, n)
+        b_s : ℝ[n], log_prob : ℝ[n] ~ Bernoulli(p, n, "score-function")
         spins : ℝ[n] = for i : ℕ(n) → 2.0 * b_s[i] - 1.0
-        return spins
-    def loss(spins: ℝ[n], J: ℝ, h: ℝ, β: ℝ, size: ℝ) → ℝ:
+        return spins, log_prob
+    def loss(spins: ℝ[n], log_prob: ℝ[n], J: ℝ, h: ℝ, β: ℝ, size: ℝ) → ℝ:
         p : ℝ = 1.0 / (1.0 + exp(-this.logit_p))
-        b : ℝ[n] = for i : ℕ(n) → (spins[i] + 1.0) * 0.5
         energy_ps : ℝ = H(J, h, spins, size) / n
-        log_prob : ℝ = sum(for i : ℕ(n) → b[i] * log(p) + (1.0 - b[i]) * log(1.0 - p))
-        energy_term : ℝ = β * (energy_ps - this.baseline) * log_prob
+        energy_term : ℝ = β * (energy_ps - this.baseline) * sum(log_prob)
         entropy_term : ℝ = neg_entropy_per_site(p)
         return energy_term + entropy_term
     def train(n: ℕ, n_steps: ℕ, n_batch: ℕ, lr: ℝ, J: ℝ, h: ℝ, β: ℝ, size: ℕ):
-        spins_0 = this(n)
+        spins_0, log_prob_0 = this(n)
         this.baseline = H(J, h, spins_0, size) / n
         for step : ℕ(n_steps):
             batch_loss = 0.0
             mean_energy_ps = 0.0
             for k : ℕ(n_batch):
-                spins = this(n)
+                spins, log_prob = this(n)
                 mean_energy_ps = mean_energy_ps + H(J, h, spins, size) / n / n_batch
-                batch_loss = batch_loss + this.loss(spins, J, h, β, size) / n_batch
+                batch_loss = batch_loss + this.loss(spins, log_prob, J, h, β, size) / n_batch
             grads = grad(batch_loss, this.params)
             this.baseline = 0.9 * this.baseline + 0.1 * mean_energy_ps
             this.update(lr, grads)
@@ -69,15 +66,12 @@ lr : ℝ = 0.05
 ising : MeanFieldIsing = MeanFieldIsing(logit_init)
 
 p_before : ℝ = 1.0 / (1.0 + exp(0.0 - ising.logit_p))
-spins_before : ℝ[n] = ising(n)
 
 ising.train(n, steps, batch, lr, J, h, β, n)
 
 p_after : ℝ = 1.0 / (1.0 + exp(0.0 - ising.logit_p))
 p_ref   : ℝ = mean_field_reference(J, h, β, 200)
-spins_after : ℝ[n] = ising(n)
 
 p_before     # sigmoid(0) = 0.5
 p_after      # mean-field solution
 p_ref        # reference
-# plot_ising_result(spins_before, spins_after, J, h)

@@ -62,7 +62,7 @@ into a ring.
   - :math:`J > 0` (**ferromagnetic**): neighbouring spins lower their energy
     by aligning in the same direction. At low temperature the system favours
     a state where most spins point the same way.
-    This is the case used in ``ising.phyk``.
+    This is the case used in ``ising-1d.phyk``.
   - :math:`J < 0` (**antiferromagnetic**): neighbouring spins lower their
     energy by pointing in *opposite* directions. The ground state is an
     alternating ``+1, -1, +1, -1, ...`` pattern.
@@ -92,7 +92,7 @@ the ``spins[n] * spins[0]`` term closes the ring.
 Boltzmann Distribution
 ----------------------
 
-The Ising Hamiltonian (:math:`H({\sigma})`) tells us abouth the energy of a given spin
+The Ising Hamiltonian (:math:`H({\sigma})`) tells us about the energy of a given spin
 configuration, which affects the overall ferromagnetic behavior. It is also known that
 temperature plays a crucial role in the system's magnetism. 
 
@@ -231,7 +231,7 @@ Because :math:`\ln Z` is independent of :math:`q`, minimising
 
 .. math::
 
-   G(p) = \beta \langle H \rangle_q - S(q)
+   G(p) = \beta \langle H \rangle_q - S(q) \label{gibbs-fe}
 
 Where
 :math:`\langle H \rangle_q` is an average over samples drawn from
@@ -250,8 +250,8 @@ putting all probability on the lowest-energy configuration (all spins
 aligned). It wants :math:`p \to 1` or :math:`p \to 0`.
 On the other hand, the entropy term (:math:`-S(q)/n`) is minimised when the distribution is
 as spread out as possible. It wants :math:`p = 0.5`.
-:math:`\beta` controls the balance: large :math:`\beta` (low temperature)
-amplifies the energy term and drives order; small :math:`\beta` (high
+large :math:`\beta` (low temperature)
+amplifies the energy term and drives order, while small :math:`\beta` (high
 temperature) amplifies entropy and drives disorder.
 
 **Entropy of the factorised Bernoulli distribution**
@@ -273,7 +273,7 @@ Then, the negative entropy per site that appears in the loss is:
 
 .. math::
 
-   -\frac{S(q)}{n} = p \ln p + (1-p) \ln(1-p)
+   -\frac{S(q)}{n} = p \ln p + (1-p) \ln(1-p) \label{entropy}
 
 In Physika:
 
@@ -283,7 +283,7 @@ In Physika:
        return p * log(p) + (1.0 - p) * log(1.0 - p)
 
 
-The Mean-Field Self-Consistency Equation
+Mean-Field Self-Consistency Equation
 -----------------------------------------
 
 We derive the self-consistency equation by setting :math:`\partial G / \partial p = 0`.
@@ -428,33 +428,81 @@ The derivation comes from log-derivative trick:
    = \sum_{\mathbf{x}} f(\mathbf{x})\,\nabla_\theta q(\mathbf{x};\theta)
    = \sum_{\mathbf{x}} f(\mathbf{x})\,q(\mathbf{x};\theta)\,
      \frac{\nabla_\theta q(\mathbf{x};\theta)}{q(\mathbf{x};\theta)}
+
+.. math::
+   \nabla_\theta \sum_{\mathbf{x}} q(\mathbf{x};\theta)\,f(\mathbf{x})
    = \mathbb{E}_q\!\bigl[f(\mathbf{x})\,\nabla_\theta \ln q(\mathbf{x};\theta)\bigr]
 
 The term :math:`\nabla_\theta \ln q(\mathbf{x};\theta)` is
-the gradient of the log-probability, referred as score-function. It is computable even when
-:math:`f` is non-differentiable or :math:`\mathbf{x}` is discrete.
+the gradient of the log-probability, referred as score-function.
 
 For :math:`q_i = \mathrm{Bernoulli}(p)` with :math:`p = \sigma(\ell)`:
+
+Bernoulli's probability function for a single binary variable :math:`b_i \in \{0,1\}` is:
+
+.. math::
+
+   q_i(b_i;\, p) = p^{b_i}(1-p)^{1-b_i} \label{bernoulli-pmf}
+
+Under the mean-field factorization the sites are independent, so:
+
+.. math::
+
+   q(\boldsymbol{\sigma};\,\ell) = \prod_{i=0}^{n-1} q_i(b_i;\,p)
+
+Taking the logarithm of :math:`q(\boldsymbol{\sigma};\,\ell)`:
+
+.. math::
+   
+   \ln q(\boldsymbol{\sigma};\,\ell) = \ln (\prod_{i=0}^{n-1} q_i(b_i;\,p)) = \sum_{i=0}^{n-1} \ln q_i(b_i;\,p)
+
+We then replace :math:`q_i` according to :math:`\eqref{bernoulli-pmf}`:
 
 .. math::
 
    \ln q(\boldsymbol{\sigma}; \ell)
    = \sum_{i=0}^{n-1} \bigl[b_i \ln p + (1-b_i)\ln(1-p)\bigr]
 
-where :math:`b_i = (\sigma_i + 1)/2 \in \{0, 1\}` comes from a Bernoulli distribution. In Physika, we can draw from Bernoulli distibution as follows:
+where :math:`b_i = (\sigma_i + 1)/2 \in \{0, 1\}` comes from a Bernoulli distribution.
 
-.. code-block:: text
 
-   b_s : ℝ[n] ~ Bernoulli(p, n)
+For getting the score function term, we apply the chain rule through :math:`p = \sigma(\ell)`:
 
-The score-function is:
+.. math::
+
+   \frac{\partial \ln q}{\partial \ell}
+   = \sum_{i=0}^{n-1}
+     \left[\frac{b_i}{p} - \frac{1-b_i}{1-p}\right]
+     \frac{\partial p}{\partial \ell}
+
+The sigmoid derivative is :math:`\frac{\partial p}{\partial \ell} = p(1-p)`,
+so:
+
+.. math::
+
+   = \sum_{i=0}^{n-1}
+     \left[\frac{b_i}{p} - \frac{1-b_i}{1-p}\right] p(1-p)
+   = \sum_{i=0}^{n-1}
+     \bigl[b_i(1-p) - (1-b_i)p\bigr]
+   = \sum_{i=0}^{n-1} (b_i - p)
+
+So, the score-function term is:
 
 .. math::
 
    \nabla_\ell \ln q = \frac{\partial}{\partial \ell} \ln q
-   = \sum_{i=0}^{n-1} (b_i - p)
+   = \sum_{i=0}^{n-1} (b_i - p) \label{score-function}
 
+In Physika there is no need to manually derive or implement this expression for
+each distribution. Physika allows users to compute samples and ``log_prob`` in one statement:
 
+.. code::
+
+ b_s : ℝ[n], log_prob : ℝ[n] ~ Bernoulli(p, n, "score-function")
+
+Because ``log_prob`` is a differentiable function of ``logit_p``, calling ``grad`` on any loss that includes it
+automatically evaluates :math:`\eqref{score-function}` at the current sample and parameter values. See :ref:`score-function-loss` for how this is used in
+the loss method.
 
 Variance Reduction via a Baseline
 ----------------------------------
@@ -491,10 +539,42 @@ gradient step:
    this.baseline = 0.9 * this.baseline + 0.1 * mean_energy_ps
 
 
-The Gradient Decomposition
----------------------------
 
-The total gradient of :math:`G(p)/n` splits into two terms:
+
+Sampling Spins
+--------------
+
+The ``λ`` method is the forward pass of the ``MeanFieldIsing`` class. It receives the
+number of sites :math:`n` and returns a sample of spin configurations
+:math:`{\sigma} \in \{-1, +1\}^n`.
+
+Physika implementation
+~~~~~~~~~~~~~~~~~~~~~~
+
+The forward method recovers :math:`p` from the learnable ``logit_p``,
+then draws :math:`n` Bernoulli samples and their per-element log-probabilities
+in a single statement using Physika's dual sample syntax with
+``"score-function"`` mode. The binary samples are
+converted to spins, and both ``spins`` and
+``log_prob`` are returned.
+
+.. code-block:: text
+
+   def λ(n: ℕ) → ℝ[n], ℝ[n]:
+       p : ℝ = 1.0 / (1.0 + exp(-this.logit_p))
+       b_s : ℝ[n], log_prob : ℝ[n] ~ Bernoulli(p, n, "score-function")
+       spins : ℝ[n] = for i : ℕ(n) → 2.0 * b_s[i] - 1.0
+       return spins, log_prob
+
+
+
+
+.. _score-function-loss:
+
+Score-Function Loss
+-------------------
+
+:math:`G(p)/n` gradient is split into two terms according to :math:`\eqref{gibbs-fe}`:
 
 .. math::
 
@@ -507,75 +587,34 @@ discrete spins, so we use the score estimator with a baseline:
 
 .. math::
 
-   \beta \,\mathbb{E}_q\!\Bigl[\Bigl(\frac{H}{n} - b\Bigr) \nabla_\ell \ln q\Bigr]
+   \beta \,\mathbb{E}_q\!\Bigl[\Bigl(\frac{H}{n} - b\Bigr) \nabla_\ell \ln q\Bigr] \label{loss}
 
-In Physika this is:
 
+Negative entropy is a deterministic function of :math:`p = \sigma(\ell)`,
+so its gradient is computed exactly by autodiff, as implemented in :math:`\eqref{entropy}`.
+
+
+
+The ``loss`` method takes the spin configuration (``spins``) and the ``log_prob`` returned
+by ``λ`` and computes the SCG loss.
+
+Physika implementation
+~~~~~~~~~~~~~~~~~~~~~~
 .. code-block:: text
 
-   energy_ps : ℝ = H(J, h, spins, size) / n
-   log_prob : ℝ = sum(for i : ℕ(n) → b[i] * log(p) + (1.0 - b[i]) * log(1.0 - p))
-   energy_term : ℝ = β * (energy_ps - this.baseline) * log_prob
-
-Only ``log_prob`` carries the gradient :math:`\nabla_\ell \ln q`, as it includes ``p`` which depends on the learnable parameter ``logit_p``, and ``energy_ps - this.baseline`` acts as a
-multiplicative weight.
-
-The negative entropy :math:`p \ln p + (1-p)
-\ln(1-p)` is a smooth deterministic function of :math:`p = \sigma(\ell)`,
-so its gradient is computed exactly by autodiff:
-
-.. code-block:: text
-
-   entropy_term : ℝ = neg_entropy_per_site(p)
-
-The total loss returned by the ``loss`` method is:
-
-.. code-block:: text
-
-   return energy_term + entropy_term
-
-
-Sampling Spins
---------------
-
-The ``λ`` method is the forward pass of the ``MeanFieldIsing`` class. It receives the
-number of sites :math:`n` and returns a sample of spin configurations
-:math:`{\sigma} \in \{-1, +1\}^n`:
-
-.. code-block:: text
-
-   def λ(n: ℕ) → ℝ[n]:
+   def loss(spins: ℝ[n], log_prob: ℝ[n], J: ℝ, h: ℝ, β: ℝ, size: ℝ) → ℝ:
        p : ℝ = 1.0 / (1.0 + exp(-this.logit_p))
-       b_s : ℝ[n] ~ Bernoulli(p, n)
-       spins : ℝ[n] = for i : ℕ(n) → 2.0 * b_s[i] - 1.0
-       return spins
-
-1. Recover :math:`p` from the logit parameter using sigmoid.
-2. Draw :math:`n` Bernoulli samples: :math:`b_i \sim \mathrm{Bernoulli}(p)`.
-3. Convert bits to spins: :math:`\sigma_i = 2 b_i - 1`.
-
-
-Score-Function Loss
--------------------
-
-The ``loss`` method takes a previously drawn spin configuration (detached from gradient tape)
-and computes the SCG loss:
-
-.. code-block:: text
-
-   def loss(spins: ℝ[n], J: ℝ, h: ℝ, β: ℝ, size: ℝ) → ℝ:
-       p : ℝ = 1.0 / (1.0 + exp(-this.logit_p))
-       b : ℝ[n] = for i : ℕ(n) → (spins[i] + 1.0) * 0.5
        energy_ps : ℝ = H(J, h, spins, size) / n
-       log_prob : ℝ = sum(for i : ℕ(n) → b[i] * log(p) + (1.0 - b[i]) * log(1.0 - p))
-       energy_term : ℝ = β * (energy_ps - this.baseline) * log_prob
+       energy_term : ℝ = β * (energy_ps - this.baseline) * sum(log_prob)
        entropy_term : ℝ = neg_entropy_per_site(p)
        return energy_term + entropy_term
 
-``spins`` do not carry gradients since they were drawn in ``λ``.
-We recover the bit representation ``b`` from the spins so that ``log_prob``
-is differentiable in :math:`p`, and therefore
-in ``logit_p``.
+Physika's ``"score-function"`` mode detaches the sample and
+keeps ``log_prob`` on the autograd tape. ``sum(log_prob)`` is
+:math:`\ln q(\mathbf{b};\,\ell) = \sum_i [b_i \ln p + (1-b_i)\ln(1-p)]`,
+a differentiable function of ``logit_p``. ``grad(batch_loss, this.params)`` differentiates through ``sum(log_prob)``
+and numerically evaluates :math:`\eqref{score-function}` at the current
+sample and ``logit_p``.
 
 
 Stochastic Gradient Descent Training Loop
@@ -586,15 +625,15 @@ During training, each iteration averages the loss over ``n_batch`` independently
 .. code-block:: text
 
    def train(n: ℕ, n_steps: ℕ, n_batch: ℕ, lr: ℝ, J: ℝ, h: ℝ, β: ℝ, size: ℕ):
-       spins_0 = this(n)
+       spins_0, log_prob_0 = this(n)
        this.baseline = H(J, h, spins_0, size) / n
        for step : ℕ(n_steps):
            batch_loss = 0.0
            mean_energy_ps = 0.0
            for k : ℕ(n_batch):
-               spins = this(n)
+               spins, log_prob = this(n)
                mean_energy_ps = mean_energy_ps + H(J, h, spins, size) / n / n_batch
-               batch_loss = batch_loss + this.loss(spins, J, h, β, size) / n_batch
+               batch_loss = batch_loss + this.loss(spins, log_prob, J, h, β, size) / n_batch
            grads = grad(batch_loss, this.params)
            this.baseline = 0.9 * this.baseline + 0.1 * mean_energy_ps
            this.update(lr, grads)
@@ -612,6 +651,11 @@ constant with respect to the current sample. Update learnable parameters via ``t
 
 Examples
 ---------
+
+We will now consider three simulations for solving 1D-Ising model.
+
+Case 1
+~~~~~~
 
 Below is an example of training the mean-field Ising model with the following parameters:
 
@@ -655,12 +699,12 @@ it to the analytic mean-field reference:
 
      ✓ No type errors found
    0.5 ∈ ℝ
-   0.9705318808555603 ∈ ℝ
+   0.9879960417747498 ∈ ℝ
    1.0 ∈ ℝ
 
 
 After training ``p_after ≈ p_ref``. With :math:`J=1`, :math:`h=0.5`,
-:math:`\beta=5` the analytic solution gives :math:`p_{\rm after} \approx 0.97`,
+:math:`\beta=5` the analytic solution gives :math:`p_{\rm after} \approx 0.98`,
 meaning almost all spins point up. This results aligns with the ferromagnetic coupling and
 external field values.
 
@@ -672,7 +716,11 @@ external field values.
    :math:`J = 1.0`, :math:`h = 0.5`, and :math:`\beta = 5.0`.
 
 Spin configurations sampled from ``MeanFieldIsing`` before training (random,
-:math:`p \approx 0.5`) and after training (:math:`p \approx 0.97`, almost all spins up).
+:math:`p \approx 0.5`) and after training (:math:`p \approx 0.98`, almost all spins up).
+
+
+Case 2
+~~~~~~
 
 Consider the same parameters, but lets change the direction of the external field to :math:`h = -0.5` (pointing down). The mean-field solution should point down (spins aligned to `-1`).
 
@@ -694,6 +742,8 @@ Consider the same parameters, but lets change the direction of the external fiel
 Before training (random,
 :math:`p \approx 0.5`) and after training (:math:`p \approx 0.012`, almost all spins down), while reference gives ``0.0``.
 
+Case 3
+~~~~~~
 Now, lets consider a more challenging case where we have a weaker external field :math:`h = 0.1` and higher temperature :math:`\beta = 1.0`.
 The mean-field solution should be more disordered with :math:`p` closer to 0.5.
 
@@ -791,32 +841,29 @@ Full Code
          m = tanh(β * (2.0 * J * m + h))
       return (1.0 + m) * 0.5
 
-
    class MeanFieldIsing(logit_p: ℝ):
       baseline : ℝ
-      def λ(n: ℕ) → ℝ[n]:
+      def λ(n: ℕ) → ℝ[n], ℝ[n]:
          p : ℝ = 1.0 / (1.0 + exp(-this.logit_p))
-         b_s : ℝ[n] ~ Bernoulli(p, n)
+         b_s : ℝ[n], log_prob : ℝ[n] ~ Bernoulli(p, n, "score-function")
          spins : ℝ[n] = for i : ℕ(n) → 2.0 * b_s[i] - 1.0
-         return spins
-      def loss(spins: ℝ[n], J: ℝ, h: ℝ, β: ℝ, size: ℝ) → ℝ:
+         return spins, log_prob
+      def loss(spins: ℝ[n], log_prob: ℝ[n], J: ℝ, h: ℝ, β: ℝ, size: ℝ) → ℝ:
          p : ℝ = 1.0 / (1.0 + exp(-this.logit_p))
-         b : ℝ[n] = for i : ℕ(n) → (spins[i] + 1.0) * 0.5
          energy_ps : ℝ = H(J, h, spins, size) / n
-         log_prob : ℝ = sum(for i : ℕ(n) → b[i] * log(p) + (1.0 - b[i]) * log(1.0 - p))
-         energy_term : ℝ = β * (energy_ps - this.baseline) * log_prob
+         energy_term : ℝ = β * (energy_ps - this.baseline) * sum(log_prob)
          entropy_term : ℝ = neg_entropy_per_site(p)
          return energy_term + entropy_term
       def train(n: ℕ, n_steps: ℕ, n_batch: ℕ, lr: ℝ, J: ℝ, h: ℝ, β: ℝ, size: ℕ):
-         spins_0 = this(n)
+         spins_0, log_prob_0 = this(n)
          this.baseline = H(J, h, spins_0, size) / n
          for step : ℕ(n_steps):
                batch_loss = 0.0
                mean_energy_ps = 0.0
                for k : ℕ(n_batch):
-                  spins = this(n)
+                  spins, log_prob = this(n)
                   mean_energy_ps = mean_energy_ps + H(J, h, spins, size) / n / n_batch
-                  batch_loss = batch_loss + this.loss(spins, J, h, β, size) / n_batch
+                  batch_loss = batch_loss + this.loss(spins, log_prob, J, h, β, size) / n_batch
                grads = grad(batch_loss, this.params)
                this.baseline = 0.9 * this.baseline + 0.1 * mean_energy_ps
                this.update(lr, grads)
@@ -834,18 +881,16 @@ Full Code
    ising : MeanFieldIsing = MeanFieldIsing(logit_init)
 
    p_before : ℝ = 1.0 / (1.0 + exp(0.0 - ising.logit_p))
-   spins_before : ℝ[n] = ising(n)
 
    ising.train(n, steps, batch, lr, J, h, β, n)
 
    p_after : ℝ = 1.0 / (1.0 + exp(0.0 - ising.logit_p))
    p_ref   : ℝ = mean_field_reference(J, h, β, 200)
-   spins_after : ℝ[n] = ising(n)
 
    p_before     # sigmoid(0) = 0.5
    p_after      # mean-field solution
    p_ref        # reference
-   # plot_ising_result(spins_before, spins_after, J, h) # Uncomment to plot results if function is in runtime.py
+
 
 
 References
