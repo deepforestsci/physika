@@ -68,3 +68,40 @@ nested_complex: ℂ[2, 2] = [
 array_imag
 array_complex
 nested_complex
+
+
+# -------------------------------------------------------
+# gradients of complex numbers (Wirtinger calculus)
+# -------------------------------------------------------
+
+# scalar input
+
+def f(x: ℂ): ℂ:
+    return abs(x**2)
+
+scalar_x: ℂ = 1 + 3j
+scalar_grad = grad(f, scalar_x)
+scalar_grad
+
+
+
+# tensor input
+
+z: ℂ[2] = [1 + 2j, 3 + 1j]
+loss = sum(abs(z) * abs(z))
+tensor_grad = grad(loss, z)
+tensor_grad
+
+
+# grad in class
+
+class A(x: ℂ):
+    def f(y: R): ℂ:
+        return abs(this.x**y)
+    def λ(y: R) → ℂ:
+        f_value = this.f(y)
+        return grad(f_value, this.x)
+
+objA: A = A(1 + 2j)
+class_grad = objA(2)
+class_grad

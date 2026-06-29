@@ -1,6 +1,7 @@
 import pytest
 from tests.conftest import exec_phyk
 import torch
+from physika.runtime import compute_grad
 
 r_tol = 1e-02
 
@@ -52,3 +53,43 @@ class TestComplexType:
             numeric_ns["nested_complex"],
             torch.tensor([[1 + 2j, 3 + 4j], [4 + 9j, 7 + 2j]],
                          dtype=torch.complex64))
+
+
+class TestComplexGradients:
+    """Tests for gradients correctness for complex type `ℂ`"""
+
+    def test_complex_scalar_grad(self, numeric_ns):
+        # Test case for scalar complex grad correctness
+        f = numeric_ns["f"]
+        x = 1 + 3j
+        x_tensor = torch.tensor(x, dtype=torch.complex64)
+        expected = compute_grad(f, x_tensor)
+        assert torch.allclose(
+            numeric_ns["scalar_grad"],
+            expected,
+            rtol=r_tol,
+        )
+
+    def test_complex_tensor_grad(self, numeric_ns):
+        # Test case for tensor complex grad correctness
+        expected = torch.tensor(
+            [2 + 4j, 6 + 2j],
+            dtype=torch.complex64,
+        )
+        assert torch.allclose(
+            numeric_ns["tensor_grad"],
+            expected,
+            rtol=r_tol,
+        )
+
+    def test_complex_grad_in_class(self, numeric_ns):
+        # Test case for complex grad inside class
+        expected = torch.tensor(
+            [2 + 4j],
+            dtype=torch.complex64,
+        )
+        assert torch.allclose(
+            numeric_ns["class_grad"],
+            expected,
+            rtol=r_tol,
+        )
