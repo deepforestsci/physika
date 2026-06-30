@@ -120,17 +120,7 @@ def t_WHITESPACE(t):
 
 
 def t_ID(t):
-    r"[a-zA-Z_][a-zA-Z0-9_]*"
-    t.type = reserved.get(t.value, "ID")
-    return t
-
-
-def t_GREEK_ID(t):
-    r"[\u0391-\u03A9\u03B1-\u03C9][\u0391-\u03A9\u03B1-\u03C9a-zA-Z0-9_]*"
-    if t.value == 'Δ':
-        raise SyntaxError(
-            "'Δ' is reserved for the Laplacian operator and cannot be used as an identifier"  # noqa
-        )
+    r"[a-zA-Z_\u0391-\u03A9\u03B1-\u03C9\u210F][a-zA-Z0-9_\u0391-\u03A9\u03B1-\u03C9\u210F]*"  # noqa
     t.type = reserved.get(t.value, "ID")
     return t
 
