@@ -4,7 +4,7 @@ Fast Fourier Transform
 In this tutorial we will go through what the Fast Fourier Transform (FFT) is, how
 to use it in Physika, and how gradients flow through it with ``grad``.
 
-The FFT is a fast algorithm for computing the Discrete Fourier Transform (DFT),
+The FFT [FFTWiki]_ is a fast algorithm for computing the Discrete Fourier Transform (DFT),
 which represents a signal as a combination of pure sinusoids and reports the
 amplitude and phase of each frequency it contains.
 
@@ -13,7 +13,7 @@ The Discrete Fourier Transform
 
 We start from what the FFT actually computes. The signal arrives as :math:`N`
 samples :math:`x_0, \dots, x_{N-1}`, its values measured at equally spaced points
-in time or space. The DFT maps these to :math:`N` spectrum coefficients
+in time or space. The DFT [DFTWiki]_ maps these to :math:`N` spectrum coefficients
 :math:`X_0, \dots, X_{N-1}`, one per frequency:
 
 .. math::
@@ -44,7 +44,7 @@ The FFT is not a different transform but an algorithm that computes the same DFT
 more cheaply. Evaluating the sum directly costs :math:`O(N^2)`, since each of the
 :math:`N` coefficients is a sum over :math:`N` terms.
 
-The Cooley-Tukey algorithm brings this down by divide and conquer. We split the
+The Cooley-Tukey algorithm [CooleyTukey1965]_ brings this down by divide and conquer. We split the
 forward sum into its even-indexed samples (:math:`n = 2m`) and its odd-indexed
 ones (:math:`n = 2m + 1`):
 
@@ -93,7 +93,7 @@ The FFT in Physika
 ------------------
 
 Now we turn to using the transform in Physika, which exposes it as six built-ins
-that map directly onto ``torch.fft``:
+that map directly onto ``torch.fft`` [TorchFFT]_:
 
 ==========  ====================  ===================================
 Physika     PyTorch               Transform
@@ -249,7 +249,7 @@ In Physika this needs no special handling. ``grad(expr, x)`` compiles to
    ``grad`` differentiates with respect to real variables. A complex variable is
    differentiated through its real and imaginary parts separately, so to optimize
    a complex input you carry it as a pair of real variables, its real and
-   imaginary parts, and take the gradient with respect to each.
+   imaginary parts, and take the gradient with respect to each. [TorchComplexAutograd]_
 
 As an example, we differentiate the spectral energy of a signal, the total power
 in its spectrum, with respect to the signal itself. This is the building block of
@@ -271,8 +271,19 @@ Output::
 References
 ----------
 
-- `Fast Fourier Transform (Wikipedia) <https://en.wikipedia.org/wiki/Fast_Fourier_transform>`_
-- `Discrete Fourier Transform (Wikipedia) <https://en.wikipedia.org/wiki/Discrete_Fourier_transform>`_
-- `Cooley-Tukey FFT Algorithm (Wikipedia) <https://en.wikipedia.org/wiki/Cooley%E2%80%93Tukey_FFT_algorithm>`_
-- `torch.fft (PyTorch Documentation) <https://pytorch.org/docs/stable/fft.html>`_
-- `Autograd for Complex Numbers (PyTorch Documentation) <https://pytorch.org/docs/stable/notes/autograd.html#autograd-for-complex-numbers>`_
+.. [FFTWiki] Fast Fourier transform. *Wikipedia*.
+   `<https://en.wikipedia.org/wiki/Fast_Fourier_transform>`_.
+
+.. [DFTWiki] Discrete Fourier transform. *Wikipedia*.
+   `<https://en.wikipedia.org/wiki/Discrete_Fourier_transform>`_.
+
+.. [CooleyTukey1965] Cooley, J. W. and Tukey, J. W. An algorithm for the
+   machine calculation of complex Fourier series. *Mathematics of Computation*,
+   19(90):297–301, 1965. doi: `10.1090/S0025-5718-1965-0178586-1
+   <https://doi.org/10.1090/S0025-5718-1965-0178586-1>`_.
+
+.. [TorchFFT] torch.fft. *PyTorch Documentation*.
+   `<https://pytorch.org/docs/stable/fft.html>`_.
+
+.. [TorchComplexAutograd] Autograd for complex numbers. *PyTorch Documentation*.
+   `<https://pytorch.org/docs/stable/notes/autograd.html#autograd-for-complex-numbers>`_.
