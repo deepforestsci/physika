@@ -22,7 +22,8 @@ def f(x: ℝ[m]): ℝ[m]:
     return x**2 + 1
 
 μ: ℝ[1] = [2]
-grad(f, μ) # should return 4
+grad_μ = grad(f, μ) # should return 4
+grad_μ
 
 
 # Physical constants
