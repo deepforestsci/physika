@@ -4,6 +4,7 @@ import re
 from typing import Any, Callable, Literal, Union, cast
 from physika.utils.print_utils import print_unified_ast
 from physika.elf import REGISTRY
+from physika.device import DEVICE
 # AST TYPE DEFINITIONS
 # The parser produces a tree of tagged tuples.  Every non-leaf node is a
 # tuple whose first element is a string (tag) and whose remaining elements are
@@ -625,7 +626,7 @@ def ast_to_torch_expr(node: ASTNode,
             inner_lists = [array_to_list(e) for e in elements]
             if contains_complex:
                 return f"torch.tensor([{', '.join(inner_lists)}], dtype=torch.complex64)"  # noqa
-            return f"torch.tensor([{', '.join(inner_lists)}])"
+            return f"torch.tensor([{', '.join(inner_lists)}], device='{DEVICE}')"
         else:
             all_numeric = all(
                 isinstance(e, tuple) and (
@@ -639,7 +640,7 @@ def ast_to_torch_expr(node: ASTNode,
             if all_numeric:
                 if contains_complex:
                     return f"torch.tensor([{', '.join(elem_strs)}], dtype=torch.complex64)"  # noqa
-                return f"torch.tensor([{', '.join(elem_strs)}])"
+                return f"torch.tensor([{', '.join(elem_strs)}], device='{DEVICE}')"
             else:
                 if contains_complex:
                     wrapped = [
@@ -699,6 +700,7 @@ def ast_to_torch_expr(node: ASTNode,
             "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
+            "relu": "torch.nn.functional.relu"
         }
         multi_arg_funcs = {
             "roll": "torch.roll",
@@ -821,7 +823,7 @@ def ast_to_torch_expr(node: ASTNode,
         return (f"torch.stack(["
                 f"{body_code} "
                 f"for {tmp} in range(int({n_code})) "
-                f"for {loop_var} in [torch.tensor(float({tmp}))]])")
+                f"for {loop_var} in [torch.tensor(float({tmp}), device='{DEVICE}')]])")
 
     elif op == "for_expr_range":
         # for i : ℕ(start, end) → body  — range(start, end), end-exclusive
@@ -841,7 +843,7 @@ def ast_to_torch_expr(node: ASTNode,
         return (f"torch.stack(["
                 f"{body_code} "
                 f"for {tmp} in range(int({start_code}), int({end_code})) "
-                f"for {loop_var} in [torch.tensor(float({tmp}))]])")
+                f"for {loop_var} in [torch.tensor(float({tmp}), device='{DEVICE}'))]])")
 
     elif op == "equation_string":
         return repr(node[1])
@@ -1543,7 +1545,7 @@ def generate_statement(stmt: ASTNode,
             if isinstance(type_spec, tuple) and type_spec[0] == "tensor":
                 if type_spec[1] == "ℂ":
                     return f"{name} = torch.as_tensor({expr_code}, dtype=torch.complex64).requires_grad_(True)"  # noqa: E501
-                return f"{name} = torch.as_tensor({expr_code}).float().requires_grad_(True)"  # noqa: E501
+                return f"{name} = torch.as_tensor({expr_code}).float().requires_grad_(True).to('{DEVICE}')"  # noqa: E501
 
         # Tensor value
         if isinstance(type_spec, tuple) and type_spec[0] == "tensor":

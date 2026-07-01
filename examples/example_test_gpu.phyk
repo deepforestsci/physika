@@ -1,0 +1,12 @@
+n_values: R = 1000
+x: R[n_values, n_values] = for i:N(n_values) -> for j:N(n_values) -> i*1
+
+for i:N(100):
+    x = relu(x)
+    x = sin(x)
+    x = exp(x)
+    x = log(x)
+
+
+# also other simple way to test
+# results = x @ x
