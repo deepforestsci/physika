@@ -37,7 +37,8 @@ def classify(x):
 class PiecewiseNet(nn.Module):
     def __init__(self, threshold):
         super().__init__()
-        self.threshold = nn.Parameter(torch.as_tensor(threshold).float())
+        self.threshold = nn.Parameter(torch.as_tensor(threshold))
+        self.learnable_params = [self.threshold]
 
     def forward(self, x):
         this = self
@@ -77,7 +78,7 @@ physika_print(clamp((-5)))
 physika_print(classify(2))
 physika_print(classify(0))
 physika_print(classify((-1)))
-net = PiecewiseNet(0)
+net = PiecewiseNet(0.0)
 a = torch.tensor(2.0, requires_grad=True)
 physika_print(net(a))
 physika_print(compute_grad(lambda _da: net(_da), a))

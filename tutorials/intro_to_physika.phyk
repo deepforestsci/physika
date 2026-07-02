@@ -1,0 +1,12 @@
+# -------------------------------------------------------
+# a 2 kg mass on a spring (k = 4 N/m) under gravity
+# potential energy U(x) = ½kx² − mgx
+# -------------------------------------------------------
+def U(x : ℝ): ℝ:
+    return 0.5 * 4.0 * x * x - 2.0 * 9.8 * x
+
+# let the mass relax: step downhill along the force −U'(x)
+x : ℝ = 0.0
+for i : ℕ(60):
+    x = x - 0.05 * grad(U(x), x)
+x

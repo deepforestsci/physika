@@ -637,18 +637,35 @@ def check_function(
 
     # Infers and checks types of function's return expressions
     if body is not None:
-        body_t, s = infer_expr(
-            body, final_env, s, func_env, class_env,
-            lambda msg: add_error(f"In function '{name}': {msg}"))
-        body_t = s.apply(body_t) if body_t is not None else None
-        if return_type is not None and body_t is not None:
-            try:
-                s = unify(return_type, body_t, s)
-            except TypeError as e:
-                add_error(
-                    f"In function '{name}': return type mismatch: "
-                    f"declared {type_to_str(return_type)}, got {type_to_str(body_t)}: {e}"  # noqa: E501
-                )
+
+        def _add(msg):
+            add_error(f"In function '{name}': {msg}")
+
+        if (isinstance(body, tuple) and body[0] == "tuple_return"
+                and isinstance(return_type, tuple)
+                and return_type[0] == "tuple_type"):
+            for i, (ret_expr,
+                    decl_t) in enumerate(zip(body[1:], return_type[1])):
+                t, s = infer_expr(ret_expr, final_env, s, func_env, class_env,
+                                  _add)
+                if t is not None and decl_t is not None:
+                    try:
+                        s = unify(decl_t, s.apply(t), s)
+                    except TypeError as e:
+                        _add(f"return type mismatch at position {i}: "
+                             f"declared {type_to_str(decl_t)}, "
+                             f"got {type_to_str(s.apply(t))}: {e}")
+        else:
+            body_t, s = infer_expr(body, final_env, s, func_env, class_env,
+                                   _add)
+            body_t = s.apply(body_t) if body_t is not None else None
+            if return_type is not None and body_t is not None:
+                try:
+                    s = unify(return_type, body_t, s)
+                except TypeError as e:
+                    _add(f"return type mismatch: "
+                         f"declared {type_to_str(return_type)}, "
+                         f"got {type_to_str(body_t)}: {e}")
 
 
 def check_class(
@@ -750,17 +767,36 @@ def check_class(
 
         # Body are return expressions
         if body is not None:
-            body_t, s = infer_expr(
-                body, final_env, s, func_env, class_env, lambda msg: add_error(
-                    f"In class '{name}', method '{method_name}': {msg}"))
-            if return_type is not None and body_t is not None:
-                try:
-                    s = unify(return_type, s.apply(body_t), s)
-                except TypeError as e:
-                    add_error(
-                        f"In class '{name}', method '{method_name}': return type mismatch: "  # noqa: E501
-                        f"declared {type_to_str(return_type)}, "
-                        f"got {type_to_str(s.apply(body_t))}: {e}")
+            err_prefix = f"In class '{name}', method '{method_name}'"
+
+            def _add(msg):
+                add_error(f"{err_prefix}: {msg}")
+
+            if (isinstance(body, tuple) and body[0] == "tuple_return"
+                    and isinstance(return_type, tuple)
+                    and return_type[0] == "tuple_type"):
+                # Tuple return type → ℝ, ℝ: check each component separately
+                for i, (ret_expr,
+                        decl_t) in enumerate(zip(body[1:], return_type[1])):
+                    t, s = infer_expr(ret_expr, final_env, s, func_env,
+                                      class_env, _add)
+                    if t is not None and decl_t is not None:
+                        try:
+                            s = unify(decl_t, s.apply(t), s)
+                        except TypeError as e:
+                            _add(f"return type mismatch at position {i}: "
+                                 f"declared {type_to_str(decl_t)}, "
+                                 f"got {type_to_str(s.apply(t))}: {e}")
+            else:
+                body_t, s = infer_expr(body, final_env, s, func_env, class_env,
+                                       _add)
+                if return_type is not None and body_t is not None:
+                    try:
+                        s = unify(return_type, s.apply(body_t), s)
+                    except TypeError as e:
+                        _add(f"return type mismatch: "
+                             f"declared {type_to_str(return_type)}, "
+                             f"got {type_to_str(s.apply(body_t))}: {e}")
 
 
 def check_statement(

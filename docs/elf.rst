@@ -187,20 +187,56 @@ Physika random sampling syntax allows users to declare a random variable with a 
     # Sample a 10x5x2 tensor from a normal distribution with mean 0 and std 1
     z : ℝ[10, 5, 2] ~ for i : ℕ(10) → for j : ℕ(5) → ε : ℝ[2] ~ Normal(μ, σ, 2)
 
-Physika supports differentiable sampling following Stochastich Computation Graphs (SCG) framework [1]_, where sampling statements
+Physika supports differentiable sampling following Stochastic Computation Graphs (SCG) framework [1]_, where sampling statements
 are represented as stochastic nodes in the computation graph and gradients are computed by backpropagating through these nodes
-with the reparameterization trick (for continous distributions) or score function estimators (for non-continous distributions).
-``RandomnessFeature`` default code generation emits reparameterized sampling for continous distributions (``Normal/Gaussian``, 
+with the reparameterization trick (for continuous distributions) or score function estimators (for non-continuous distributions).
+``RandomnessFeature`` default code generation emits reparameterized sampling for continuous distributions (``Normal/Gaussian``,
 ``Beta``, ``Uniform``, ``Gamma``) and score function estimators
 for ``Bernoulli``.
 
-Estimators can be defined per distribution by given "reparam", "socre", or "none" argument, for example::
+Estimators can be defined per distribution by passing ``"reparam"``, ``"score"``, ``score-function``, or ``"none"`` as a trailing string argument:
+
+.. code-block:: text
 
     # Sampling using pathwise derivative estimator (reparameterization trick)
     x : ℝ ~ Normal(0.0, 1.0, "reparam")
 
-    # Sampling using score function estimator
+    # Sampling using score function estimator (no log-probability)
     y : ℝ ~ Normal(0.0, 1.0, "score")
+
+    # Sampling using score function estimator
+    y : ℝ , log_prob : ℝ[n] ~ Bernoulli(1.0, n, "score-function")
+
+Score function estimator
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For non-differentiable distributions (e.g. ``Bernoulli``), the score function
+estimator requires not only the sample but also its log-probability so the
+gradient can be computed.  Physika syntax for SCG score-function estimator is as follows:
+
+.. code-block:: text
+
+    sample : ℝ, log_prob : ℝ ~ Dist(args, "score-function")
+
+``"score-function"`` is the grad mode string used for both sampling and log-prob (
+``"score"`` mode still works but does not emit a log-prob term).
+
+The two variables on the left-hand side receive:
+
+* ``sample``: a tensor (detached from grad graph) draw from the distribution.
+* ``log_prob``: per-element log-probability of that draw.
+
+**Example**
+
+Example with a Bernoulli distribution (non-continous):
+
+.. code-block:: text
+
+    b_s : ℝ[n], log_prob : ℝ[n] ~ Bernoulli(p, n, "score-function")
+
+
+The ``log_prob`` tensor can then be used directly in the loss to obtain the
+score-function gradient through ``sum(log_prob) · surrogate``.
 
 
 Supported Distributions
@@ -241,7 +277,7 @@ Supported Distributions
      - ``Γ``
      - ``torch.distributions.Gamma``
    * - **Bernoulli**
-     - ``x ~ Bernoulli(p)``
+     - ``x ~ Bernoulli(p)`` or ``x : T, lp : T ~ Bernoulli(p, ..., "score-function")``
      - p: probability of 1
      - ``score`` (fixed)
      - —
@@ -279,6 +315,63 @@ When ranks match, each declared dimension is compared against the corresponding 
 
 ``RandomnessFeature`` also supports setting random seeds in Physika programs with ``physika.seed(expr)``, where ``expr`` is a scalar expression that evaluates to an integer.
 The emitted code for this function is ``torch.manual_seed(int(expr))``, ensuring reproducibility of random sampling from distributions across runs.
+
+
+Tuple unpack
+~~~~~~~~~~~~
+
+``TupleUnpackFeature`` adds tuple unpacking support for Physika programs.
+This ELF covers two main use cases.
+
+- **Literal comma assignment**: Assign multiple variables from a comma separated list of values in a single statement, with type annotations:
+
+.. code-block:: text
+
+    a: ℝ, b: ℝ, c: ℝ, d: ℝ = 1, 2, 3, 4
+
+- **Tuple unpacking from a function or class method**: Bind the individual return values of a multi-return function or method to named variables:
+
+.. code-block:: text
+
+    class Vec2(x: ℝ, y: ℝ):
+        def f() → ℝ, ℝ:
+            return this.x * 10, this.y * 10
+
+    v : Vec2 = Vec2(0.5, 1.0)
+    a: ℝ, b: ℝ = v.f()
+    a
+    b
+
+**Parser rules**
+
+New AST node types are produced by parser rules, as follows:
+
+* ``("stmt_tuple_unpack", names, rhs)`` for top-level statement
+  and for-loop body unpack. ``names`` is either a ``id_list`` (``["a","b"]``)
+  or a ``typed_id_list`` (``[("a","ℝ"),("b","ℝ")]``). ``rhs`` is the RHS
+  expression or an ``("expr_list", [...])`` node for literal comma values.
+* ``("body_tuple_unpack", names, rhs)`` when inside a function body.
+* ``("loop_tuple_unpack", names, rhs)`` when inside a ``for k:`` loop body
+  within a function or class method.
+* ``("expr_list", [e1, e2, ...])`` for comma-separated literal RHS values.
+* ``("return_type", ...)``when having multi-type return annotation ``→ ℝ, ℝ`` on class
+  methods, stored as ``("tuple_type", [t1, t2, ...])``.
+
+**Type checking**
+
+Each declared type (LHS) is
+verified against the inferred type of its corresponding RHS element. For
+literal comma RHS (``expr_list``), types are inferred element by element. For
+single expression RHS (a function call returning a tuple), each unpacked
+variable is assumed to be ``ℝ``. All
+unpacked names are registered in the type environment so subsequent statements
+can reference them without errors.
+
+**Code generation**
+
+Each tuple-unpack node is emitted as a plain Python unpacking assignment (``a, b = expr``). ``expr_list`` node
+joins its elements with ``", "`` so ``a: ℝ, b: ℝ = 1.0, 2.0`` would get emitted as
+``a, b = 1.0, 2.0``
 
 References
 ----------

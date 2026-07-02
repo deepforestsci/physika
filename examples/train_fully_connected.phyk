@@ -27,6 +27,11 @@ def zero_2d_array(rows: ℝ, cols: ℝ): ℝ[m, n]:
     results: ℝ[rows, cols] = for i:ℕ(rows) -> for j:N(cols) -> j*0
     return results
 
+def get_3d_array_depth(x: ℝ[a, b, c]): ℕ:
+    depth: N = get_1d_array_length(X)
+    return depth
+
+
 # ------------------------------------------------------------
 # Activation: σ(x) = 1/(1 + e^(-x))
 # ------------------------------------------------------------
@@ -45,19 +50,41 @@ def sigma(x: ℝ[a,b]): ℝ[a,b]:
 # Network Definition: 2-layer FCN with custom MSE loss
 # R[3] -> R[3] -> R[3] -> R
 # ------------------------------------------------------------
-class FullyConnectedNetwork:
-    W: ℝ[2,3,3]
-    B: ℝ[2,3,1]
-    w: ℝ[1,3]
-    b: ℝ
-    n: ℕ
+class FullyConnectedNetwork(W: ℝ[2,3,3], B: ℝ[2,3,1], w: ℝ[1,3], b: ℝ):
     def λ(x: ℝ[3, 1]) → ℝ:
-        for k:
-            x = sigma(W[k] @ x + B[k])
-        results: ℝ[m, n] = w @ x + b
+        for k:ℕ(0, 2):
+            x = sigma(this.W[k] @ x + this.B[k])
+        results: ℝ[m, n] = this.w @ x + this.b
         return results[0, 0]
     def loss(y: ℝ, target: ℝ) → ℝ:
         return (y - target) ** 2.0
+    def train(X: ℝ[4, 3, 1], y: ℝ[4], epochs: ℕ, lr: ℝ) → ℝ:
+        len_dataset = get_3d_array_depth(X)
+        last_loss: R = 0
+        for i:ℕ(epochs):
+            epoch_loss = 0
+            for j:ℕ(len_dataset):
+                pred = this(X[j])
+                current_loss = this.loss(pred, y[j])
+                epoch_loss = epoch_loss + current_loss
+                learnable_grads = grad(current_loss, this.learnable_params)
+                this.update_params(lr, learnable_grads)
+            last_loss = epoch_loss / len_dataset
+        return last_loss
+    def evaluate(X: ℝ[4, 3, 1], y: ℝ[4]) → ℝ:
+        x: R = 1.5
+        len_dataset = get_3d_array_depth(X)
+        total_loss = 0
+        for j:ℕ(len_dataset):
+            pred = this(X[j])
+            current_loss = this.loss(pred, y[j])
+            total_loss = total_loss + current_loss
+        return total_loss / len_dataset
+    def update_params(lr: R, learnable_grads: R[m]):
+        this.W = this.W - lr * learnable_grads[0]
+        this.B = this.B - lr * learnable_grads[1]
+        this.w = this.w - lr * learnable_grads[2]
+        this.b = this.b - lr * learnable_grads[3]
 
 
 # ------------------------------------------------------------
@@ -83,12 +110,12 @@ B: ℝ[2,3,1] = [
 w: ℝ[1,3] = [[0.5,0.5,0.5]]
 b: ℝ = 0.1
 
-net = FullyConnectedNetwork(W, B, w, b, 2)
+net = FullyConnectedNetwork(W, B, w, b)
 
 # ------------------------------------------------------------
 # Evaluate Before Training (uses class-defined loss)
 # ------------------------------------------------------------
-loss_before = evaluate(net, X, y)
+loss_before = net.evaluate(X, y)
 loss_before
 
 # ------------------------------------------------------------
@@ -96,18 +123,19 @@ loss_before
 # ------------------------------------------------------------
 epochs : ℕ = 1000
 lr : ℝ = 0.1 
-net_trained = train(net, X, y, epochs, lr)
+net_trained = net.train(X, y, epochs, lr)
+net_trained
 
 # ------------------------------------------------------------
 # Evaluate After Training
 # ------------------------------------------------------------
-loss_after = evaluate(net_trained, X, y)
+loss_after = net.evaluate(X, y)
 loss_after
 
 # ------------------------------------------------------------
 # Test Predictions (targets: 0.2, 0.4, 0.6, 0.9)
 # ------------------------------------------------------------
-net_trained([1.0, 0.0, 0.0])
-net_trained([0.0, 1.0, 0.0])
-net_trained([0.0, 0.0, 1.0])
-net_trained([1.0, 1.0, 1.0])
+net([1.0, 0.0, 0.0])
+net([0.0, 1.0, 0.0])
+net([0.0, 0.0, 1.0])
+net([1.0, 1.0, 1.0])

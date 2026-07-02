@@ -55,7 +55,7 @@ classify(-1)
 # PiecewiseNet: y = x**2 if x > 0 else -x
 class PiecewiseNet(threshold: ℝ):
     def λ(x: ℝ) -> ℝ:
-        if x > threshold:
+        if x > this.threshold:
             y = x * x
         else:
             y = - x
@@ -63,7 +63,7 @@ class PiecewiseNet(threshold: ℝ):
     def loss(pred: ℝ, target: ℝ) -> ℝ:
         return (pred - target)**2
 
-net = PiecewiseNet(0)
+net = PiecewiseNet(0.0)
 a : ℝ = 2.0
 net(a)
 grad(net(a), a)

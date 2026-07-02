@@ -30,7 +30,7 @@ def is_learnable(type_spec: str) -> bool:
     >>> is_learnable("int")
     False
     """
-    if type_spec in ("ℝ", "R"):
+    if type_spec in ("ℝ", "R", "ℂ"):
         return True
     if isinstance(type_spec, tuple) and type_spec[0] == "tensor":
         return True
@@ -101,7 +101,8 @@ def unwrap_return(ret: Optional[tuple]) -> Optional[tuple]:
     if ret[0] == "return_single":
         return ret[1]
     if ret[0] == "return_tuple":
-        return ("tuple_return", ret[1], ret[2])
+        # to support n return values
+        return ("tuple_return", *ret[1:])
     return None
 
 
@@ -148,7 +149,6 @@ def build_class(constructor_params: Optional[list], body_items: list) -> dict:
     fields = [(item[1], item[2]) for item in body_items
               if item[0] == "field_decl"]
     methods = [item[1] for item in body_items if item[0] == "method_def"]
-
     if constructor_params is None:
         # no parameters defined, fields becomes constructor params
         return {"class_params": fields, "fields": [], "methods": methods}
@@ -159,8 +159,8 @@ def build_class(constructor_params: Optional[list], body_items: list) -> dict:
     }
 
 
-def emit_method(method: dict, all_params: list, to_expr: Callable,
-                scalar_only: bool) -> list[str]:
+def emit_method(method: dict, all_params: list, constructor_params: list,
+                to_expr: Callable, scalar_only: bool) -> list[str]:
     """
     Emit code for a class method as an ``nn.Module`` class.
 
@@ -211,27 +211,45 @@ def emit_method(method: dict, all_params: list, to_expr: Callable,
 
     for pname, ptype in params:
         if is_learnable(ptype):
-            method_lines.append(
-                f"        {pname} = torch.as_tensor({pname}).float()")
+            if pname != "learnable_grads":
+                method_lines.append(
+                    f"        {pname} = torch.as_tensor({pname}).float()")
 
     if statements:
         stmt_method_lines: list[str] = []
         emit_body_stmts(statements, 2, stmt_method_lines, list(param_names),
                         set(), to_expr, scalar_only)
+        learnable_param_name_set = {
+            pname
+            for pname, ptype in constructor_params if is_learnable(ptype)
+        }
         for line in stmt_method_lines:
             line_sub = re.sub(r'\bthis\b', 'self', line)
-            method_lines.append(replace_class_params(line_sub, all_params))
+
+            # check if this is a field assignment on a learnable param
+            field_assign = re.match(r'^(\s+)(self\.[\w]+)\s*=\s*(.+)$',
+                                    line_sub)
+            if field_assign:
+                indent = field_assign.group(1)
+                field = field_assign.group(2)
+                expr = field_assign.group(3)
+                field_name = field.split('.')[1]
+                if field_name in learnable_param_name_set:
+                    method_lines.append(f"{indent}with torch.no_grad():")
+                    method_lines.append(f"{indent}    {field}.copy_({expr})")
+                else:
+                    method_lines.append(line_sub)
+            else:
+                method_lines.append(line_sub)
 
     if body is not None:
         this_re = r'\bthis\b'
         if isinstance(body, tuple) and body[0] == "tuple_return":
-            _, e1, e2 = body
-            e1_sub = re.sub(this_re, 'self', to_expr(e1))
-            e2_sub = re.sub(this_re, 'self', to_expr(e2))
-
-            r1 = replace_class_params(e1_sub, all_params)
-            r2 = replace_class_params(e2_sub, all_params)
-            method_lines.append(f"        return ({r1}, {r2})")
+            parts = []
+            for e in body[1:]:
+                e_sub = re.sub(this_re, 'self', to_expr(e))
+                parts.append(replace_class_params(e_sub, all_params))
+            method_lines.append(f"        return ({', '.join(parts)})")
         else:
             body_sub = re.sub(this_re, 'self', to_expr(body))
             ret = replace_class_params(body_sub, all_params)
@@ -319,7 +337,7 @@ def generate_class(name: str, class_def: dict) -> str:
             if has_forward:
                 # adds nn.Parameter
                 class_lines.append(
-                    f"        self.{pname} = nn.Parameter(torch.as_tensor({pname}).float())"  # noqa :E501
+                    f"        self.{pname} = nn.Parameter(torch.as_tensor({pname}))"  # noqa :E501
                 )
             else:
                 # add tensor so grad flows through
@@ -330,8 +348,19 @@ def generate_class(name: str, class_def: dict) -> str:
                 f"        self.{pname} = torch.as_tensor({pname}).float() "
                 f"if isinstance({pname}, (int, float, torch.Tensor)) else {pname}"  # noqa :E501
             )
+
+    learnable_names = [
+        pname for pname, ptype in constructor_params
+        if is_learnable(ptype) or (
+            isinstance(ptype, tuple) and ptype[0] == "tensor")
+    ]
+    params_list = ", ".join(f"self.{p}" for p in learnable_names)
+    class_lines.append(f"        self.learnable_params = [{params_list}]")
+
     # Fields should not be learnable (register_buffer)
     for fname, ftype in fields:
+        if fname == "learnable_params":
+            continue
         if isinstance(ftype, tuple) and ftype[0] == "tensor":
             # Only use torch.zeros if all dims are concrete integers.
             raw_dims = ftype[1]
@@ -382,7 +411,7 @@ def generate_class(name: str, class_def: dict) -> str:
         class_lines.extend(
             emit_method({
                 **method, "params": method_params
-            }, all_params, ast_to_torch_expr, scalar_only))
+            }, all_params, constructor_params, ast_to_torch_expr, scalar_only))
 
     # params property and gradient descent update helper
     class_lines += [
@@ -472,9 +501,9 @@ def make_parser_rules():
         p[0] = ("method_def", p[1])
 
     def p_class_method_params_body(p):
-        """class_method : DEF LAMBDA LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
-                        | DEF ID    LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
-                        | DEF ID    LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""
+        """class_method : DEF LAMBDA LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
+                        | DEF ID    LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
+                        | DEF ID    LPAREN params RPAREN COLON return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""
         # Method with params and statements.
         #  methods; arrow → or colon : return-type separator.
         # Example:
@@ -496,9 +525,9 @@ def make_parser_rules():
         }
 
     def p_class_method_params_simple(p):
-        """class_method : DEF LAMBDA LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT class_method_return DEDENT
-                        | DEF ID    LPAREN params RPAREN ARROW type_spec COLON NEWLINE INDENT class_method_return DEDENT
-                        | DEF ID    LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT class_method_return DEDENT"""
+        """class_method : DEF LAMBDA LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT class_method_return DEDENT
+                        | DEF ID    LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT class_method_return DEDENT
+                        | DEF ID    LPAREN params RPAREN COLON return_type COLON NEWLINE INDENT class_method_return DEDENT"""
         # Method with params and a single return expression (no statements between return and method definition).  # noqa :E501
         # Example:
         #   def dot(other: Vec) → ℝ:
@@ -517,8 +546,8 @@ def make_parser_rules():
         }
 
     def p_class_method_no_params_body(p):
-        """class_method : DEF ID LPAREN RPAREN ARROW type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
-                        | DEF ID LPAREN RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""
+        """class_method : DEF ID LPAREN RPAREN ARROW return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
+                        | DEF ID LPAREN RPAREN COLON return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT"""
         # Method with no params and intermediate statements before the return.
         # Example:
         #   def ke() : ℝ:
@@ -538,8 +567,8 @@ def make_parser_rules():
         }
 
     def p_class_method_no_params_simple(p):
-        """class_method : DEF ID LPAREN RPAREN ARROW type_spec COLON NEWLINE INDENT class_method_return DEDENT
-                        | DEF ID LPAREN RPAREN COLON type_spec COLON NEWLINE INDENT class_method_return DEDENT"""
+        """class_method : DEF ID LPAREN RPAREN ARROW return_type COLON NEWLINE INDENT class_method_return DEDENT
+                        | DEF ID LPAREN RPAREN COLON return_type COLON NEWLINE INDENT class_method_return DEDENT"""
         # Method with no params and a single return expression.
         # Example:
         #   def norm_sq() : ℝ:
@@ -603,14 +632,13 @@ def make_parser_rules():
         p[0] = ("return_single", p[2])
 
     def p_class_method_return_tuple(p):
-        """class_method_return : RETURN func_expr COMMA func_expr NEWLINE"""
-        # Two value tuple return at the end of a class method.
+        """class_method_return : RETURN return_expr_list NEWLINE"""
+        # N-value tuple return at the end of a class method.
         # Example:
-        #   return new_pos, new_vel
+        #   return new_pos, new_vel, new_acc
         # Parameters:
-        #   p[2] - first expression
-        #   p[4] - second expression
-        p[0] = ("return_tuple", p[2], p[4])
+        #   p[2] - list of expressions from return_expr_list
+        p[0] = ("return_tuple", *p[2])
 
     def p_field_access(p):
         """factor      : factor DOT ID
@@ -667,8 +695,43 @@ def make_parser_rules():
         #   p[5] - value expression
         p[0] = ("body_field_assign", p[1], p[3], p[5])
 
+    def p_member_expr_base(p):
+        """member_expr : ID"""
+        # Base case for member expression.
+        # Parameters:
+        #   p[1] - variable name
+        # Returns:
+        #   ("var", name)
+        p[0] = ("var", p[1])
+
+    def p_member_expr_field(p):
+        """member_expr : member_expr DOT ID"""
+        # Recursive field access on a member expression.
+        # Example:
+        #   this.x
+        #   this.model.bias
+        # Parameters:
+        #   p[1] - object expression
+        #   p[3] - field name
+        # Returns:
+        #   ("field_access", object, field_name)
+        p[0] = ("field_access", p[1], p[3])
+
+    def p_member_expr_method(p):
+        """member_expr : member_expr DOT ID LPAREN func_args RPAREN"""
+        # Recursive method call on a member expression.
+        # Example:
+        #   this.model.forward(x)
+        # Parameters:
+        #   p[1] - object expression
+        #   p[3] - method name
+        #   p[5] - argument list
+        # Returns:
+        #   ("method_call", object, method_name, args)
+        p[0] = ("method_call", p[1], p[3], p[5] or [])
+
     def p_func_loop_stmt_field_assign(p):
-        """func_loop_stmt : ID DOT ID EQUALS func_expr NEWLINE"""
+        """func_loop_stmt : member_expr DOT ID EQUALS func_expr NEWLINE"""
         # Field assignment on an instance inside a for loop.
         # Example:
         #   this.b = b
@@ -676,10 +739,10 @@ def make_parser_rules():
         #   p[1] - object expression ("var", "this")
         #   p[3] - field name
         #   p[5] - value expression
-        p[0] = ("body_field_assign", ("var", p[1]), p[3], p[5])
+        p[0] = ("body_field_assign", p[1], p[3], p[5])
 
     def p_func_loop_stmt_method_call(p):
-        """func_loop_stmt : ID DOT ID LPAREN func_args RPAREN NEWLINE"""
+        """func_loop_stmt : member_expr DOT ID LPAREN func_args RPAREN NEWLINE"""
         # Method call used as a statement inside a for loop of a class method.
         # Example:
         # class PhysikaClass:
@@ -692,7 +755,7 @@ def make_parser_rules():
         #   p[1] - class instance expression ("var", "this")
         #   p[3] - method name
         #   p[5] - argument list
-        p[0] = ("body_expr", ("method_call", ("var", p[1]), p[3], p[5] or []))
+        p[0] = ("body_expr", ("method_call", p[1], p[3], p[5] or []))
 
     return [
         p_statement_class_no_params,
@@ -713,6 +776,9 @@ def make_parser_rules():
         p_func_body_stmt_method_call,
         p_func_body_stmt_field_assign,
         p_class_method_void,
+        p_member_expr_base,
+        p_member_expr_field,
+        p_member_expr_method,
         p_func_loop_stmt_field_assign,
         p_func_loop_stmt_method_call,
     ]

@@ -760,8 +760,15 @@ def ast_to_torch_expr(node: ASTNode,
             else:
                 vars_code = arg_strs[0]
             expr_code = arg_strs[1]
-            return (f"sp.lambdify({vars_code}, {expr_code}, "
-                    f"modules={torch_funcs})")
+            # lambda function to convert input to tensor if its not a tensor
+            return ("(lambda *args: "
+                    f"sp.lambdify({vars_code}, {expr_code}, modules='torch')"
+                    "("
+                    "*[torch.as_tensor(a).float() "
+                    "if not isinstance(a, torch.Tensor) "
+                    "else a "
+                    "for a in args]"
+                    "))")
 
         elif func_name == "symbolic_solve":
             # symbolic_solve is wrapper for solve which finds solution of an
@@ -1095,9 +1102,10 @@ def emit_body_stmts(
             lines.append(f"{prefix}{name}[{idx_code}] = {val_code}")
         elif stmt_op == "body_tuple_unpack":
             _, var_names, expr = stmt
+            names = [n if isinstance(n, str) else n[0] for n in var_names]
             expr_code = generate_solve_call(expr)
-            lines.append(f"{prefix}{', '.join(var_names)} = {expr_code}")
-            known_vars.extend(var_names)
+            lines.append(f"{prefix}{', '.join(names)} = {expr_code}")
+            known_vars.extend(names)
         elif stmt_op == "body_if_return":
             _, cond, return_expr = stmt
             cond_code = condition_to_expr(cond)
@@ -1230,7 +1238,8 @@ def emit_body_stmts(
                 to_expr=expr_fn,
             )
             if elf_line is not None:
-                lines.append(f"{prefix}{elf_line}")
+                for sub_line in elf_line.split("\n"):
+                    lines.append(f"{prefix}{sub_line}")
                 var_name = stmt[1] if len(stmt) > 1 and isinstance(
                     stmt[1], str) else None
                 if var_name:
@@ -1532,9 +1541,7 @@ def generate_statement(stmt: ASTNode,
             if type_spec == "\u211d":
                 return f"{name} = torch.tensor({expr_code}, requires_grad=True)"  # noqa: E501
             if isinstance(type_spec, tuple) and type_spec[0] == "tensor":
-                if type_spec[1] == "ℂ":
-                    return f"{name} = torch.as_tensor({expr_code}, dtype=torch.complex64).requires_grad_(True)"  # noqa: E501
-                return f"{name} = torch.as_tensor({expr_code}).float().requires_grad_(True)"  # noqa: E501
+                return f"{name} = torch.as_tensor({expr_code}).requires_grad_(True)"  # noqa: E501
 
         # Tensor value
         if isinstance(type_spec, tuple) and type_spec[0] == "tensor":

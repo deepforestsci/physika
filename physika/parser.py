@@ -296,18 +296,6 @@ def p_func_body_stmt_zeros_decl(p):
     p[0] = ("body_zeros_decl", p[1], p[3])
 
 
-def p_func_body_stmt_tuple_unpack(p):
-    """func_body_stmt : ID COMMA ID EQUALS func_expr NEWLINE"""
-    # Tuple unpacking: a, b = expr
-    p[0] = ("body_tuple_unpack", [p[1], p[3]], p[5])
-
-
-def p_func_body_stmt_tuple_unpack_three(p):
-    """func_body_stmt : ID COMMA ID COMMA ID EQUALS func_expr NEWLINE"""
-    # Tuple unpacking: a, b, c = expr
-    p[0] = ("body_tuple_unpack", [p[1], p[3], p[5]], p[7])
-
-
 def p_func_body_stmt_empty(p):
     """func_body_stmt : NEWLINE"""
     p[0] = None

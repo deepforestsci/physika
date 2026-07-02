@@ -86,3 +86,30 @@ grad(vec.norm_sq(), x1)    # d(x**2 + 4**2)/dx = 2x = 10
 x1 : ℝ = 5.0
 vec : Vec = Vec(x1, 4.0)
 grad(vec.x, x1)    # d(x)/dx = 1
+
+
+
+# -----------------------------------------------------------
+# Example of accessing member of one class in another class
+# -----------------------------------------------------------
+
+class A:
+    x: ℝ
+
+class B:
+    objA: A
+    def access_member(): ℝ:
+        this.objA.x = 2.0
+        return this.objA.x
+    def access_memeber_in_loop(): ℝ:
+        for i:ℕ(0, 1):
+            this.objA.x = 3.0
+        return this.objA.x
+
+
+obj_A: A = A(1.0)
+obj_B: B = B(obj_A)
+
+obj_B.access_member()
+obj_B.access_memeber_in_loop()
+

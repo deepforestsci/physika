@@ -14,15 +14,16 @@ def tanh(x):
 class HamiltonianNet(nn.Module):
     def __init__(self, W1, b1, w2, b2):
         super().__init__()
-        self.W1 = nn.Parameter(torch.as_tensor(W1).float())
-        self.b1 = nn.Parameter(torch.as_tensor(b1).float())
-        self.w2 = nn.Parameter(torch.as_tensor(w2).float())
-        self.b2 = nn.Parameter(torch.as_tensor(b2).float())
+        self.W1 = nn.Parameter(torch.as_tensor(W1))
+        self.b1 = nn.Parameter(torch.as_tensor(b1))
+        self.w2 = nn.Parameter(torch.as_tensor(w2))
+        self.b2 = nn.Parameter(torch.as_tensor(b2))
+        self.learnable_params = [self.W1, self.b1, self.w2, self.b2]
 
     def forward(self, x):
         this = self
         x = torch.as_tensor(x).float()
-        h = ((self.w2 @ tanh(((self.W1 @ x) + self.b1))) + self.b2)
+        h = ((w2 @ tanh(((W1 @ x) + b1))) + b2)
         dh_grad = compute_grad(h, x)
         dh_dp = dh_grad[int(1), int(0)]
         dh_dq = (-dh_grad[int(0), int(0)])

@@ -23,6 +23,6 @@ EXPECTED = {'functions': {'f': {'params': [('x', ('tensor', [('m', 'invariant')]
              ('decl',
               'μ',
               ('tensor', [(1, 'invariant')]),
-              ('array', [('num', 2)]),
+              ('array', [('num', 2.0)]),
               23),
              ('expr', ('call', 'grad', [('var', 'f'), ('var', 'μ')]), 0)]}

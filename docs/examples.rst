@@ -18,6 +18,29 @@ Data Types
 Physika supports three core numeric types ℝ for Real number, ℤ for integer
 and ℂ for complex number which can be used to declare scalar, arrays, tensors, etc.
 
+Declaring variables
+~~~~~~~~~~~~~~~~~~~~~
+
+Every variable is declared with a type annotation. Each numeric type can be
+written in several equivalent notations (Unicode, LaTeX, or plain ASCII), and
+the lexer maps all of them to the same underlying type:
+
+- Real (ℝ): ``ℝ``, ``\mathbb{R}``, ``\R`` or ``R``
+- Integer (ℤ): ``ℤ``, ``\mathbb{Z}``, ``\Z`` or ``Z``
+- Natural (ℕ): ``ℕ``, ``\mathbb{N}``, ``\N`` or ``N``
+- Complex (ℂ): ``ℂ``, ``\mathbb{C}``
+
+.. note::
+
+   Complex has no single-letter ASCII form. ``C`` is treated as an ordinary
+   identifier, so use ``ℂ``, or ``\mathbb{C}`` instead.
+
+The example below declares both scalars and arrays for every type using each
+of these notations.
+
+.. literalinclude:: ../examples/example_declarations.phyk
+   :language: text
+
 Numeric: ℝ and ℤ
 ~~~~~~~~~~~~~~~~
 

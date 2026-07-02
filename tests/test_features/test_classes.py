@@ -115,9 +115,13 @@ class TestIsLearnable:
         """
         assert is_learnable("ℝ") is True
         assert is_learnable("R") is True
+        assert is_learnable("ℂ") is True
         assert is_learnable(("tensor", [(3, "invariant")])) is True
         assert is_learnable(("tensor", [(3, "invariant"),
                                         (4, "invariant")])) is True
+        assert is_learnable(("tensor", [(1 + 3j, "invariant")])) is True
+        assert is_learnable(("tensor", [(5 + 2j, "invariant"),
+                                        (4 + 7j, "invariant")])) is True
 
     def test_not_valid(self):
         """
@@ -126,7 +130,7 @@ class TestIsLearnable:
         # class instances type are not learnable parameters.
         assert is_learnable(("struct_type", "Particle")) is False
         # string annotations are not learnable
-        for t in ("int", "bool", "str", "ℕ", "ℂ", ""):
+        for t in ("int", "bool", "str", "ℕ", ""):
             assert is_learnable(t) is False, f"expected False for {t!r}"
 
 
@@ -251,7 +255,7 @@ class TestEmitMethod:
                 return 0.5 * this.mass
         """
         method = make_method(body=("var", "mass"))
-        lines = emit_method(method, [("mass", "ℝ")], lambda _: "this.mass",
+        lines = emit_method(method, [("mass", "ℝ")], [], lambda _: "this.mass",
                             True)
         assert lines[1] == "    def ke(self):"
         assert lines[2] == "        this = self"
@@ -260,13 +264,13 @@ class TestEmitMethod:
     def test_lambda_maps_to_forward(self):
         """λ method name is emitted as Python 'foward'."""
         method = make_method(name="λ", params=[("x", "ℝ")], body=("var", "x"))
-        lines = emit_method(method, [], lambda node: node[1], True)
+        lines = emit_method(method, [], [], lambda node: node[1], True)
         assert "def forward(self, x):" in lines[1]
 
     def test_named_method(self):
         """method names pass through unchanged."""
         method = make_method(name="step", body=("var", "mass"))
-        lines = emit_method(method, [("mass", "ℝ")], lambda _: "this.mass",
+        lines = emit_method(method, [("mass", "ℝ")], [], lambda _: "this.mass",
                             True)
         assert "def step(self):" in lines[1]
 
@@ -275,7 +279,7 @@ class TestEmitMethod:
         method = make_method(name="scale",
                              params=[("s", "ℝ")],
                              body=("var", "s"))
-        lines = emit_method(method, [], lambda node: node[1], True)
+        lines = emit_method(method, [], [], lambda node: node[1], True)
         # conversion line must appear before the return
         assert any("torch.as_tensor(s).float()" in ln for ln in lines)
 
@@ -283,13 +287,13 @@ class TestEmitMethod:
         """tuple_return body emits two value return statement."""
         body = ("tuple_return", ("var", "a"), ("var", "b"))
         method = make_method(name="split", body=body)
-        lines = emit_method(method, [], lambda node: node[1], True)
+        lines = emit_method(method, [], [], lambda node: node[1], True)
         assert lines[-1] == "        return (a, b)"
 
     def test_this_replaced_with_self(self):
         """this.field become self.field."""
         method = make_method(body=("var", "x"))
-        lines = emit_method(method, [("mass", "ℝ")],
+        lines = emit_method(method, [("mass", "ℝ")], [],
                             lambda _: "0.5 * this.mass", True)
         # skip lines[2] which is the intentional "this = self" alias
         for line in lines[3:]:
@@ -336,7 +340,7 @@ class TestGenerateClass:
         # equovalent to:
         # class Linear(w: ℝ):
         #   def λ(x: ℝ) → ℝ:
-        assert "nn.Parameter(torch.as_tensor(w).float())" in code
+        assert "nn.Parameter(torch.as_tensor(w))" in code
 
 
 class TestMakeParserRules:
@@ -349,7 +353,7 @@ class TestMakeParserRules:
         assert isinstance(make_parser_rules(), list)
 
         # Exactly 20 grammar rules
-        assert len(make_parser_rules()) == 20
+        assert len(make_parser_rules()) == 23
 
         # every item should be a callable p_ functino
         for rule in make_parser_rules():
@@ -718,3 +722,9 @@ class TestPhysikaClass:
         assert torch.allclose(ns()["dKE_dv"].float(),
                               torch.tensor([2.0, 3.4]),
                               atol=1e-4)
+
+        result_access = ns()["obj_B"].access_member()
+        assert float(result_access) == 2.0
+
+        result_loop = ns()["obj_B"].access_memeber_in_loop()
+        assert float(result_loop) == 3.0

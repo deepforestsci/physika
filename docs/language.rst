@@ -206,7 +206,7 @@ For-expression
    def scale_vec(x : ℝ): ℝ[3]:
        return for i : ℕ(3) → x * (i + 1)
 
-   s : ℝ = 2
+   s : ℝ = 2.0
    scale_vec(s)
    grad(scale_vec(s), s)
 
@@ -229,7 +229,7 @@ Implicit range for-loop
            result += s * a[i]
        return result
 
-   s : ℝ = 1
+   s : ℝ = 1.0
    grad(dot_with_arr(s), s)
 
 Output::

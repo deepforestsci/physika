@@ -24,6 +24,7 @@ class Vec(nn.Module):
         super().__init__()
         self.x = torch.as_tensor(x).float()
         self.y = torch.as_tensor(y).float()
+        self.learnable_params = [self.x, self.y]
 
     def dot(self, other):
         this = self
@@ -54,6 +55,7 @@ class Particle(nn.Module):
         self.pos = torch.as_tensor(pos).float()
         self.vel = torch.as_tensor(vel).float()
         self.mass = torch.as_tensor(mass).float()
+        self.learnable_params = [self.pos, self.vel, self.mass]
 
     def kinetic_energy(self):
         this = self
@@ -67,6 +69,49 @@ class Particle(nn.Module):
         new_vel = (self.vel + (acc * dt))
         new_pos = (self.pos + (self.vel * dt))
         return Particle(new_pos, new_vel, self.mass)
+
+    @property
+    def params(self):
+        return list(self.parameters())
+
+    def update(self, lr, grads):
+        with torch.no_grad():
+            for p, g in zip(self.parameters(), grads):
+                if g is not None:
+                    p -= lr * g
+
+class A(nn.Module):
+    def __init__(self, x):
+        super().__init__()
+        self.x = torch.as_tensor(x).float()
+        self.learnable_params = [self.x]
+
+    @property
+    def params(self):
+        return list(self.parameters())
+
+    def update(self, lr, grads):
+        with torch.no_grad():
+            for p, g in zip(self.parameters(), grads):
+                if g is not None:
+                    p -= lr * g
+
+class B(nn.Module):
+    def __init__(self, objA):
+        super().__init__()
+        self.add_module('objA', objA)
+        self.learnable_params = []
+
+    def access_member(self):
+        this = self
+        self.objA.x = 2.0
+        return self.objA.x
+
+    def access_memeber_in_loop(self):
+        this = self
+        for i in range(int(0), int(1)):
+            self.objA.x = 3.0
+        return self.objA.x
 
     @property
     def params(self):
@@ -98,7 +143,7 @@ p1 = p.step(gravity, 0.5)
 physika_print(p1.pos)
 p2 = p1.step(gravity, 0.5)
 physika_print(p2.pos)
-v = torch.as_tensor(torch.tensor([2.0, 3.4])).float().requires_grad_(True)
+v = torch.as_tensor(torch.tensor([2.0, 3.4])).requires_grad_(True)
 ke0_v = ke_wrt_vel(v)
 physika_print(ke0_v)
 dKE_dv = compute_grad(lambda _dv: ke_wrt_vel(_dv), v)
@@ -115,3 +160,7 @@ physika_print(compute_grad(vec.norm_sq(), x1))
 x1 = torch.tensor(5.0, requires_grad=True)
 vec = Vec(x1, 4.0)
 physika_print(compute_grad(vec.x, x1))
+obj_A = A(1.0)
+obj_B = B(obj_A)
+physika_print(obj_B.access_member())
+physika_print(obj_B.access_memeber_in_loop())
