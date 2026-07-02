@@ -1039,6 +1039,14 @@ def expr_call(node: Any,
     if func_name == "grad":
         # TODO: We should add support to get the tangent space type (e.g. Tₓ)
         return (arg_types[1] if len(arg_types) >= 2 else None), s
+    if func_name == "reshape":
+        dims: list[tuple[Union[int, TDim], str]] = []
+        for d in args[1:]:
+            if isinstance(d, tuple) and d[0] == "num" and d[1] >= 0:
+                dims.append((int(d[1]), "invariant"))
+            else:
+                dims.append((new_dim(), "invariant"))
+        return TTensor(tuple(dims)), s
 
     # User defined functions
     if func_name in ctx.func_env:
