@@ -1,0 +1,69 @@
+# ============================================================================
+# Parameter learning for the 2D Allen–Cahn equation in Physika
+# ============================================================================
+# Forward problem : evolve a random initial field and watch it phase separate
+#                   into ± domains (coarsening).
+# Inverse problem : recover the interface parameter ε from an observation of
+#                   the field, by differentiating through the whole solver.
+# ============================================================================
+
+def neighbor_sum(eta: ℝ[m, n]): ℝ[m, n]:
+    s: ℝ[m, n] = roll(eta, 1, 0) + roll(eta, -1, 0) + roll(eta, 1, 1) + roll(eta, -1, 1)
+    return s
+
+Nx: ℕ = 64
+dx: ℝ = 1.0 / Nx
+dt: ℝ = 2e-2
+stab: ℝ = 2.0           # convex-splitting stabilization (S)
+jacobi_iters: ℕ = 12    # Jacobi sweeps per implicit solve
+num_steps: ℕ = 80
+
+ic: ℝ[Nx, Nx] = for i:ℕ(Nx) → ε : ℝ[Nx] ~ 𝒰(-0.1, 0.1, Nx)
+
+def semi_implicit_step(eta: ℝ[m, n], eps: ℝ): ℝ[m, n]:
+    coeff: ℝ = dt * eps**2 / dx**2
+    diag: ℝ = 1.0 + dt * stab + 4.0 * coeff
+    rhs: ℝ[m, n] = (1.0 + dt * stab) * eta - dt * (eta**3 - eta)
+    next_eta: ℝ[m, n] = eta
+    for k:ℕ(0, jacobi_iters):
+        next_eta = (rhs + coeff * neighbor_sum(next_eta)) / diag
+    return next_eta
+
+def solver(eps: ℝ): ℝ[m, n]:
+    eta: ℝ[m, n] = ic
+    for s:ℕ(0, num_steps):
+        eta = semi_implicit_step(eta, eps)
+    return eta
+
+# ----------------------------------------------------------------------------
+# Forward problem: evolve the random field and observe phase separation.
+# ----------------------------------------------------------------------------
+true_eps: ℝ = 0.03
+true_values: ℝ[m, n] = solver(true_eps)
+
+# plot_field is not built in; see the tutorial docs for a matplotlib helper.
+#plot_field(ic)
+#plot_field(true_values)
+
+# ----------------------------------------------------------------------------
+# Inverse problem: recover ε from the observed final field.
+# Mean-squared error between the predicted and observed final-time fields.
+# ----------------------------------------------------------------------------
+def calculate_loss(eps: ℝ): ℝ:
+    pred: ℝ[m, n] = solver(eps)
+    loss: ℝ = mean((pred - true_values)**2)
+    return loss
+
+eps: ℝ = 0.06
+learning_rate: ℝ = 0.5
+
+# ------------------------------------------------------------------
+# Set epochs to ~40 to fully recover ε ≈ 0.03; here it is 1 so the
+# tutorial runs quickly through tests/test_tutorials.py.
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+for epoch:ℕ(0, epochs):
+    g = grad(calculate_loss, eps)
+    eps = eps - learning_rate * g
+    physika_print(eps)
