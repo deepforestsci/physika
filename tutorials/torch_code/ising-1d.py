@@ -31,12 +31,8 @@ def mean_field_reference(J, h, β, iters):
 class MeanFieldIsing(nn.Module):
     def __init__(self, logit_p):
         super().__init__()
-<<<<<<< HEAD
         self.logit_p = nn.Parameter(torch.as_tensor(logit_p))
-=======
-        self.logit_p = nn.Parameter(torch.as_tensor(logit_p).float())
         self.learnable_params = [self.logit_p]
->>>>>>> 900d1a3b (minor fixes: fixed failing tutorial tests)
         self.register_buffer('baseline', torch.tensor(0.0))
 
     def forward(self, n):
