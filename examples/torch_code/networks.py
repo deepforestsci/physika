@@ -42,12 +42,13 @@ class OneLayerNet(nn.Module):
         self.c0 = nn.Parameter(torch.as_tensor(c0))
         self.w1 = nn.Parameter(torch.as_tensor(w1))
         self.b1 = nn.Parameter(torch.as_tensor(b1))
+        self.learnable_params = [self.W0, self.c0, self.w1, self.b1]
 
     def forward(self, x):
         this = self
         x = torch.as_tensor(x).float()
-        z = sigma(((self.W0 @ x) + self.c0))
-        results = ((self.w1 @ z) + self.b1)
+        z = sigma(((W0 @ x) + c0))
+        results = ((w1 @ z) + b1)
         return results[int(0), int(0)]
 
     def loss(self, y, target):
@@ -74,12 +75,13 @@ class FullyConnectedNetwork(nn.Module):
         self.w = nn.Parameter(torch.as_tensor(w))
         self.b = nn.Parameter(torch.as_tensor(b))
         self.n = torch.as_tensor(n).float() if isinstance(n, (int, float, torch.Tensor)) else n
+        self.learnable_params = [self.W, self.B, self.w, self.b]
 
     def forward(self, x):
         this = self
         x = torch.as_tensor(x).float()
-        for k in range(len(self.W)):
-            x = sigma(((self.W[int(k)] @ x) + self.B[int(k)]))
+        for k in range(len(W)):
+            x = sigma(((W[int(k)] @ x) + B[int(k)]))
         return ((self.w @ x) + self.b)
 
     def loss(self, y, target):
