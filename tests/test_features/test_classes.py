@@ -255,7 +255,7 @@ class TestEmitMethod:
                 return 0.5 * this.mass
         """
         method = make_method(body=("var", "mass"))
-        lines = emit_method(method, [("mass", "ℝ")], lambda _: "this.mass",
+        lines = emit_method(method, [("mass", "ℝ")], [], lambda _: "this.mass",
                             True)
         assert lines[1] == "    def ke(self):"
         assert lines[2] == "        this = self"
@@ -264,13 +264,13 @@ class TestEmitMethod:
     def test_lambda_maps_to_forward(self):
         """λ method name is emitted as Python 'foward'."""
         method = make_method(name="λ", params=[("x", "ℝ")], body=("var", "x"))
-        lines = emit_method(method, [], lambda node: node[1], True)
+        lines = emit_method(method, [], [], lambda node: node[1], True)
         assert "def forward(self, x):" in lines[1]
 
     def test_named_method(self):
         """method names pass through unchanged."""
         method = make_method(name="step", body=("var", "mass"))
-        lines = emit_method(method, [("mass", "ℝ")], lambda _: "this.mass",
+        lines = emit_method(method, [("mass", "ℝ")], [], lambda _: "this.mass",
                             True)
         assert "def step(self):" in lines[1]
 
@@ -279,7 +279,7 @@ class TestEmitMethod:
         method = make_method(name="scale",
                              params=[("s", "ℝ")],
                              body=("var", "s"))
-        lines = emit_method(method, [], lambda node: node[1], True)
+        lines = emit_method(method, [], [], lambda node: node[1], True)
         # conversion line must appear before the return
         assert any("torch.as_tensor(s).float()" in ln for ln in lines)
 
@@ -287,13 +287,13 @@ class TestEmitMethod:
         """tuple_return body emits two value return statement."""
         body = ("tuple_return", ("var", "a"), ("var", "b"))
         method = make_method(name="split", body=body)
-        lines = emit_method(method, [], lambda node: node[1], True)
+        lines = emit_method(method, [], [], lambda node: node[1], True)
         assert lines[-1] == "        return (a, b)"
 
     def test_this_replaced_with_self(self):
         """this.field become self.field."""
         method = make_method(body=("var", "x"))
-        lines = emit_method(method, [("mass", "ℝ")],
+        lines = emit_method(method, [("mass", "ℝ")], [],
                             lambda _: "0.5 * this.mass", True)
         # skip lines[2] which is the intentional "this = self" alias
         for line in lines[3:]:

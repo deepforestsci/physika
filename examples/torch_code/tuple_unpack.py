@@ -9,6 +9,7 @@ class Simple(nn.Module):
     def __init__(self, v):
         super().__init__()
         self.v = torch.as_tensor(v).float()
+        self.learnable_params = [self.v]
 
     def get(self):
         this = self
@@ -37,6 +38,7 @@ class Pair(nn.Module):
         super().__init__()
         self.a = torch.as_tensor(a).float()
         self.b = torch.as_tensor(b).float()
+        self.learnable_params = [self.a, self.b]
 
     def get(self):
         this = self
@@ -62,6 +64,7 @@ class Model(nn.Module):
         super().__init__()
         self.a = torch.as_tensor(a).float()
         self.b = torch.as_tensor(b).float()
+        self.learnable_params = [self.a, self.b]
 
     def pair(self):
         this = self
@@ -90,6 +93,7 @@ class Grid(nn.Module):
     def __init__(self, v):
         super().__init__()
         self.v = torch.as_tensor(v).float()
+        self.learnable_params = [self.v]
 
     def compute(self, n):
         this = self
@@ -115,6 +119,7 @@ class Point(nn.Module):
         super().__init__()
         self.x = torch.as_tensor(x).float()
         self.y = torch.as_tensor(y).float()
+        self.learnable_params = [self.x, self.y]
 
     def get(self):
         this = self
@@ -137,6 +142,7 @@ class Vec4(nn.Module):
         self.x = torch.as_tensor(x).float()
         self.y = torch.as_tensor(y).float()
         self.z = torch.as_tensor(z).float()
+        self.learnable_params = [self.w, self.x, self.y, self.z]
 
     def f(self):
         this = self
@@ -157,6 +163,7 @@ class Tensors(nn.Module):
         super().__init__()
         self.a = torch.as_tensor(a).float()
         self.b = torch.as_tensor(b).float()
+        self.learnable_params = [self.a, self.b]
 
     def sum_parts(self):
         this = self
@@ -178,6 +185,7 @@ class Vec2(nn.Module):
         super().__init__()
         self.x = torch.as_tensor(x).float()
         self.y = torch.as_tensor(y).float()
+        self.learnable_params = [self.x, self.y]
 
     def f(self):
         this = self

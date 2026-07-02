@@ -14,15 +14,16 @@ class RK4(nn.Module):
     def __init__(self, dt):
         super().__init__()
         self.dt = nn.Parameter(torch.as_tensor(dt))
+        self.learnable_params = [self.dt]
 
     def forward(self, x):
         this = self
         x = torch.as_tensor(x).float()
         k1 = pendulum(x)
-        k2 = pendulum((x + ((0.5 * self.dt) * k1)))
-        k3 = pendulum((x + ((0.5 * self.dt) * k2)))
-        k4 = pendulum((x + (self.dt * k3)))
-        x = (x + ((self.dt / 6.0) * (((k1 + (2.0 * k2)) + (2.0 * k3)) + k4)))
+        k2 = pendulum((x + ((0.5 * dt) * k1)))
+        k3 = pendulum((x + ((0.5 * dt) * k2)))
+        k4 = pendulum((x + (dt * k3)))
+        x = (x + ((dt / 6.0) * (((k1 + (2.0 * k2)) + (2.0 * k3)) + k4)))
         return x
 
     @property
