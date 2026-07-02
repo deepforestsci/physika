@@ -6,13 +6,13 @@
 # --- 1D: fft and ifft ---------------------------------------
 # Two cosines: a strong one at k=1 and a weaker one at k=3.
 Ns: ℕ = 9
-two_pi: ℝ = 6.283185307179586
+π: ℝ = 3.141592653589793
 center: ℝ = 4.0
 
-f: ℝ[Ns] = for n: ℕ(Ns) -> cos(two_pi * (n - center) / Ns) + 0.5 * cos(two_pi * 3 * (n - center) / Ns)
-F: ℂ[Ns] = fft(f)
-abs(F)                    
-ifft(F)                 
+f: ℝ[Ns] = for n: ℕ(Ns) -> cos(2*π * (n - center) / Ns) + 0.5 * cos(2*π * 3 * (n - center) / Ns) # the sampled signal
+F: ℂ[Ns] = fft(f)   # F is the Fourier transform of sampled signal f        
+abs(F)              # magnitude at each frequency, peaks mark k=1 and k=3      
+ifft(F)             # inverse Fourier transform of F, recovers the sampled signal f
 
 # --- 2D: fft2 and ifft2 -------------------------------------
 M: ℝ[3, 3] = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
@@ -26,10 +26,43 @@ S: ℂ[2, 2, 2] = fftn(V)
 S                            
 ifftn(S)                     
 
-# --- Gradient through the FFT -------------------------------
-# Spectral energy: sum of squared magnitudes. grad = 2N * x.
-def spectral_energy(x: ℝ[N]): ℝ:
-    return sum(abs(fft(x))**2)
+# --- Gradient through the FFT, step by step --------------------
+x: ℝ[4] = [1.0, 2.0, 3.0, 4.0]              # a simple real input
 
-x: ℝ[N] = [1, 2, 3, 4, 5, 6, 7, 8]
-grad(spectral_energy(x), x)  # -> [16, 32, 48, 64, 80, 96, 112, 128]
+# Step 1: forward transform
+X: ℂ[4] = fft(x)                    # spectrum of x, complex: one coefficient per frequency
+
+# grad needs a real-valued scalar. There's no single well-defined gradient
+# direction for a complex number, so we take the real part before calling
+# grad, not the raw complex coefficient.
+
+y: ℝ = real(X[1])                   # real part of the k=1 frequency coefficient
+grad(y, x)
+
+# Step 2: inverse transform, back from the spectrum
+invX: ℂ[4] = ifft(X)                   # reconstructs x, still typed complex even though the values are real
+
+# same reasoning as step 1: reduce to real before grad
+w: ℝ = real(invX[0])                   # real part of the reconstructed first sample
+grad(w, x)
+
+
+# --- Gradient through the FFT--(Parseval's theorem) ----
+# Parseval's theorem: a signal's energy is the same whether measured
+# directly on its samples or on its spectrum:
+
+x2: ℝ[8] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]          # a fresh input signal
+X2: ℂ[8] = fft(x2)                           # spectrum of x2
+
+energy_time: ℝ = sum(x2**2)                  # energy of x2: sum of its squared samples
+energy_freq: ℝ = sum(abs(X2)**2) / len(x2)   # same energy: sum of squared spectrum magnitudes, normalized by N
+
+energy_time
+energy_freq
+
+# energy_time never touches fft, so its gradient is the plain derivative
+# of a sum of squares, 2*x2, whereas energy_freq is built from fft(x2), so its
+# gradient exercises the FFT's backward pass instead. The two should come
+# out identical, a working check that grad flows correctly through fft.
+grad(energy_time, x2)
+grad(energy_freq, x2)

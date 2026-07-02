@@ -1,50 +1,75 @@
 Fast Fourier Transform
 ======================
 
-In this tutorial we will go through what the Fast Fourier Transform (FFT) is, how
-to use it in Physika, and how gradients flow through it with ``grad``.
+In this tutorial we will cover what the Discrete Fourier Transform (DFT) is, the
+Fast Fourier Transform (FFT) that computes it efficiently, how to use them in
+Physika, and how gradients flow through them with ``grad``.
 
-The FFT [FFTWiki]_ is a fast algorithm for computing the Discrete Fourier Transform (DFT),
-which represents a signal as a combination of pure sinusoids and reports the
-amplitude and phase of each frequency it contains.
+Many of the signals we work with, such as a pressure trace, a time series, or a
+row of a simulation grid, are more naturally described by the oscillations they
+contain than by their raw sample values. The DFT [DFTWiki]_ resolves a signal
+into exactly those frequency components, reporting the amplitude and phase of
+each one it contains. The FFT [FFTWiki]_ computes this same decomposition, using
+an algorithm that reduces its cost from :math:`O(N^2)` to :math:`O(N \log N)`.
 
-The Discrete Fourier Transform
+Discrete Fourier Transform
 ------------------------------
 
-We start from what the FFT actually computes. The signal arrives as :math:`N`
-samples :math:`x_0, \dots, x_{N-1}`, its values measured at equally spaced points
-in time or space. The DFT [DFTWiki]_ maps these to :math:`N` spectrum coefficients
-:math:`X_0, \dots, X_{N-1}`, one per frequency:
+The DFT takes :math:`N` samples :math:`x_0, \dots, x_{N-1}`, measured at equally
+spaced points in time or space, and returns :math:`N` coefficients
+:math:`X_0, \dots, X_{N-1}`, one per frequency :math:`k`. The samples are the
+signal's time-domain representation and the coefficients are its frequency-domain
+representation, or spectrum. Each :math:`X_k` is a complex number, carrying both
+the strength of frequency :math:`k` and its phase:
 
 .. math::
 
-    \begin{align*}
     X_k = \sum_{n=0}^{N-1} x_n \, e^{-2\pi i \, kn / N}, \qquad
     x_n = \frac{1}{N} \sum_{k=0}^{N-1} X_k \, e^{+2\pi i \, kn / N}
-    \end{align*}
 
-with :math:`k, n = 0, \dots, N-1`. The factor :math:`e^{-2\pi i \, kn/N}` is a
-pure wave that completes :math:`k` cycles across the :math:`N` samples. The
-forward sum multiplies the signal by that wave and adds the result up, so
-:math:`X_k` measures how much of frequency :math:`k` the signal contains:
-:math:`|X_k|` is its amplitude and :math:`\arg(X_k)` its phase. The inverse sum
-runs the other way, rebuilding the signal as those waves added back up, each
-weighted by its :math:`X_k`, which returns the original samples exactly.
+with :math:`k, n = 0, \dots, N-1`. The term :math:`e^{-2\pi i \, kn/N}` is a
+complex sinusoid, a wave oscillating at frequency :math:`k`. Writing it with
+Euler's formula, :math:`e^{-2\pi i \, kn/N} = \cos(2\pi kn/N) - i\,\sin(2\pi kn/N)`,
+shows it as a cosine and sine that together complete :math:`k` full cycles across
+the :math:`N` samples.
+
+The forward sum multiplies the input by this sinusoid term by term and adds the
+products. When the signal contains frequency :math:`k`, the two line up and the
+sum is large, so :math:`X_k` measures how strongly frequency :math:`k` is present.
+Its magnitude :math:`|X_k|` is proportional to the amplitude of that frequency and
+its angle :math:`\arg(X_k)` records the phase.
+
+The inverse sum reverses this. It scales each sinusoid by its coefficient
+:math:`X_k` and adds them all back together, recovering the original samples
+:math:`x_n` exactly.
+
+As a small example, take a cosine that completes one full cycle over four samples,
+:math:`x_n = \cos(2\pi n / 4)`, which gives :math:`x = [1, 0, -1, 0]`. Only
+:math:`x_0` and :math:`x_2` are nonzero, so the sum reduces to
+
+.. math::
+
+    X_k = x_0 + x_2 \, e^{-2\pi i \, k \cdot 2 / 4}
+        = 1 - e^{-i\pi k} = 1 - (-1)^k,
+
+which evaluates to :math:`X = [0, 2, 0, 2]`. The nonzero coefficients fall at
+:math:`k = 1` and :math:`k = 3`, the single frequency the
+cosine carries.
 
 
-For a real signal the spectrum is conjugate-symmetric, :math:`X_{N-k} =\overline{X_k}`, so the upper half mirrors the lower half, and a frequency
-present in the signal appears at both :math:`k` and :math:`N-k` with equal
-magnitude.
+Cooley-Tukey Algorithm
+--------------------------
 
+Evaluating the DFT sum directly costs :math:`O(N^2)`, since each of the :math:`N`
+coefficients :math:`X_k` is itself a sum over :math:`N` terms. For the small
+signal this is fine, but a simulation grid can easily reach :math:`N` in
+the millions, where an :math:`O(N^2)` cost becomes impractical. The Fast Fourier
+Transform is not a different transform. It computes exactly the same :math:`X_k`
+values, but does so in :math:`O(N \log N)` time by avoiding redundant work in the
+direct sum.
 
-Why it is fast
----------------
-
-The FFT is not a different transform but an algorithm that computes the same DFT
-more cheaply. Evaluating the sum directly costs :math:`O(N^2)`, since each of the
-:math:`N` coefficients is a sum over :math:`N` terms.
-
-The Cooley-Tukey algorithm [CooleyTukey1965]_ brings this down by divide and conquer. We split the
+The most widely used FFT is the Cooley-Tukey algorithm [CooleyTukey1965]_, which
+brings this cost down by divide and conquer. We split the
 forward sum into its even-indexed samples (:math:`n = 2m`) and its odd-indexed
 ones (:math:`n = 2m + 1`):
 
@@ -53,47 +78,61 @@ ones (:math:`n = 2m + 1`):
     X_k = \sum_{m=0}^{N/2-1} x_{2m} \, e^{-2\pi i \, k(2m)/N}
         + \sum_{m=0}^{N/2-1} x_{2m+1} \, e^{-2\pi i \, k(2m+1)/N}.
 
-In the first sum the :math:`2` cancels into the :math:`N`, leaving a half-length
-DFT over the even samples; the second is the same over the odd samples once we
-pull an extra :math:`e^{-2\pi i \, k/N}` out of its shifted exponent. Writing
-those two half transforms as
+In the even sum the exponent simplifies because :math:`k(2m)/N = km/(N/2)`, so
+:math:`e^{-2\pi i \, k(2m)/N} = e^{-2\pi i \, km/(N/2)}`. This is a DFT that runs
+over just the :math:`N/2` even-indexed samples, a transform of half the original
+size. The odd sum carries the same exponent times one extra factor, since
+:math:`e^{-2\pi i \, k(2m+1)/N} = e^{-2\pi i \, km/(N/2)} \, e^{-2\pi i \, k/N}`,
+so pulling that factor out front leaves a second half-size DFT, this one over the
+:math:`N/2` odd-indexed samples. Writing those two half transforms as
 
 .. math::
 
     E_k = \sum_{m=0}^{N/2-1} x_{2m} \, e^{-2\pi i \, km/(N/2)}, \qquad
     O_k = \sum_{m=0}^{N/2-1} x_{2m+1} \, e^{-2\pi i \, km/(N/2)},
 
-the length-:math:`N` DFT becomes
+The DFT over all :math:`N` samples becomes
+
 
 .. math::
 
     X_k = E_k + e^{-2\pi i \, k/N} \, O_k.
 
-The factor :math:`e^{-2\pi i \, k/N}`, the algorithm's twiddle factor, restores the
-one-sample offset dropped when the odd samples were reindexed by :math:`m`, since
-shifting a sample by one position multiplies frequency :math:`k` by exactly
-:math:`e^{-2\pi i \, k/N}`.
+The factor :math:`e^{-2\pi i \, k/N}` multiplying :math:`O_k` is the twiddle
+factor. It accounts for the odd samples sitting one position after the even ones,
+since delaying a signal by one sample multiplies its frequency-:math:`k` component
+by exactly :math:`e^{-2\pi i \, k/N}`.
 
-Each half transform repeats with period :math:`N/2`, so :math:`E_{k+N/2} = E_k`
-and likewise for :math:`O_k`, and the phase factor flips sign over that half
-period, :math:`e^{-2\pi i (k+N/2)/N} = -e^{-2\pi i \, k/N}`. One computed pair
-:math:`(E_k, O_k)` therefore fills two outputs at once,
+Each half transform has period :math:`N/2`, so its values repeat, with
+:math:`E_{k+N/2} = E_k` and :math:`O_{k+N/2} = O_k`. Over that same half period
+the twiddle factor only flips sign,
+:math:`e^{-2\pi i \, (k+N/2)/N} = -e^{-2\pi i \, k/N}`. A single pair
+:math:`(E_k, O_k)` therefore produces two output coefficients at once,
 
 .. math::
 
     X_k = E_k + e^{-2\pi i \, k/N} O_k, \qquad
     X_{k+N/2} = E_k - e^{-2\pi i \, k/N} O_k,
 
-so only :math:`k = 0, \dots, N/2 - 1` need be formed. Applying the split
-recursively gives :math:`\log_2 N` stages of :math:`O(N)` work, and the whole
-transform costs :math:`O(N \log N)` for the same result.
+so the lower output :math:`X_k` and the upper output :math:`X_{k+N/2}` come from
+the very same pair :math:`(E_k, O_k)`, differing only in the sign of the twiddle
+factor. We therefore compute :math:`E_k` and :math:`O_k` once, for
+:math:`k = 0, \dots, N/2 - 1`, and read off all :math:`N` outputs from them. This
+two-input, two-output combine is the FFT's butterfly.
+
+Each of those two half-length DFTs is computed the same way, splitting again into
+even and odd parts, then each quarter-length DFT after that, down to transforms of
+length one. This gives :math:`\log_2 N` levels of splitting, each costing
+:math:`O(N)` to recombine, so the whole transform runs in :math:`O(N \log N)`,
+against :math:`O(N^2)` for the direct sum.
 
 
-The FFT in Physika
+FFT in Physika
 ------------------
 
-Now we turn to using the transform in Physika, which exposes it as six built-ins
-that map directly onto ``torch.fft`` [TorchFFT]_:
+We have seen what the transform computes and why the FFT computes it faster.
+Physika provides these as built-in functions, which compile to PyTorch's FFT
+functions [TorchFFT]_:
 
 ==========  ====================  ===================================
 Physika     PyTorch               Transform
@@ -123,10 +162,10 @@ frequency 3:
 .. code-block:: text
 
     Ns: ℕ = 9
-    two_pi: ℝ = 6.283185307179586
+    π: ℝ = 3.141592653589793
     center: ℝ = 4.0
 
-    f: ℝ[Ns] = for n: ℕ(Ns) -> cos(two_pi * (n - center) / Ns) + 0.5 * cos(two_pi * 3 * (n - center) / Ns)
+    f: ℝ[Ns] = for n: ℕ(Ns) -> cos(2*π * (n - center) / Ns) + 0.5 * cos(2*π * 3 * (n - center) / Ns)
     F: ℂ[Ns] = fft(f)
     abs(F)
     ifft(F)
@@ -211,35 +250,22 @@ As in two dimensions, the corner coefficient is the sum of the grid (36), and
 .. note::
 
    The ``norm`` argument, which selects a different normalization, cannot be
-   passed because, Physika has no string type, so every transform uses the default
+   passed because Physika has no string type, so every transform uses the default
    convention described above.
 
 Differentiating through the FFT
 -------------------------------
 
-We now differentiate through the transform. Because the DFT is linear, it is a
-matrix multiply :math:`X = F x` with the constant matrix
-:math:`F_{kn} = e^{-2\pi i \, kn/N}`. The derivative of a linear map is the map
-itself, so the Jacobian :math:`\partial X / \partial x = F` is constant and does
-not depend on :math:`x`.
+We now differentiate through the transform, then see it on two examples in
+Physika.
 
-``grad`` computes a gradient by running the computation forward and then passing
-derivatives back through it, from the output to the input. We begin with the
-gradient of a scalar loss :math:`L` with respect to the output,
-:math:`\bar{X} = \partial L / \partial X`, and want the gradient with respect to
-the input. Since the forward map is multiplication by :math:`F`, passing the
-gradient back through it applies the conjugate transpose :math:`F^{H}`, called the
-adjoint of :math:`F`:
-
-.. math::
-
-    \bar{x} = \frac{\partial L}{\partial x} = F^{H} \, \bar{X}.
-
-For the DFT, the adjoint :math:`F^{H}` is the inverse transform up to the
-:math:`1/N` factor. So the backward pass of an FFT is itself an inverse FFT. The
-gradient is obtained by running an inverse transform on :math:`\bar{X}`. This
-makes the gradient exact and as cheap as the forward transform,
-:math:`O(N \log N)`.
+The DFT is a linear map, :math:`X = Fx`, with the constant matrix
+:math:`F_{kn} = e^{-2\pi i \, kn/N}`. Backpropagating through a linear map applies
+its adjoint, the conjugate transpose :math:`F^{H}`. A gradient :math:`\bar{X}`
+arriving on the output becomes the gradient :math:`\bar{x} = F^{H} \, \bar{X}` on
+the input. For the DFT, this adjoint is the inverse transform without its
+:math:`1/N` normalization, so the backward pass of an FFT is itself an inverse
+FFT, exact and just as cheap, :math:`O(N \log N)`.
 
 In Physika this needs no special handling. ``grad(expr, x)`` compiles to
 ``compute_grad``, which calls ``torch.autograd.grad``.
@@ -251,21 +277,92 @@ In Physika this needs no special handling. ``grad(expr, x)`` compiles to
    a complex input you carry it as a pair of real variables, its real and
    imaginary parts, and take the gradient with respect to each. [TorchComplexAutograd]_
 
-As an example, we differentiate the spectral energy of a signal, the total power
-in its spectrum, with respect to the signal itself. This is the building block of
-a spectral loss, the kind used to shape a signal in the frequency domain:
+We now see this on two examples.
+
+Gradient of a single coefficient
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We start with the most direct case, differentiating one spectrum coefficient with
+respect to the input. Take a short real signal and transform it:
 
 .. code-block:: text
 
-    def spectral_energy(x: ℝ[N]): ℝ:
-        return sum(abs(fft(x))**2)
+    x: ℝ[4] = [1.0, 2.0, 3.0, 4.0]
+    X: ℂ[4] = fft(x)
 
-    x: ℝ[N] = [1, 2, 3, 4, 5, 6, 7, 8]
-    grad(spectral_energy(x), x)
+A coefficient :math:`X_k` is complex, and ``grad`` needs a real-valued output, so
+we differentiate its real part rather than the coefficient itself:
+
+.. code-block:: text
+
+    y: ℝ = real(X[1])
+    grad(y, x)
 
 Output::
 
-    [16.0, 32.0, 48.0, 64.0, 80.0, 96.0, 112.0, 128.0] ∈ ℝ[8]
+    [1.0, 0.0, -1.0, 0.0] ∈ ℝ[4]
+
+From the DFT sum, the real part of the :math:`k = 1` coefficient is
+:math:`\mathrm{Re}(X_1) = x_0 - x_2` when :math:`N = 4`. Its gradient is therefore
+:math:`1` at :math:`x_0`, :math:`-1` at :math:`x_2`, and zero elsewhere, matching
+the output above.
+
+The inverse transform differentiates the same way. Running ``ifft`` on the
+spectrum reconstructs the signal, and we differentiate the first reconstructed
+sample:
+
+.. code-block:: text
+
+    invX: ℂ[4] = ifft(X)
+    w: ℝ = real(invX[0])
+    grad(w, x)
+
+Output::
+
+    [1.0, 0.0, 0.0, 0.0] ∈ ℝ[4]
+
+Since ``ifft(fft(x))`` returns ``x``, the first reconstructed sample is just
+:math:`x_0`, so its gradient is :math:`1` at :math:`x_0` and zero elsewhere.
+
+Gradient of the spectral energy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The second example is the one used in practice. The *energy* of a signal is the
+sum of its squared samples, proportional to the physical energy it carries. By
+Parseval's theorem [ParsevalWiki]_ the same value can be read from the spectrum:
+
+.. math::
+
+    E = \sum_{n=0}^{N-1} x_n^2 = \frac{1}{N} \sum_{k=0}^{N-1} |X_k|^2 .
+
+Each :math:`|X_k|^2` is the energy at frequency :math:`k`, so the sum shows how the
+signal's energy is spread across frequencies. We compute the energy both ways and
+differentiate each with respect to the signal:
+
+.. code-block:: text
+
+    x2: ℝ[8] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+    X2: ℂ[8] = fft(x2)
+
+    energy_time: ℝ = sum(x2**2)
+    energy_freq: ℝ = sum(abs(X2)**2) / len(x2)
+
+    energy_time
+    energy_freq
+    grad(energy_time, x2)
+    grad(energy_freq, x2)
+
+Output::
+
+    204.0 ∈ ℝ
+    204.0 ∈ ℝ
+    [2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0] ∈ ℝ[8]
+    [2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0] ∈ ℝ[8]
+
+Both forms give the same energy, :math:`204`, a numerical check of Parseval's
+theorem, and the same gradient :math:`\partial E / \partial x_n = 2 x_n`. That the
+frequency-domain version matches confirms ``grad`` flows correctly back through
+``fft``.
 
 
 References
@@ -287,3 +384,6 @@ References
 
 .. [TorchComplexAutograd] Autograd for complex numbers. *PyTorch Documentation*.
    `<https://pytorch.org/docs/stable/notes/autograd.html#autograd-for-complex-numbers>`_.
+
+.. [ParsevalWiki] Parseval's theorem. *Wikipedia*.
+   `<https://en.wikipedia.org/wiki/Parseval%27s_theorem>`_.
