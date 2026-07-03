@@ -24,7 +24,7 @@ EXPECTED = {'functions': {'f': {'params': [('x', ('tensor', [('m', 'invariant')]
              ('decl',
               'μ',
               ('tensor', [(1, 'invariant')]),
-              ('array', [('num', 2)]),
+              ('array', [('num', 2.0)]),
               24),
              ('assign',
               'grad_μ',

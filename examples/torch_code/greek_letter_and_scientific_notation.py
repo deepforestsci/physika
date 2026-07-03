@@ -20,7 +20,7 @@ z = (x + y)
 physika_print(z)
 greek_letters_array = torch.stack([torch.as_tensor(α), torch.as_tensor(β)])
 physika_print(greek_letters_array)
-μ = torch.as_tensor(torch.tensor([2])).float().requires_grad_(True)
+μ = torch.as_tensor(torch.tensor([2.0])).requires_grad_(True)
 grad_μ = compute_grad(f, μ)
 physika_print(grad_μ)
 ℏ = 1.0546e-34
