@@ -550,7 +550,7 @@ def ast_to_torch_expr(node: ASTNode,
     >>> ast_to_torch_expr(("call", "sin", [("var", "theta")])) == expected
     True
     >>> ast_to_torch_expr(("array", [("num", 1.0), ("num", 2.0)]))
-    'torch.tensor([1.0, 2.0])'
+    "torch.tensor([1.0, 2.0], device='cpu')"
     """
 
     if not isinstance(node, tuple):
@@ -626,7 +626,7 @@ def ast_to_torch_expr(node: ASTNode,
             inner_lists = [array_to_list(e) for e in elements]
             if contains_complex:
                 return f"torch.tensor([{', '.join(inner_lists)}], dtype=torch.complex64)"  # noqa
-            return f"torch.tensor([{', '.join(inner_lists)}], device='{DEVICE}')"
+            return f"torch.tensor([{', '.join(inner_lists)}], device='{DEVICE}')"  # noqa
         else:
             all_numeric = all(
                 isinstance(e, tuple) and (
@@ -640,7 +640,7 @@ def ast_to_torch_expr(node: ASTNode,
             if all_numeric:
                 if contains_complex:
                     return f"torch.tensor([{', '.join(elem_strs)}], dtype=torch.complex64)"  # noqa
-                return f"torch.tensor([{', '.join(elem_strs)}], device='{DEVICE}')"
+                return f"torch.tensor([{', '.join(elem_strs)}], device='{DEVICE}')"  # noqa
             else:
                 if contains_complex:
                     wrapped = [
@@ -820,10 +820,12 @@ def ast_to_torch_expr(node: ASTNode,
         n_code = ast_to_torch_expr(size_expr, indent, outer_active or None)
         body_code = ast_to_torch_expr(body_expr, indent, active_vars)
         tmp = f"_fi_{loop_var}"
-        return (f"torch.stack(["
-                f"{body_code} "
-                f"for {tmp} in range(int({n_code})) "
-                f"for {loop_var} in [torch.tensor(float({tmp}), device='{DEVICE}')]])")
+        return (
+            f"torch.stack(["
+            f"{body_code} "
+            f"for {tmp} in range(int({n_code})) "
+            f"for {loop_var} in [torch.tensor(float({tmp}), device='{DEVICE}')]])"  # noqa
+        )
 
     elif op == "for_expr_range":
         # for i : ℕ(start, end) → body  — range(start, end), end-exclusive
@@ -840,10 +842,12 @@ def ast_to_torch_expr(node: ASTNode,
         end_code = ast_to_torch_expr(end_expr, indent, outer_active or None)
         body_code = ast_to_torch_expr(body_expr, indent, active_vars)
         tmp = f"_fi_{loop_var}"
-        return (f"torch.stack(["
-                f"{body_code} "
-                f"for {tmp} in range(int({start_code}), int({end_code})) "
-                f"for {loop_var} in [torch.tensor(float({tmp}), device='{DEVICE}'))]])")
+        return (
+            f"torch.stack(["
+            f"{body_code} "
+            f"for {tmp} in range(int({start_code}), int({end_code})) "
+            f"for {loop_var} in [torch.tensor(float({tmp}), device='{DEVICE}'))]])"  # noqa
+        )
 
     elif op == "equation_string":
         return repr(node[1])
@@ -1543,7 +1547,7 @@ def generate_statement(stmt: ASTNode,
             if type_spec == "\u211d":
                 return f"{name} = torch.tensor({expr_code}, requires_grad=True)"  # noqa: E501
             if isinstance(type_spec, tuple) and type_spec[0] == "tensor":
-                return f"{name} = torch.as_tensor({expr_code}).requires_grad_(True).to('{DEVICE})"  # noqa: E501
+                return f"{name} = torch.as_tensor({expr_code}).requires_grad_(True).to('{DEVICE}')"  # noqa: E501
 
         # Tensor value
         if isinstance(type_spec, tuple) and type_spec[0] == "tensor":

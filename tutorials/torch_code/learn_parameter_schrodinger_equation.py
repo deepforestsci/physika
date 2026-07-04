@@ -7,7 +7,7 @@ from physika.runtime import compute_grad
 
 # === Functions ===
 def zero_1d_array(len):
-    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i))]])
+    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
     return results
 
 def linspace(start, end, n):
@@ -34,7 +34,7 @@ def get_2d_array_num_rows(x):
     return total
 
 def zero_complex_2d_array(rows, cols):
-    results = torch.stack([torch.stack([(j * 1j) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i))]])
+    results = torch.stack([torch.stack([(j * 1j) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
     return results
 
 def append_row(x, row):

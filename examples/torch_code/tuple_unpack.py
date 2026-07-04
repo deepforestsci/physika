@@ -97,7 +97,7 @@ class Grid(nn.Module):
 
     def compute(self, n):
         this = self
-        arr = torch.stack([self.v for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i))]])
+        arr = torch.stack([self.v for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
         total = 0.0
         for k in range(int(0), int(n)):
             a, b, c = arr

@@ -7,7 +7,7 @@ from physika.runtime import compute_grad
 
 # === Functions ===
 def zero_1d_array(len):
-    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i))]])
+    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
     return results
 
 def get_1d_array_length(x):
@@ -34,7 +34,7 @@ def f(y, θ):
 
 def solver(θ):
     y = 1.0
-    y_array = torch.tensor([1.0])
+    y_array = torch.tensor([1.0], device='cpu')
     for i in range(int(0), int(timesteps)):
         dy = f(y, θ)
         y = y + (dt * dy)

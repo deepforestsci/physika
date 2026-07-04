@@ -22,7 +22,7 @@ def get_2d_array_num_rows(x):
     return total
 
 def zero_2d_array(rows, cols):
-    results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i))]])
+    results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
     return results
 
 def get_3d_array_depth(x):
@@ -116,11 +116,11 @@ class FullyConnectedNetwork(nn.Module):
                     p -= lr * g
 
 # === Program ===
-X = torch.tensor([[[1.0], [0.0], [0.0]], [[0.0], [1.0], [0.0]], [[0.0], [0.0], [1.0]], [[1.0], [1.0], [1.0]]])
-y = torch.tensor([0.2, 0.4, 0.6, 0.9])
-W = torch.tensor([[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], [[0.2, 0.3, 0.4], [0.5, 0.6, 0.7], [0.8, 0.9, 0.1]]])
-B = torch.tensor([[[0.1], [0.2], [0.3]], [[0.1], [0.2], [0.3]]])
-w = torch.tensor([[0.5, 0.5, 0.5]])
+X = torch.tensor([[[1.0], [0.0], [0.0]], [[0.0], [1.0], [0.0]], [[0.0], [0.0], [1.0]], [[1.0], [1.0], [1.0]]], device='cpu')
+y = torch.tensor([0.2, 0.4, 0.6, 0.9], device='cpu')
+W = torch.tensor([[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], [[0.2, 0.3, 0.4], [0.5, 0.6, 0.7], [0.8, 0.9, 0.1]]], device='cpu')
+B = torch.tensor([[[0.1], [0.2], [0.3]], [[0.1], [0.2], [0.3]]], device='cpu')
+w = torch.tensor([[0.5, 0.5, 0.5]], device='cpu')
 b = 0.1
 net = FullyConnectedNetwork(W, B, w, b)
 loss_before = net.evaluate(X, y)
@@ -131,7 +131,7 @@ net_trained = net.train(X, y, epochs, lr)
 physika_print(net_trained)
 loss_after = net.evaluate(X, y)
 physika_print(loss_after)
-physika_print(net(torch.tensor([1.0, 0.0, 0.0])))
-physika_print(net(torch.tensor([0.0, 1.0, 0.0])))
-physika_print(net(torch.tensor([0.0, 0.0, 1.0])))
-physika_print(net(torch.tensor([1.0, 1.0, 1.0])))
+physika_print(net(torch.tensor([1.0, 0.0, 0.0], device='cpu')))
+physika_print(net(torch.tensor([0.0, 1.0, 0.0], device='cpu')))
+physika_print(net(torch.tensor([0.0, 0.0, 1.0], device='cpu')))
+physika_print(net(torch.tensor([1.0, 1.0, 1.0], device='cpu')))

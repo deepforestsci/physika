@@ -13,7 +13,7 @@ def tanh(z):
 
 def H(J, h, spins, n):
     n = (n - 1)
-    nn_bulk = torch.stack([(spins[int(i)] * spins[int((i + 1))]) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i))]])
+    nn_bulk = torch.stack([(spins[int(i)] * spins[int((i + 1))]) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
     nn_sum = (torch.sum(nn_bulk if isinstance(nn_bulk, torch.Tensor) else torch.tensor(float(nn_bulk))) + (spins[int(n)] * spins[int(0)]))
     field_sum = torch.sum(spins if isinstance(spins, torch.Tensor) else torch.tensor(float(spins)))
     return (((-J) * nn_sum) - (h * field_sum))
@@ -41,7 +41,7 @@ class MeanFieldIsing(nn.Module):
         _dist_b_s = torch.distributions.Bernoulli(p)
         b_s = _dist_b_s.sample((int(n),)).detach()
         log_prob = _dist_b_s.log_prob(b_s)
-        spins = torch.stack([((2.0 * b_s[int(i)]) - 1.0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i))]])
+        spins = torch.stack([((2.0 * b_s[int(i)]) - 1.0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
         return (spins, log_prob)
 
     def loss(self, spins, log_prob, J, h, β, size):

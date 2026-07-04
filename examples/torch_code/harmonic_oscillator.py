@@ -18,11 +18,11 @@ def get_1d_array_length(x):
     return total
 
 def zero_1d_array(len):
-    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i))]])
+    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
     return results
 
 def zero_2d_array(rows, cols):
-    results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i))]])
+    results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
     return results
 
 def solve(A, b):
@@ -48,7 +48,7 @@ def solve(A, b):
 
 def U(k, m, t, x0, v0):
     omega = ((k / m) ** 0.5)
-    A = torch.tensor([[1.0, 0.0], [0.0, omega]])
+    A = torch.tensor([[1.0, 0.0], [0.0, omega]], device='cpu')
     B = torch.stack([torch.as_tensor(x0), torch.as_tensor(v0)])
     coeffs = solve(A, B)
     a = coeffs[int(0)]

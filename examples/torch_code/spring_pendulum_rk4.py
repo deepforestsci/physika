@@ -39,7 +39,7 @@ class RK4(nn.Module):
 # === Program ===
 dt = 0.01
 solver = RK4(dt)
-physika_print(solver(torch.tensor([1.2, 0.3, 0.0, 0.0])))
-physika_print(solver(torch.tensor([1.3, 0.8, 0.0, 0.0])))
+physika_print(solver(torch.tensor([1.2, 0.3, 0.0, 0.0], device='cpu')))
+physika_print(solver(torch.tensor([1.3, 0.8, 0.0, 0.0], device='cpu')))
 step = RK4(dt)
-simulate(step, torch.tensor([1.2, 0.3, 0.0, 0.0]), 500, dt)
+simulate(step, torch.tensor([1.2, 0.3, 0.0, 0.0], device='cpu'), 500, dt)

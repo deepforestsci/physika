@@ -45,7 +45,7 @@ def tensor_contraction(A, B, C):
     return T
 
 def sum_or_sum_sq(arr, sq):
-    return torch.where(torch.as_tensor(sq > 0.0), torch.sum(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]])))), torch.sum(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]])))))
+    return torch.where(torch.as_tensor(sq > 0.0), torch.sum(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device='cpu')]]) if isinstance(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device='cpu')]]), torch.Tensor) else torch.tensor(float(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device='cpu')]])))), torch.sum(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device='cpu')]]) if isinstance(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device='cpu')]]), torch.Tensor) else torch.tensor(float(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device='cpu')]])))))
 
 def abs_sum(arr):
     total = 0.0
@@ -145,23 +145,23 @@ def manipulate_3d_array(x):
     return x
 
 # === Program ===
-arr = torch.tensor([1, 2, 3, 4, 5])
+arr = torch.tensor([1, 2, 3, 4, 5], device='cpu')
 total = 0
 for i in range(len(arr)):
     total = total + arr[int(i)]
 physika_print(total)
-X = torch.tensor([1, 2, 3, 4])
+X = torch.tensor([1, 2, 3, 4], device='cpu')
 sum_sq = 0
 for i in range(len(X)):
     sum_sq = sum_sq + (X[int(i)] ** 2)
 physika_print(sum_sq)
-y = torch.tensor([2, 4, 6, 8])
+y = torch.tensor([2, 4, 6, 8], device='cpu')
 mse = 0
 for i in range(len(X)):
     mse = mse + ((X[int(i)] - y[int(i)]) ** 2)
 physika_print(mse)
-src = torch.tensor([1, 2, 3, 4, 5])
-dst = torch.tensor([0, 0, 0, 0, 0])
+src = torch.tensor([1, 2, 3, 4, 5], device='cpu')
+dst = torch.tensor([0, 0, 0, 0, 0], device='cpu')
 for i in range(len(src)):
     dst[int(i)] = (src[int(i)] * src[int(i)])
 physika_print(dst)
@@ -177,59 +177,59 @@ for i in range(int(0), int(n)):
         total = total + i
         total = total + j
 physika_print(total)
-a = torch.stack([(i * 1) for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i))]])
+a = torch.stack([(i * 1) for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(a)
-cos_wave = torch.stack([torch.cos((i * 0.5) if isinstance((i * 0.5), torch.Tensor) else torch.tensor(float((i * 0.5)))) for _fi_i in range(int(6)) for i in [torch.tensor(float(_fi_i))]])
+cos_wave = torch.stack([torch.cos((i * 0.5) if isinstance((i * 0.5), torch.Tensor) else torch.tensor(float((i * 0.5)))) for _fi_i in range(int(6)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(cos_wave)
-add = torch.stack([torch.stack([(i + j) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i))]])
+add = torch.stack([torch.stack([(i + j) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(add)
-t = torch.stack([torch.stack([torch.stack([((i + j) + k) for _fi_k in range(int(4)) for k in [torch.tensor(float(_fi_k))]]) for _fi_j in range(int(3)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(2)) for i in [torch.tensor(float(_fi_i))]])
+t = torch.stack([torch.stack([torch.stack([((i + j) + k) for _fi_k in range(int(4)) for k in [torch.tensor(float(_fi_k), device='cpu')]]) for _fi_j in range(int(3)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(2)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(t)
-arr = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0])
-doubled = torch.stack([(arr[int(i)] * 2.0) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i))]])
+arr = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device='cpu')
+doubled = torch.stack([(arr[int(i)] * 2.0) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(doubled)
-u = torch.tensor([1.0, 2.0, 3.0, 4.0])
-v = torch.tensor([4.0, 3.0, 2.0, 1.0])
-dot_elems = torch.stack([(u[int(i)] * v[int(i)]) for _fi_i in range(int(len(u))) for i in [torch.tensor(float(_fi_i))]])
+u = torch.tensor([1.0, 2.0, 3.0, 4.0], device='cpu')
+v = torch.tensor([4.0, 3.0, 2.0, 1.0], device='cpu')
+dot_elems = torch.stack([(u[int(i)] * v[int(i)]) for _fi_i in range(int(len(u))) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(dot_elems)
-p = torch.tensor([1, 2, 3])
-q = torch.tensor([10, 20, 30, 40])
+p = torch.tensor([1, 2, 3], device='cpu')
+q = torch.tensor([10, 20, 30, 40], device='cpu')
 physika_print(outer_product(p, q))
-x = torch.tensor([1, 0, 0, 0])
-y = torch.tensor([0, 1, 0, 0])
-dot = torch.sum(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i))]]))))
+x = torch.tensor([1, 0, 0, 0], device='cpu')
+y = torch.tensor([0, 1, 0, 0], device='cpu')
+dot = torch.sum(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i), device='cpu')]]) if isinstance(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i), device='cpu')]]), torch.Tensor) else torch.tensor(float(torch.stack([(x[int(i)] * y[int(i)]) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i), device='cpu')]]))))
 physika_print(dot)
-vals = torch.tensor([3, 1, 4, 1, 5])
+vals = torch.tensor([3, 1, 4, 1, 5], device='cpu')
 physika_print(get_last(vals))
 physika_print(iter_prod(10))
-data = torch.tensor([1, 2, 3, 4, 5, 6])
+data = torch.tensor([1, 2, 3, 4, 5, 6], device='cpu')
 physika_print(partial_sum(data, 2, 5))
 physika_print(outer_accum(p, q))
-A = torch.tensor([[1, 2, 3, 4], [0, 1, 1, 2]])
-B = torch.tensor([[1], [0], [0], [2]])
+A = torch.tensor([[1, 2, 3, 4], [0, 1, 1, 2]], device='cpu')
+B = torch.tensor([[1], [0], [0], [2]], device='cpu')
 physika_print(matmul_physika(A, B))
-A2 = torch.tensor([[1, 2], [0, 1]])
-B2 = torch.tensor([[1, 0], [0, 2]])
+A2 = torch.tensor([[1, 2], [0, 1]], device='cpu')
+B2 = torch.tensor([[1, 0], [0, 2]], device='cpu')
 physika_print(chain_mm(A2, B2))
-C_mat = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+C_mat = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], device='cpu')
 physika_print(tensor_contraction(A2, B2, C_mat))
-w = torch.tensor([1.0, 2.0, 3.0, 4.0])
+w = torch.tensor([1.0, 2.0, 3.0, 4.0], device='cpu')
 physika_print(sum_or_sum_sq(w, 1.0))
 physika_print(sum_or_sum_sq(w, (0.0 - 1.0)))
-pos = torch.tensor([1.0, 2.0, 3.0, 4.0])
+pos = torch.tensor([1.0, 2.0, 3.0, 4.0], device='cpu')
 neg = torch.stack([torch.as_tensor((0.0 - 1.0)), torch.as_tensor((0.0 - 2.0)), torch.as_tensor((0.0 - 3.0)), torch.as_tensor((0.0 - 4.0))])
 physika_print(abs_sum(pos))
 physika_print(abs_sum(neg))
 mixed = torch.stack([torch.as_tensor(1.0), torch.as_tensor((0.0 - 2.0)), torch.as_tensor(3.0), torch.as_tensor((0.0 - 4.0)), torch.as_tensor(5.0)])
 physika_print(sum_positive(mixed))
 physika_print(sum_abs(mixed))
-data = torch.tensor([1, 5, 2, 8, 3, 7])
+data = torch.tensor([1, 5, 2, 8, 3, 7], device='cpu')
 physika_print(count_above(data, 3))
-data = torch.tensor([1, 5, 2, 8, 3, 7])
+data = torch.tensor([1, 5, 2, 8, 3, 7], device='cpu')
 physika_print(count_above_range(data, 1, 5, 3))
-arr2 = torch.tensor([1, 2, 4])
+arr2 = torch.tensor([1, 2, 4], device='cpu')
 physika_print(deep_nest(arr2))
-arr3 = torch.tensor([1, (-2), 3, (-4), 5])
+arr3 = torch.tensor([1, (-2), 3, (-4), 5], device='cpu')
 pos_sum = 0
 for i in range(int(0), int(5)):
     if arr3[int(i)] > 0:
@@ -247,14 +247,14 @@ for i in range(len(arr3)):
     if arr3[int(i)] > 0.0:
         pos_sum2 = pos_sum2 + arr3[int(i)]
 physika_print(pos_sum2)
-mat = torch.tensor([1.0, 2.0, 3.0])
-vec = torch.tensor([4.0, 5.0, 6.0])
+mat = torch.tensor([1.0, 2.0, 3.0], device='cpu')
+vec = torch.tensor([4.0, 5.0, 6.0], device='cpu')
 dot2 = 0.0
 for i in range(int(0), int(3)):
     if mat[int(i)] > 0.0:
         dot2 = dot2 + (mat[int(i)] * vec[int(i)])
 physika_print(dot2)
-arr4 = torch.tensor([1.0, 4.0])
+arr4 = torch.tensor([1.0, 4.0], device='cpu')
 a = 0.0
 for i in range(int(0), int(2)):
     if arr4[int(i)] > 0.0:
@@ -273,59 +273,59 @@ for i in range(int(0), int(2)):
     else:
         a = a + 5
 physika_print(a)
-vals = torch.tensor([1, (-2), 3, 4, 5])
+vals = torch.tensor([1, (-2), 3, 4, 5], device='cpu')
 flag = 1
-res = torch.stack([vals[int(i)] for _fi_i in range(int(len(vals))) for i in [torch.tensor(float(_fi_i))]])
+res = torch.stack([vals[int(i)] for _fi_i in range(int(len(vals))) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 if flag > 0:
-    res = torch.stack([(vals[int(i)] ** 3) for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i))]])
+    res = torch.stack([(vals[int(i)] ** 3) for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 else:
-    res = torch.stack([vals[int(i)] for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i))]])
+    res = torch.stack([vals[int(i)] for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(res)
-total_c = torch.sum(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i))]]))))
+total_c = torch.sum(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i), device='cpu')]]) if isinstance(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i), device='cpu')]]), torch.Tensor) else torch.tensor(float(torch.stack([res[int(i)] for _fi_i in range(int(len(res))) for i in [torch.tensor(float(_fi_i), device='cpu')]]))))
 physika_print(total_c)
 scale = 2
-W = torch.stack([torch.stack([(i + j) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i))]])
+W = torch.stack([torch.stack([(i + j) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 if scale > 1:
-    W = torch.stack([torch.stack([((i + j) * scale) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i))]])
+    W = torch.stack([torch.stack([((i + j) * scale) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 else:
-    W = torch.stack([torch.stack([(i + j) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i))]])
+    W = torch.stack([torch.stack([(i + j) for _fi_j in range(int(4)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(W)
-u2 = torch.tensor([1, 2, 3])
-v2 = torch.tensor([4, 5, 6])
-row_sums = torch.stack([torch.sum(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j))]]) if isinstance(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j))]]), torch.Tensor) else torch.tensor(float(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j))]])))) for _fi_i in range(int(len(u2))) for i in [torch.tensor(float(_fi_i))]])
+u2 = torch.tensor([1, 2, 3], device='cpu')
+v2 = torch.tensor([4, 5, 6], device='cpu')
+row_sums = torch.stack([torch.sum(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j), device='cpu')]]) if isinstance(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j), device='cpu')]]), torch.Tensor) else torch.tensor(float(torch.stack([(u2[int(i)] * v2[int(j)]) for _fi_j in range(int(len(v2))) for j in [torch.tensor(float(_fi_j), device='cpu')]])))) for _fi_i in range(int(len(u2))) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(row_sums)
-x = torch.tensor([1, 2, 3, 4])
-y = torch.tensor([0, 5, 6, 7])
+x = torch.tensor([1, 2, 3, 4], device='cpu')
+y = torch.tensor([0, 5, 6, 7], device='cpu')
 physika_print(outer_product(x, y))
-data2 = torch.tensor([10, 20, 30, 40])
+data2 = torch.tensor([10, 20, 30, 40], device='cpu')
 norm_flag = 1
-normed = torch.stack([data2[int(i)] for _fi_i in range(int(len(data2))) for i in [torch.tensor(float(_fi_i))]])
+normed = torch.stack([data2[int(i)] for _fi_i in range(int(len(data2))) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 if norm_flag > 0:
-    normed = torch.stack([(data2[int(i)] * (1 / (i + 1))) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]])
+    normed = torch.stack([(data2[int(i)] * (1 / (i + 1))) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 else:
-    normed = torch.stack([data2[int(i)] for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]])
+    normed = torch.stack([data2[int(i)] for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 physika_print(normed)
-sample_1d_array = torch.tensor([1, 2, 3])
+sample_1d_array = torch.tensor([1, 2, 3], device='cpu')
 length_array = get_array_length(sample_1d_array)
 for i in range(int(0), int(length_array)):
     sample_1d_array[int(i)] = (i * 2)
 physika_print(sample_1d_array)
-sample_2d_array = torch.tensor([[1, 1], [1, 1]])
+sample_2d_array = torch.tensor([[1, 1], [1, 1]], device='cpu')
 rows = get_2d_array_num_rows(sample_2d_array)
 cols = get_array_length(sample_2d_array[int(0)])
 for i in range(int(0), int(rows)):
     for j in range(int(0), int(cols)):
         sample_2d_array[int(i), int(j)] = (j * 2)
 physika_print(sample_2d_array)
-sample_3d_array = torch.tensor([[[1, 2], [1, 2]], [[1, 2], [1, 2]]])
+sample_3d_array = torch.tensor([[[1, 2], [1, 2]], [[1, 2], [1, 2]]], device='cpu')
 for i in range(int(0), int(2)):
     for j in range(int(0), int(2)):
         for k in range(int(0), int(2)):
             sample_3d_array[int(i), int(j), int(k)] = ((j * 2) + k)
 physika_print(sample_3d_array)
-arr1d = torch.tensor([1, 2, 3])
+arr1d = torch.tensor([1, 2, 3], device='cpu')
 physika_print(manipulate_1d_array(arr1d))
-arr2d = torch.tensor([[1, 1], [1, 1]])
+arr2d = torch.tensor([[1, 1], [1, 1]], device='cpu')
 physika_print(manipulate_2d_array(arr2d))
-arr3d = torch.tensor([[[3, 2], [1, 1]], [[1, 4], [1, 2]]])
+arr3d = torch.tensor([[[3, 2], [1, 1]], [[1, 4], [1, 2]]], device='cpu')
 physika_print(manipulate_3d_array(arr3d))
