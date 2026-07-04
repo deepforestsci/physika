@@ -1,4 +1,4 @@
-Parameter Learning of the Allen–Cahn Equation
+The Allen–Cahn Equation
 ===============================================
 
 In this tutorial we solve both the *forward* and *inverse* problem for the
