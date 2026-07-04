@@ -259,7 +259,7 @@ The figure below shows the field at several times. Starting from random noise, s
 :math:`\pm 1` domains emerge and progressively coarsen — the hallmark of
 Allen–Cahn dynamics.
 
-.. figure:: _static/tutorial_files/allen_cahn_phase_separation.png
+.. figure:: /_static/tutorial_files/allen_cahn_phase_separation.png
    :alt: Allen–Cahn phase separation from a random initial field
    :align: center
    :width: 750px
@@ -315,7 +315,7 @@ time step and every Jacobi sweep — to obtain :math:`d\mathcal{L}/d\varepsilon`
 Within about ten epochs the estimate converges to the true value
 :math:`\varepsilon = 0.03` and the loss drops to zero:
 
-.. figure:: _static/tutorial_files/allen_cahn_inverse_convergence.png
+.. figure:: /_static/tutorial_files/allen_cahn_inverse_convergence.png
    :alt: Recovering the Allen–Cahn interface parameter by gradient descent
    :align: center
    :width: 750px
