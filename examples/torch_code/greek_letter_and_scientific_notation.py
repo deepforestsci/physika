@@ -21,4 +21,19 @@ physika_print(z)
 greek_letters_array = torch.stack([torch.as_tensor(α), torch.as_tensor(β)])
 physika_print(greek_letters_array)
 μ = torch.as_tensor(torch.tensor([2.0])).requires_grad_(True)
-physika_print(compute_grad(f, μ))
+grad_μ = compute_grad(f, μ)
+physika_print(grad_μ)
+ℏ = 1.0546e-34
+σ = 5.6704e-08
+ψ = 0.5
+threshold = 1.5
+if α < threshold:
+    result_if = (α * β)
+else:
+    result_if = (α + β)
+physika_print(result_if)
+Ω = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5])
+sum_Ω = 0
+for i in range(len(Ω)):
+    sum_Ω = sum_Ω + Ω[int(i)]
+physika_print(sum_Ω)
