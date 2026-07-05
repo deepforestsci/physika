@@ -2,7 +2,6 @@
 import re
 from typing import Any, Optional, Callable
 from physika.elf import ELF
-from physika.device import DEVICE
 
 
 def is_learnable(type_spec: str) -> bool:
@@ -214,7 +213,7 @@ def emit_method(method: dict, all_params: list, constructor_params: list,
         if is_learnable(ptype):
             if pname != "learnable_grads":
                 method_lines.append(
-                    f"        {pname} = torch.as_tensor({pname}, device='{DEVICE}').float()"
+                    f"        {pname} = torch.as_tensor({pname}, device=DEVICE).float()"
                 )
 
     if statements:

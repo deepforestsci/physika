@@ -9,6 +9,8 @@ import torch.optim as optim
 
 from physika.utils.print_utils import _from_torch, _infer_type
 
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def physika_print(value: Any) -> None:
     """Pretty-print a Physika value with its inferred type annotation.
