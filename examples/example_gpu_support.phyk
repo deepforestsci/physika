@@ -1,0 +1,54 @@
+# ==================================================================================
+# Physika GPU support - usage examples
+# 
+# This example file demonstrates how to use GPU acceleration in Physika
+# The backend automatically detects and assigns the approriate device (CPU or GPU)
+# at runtime.
+#
+# Inspect the generated torch code using ``--print-code`` to see how ``device``
+# gets initialized
+# ==================================================================================
+
+
+# ---------------------------------------------------------------------
+# Define a tensor, the backend automatically detects and assigns
+# the approriate device (CPU or GPU) at runtime.
+# ---------------------------------------------------------------------
+
+x_tensor: R[5] = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+
+# ---------------------------------------------------------------------
+# Simple example to compare CPU and GPU performance with Physika code
+# ---------------------------------------------------------------------
+
+
+# change `n_values` to 1000 or even higher, the current value is set to reduce CI run time
+
+n_values: R = 10
+x: R[n_values, n_values] = for i:N(n_values) -> for j:N(n_values) -> i*1
+
+for i:N(100):
+    x = sin(x)
+    x = exp(x)
+    x = log(x)
+
+
+# -----------------------------
+# Example with Physika class
+# -----------------------------
+
+class MatrixMultiply(x: R):
+    def λ(A: ℝ[m, k], B: ℝ[k, n]) → ℝ[m, n]:
+        return A @ B
+
+
+# change `n_values` to 1000 or even higher, the current value is set to reduce CI run time
+
+n_values: R = 10
+A: R[n_values, n_values] = for i:N(n_values) -> for j:N(n_values) -> i * 1
+B: R[n_values, n_values] = for i:N(n_values) -> for j:N(n_values) -> i * 1
+
+obj: MatrixMultiply = MatrixMultiply(1.0)
+
+results = obj(A, B)
