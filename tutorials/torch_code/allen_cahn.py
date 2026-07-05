@@ -37,7 +37,7 @@ dt = 0.02
 stab = 2.0
 jacobi_iters = 12
 num_steps = 80
-ic = torch.stack([torch.distributions.Uniform((-0.1), 0.1).rsample((int(Nx),)) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i))]])
+ic = torch.stack([torch.distributions.Uniform((-0.1), 0.1).rsample((int(Nx),)) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 true_eps = 0.03
 true_values = solver(true_eps)
 eps = torch.tensor(0.06, requires_grad=True)

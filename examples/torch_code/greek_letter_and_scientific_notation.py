@@ -32,7 +32,7 @@ if α < threshold:
 else:
     result_if = (α + β)
 physika_print(result_if)
-Ω = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5])
+Ω = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5], device='cpu')
 sum_Ω = 0
 for i in range(len(Ω)):
     sum_Ω = sum_Ω + Ω[int(i)]
