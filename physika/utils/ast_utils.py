@@ -549,7 +549,7 @@ def ast_to_torch_expr(node: ASTNode,
     >>> ast_to_torch_expr(("call", "sin", [("var", "theta")])) == expected
     True
     >>> ast_to_torch_expr(("array", [("num", 1.0), ("num", 2.0)]))
-    "torch.tensor([1.0, 2.0], device=DEVICE)"
+    'torch.tensor([1.0, 2.0], device=DEVICE)'
     """
 
     if not isinstance(node, tuple):

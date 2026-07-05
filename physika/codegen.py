@@ -65,6 +65,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     import torch
     import torch.nn as nn
     import torch.optim as optim
+    from physika.runtime import DEVICE
     <BLANKLINE>
     from physika.runtime import physika_print
     <BLANKLINE>
@@ -88,6 +89,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     import torch
     import torch.nn as nn
     import torch.optim as optim
+    from physika.runtime import DEVICE
     <BLANKLINE>
     from physika.runtime import physika_print
     <BLANKLINE>
