@@ -32,7 +32,7 @@ class Vec(nn.Module):
 
     def scale(self, s):
         this = self
-        s = torch.as_tensor(s).float()
+        s = torch.as_tensor(s, device='cpu').float()
         return Vec((self.x * s), (self.y * s))
 
     def norm_sq(self):
@@ -63,8 +63,8 @@ class Particle(nn.Module):
 
     def step(self, force, dt):
         this = self
-        force = torch.as_tensor(force).float()
-        dt = torch.as_tensor(dt).float()
+        force = torch.as_tensor(force, device='cpu').float()
+        dt = torch.as_tensor(dt, device='cpu').float()
         acc = (force * (1.0 / self.mass))
         new_vel = (self.vel + (acc * dt))
         new_pos = (self.pos + (self.vel * dt))
@@ -155,12 +155,12 @@ x0 = torch.tensor(3.0, requires_grad=True)
 physika_print(norm_sq_wrt_x(x0))
 physika_print(compute_grad(lambda _dx0: norm_sq_wrt_x(_dx0), x0))
 x1 = torch.tensor(5.0, requires_grad=True)
-vec = Vec(x1, 4.0)
+vec = Vec(x1, 4.0).to('cpu')
 physika_print(compute_grad(vec.norm_sq(), x1))
 x1 = torch.tensor(5.0, requires_grad=True)
-vec = Vec(x1, 4.0)
+vec = Vec(x1, 4.0).to('cpu')
 physika_print(compute_grad(vec.x, x1))
-obj_A = A(1.0)
-obj_B = B(obj_A)
+obj_A = A(1.0).to('cpu')
+obj_B = B(obj_A).to('cpu')
 physika_print(obj_B.access_member())
 physika_print(obj_B.access_memeber_in_loop())

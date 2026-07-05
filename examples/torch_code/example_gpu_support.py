@@ -1,6 +1,3 @@
-  ✓ No type errors found
-
-=== Physika generated Pytorch code ===
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -43,5 +40,3 @@ A = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in
 B = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
 obj = MatrixMultiply(1.0).to('cpu')
 results = obj(A, B)
-=== End Pytorch code ===
-

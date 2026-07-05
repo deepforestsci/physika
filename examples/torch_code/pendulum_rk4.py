@@ -18,7 +18,7 @@ class RK4(nn.Module):
 
     def forward(self, x):
         this = self
-        x = torch.as_tensor(x).float()
+        x = torch.as_tensor(x, device='cpu').float()
         k1 = pendulum(x)
         k2 = pendulum((x + ((0.5 * dt) * k1)))
         k3 = pendulum((x + ((0.5 * dt) * k2)))

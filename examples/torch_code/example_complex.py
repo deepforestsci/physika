@@ -21,12 +21,12 @@ class A(nn.Module):
 
     def f(self, y):
         this = self
-        y = torch.as_tensor(y).float()
+        y = torch.as_tensor(y, device='cpu').float()
         return torch.abs((self.x ** y) if isinstance((self.x ** y), torch.Tensor) else torch.tensor(float((self.x ** y))))
 
     def forward(self, y):
         this = self
-        y = torch.as_tensor(y).float()
+        y = torch.as_tensor(y, device='cpu').float()
         f_value = self.f(y)
         return compute_grad(f_value, self.x)
 
@@ -64,6 +64,6 @@ z = torch.as_tensor(torch.stack([torch.as_tensor((1 + 2j), dtype=torch.complex64
 loss = torch.sum((torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) * torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z)))) if isinstance((torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) * torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z)))), torch.Tensor) else torch.tensor(float((torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) * torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z)))))))
 tensor_grad = compute_grad(loss, z)
 physika_print(tensor_grad)
-objA = A((1 + 2j))
+objA = A((1 + 2j)).to('cpu')
 class_grad = objA(2)
 physika_print(class_grad)

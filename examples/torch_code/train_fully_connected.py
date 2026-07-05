@@ -50,7 +50,7 @@ class FullyConnectedNetwork(nn.Module):
 
     def forward(self, x):
         this = self
-        x = torch.as_tensor(x).float()
+        x = torch.as_tensor(x, device='cpu').float()
         for k in range(int(0), int(2)):
             x = sigma(((self.W[int(k)] @ x) + self.B[int(k)]))
         results = ((self.w @ x) + self.b)
@@ -58,15 +58,15 @@ class FullyConnectedNetwork(nn.Module):
 
     def loss(self, y, target):
         this = self
-        y = torch.as_tensor(y).float()
-        target = torch.as_tensor(target).float()
+        y = torch.as_tensor(y, device='cpu').float()
+        target = torch.as_tensor(target, device='cpu').float()
         return ((y - target) ** 2.0)
 
     def train(self, X, y, epochs, lr):
         this = self
-        X = torch.as_tensor(X).float()
-        y = torch.as_tensor(y).float()
-        lr = torch.as_tensor(lr).float()
+        X = torch.as_tensor(X, device='cpu').float()
+        y = torch.as_tensor(y, device='cpu').float()
+        lr = torch.as_tensor(lr, device='cpu').float()
         len_dataset = get_3d_array_depth(X)
         last_loss = 0
         for i in range(int(0), int(epochs)):
@@ -82,8 +82,8 @@ class FullyConnectedNetwork(nn.Module):
 
     def evaluate(self, X, y):
         this = self
-        X = torch.as_tensor(X).float()
-        y = torch.as_tensor(y).float()
+        X = torch.as_tensor(X, device='cpu').float()
+        y = torch.as_tensor(y, device='cpu').float()
         x = 1.5
         len_dataset = get_3d_array_depth(X)
         total_loss = 0
@@ -95,7 +95,7 @@ class FullyConnectedNetwork(nn.Module):
 
     def update_params(self, lr, learnable_grads):
         this = self
-        lr = torch.as_tensor(lr).float()
+        lr = torch.as_tensor(lr, device='cpu').float()
         with torch.no_grad():
             self.W.copy_((self.W - (lr * learnable_grads[int(0)])))
         with torch.no_grad():

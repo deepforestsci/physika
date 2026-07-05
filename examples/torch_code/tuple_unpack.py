@@ -202,19 +202,19 @@ class Vec2(nn.Module):
                     p -= lr * g
 
 # === Program ===
-p = Point(1.0, 2.0)
+p = Point(1.0, 2.0).to('cpu')
 a, b = p.get()
 result = (a + b)
 physika_print(a)
 physika_print(b)
 physika_print(result)
-v = Vec4(0.5, 1.0, 2.0, 3.0)
+v = Vec4(0.5, 1.0, 2.0, 3.0).to('cpu')
 a, b, c, d = v.f()
 physika_print(a)
 physika_print(b)
 physika_print(c)
 physika_print(d)
-v = Vec2(0.5, 1.0)
+v = Vec2(0.5, 1.0).to('cpu')
 a, b = v.f()
 physika_print(a)
 physika_print(b)

@@ -46,12 +46,12 @@ class MeanFieldIsing(nn.Module):
 
     def loss(self, spins, log_prob, J, h, β, size):
         this = self
-        spins = torch.as_tensor(spins).float()
-        log_prob = torch.as_tensor(log_prob).float()
-        J = torch.as_tensor(J).float()
-        h = torch.as_tensor(h).float()
-        β = torch.as_tensor(β).float()
-        size = torch.as_tensor(size).float()
+        spins = torch.as_tensor(spins, device='cpu').float()
+        log_prob = torch.as_tensor(log_prob, device='cpu').float()
+        J = torch.as_tensor(J, device='cpu').float()
+        h = torch.as_tensor(h, device='cpu').float()
+        β = torch.as_tensor(β, device='cpu').float()
+        size = torch.as_tensor(size, device='cpu').float()
         p = (1.0 / (1.0 + torch.exp((-self.logit_p) if isinstance((-self.logit_p), torch.Tensor) else torch.tensor(float((-self.logit_p))))))
         energy_ps = (H(J, h, spins, size) / n)
         energy_term = ((β * (energy_ps - self.baseline)) * torch.sum(log_prob if isinstance(log_prob, torch.Tensor) else torch.tensor(float(log_prob))))
@@ -60,10 +60,10 @@ class MeanFieldIsing(nn.Module):
 
     def train(self, n, n_steps, n_batch, lr, J, h, β, size):
         this = self
-        lr = torch.as_tensor(lr).float()
-        J = torch.as_tensor(J).float()
-        h = torch.as_tensor(h).float()
-        β = torch.as_tensor(β).float()
+        lr = torch.as_tensor(lr, device='cpu').float()
+        J = torch.as_tensor(J, device='cpu').float()
+        h = torch.as_tensor(h, device='cpu').float()
+        β = torch.as_tensor(β, device='cpu').float()
         spins_0, log_prob_0 = self(n)
         self.baseline = (H(J, h, spins_0, size) / n)
         for step in range(int(0), int(n_steps)):
@@ -97,7 +97,7 @@ steps = 100
 batch = 32
 logit_init = 0.0
 lr = 0.05
-ising = MeanFieldIsing(logit_init)
+ising = MeanFieldIsing(logit_init).to('cpu')
 p_before = (1.0 / (1.0 + torch.exp((0.0 - ising.logit_p) if isinstance((0.0 - ising.logit_p), torch.Tensor) else torch.tensor(float((0.0 - ising.logit_p))))))
 physika_print(ising.train(n, steps, batch, lr, J, h, β, n))
 p_after = (1.0 / (1.0 + torch.exp((0.0 - ising.logit_p) if isinstance((0.0 - ising.logit_p), torch.Tensor) else torch.tensor(float((0.0 - ising.logit_p))))))
