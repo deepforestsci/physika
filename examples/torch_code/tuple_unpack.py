@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 
@@ -97,7 +98,7 @@ class Grid(nn.Module):
 
     def compute(self, n):
         this = self
-        arr = torch.stack([self.v for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
+        arr = torch.stack([self.v for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
         total = 0.0
         for k in range(int(0), int(n)):
             a, b, c = arr
@@ -202,19 +203,19 @@ class Vec2(nn.Module):
                     p -= lr * g
 
 # === Program ===
-p = Point(1.0, 2.0).to('cpu')
+p = Point(1.0, 2.0).to(DEVICE)
 a, b = p.get()
 result = (a + b)
 physika_print(a)
 physika_print(b)
 physika_print(result)
-v = Vec4(0.5, 1.0, 2.0, 3.0).to('cpu')
+v = Vec4(0.5, 1.0, 2.0, 3.0).to(DEVICE)
 a, b, c, d = v.f()
 physika_print(a)
 physika_print(b)
 physika_print(c)
 physika_print(d)
-v = Vec2(0.5, 1.0).to('cpu')
+v = Vec2(0.5, 1.0).to(DEVICE)
 a, b = v.f()
 physika_print(a)
 physika_print(b)

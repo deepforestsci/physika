@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import simulate
@@ -18,7 +19,7 @@ class RK4(nn.Module):
 
     def forward(self, x):
         this = self
-        x = torch.as_tensor(x, device='cpu').float()
+        x = torch.as_tensor(x, device=DEVICE).float()
         k1 = spring_pendulum(x)
         k2 = spring_pendulum((x + ((0.5 * dt) * k1)))
         k3 = spring_pendulum((x + ((0.5 * dt) * k2)))
@@ -39,7 +40,7 @@ class RK4(nn.Module):
 # === Program ===
 dt = 0.01
 solver = RK4(dt)
-physika_print(solver(torch.tensor([1.2, 0.3, 0.0, 0.0], device='cpu')))
-physika_print(solver(torch.tensor([1.3, 0.8, 0.0, 0.0], device='cpu')))
+physika_print(solver(torch.tensor([1.2, 0.3, 0.0, 0.0], device=DEVICE)))
+physika_print(solver(torch.tensor([1.3, 0.8, 0.0, 0.0], device=DEVICE)))
 step = RK4(dt)
-simulate(step, torch.tensor([1.2, 0.3, 0.0, 0.0], device='cpu'), 500, dt)
+simulate(step, torch.tensor([1.2, 0.3, 0.0, 0.0], device=DEVICE), 500, dt)

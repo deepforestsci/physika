@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import compute_grad
@@ -20,7 +21,7 @@ z = (x + y)
 physika_print(z)
 greek_letters_array = torch.stack([torch.as_tensor(α), torch.as_tensor(β)])
 physika_print(greek_letters_array)
-μ = torch.as_tensor(torch.tensor([2.0], device='cpu')).requires_grad_(True).to('cpu')
+μ = torch.as_tensor(torch.tensor([2.0], device=DEVICE)).requires_grad_(True).to(DEVICE)
 grad_μ = compute_grad(f, μ)
 physika_print(grad_μ)
 ℏ = 1.0546e-34
@@ -32,7 +33,7 @@ if α < threshold:
 else:
     result_if = (α + β)
 physika_print(result_if)
-Ω = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5], device='cpu')
+Ω = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5], device=DEVICE)
 sum_Ω = 0
 for i in range(len(Ω)):
     sum_Ω = sum_Ω + Ω[int(i)]

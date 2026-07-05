@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import compute_grad
@@ -31,18 +32,18 @@ def three_arg_jacobians(a, b, c):
     return torch.stack([torch.as_tensor(y1), torch.as_tensor(y2)])
 
 # === Program ===
-x = torch.as_tensor(torch.tensor([2.0, 3.0], device='cpu')).requires_grad_(True).to('cpu')
+x = torch.as_tensor(torch.tensor([2.0, 3.0], device=DEVICE)).requires_grad_(True).to(DEVICE)
 J = compute_grad(single_arg_jacobian, x)
 physika_print(J)
-state = torch.as_tensor(torch.tensor([1.0, 2.0], device='cpu')).requires_grad_(True).to('cpu')
-θ = torch.as_tensor(torch.tensor([1.0, 0.3, 1.3, 0.5], device='cpu')).requires_grad_(True).to('cpu')
+state = torch.as_tensor(torch.tensor([1.0, 2.0], device=DEVICE)).requires_grad_(True).to(DEVICE)
+θ = torch.as_tensor(torch.tensor([1.0, 0.3, 1.3, 0.5], device=DEVICE)).requires_grad_(True).to(DEVICE)
 J_state = compute_grad(lambda _dstate: double_arg_jacobians(_dstate, θ), state)
 J_theta = compute_grad(lambda _dθ: double_arg_jacobians(state, _dθ), θ)
 physika_print(J_state)
 physika_print(J_theta)
-a = torch.as_tensor(torch.tensor([1.0, 2.0], device='cpu')).requires_grad_(True).to('cpu')
-b = torch.as_tensor(torch.tensor([3.0, 4.0], device='cpu')).requires_grad_(True).to('cpu')
-c = torch.as_tensor(torch.tensor([5.0, 6.0], device='cpu')).requires_grad_(True).to('cpu')
+a = torch.as_tensor(torch.tensor([1.0, 2.0], device=DEVICE)).requires_grad_(True).to(DEVICE)
+b = torch.as_tensor(torch.tensor([3.0, 4.0], device=DEVICE)).requires_grad_(True).to(DEVICE)
+c = torch.as_tensor(torch.tensor([5.0, 6.0], device=DEVICE)).requires_grad_(True).to(DEVICE)
 J_a = compute_grad(lambda _da: three_arg_jacobians(_da, b, c), a)
 J_b = compute_grad(lambda _db: three_arg_jacobians(a, _db, c), b)
 J_c = compute_grad(lambda _dc: three_arg_jacobians(a, b, _dc), c)

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 
@@ -13,8 +14,8 @@ class MatrixMultiply(nn.Module):
 
     def forward(self, A, B):
         this = self
-        A = torch.as_tensor(A, device='cpu').float()
-        B = torch.as_tensor(B, device='cpu').float()
+        A = torch.as_tensor(A, device=DEVICE).float()
+        B = torch.as_tensor(B, device=DEVICE).float()
         return (A @ B)
 
     @property
@@ -28,15 +29,15 @@ class MatrixMultiply(nn.Module):
                     p -= lr * g
 
 # === Program ===
-x_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device='cpu')
+x_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device=DEVICE)
 n_values = 10
-x = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
+x = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 for i in range(int(0), int(100)):
     x = torch.sin(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
     x = torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
     x = torch.log(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
 n_values = 10
-A = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
-B = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device='cpu')]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
-obj = MatrixMultiply(1.0).to('cpu')
+A = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+B = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+obj = MatrixMultiply(1.0).to(DEVICE)
 results = obj(A, B)

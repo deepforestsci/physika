@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import compute_grad
 
 # === Functions ===
 def zero_1d_array(len):
-    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
+    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
 def get_1d_array_length(x):
@@ -34,7 +35,7 @@ def f(y, θ):
 
 def solver(θ):
     y = 1.0
-    y_array = torch.tensor([1.0], device='cpu')
+    y_array = torch.tensor([1.0], device=DEVICE)
     for i in range(int(0), int(timesteps)):
         dy = f(y, θ)
         y = y + (dt * dy)

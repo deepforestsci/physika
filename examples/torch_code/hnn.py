@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import train
@@ -22,17 +23,17 @@ class HamiltonianNet(nn.Module):
 
     def forward(self, x):
         this = self
-        x = torch.as_tensor(x, device='cpu').float()
+        x = torch.as_tensor(x, device=DEVICE).float()
         h = ((w2 @ tanh(((W1 @ x) + b1))) + b2)
         dh_grad = compute_grad(h, x)
         dh_dp = dh_grad[int(1), int(0)]
         dh_dq = (-dh_grad[int(0), int(0)])
-        return torch.tensor([[dh_dp], [dh_dq]], device='cpu')
+        return torch.tensor([[dh_dp], [dh_dq]], device=DEVICE)
 
     def loss(self, symplectic_gradient, target):
         this = self
-        symplectic_gradient = torch.as_tensor(symplectic_gradient, device='cpu').float()
-        target = torch.as_tensor(target, device='cpu').float()
+        symplectic_gradient = torch.as_tensor(symplectic_gradient, device=DEVICE).float()
+        target = torch.as_tensor(target, device=DEVICE).float()
         lo = (((symplectic_gradient[int(0)] - target[int(0)]) ** 2.0) + ((symplectic_gradient[int(1)] - target[int(1)]) ** 2.0))
         return lo
 
@@ -47,11 +48,11 @@ class HamiltonianNet(nn.Module):
                     p -= lr * g
 
 # === Program ===
-X = torch.tensor([[[0.0], [1.0]], [[1.0], [0.0]], [[0.0], [(-1.0)]], [[(-1.0)], [0.0]], [[0.5], [0.5]], [[(-0.5)], [(-0.5)]], [[0.7], [(-0.7)]], [[(-0.7)], [0.7]]], device='cpu')
-y = torch.tensor([[[1.0], [0.0]], [[0.0], [(-1.0)]], [[(-1.0)], [0.0]], [[0.0], [1.0]], [[0.5], [(-0.5)]], [[(-0.5)], [0.5]], [[(-0.7)], [(-0.7)]], [[0.7], [0.7]]], device='cpu')
-W1 = torch.tensor([[0.5, 0.1], [0.1, 0.5], [0.3, 0.3], [0.4, 0.2], [0.2, 0.4], [0.1, 0.1], [0.3, 0.1], [0.1, 0.3], [0.2, 0.2], [0.4, 0.4], [0.5, 0.3], [0.3, 0.5], [0.2, 0.1], [0.1, 0.2], [0.4, 0.1], [0.1, 0.4]], device='cpu')
-b1 = torch.tensor([[0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0]], device='cpu')
-w2 = torch.tensor([[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]], device='cpu')
+X = torch.tensor([[[0.0], [1.0]], [[1.0], [0.0]], [[0.0], [(-1.0)]], [[(-1.0)], [0.0]], [[0.5], [0.5]], [[(-0.5)], [(-0.5)]], [[0.7], [(-0.7)]], [[(-0.7)], [0.7]]], device=DEVICE)
+y = torch.tensor([[[1.0], [0.0]], [[0.0], [(-1.0)]], [[(-1.0)], [0.0]], [[0.0], [1.0]], [[0.5], [(-0.5)]], [[(-0.5)], [0.5]], [[(-0.7)], [(-0.7)]], [[0.7], [0.7]]], device=DEVICE)
+W1 = torch.tensor([[0.5, 0.1], [0.1, 0.5], [0.3, 0.3], [0.4, 0.2], [0.2, 0.4], [0.1, 0.1], [0.3, 0.1], [0.1, 0.3], [0.2, 0.2], [0.4, 0.4], [0.5, 0.3], [0.3, 0.5], [0.2, 0.1], [0.1, 0.2], [0.4, 0.1], [0.1, 0.4]], device=DEVICE)
+b1 = torch.tensor([[0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0]], device=DEVICE)
+w2 = torch.tensor([[0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]], device=DEVICE)
 b2 = 0.0
 H_net = HamiltonianNet(W1, b1, w2, b2)
 loss_before = evaluate(H_net, X, y)

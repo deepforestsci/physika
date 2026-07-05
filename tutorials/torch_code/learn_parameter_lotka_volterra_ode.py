@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 
 # === Functions ===
 def zero_1d_array(len):
-    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device='cpu')]])
+    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
 def get_1d_array_length(x):
@@ -50,9 +51,9 @@ def rk4_step(state, θ):
     return (state + ((dt / 6.0) * (((k1 + (2.0 * k2)) + (2.0 * k3)) + k4)))
 
 def solver(θ):
-    state = torch.tensor([10.0, 1.0], device='cpu')
-    x_array = torch.tensor([10.0], device='cpu')
-    y_array = torch.tensor([1.0], device='cpu')
+    state = torch.tensor([10.0, 1.0], device=DEVICE)
+    x_array = torch.tensor([10.0], device=DEVICE)
+    y_array = torch.tensor([1.0], device=DEVICE)
     for i in range(int(0), int(timesteps)):
         results = rk4_step(state, θ)
         x = results[int(0)]
@@ -83,11 +84,11 @@ def adjoint_grad(θ):
 # === Program ===
 dt = 0.1
 timesteps = 100
-true_theta = torch.tensor([1.5, 1.0, 3.0, 1.0], device='cpu')
+true_theta = torch.tensor([1.5, 1.0, 3.0, 1.0], device=DEVICE)
 true_results = solver(true_theta)
 true_x = true_results[int(0)]
 true_y = true_results[int(1)]
-θ = torch.tensor([1.0, 0.7, 2.5, 0.7], device='cpu')
+θ = torch.tensor([1.0, 0.7, 2.5, 0.7], device=DEVICE)
 learning_rate = 0.0005
 epochs = 1
 for i in range(int(0), int(epochs)):
