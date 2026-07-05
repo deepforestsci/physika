@@ -281,7 +281,7 @@ class TestEmitMethod:
                              body=("var", "s"))
         lines = emit_method(method, [], [], lambda node: node[1], True)
         # conversion line must appear before the return
-        assert any("torch.as_tensor(s, device='cpu').float()" in ln
+        assert any("torch.as_tensor(s, device=DEVICE).float()" in ln
                    for ln in lines)
 
     def test_tuple_return(self):

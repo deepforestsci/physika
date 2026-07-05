@@ -845,7 +845,7 @@ class TestAstToTorch:
 
         tensor_stmt = ("call", "cos", [("array", [("num", 1.0),
                                                   ("num", 2.0)])])
-        tensor_expected = "torch.cos(torch.tensor([1.0, 2.0], device='cpu') if isinstance(torch.tensor([1.0, 2.0], device='cpu'), torch.Tensor) else torch.tensor(float(torch.tensor([1.0, 2.0], device='cpu'))))"  # noqa
+        tensor_expected = "torch.cos(torch.tensor([1.0, 2.0], device=DEVICE) if isinstance(torch.tensor([1.0, 2.0], device=DEVICE), torch.Tensor) else torch.tensor(float(torch.tensor([1.0, 2.0], device=DEVICE))))"  # noqa
         tensor_output = ast_to_torch_expr(tensor_stmt)
         assert tensor_output == tensor_expected
 
@@ -911,7 +911,7 @@ class TestGenerateStatement:
              ("tensor", [(3, "invariant")]), ("array", [("num", 1.0),
                                                         ("num", 2.0),
                                                         ("num", 3.0)]), 1),
-            set()) == "t = torch.tensor([1.0, 2.0, 3.0], device='cpu')"
+            set()) == "t = torch.tensor([1.0, 2.0, 3.0], device=DEVICE)"
         assert generate_statement(
             ("decl", "t",
              ("tensor", [(3, "invariant")]), ("array", [("complex", 1j),
