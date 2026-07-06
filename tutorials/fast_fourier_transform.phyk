@@ -1,115 +1,129 @@
 # ============================================================
 # Fast Fourier Transform in Physika
-# Companion to docs/tutorials/fft_tutorial.rst
 # ============================================================
 
 # ------------------------------------------------------------
-# Part 1: DFT and FFT coded in Physika
+# DFT and FFT implementations in Physika
 # ------------------------------------------------------------
 
 π: ℝ = 3.141592653589793
 # Discrete Fourier Transform (Forward and Inverse):
 
 def dft(x: ℂ[m]): ℂ[m]:
-    s = len(x)                        # number of samples
-    coeffs = for k: ℕ(s) → sum(for n: ℕ(s) → x[n] * (cos(2*π*k*n / s) - 1j * sin(2*π*k*n / s)))  # one coefficient per frequency k
+    s: ℝ = len(x)                        # number of samples
+    coeffs: ℂ[s] = for k: ℕ(s) → sum(for n: ℕ(s) → x[n] * (cos(2*π*k*n / s) - 1j * sin(2*π*k*n / s)))  # one coefficient per frequency k
     return coeffs
 
 def idft(X: ℂ[m]): ℂ[m]:
-    s = len(X)                        # number of samples
-    samples = for n: ℕ(s) → sum(for k: ℕ(s) → X[k] * (cos(2*π*k*n / s) + 1j * sin(2*π*k*n / s))) / s  # one reconstructed sample per n
+    s: ℝ = len(X)                        # number of samples
+    samples: ℂ[s] = for n: ℕ(s) → sum(for k: ℕ(s) → X[k] * (cos(2*π*k*n / s) + 1j * sin(2*π*k*n / s))) / s  # one reconstructed sample per n
     return samples
 
 # Fast Fourier Transform, recursive radix-2 Cooley-Tukey (O(N log N)):
 
-def ct_fft(x: ℂ[m], s: ℝ): ℂ[m]:
+def ct_fft(x: ℂ[m], s: ℝ): ℂ[m]:                  # x: input signal array; s: size (length) of the array
     if s == 1.0:
-        return x                                   # base case: a length-1 transform is the sample itself
-    even = for a: ℕ(s / 2) → x[2 * a]               # even-indexed samples
-    odd  = for a: ℕ(s / 2) → x[2 * a + 1]           # odd-indexed samples
-    E = ct_fft(even, s / 2)                         # transform of the even half
-    O = ct_fft(odd, s / 2)                          # transform of the odd half
-    twiddle = for k: ℕ(s / 2) → cos(2*π*k / s) - 1j * sin(2*π*k / s)  # twiddle factor
-    lower = for k: ℕ(s / 2) → E[k] + twiddle[k] * O[k]                # first half of the output
-    upper = for k: ℕ(s / 2) → E[k] - twiddle[k] * O[k]                # second half of the output
+        return x                                        # base case: a length-1 transform is the sample itself
+    half_size: ℝ = s / 2                                 # size of each half-transform
+    even: ℂ[half_size] = for a: ℕ(half_size) → x[2 * a]      # even-indexed samples
+    odd:  ℂ[half_size] = for a: ℕ(half_size) → x[2 * a + 1]  # odd-indexed samples
+    E: ℂ[half_size] = ct_fft(even, half_size)                # transform of the even half
+    O: ℂ[half_size] = ct_fft(odd, half_size)                 # transform of the odd half
+    twiddle: ℂ[half_size] = for k: ℕ(half_size) → cos(2*π*k / s) - 1j * sin(2*π*k / s)  # twiddle factor
+    lower: ℂ[half_size] = for k: ℕ(half_size) → E[k] + twiddle[k] * O[k]                # first half of the output
+    upper: ℂ[half_size] = for k: ℕ(half_size) → E[k] - twiddle[k] * O[k]                # second half of the output
     return concat(lower, upper)
 
-def ict_fft(X: ℂ[m], s: ℝ): ℂ[m]:
+def ict_fft(X: ℂ[m], s: ℝ): ℂ[m]:                 # X: input spectrum array; s: size (length) of the array
     if s == 1.0:
-        return X                                   # base case: a length-1 inverse transform is the sample itself
-    even = for a: ℕ(s / 2) → X[2 * a]               # even-indexed coefficients
-    odd  = for a: ℕ(s / 2) → X[2 * a + 1]           # odd-indexed coefficients
-    E = ict_fft(even, s / 2)                        # inverse transform of the even half
-    O = ict_fft(odd, s / 2)                         # inverse transform of the odd half
-    twiddle = for k: ℕ(s / 2) → cos(2*π*k / s) + 1j * sin(2*π*k / s)  # twiddle factor, conjugated for the inverse
-    lower = for k: ℕ(s / 2) → E[k] + twiddle[k] * O[k]                # first half of the output
-    upper = for k: ℕ(s / 2) → E[k] - twiddle[k] * O[k]                # second half of the output
+        return X                                        # base case: a length-1 inverse transform is the sample itself
+    half_size: ℝ = s / 2                                 # size of each half-transform
+    even: ℂ[half_size] = for a: ℕ(half_size) → X[2 * a]      # even-indexed coefficients
+    odd:  ℂ[half_size] = for a: ℕ(half_size) → X[2 * a + 1]  # odd-indexed coefficients
+    E: ℂ[half_size] = ict_fft(even, half_size)               # inverse transform of the even half
+    O: ℂ[half_size] = ict_fft(odd, half_size)                # inverse transform of the odd half
+    twiddle: ℂ[half_size] = for k: ℕ(half_size) → cos(2*π*k / s) + 1j * sin(2*π*k / s)  # twiddle factor, conjugated for the inverse
+    lower: ℂ[half_size] = for k: ℕ(half_size) → E[k] + twiddle[k] * O[k]                # first half of the output
+    upper: ℂ[half_size] = for k: ℕ(half_size) → E[k] - twiddle[k] * O[k]                # second half of the output
     return concat(lower, upper)
 
 # ------------------------------------------------------------
 
 signal: ℂ[4] = for n: ℕ(4) → cos(2*π*n / 4)  # input signal: a cosine
 
-forward_transform: ℂ[4] = dft(signal)        # forward transform of the input signal
-abs(forward_transform)                       # magnitude of the spectrum
-idft(forward_transform)                      # inverse transform
+dft_spectrum: ℂ[4] = dft(signal)        # forward transform of the input signal
+dft_spectrum
+abs(dft_spectrum)                       # magnitude of the spectrum
+idft(dft_spectrum)                      # inverse transform
 
-fft_sum: ℂ[4] = ct_fft(signal, 4)            # forward transform via Cooley-Tukey
-abs(fft_sum)                                 # magnitude of the spectrum
-ict_fft(fft_sum, 4) / 4                      # inverse transform
+fft_spectrum: ℂ[4] = ct_fft(signal, 4)            # forward transform via Cooley-Tukey
+fft_spectrum
+abs(fft_spectrum)                                 # magnitude of the spectrum
+ict_fft(fft_spectrum, 4) / 4                      # inverse transform
 
 # ------------------------------------------------------------
-# Part 2: the built-in transforms
+# Physika's built-in FFT and examples
 # ------------------------------------------------------------
+
+# Comparing implementations: dft, ct_fft, and the builtin fft all agree
+dft(signal)
+ct_fft(signal, 4)
+fft(signal)     
 
 # --- 1D: fft and ifft ---------------------------------------
 # Two cosines: a strong one at k=1 and a weaker one at k=3.
 Ns: ℕ = 9
 center: ℝ = 4.0
 
-f: ℝ[Ns] = for n: ℕ(Ns) -> cos(2*π * (n - center) / Ns) + 0.5 * cos(2*π * 3 * (n - center) / Ns) # the sampled signal
-F: ℂ[Ns] = fft(f)   # F is the Fourier transform of sampled signal f        
-abs(F)              # magnitude at each frequency, peaks mark k=1 and k=3      
-ifft(F)             # inverse Fourier transform of F, recovers the sampled signal f
+signal_1d: ℝ[Ns] = for n: ℕ(Ns) -> cos(2*π * (n - center) / Ns) + 0.5 * cos(2*π * 3 * (n - center) / Ns)  # two cosines: strong at k=1, weaker at k=3
+spectrum_1d: ℂ[Ns] = fft(signal_1d)   # 1D Fourier transform of signal_1d
+abs(spectrum_1d)                       # magnitude at each frequency, peaks mark k=1 and k=3
+ifft(spectrum_1d)                      # inverse transform, recovers signal_1d
 
 # --- 2D: fft2 and ifft2 -------------------------------------
-M: ℝ[3, 3] = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-G: ℂ[3, 3] = fft2(M)
-G                          
-ifft2(G)                     
+matrix: ℝ[3, 3] = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]        # a small 3x3 grid
+spectrum_2d: ℂ[3, 3] = fft2(matrix)                          # 2D Fourier transform of matrix
+spectrum_2d
+ifft2(spectrum_2d)                                           # inverse transform, recovers matrix                   
 
 # --- N-D: fftn and ifftn ------------------------------------
-V: ℝ[2, 2, 2] = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
-S: ℂ[2, 2, 2] = fftn(V)
-S                            
-ifftn(S)                     
+tensor: ℝ[2, 2, 2] = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]   # a small 2x2x2 grid
+spectrum_Nd: ℂ[2, 2, 2] = fftn(tensor)                        # N-D Fourier transform of tensor
+spectrum_Nd
+ifftn(spectrum_Nd)                                            # inverse transform, recovers tensor  
 
-# --- Gradient through the FFT, step by step --------------------
+# ------------------------------------------------------------
+# Differentiating through the FFT
+# ------------------------------------------------------------
+
+# --- Gradient through the FFT--------------------
 x: ℝ[4] = [1.0, 2.0, 3.0, 4.0]              # a simple real input
 
-# Step 1: forward transform
 X: ℂ[4] = fft(x)                    # spectrum of x, complex: one coefficient per frequency
-
-# grad needs a real-valued scalar. There's no single well-defined gradient
-# direction for a complex number, so we take the real part before calling
-# grad, not the raw complex coefficient.
+X
 
 y: ℝ = real(X[1])                   # real part of the k=1 frequency coefficient
+y
 grad(y, x)
 
-# Step 2: inverse transform, back from the spectrum
-invX: ℂ[4] = ifft(X)                   # reconstructs x, still typed complex even though the values are real
+# The same gradient computed through the DFT and Cooley–Tukey FFT.
+dft_spectrum: ℂ[4] = dft(x)
+dft_coeff: ℝ = real(dft_spectrum[1])
+grad(dft_coeff, x)
 
-# same reasoning as step 1: reduce to real before grad
-w: ℝ = real(invX[0])                   # real part of the reconstructed first sample
-grad(w, x)
+ct_fft_spectrum: ℂ[4] = ct_fft(x, 4)
+ct_fft_coeff: ℝ = real(ct_fft_spectrum[1])
+grad(ct_fft_coeff, x)
 
+# Differentiate through the inverse transform.
+inv_signal: ℂ[4] = ifft(X)
+inv_sample: ℝ = real(inv_signal[1])
+inv_sample
+grad(inv_sample, x)
 
 # --- Gradient through the FFT--(Parseval's theorem) ----
-# Parseval's theorem: a signal's energy is the same whether measured
-# directly on its samples or on its spectrum:
 
-x2: ℝ[8] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]          # a fresh input signal
+x2: ℝ[8] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]          # an input signal
 X2: ℂ[8] = fft(x2)                           # spectrum of x2
 
 energy_time: ℝ = sum(x2**2)                  # energy of x2: sum of its squared samples
@@ -118,9 +132,5 @@ energy_freq: ℝ = sum(abs(X2)**2) / len(x2)   # same energy: sum of squared spe
 energy_time
 energy_freq
 
-# energy_time never touches fft, so its gradient is the plain derivative
-# of a sum of squares, 2*x2, whereas energy_freq is built from fft(x2), so its
-# gradient exercises the FFT's backward pass instead. The two should come
-# out identical, a working check that grad flows correctly through fft.
 grad(energy_time, x2)
 grad(energy_freq, x2)
