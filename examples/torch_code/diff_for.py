@@ -1,24 +1,25 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import compute_grad
 
 # === Functions ===
 def sum_for_expr(s):
-    return torch.sum(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]]) if isinstance(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]]), torch.Tensor) else torch.tensor(float(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]]))))
+    return torch.sum(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]) if isinstance(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]), torch.Tensor) else torch.tensor(float(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]))))
 
 def dot_with_arr(s):
-    a3 = torch.tensor([1.0, 2.0, 3.0, 4.0])
+    a3 = torch.tensor([1.0, 2.0, 3.0, 4.0], device=DEVICE)
     result = 0.0
     for i in range(len(a3)):
         result = result + (s * a3[int(i)])
     return result
 
 def matmul_scale(s):
-    A3 = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
-    I = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
+    A3 = torch.tensor([[1.0, 2.0], [3.0, 4.0]], device=DEVICE)
+    I = torch.tensor([[1.0, 0.0], [0.0, 1.0]], device=DEVICE)
     C3 = torch.stack([torch.stack([torch.sum(torch.stack([((s * A3[int(i), int(k)]) * I[int(k), int(j)]) for k in range(A3.shape[1])])) for j in range(I.shape[1])]) for i in range(A3.shape[0])])
     return torch.sum(C3 if isinstance(C3, torch.Tensor) else torch.tensor(float(C3)))
 
@@ -30,16 +31,16 @@ def nested_sum(s):
     return result
 
 def scale_vec(x):
-    return torch.stack([(x * (i + 1)) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i))]])
+    return torch.stack([(x * (i + 1)) for _fi_i in range(int(3)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 
 def sq_vec(x):
-    return torch.stack([((x ** 2) * (i + 1)) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]])
+    return torch.stack([((x ** 2) * (i + 1)) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 
 def cos_freqs(x):
-    return torch.stack([torch.cos((x * (i + 1)) if isinstance((x * (i + 1)), torch.Tensor) else torch.tensor(float((x * (i + 1))))) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i))]])
+    return torch.stack([torch.cos((x * (i + 1)) if isinstance((x * (i + 1)), torch.Tensor) else torch.tensor(float((x * (i + 1))))) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 
 def elementwise_sq(x):
-    return torch.stack([(x[int(i)] ** 2) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i))]])
+    return torch.stack([(x[int(i)] ** 2) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 
 # === Program ===
 s0 = torch.tensor(2.0, requires_grad=True)
@@ -63,6 +64,6 @@ physika_print(compute_grad(lambda _dsv: sq_vec(_dsv), sv))
 x = torch.tensor(0.5, requires_grad=True)
 physika_print(cos_freqs(x))
 physika_print(compute_grad(lambda _dx: cos_freqs(_dx), x))
-ev = torch.as_tensor(torch.tensor([1.0, 2.0, 3.0])).requires_grad_(True)
+ev = torch.as_tensor(torch.tensor([1.0, 2.0, 3.0], device=DEVICE)).requires_grad_(True).to(DEVICE)
 physika_print(elementwise_sq(ev))
 physika_print(compute_grad(lambda _dev: elementwise_sq(_dev), ev))

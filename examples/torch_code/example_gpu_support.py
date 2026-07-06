@@ -1,0 +1,43 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from physika.runtime import DEVICE
+
+from physika.runtime import physika_print
+
+# === Classes ===
+class MatrixMultiply(nn.Module):
+    def __init__(self, x):
+        super().__init__()
+        self.x = nn.Parameter(torch.as_tensor(x))
+        self.learnable_params = [self.x]
+
+    def forward(self, A, B):
+        this = self
+        A = torch.as_tensor(A, device=DEVICE).float()
+        B = torch.as_tensor(B, device=DEVICE).float()
+        return (A @ B)
+
+    @property
+    def params(self):
+        return list(self.parameters())
+
+    def update(self, lr, grads):
+        with torch.no_grad():
+            for p, g in zip(self.parameters(), grads):
+                if g is not None:
+                    p -= lr * g
+
+# === Program ===
+x_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device=DEVICE)
+n_values = 10
+x_matrix = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+for i in range(int(0), int(100)):
+    x_matrix = torch.sin(x_matrix if isinstance(x_matrix, torch.Tensor) else torch.tensor(float(x_matrix)))
+    x_matrix = torch.exp(x_matrix if isinstance(x_matrix, torch.Tensor) else torch.tensor(float(x_matrix)))
+    x_matrix = torch.log(x_matrix if isinstance(x_matrix, torch.Tensor) else torch.tensor(float(x_matrix)))
+n_values = 10
+A = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+B = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+obj = MatrixMultiply(1.0).to(DEVICE)
+results = obj(A, B)

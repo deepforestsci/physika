@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 
@@ -8,7 +9,7 @@ from physika.runtime import physika_print
 a = int(10)
 b = int(3)
 z_add = (a + b)
-z_array = torch.tensor([1, 2])
+z_array = torch.tensor([1, 2], device=DEVICE)
 physika_print(a)
 physika_print(b)
 physika_print(z_add)
@@ -25,7 +26,7 @@ result = (z_number * r_number)
 physika_print(result)
 neg_int = int((-7))
 neg_float = (-3.14)
-neg_array = torch.tensor([(-1), (-2.0), (-3)])
+neg_array = torch.tensor([(-1), (-2.0), (-3)], device=DEVICE)
 physika_print(neg_int)
 physika_print(neg_float)
 physika_print(neg_array)

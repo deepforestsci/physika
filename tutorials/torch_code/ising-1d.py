@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 
@@ -13,7 +14,7 @@ def tanh(z):
 
 def H(J, h, spins, n):
     n = (n - 1)
-    nn_bulk = torch.stack([(spins[int(i)] * spins[int((i + 1))]) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i))]])
+    nn_bulk = torch.stack([(spins[int(i)] * spins[int((i + 1))]) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     nn_sum = (torch.sum(nn_bulk if isinstance(nn_bulk, torch.Tensor) else torch.tensor(float(nn_bulk))) + (spins[int(n)] * spins[int(0)]))
     field_sum = torch.sum(spins if isinstance(spins, torch.Tensor) else torch.tensor(float(spins)))
     return (((-J) * nn_sum) - (h * field_sum))
@@ -41,17 +42,17 @@ class MeanFieldIsing(nn.Module):
         _dist_b_s = torch.distributions.Bernoulli(p)
         b_s = _dist_b_s.sample((int(n),)).detach()
         log_prob = _dist_b_s.log_prob(b_s)
-        spins = torch.stack([((2.0 * b_s[int(i)]) - 1.0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i))]])
+        spins = torch.stack([((2.0 * b_s[int(i)]) - 1.0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
         return (spins, log_prob)
 
     def loss(self, spins, log_prob, J, h, β, size):
         this = self
-        spins = torch.as_tensor(spins).float()
-        log_prob = torch.as_tensor(log_prob).float()
-        J = torch.as_tensor(J).float()
-        h = torch.as_tensor(h).float()
-        β = torch.as_tensor(β).float()
-        size = torch.as_tensor(size).float()
+        spins = torch.as_tensor(spins, device=DEVICE).float()
+        log_prob = torch.as_tensor(log_prob, device=DEVICE).float()
+        J = torch.as_tensor(J, device=DEVICE).float()
+        h = torch.as_tensor(h, device=DEVICE).float()
+        β = torch.as_tensor(β, device=DEVICE).float()
+        size = torch.as_tensor(size, device=DEVICE).float()
         p = (1.0 / (1.0 + torch.exp((-self.logit_p) if isinstance((-self.logit_p), torch.Tensor) else torch.tensor(float((-self.logit_p))))))
         energy_ps = (H(J, h, spins, size) / n)
         energy_term = ((β * (energy_ps - self.baseline)) * torch.sum(log_prob if isinstance(log_prob, torch.Tensor) else torch.tensor(float(log_prob))))
@@ -60,10 +61,10 @@ class MeanFieldIsing(nn.Module):
 
     def train(self, n, n_steps, n_batch, lr, J, h, β, size):
         this = self
-        lr = torch.as_tensor(lr).float()
-        J = torch.as_tensor(J).float()
-        h = torch.as_tensor(h).float()
-        β = torch.as_tensor(β).float()
+        lr = torch.as_tensor(lr, device=DEVICE).float()
+        J = torch.as_tensor(J, device=DEVICE).float()
+        h = torch.as_tensor(h, device=DEVICE).float()
+        β = torch.as_tensor(β, device=DEVICE).float()
         spins_0, log_prob_0 = self(n)
         self.baseline = (H(J, h, spins_0, size) / n)
         for step in range(int(0), int(n_steps)):
@@ -97,7 +98,7 @@ steps = 100
 batch = 32
 logit_init = 0.0
 lr = 0.05
-ising = MeanFieldIsing(logit_init)
+ising = MeanFieldIsing(logit_init).to(DEVICE)
 p_before = (1.0 / (1.0 + torch.exp((0.0 - ising.logit_p) if isinstance((0.0 - ising.logit_p), torch.Tensor) else torch.tensor(float((0.0 - ising.logit_p))))))
 physika_print(ising.train(n, steps, batch, lr, J, h, β, n))
 p_after = (1.0 / (1.0 + torch.exp((0.0 - ising.logit_p) if isinstance((0.0 - ising.logit_p), torch.Tensor) else torch.tensor(float((0.0 - ising.logit_p))))))

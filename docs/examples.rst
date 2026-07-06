@@ -229,3 +229,13 @@ Physika supports importing functions, classes from other Physika modules.
 
 .. literalinclude:: ../examples/example_import_statement.phyk
    :language: text
+
+
+GPU support
+-----------------
+
+Physika supports GPU acceleration, The backend automatically detects and assigns the
+approriate device (CPU or GPU) at runtime.
+
+.. literalinclude:: ../examples/example_gpu_support.phyk
+   :language: text

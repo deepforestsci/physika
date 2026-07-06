@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import compute_grad
@@ -11,7 +12,7 @@ def sample_normal1D(x):
     return t
 
 def sample_normal2D(x):
-    t = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(2),)) for _fi_i in range(int(x)) for i in [torch.tensor(float(_fi_i))]])
+    t = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(2),)) for _fi_i in range(int(x)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return t
 
 # === Program ===
@@ -48,9 +49,9 @@ y_true = ((m_true * x) + b_true)
 y_pred = ((m_hat * x) + b_hat)
 loss = (torch.sum(((y_pred - y_true) ** 2) if isinstance(((y_pred - y_true) ** 2), torch.Tensor) else torch.tensor(float(((y_pred - y_true) ** 2)))) / n)
 physika_print(loss)
-z = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(2),)) for _fi_i in range(int(10)) for i in [torch.tensor(float(_fi_i))]])
+z = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(2),)) for _fi_i in range(int(10)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 physika_print(z)
-z_3d = torch.stack([torch.stack([torch.distributions.Normal(μ, σ).rsample((int(2),)) for _fi_j in range(int(5)) for j in [torch.tensor(float(_fi_j))]]) for _fi_i in range(int(10)) for i in [torch.tensor(float(_fi_i))]])
+z_3d = torch.stack([torch.stack([torch.distributions.Normal(μ, σ).rsample((int(2),)) for _fi_j in range(int(5)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(10)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 physika_print(z_3d)
 x = 3
 y = sample_normal1D(x)

@@ -679,7 +679,7 @@ class TestForwardRules:
             "torch.distributions.Normal(0.0, 1.0).rsample((int(3),)) "
             # ε : ℝ[3] ~ 𝒩(0.0, 1.0, 3)
             "for _fi_i in range(int(3)) "  # for i : ℕ(3)
-            "for i in [torch.tensor(float(_fi_i))]])")
+            "for i in [torch.tensor(float(_fi_i), device=DEVICE)]])")
         assert expected in code
 
 

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import compute_grad
@@ -37,7 +38,7 @@ dt = 0.02
 stab = 2.0
 jacobi_iters = 12
 num_steps = 80
-ic = torch.stack([torch.distributions.Uniform((-0.1), 0.1).rsample((int(Nx),)) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i))]])
+ic = torch.stack([torch.distributions.Uniform((-0.1), 0.1).rsample((int(Nx),)) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 true_eps = 0.03
 true_values = solver(true_eps)
 eps = torch.tensor(0.06, requires_grad=True)

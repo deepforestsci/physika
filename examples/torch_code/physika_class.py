@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import compute_grad
@@ -32,7 +33,7 @@ class Vec(nn.Module):
 
     def scale(self, s):
         this = self
-        s = torch.as_tensor(s).float()
+        s = torch.as_tensor(s, device=DEVICE).float()
         return Vec((self.x * s), (self.y * s))
 
     def norm_sq(self):
@@ -63,8 +64,8 @@ class Particle(nn.Module):
 
     def step(self, force, dt):
         this = self
-        force = torch.as_tensor(force).float()
-        dt = torch.as_tensor(dt).float()
+        force = torch.as_tensor(force, device=DEVICE).float()
+        dt = torch.as_tensor(dt, device=DEVICE).float()
         acc = (force * (1.0 / self.mass))
         new_vel = (self.vel + (acc * dt))
         new_pos = (self.pos + (self.vel * dt))
@@ -133,9 +134,9 @@ physika_print(dot_ab)
 c = a.scale(4)
 physika_print(c.x)
 physika_print(c.y)
-pos0 = torch.tensor([0.0, 10.0])
-vel0 = torch.tensor([1.0, 0.0])
-gravity = torch.tensor([0.0, (-9.81)])
+pos0 = torch.tensor([0.0, 10.0], device=DEVICE)
+vel0 = torch.tensor([1.0, 0.0], device=DEVICE)
+gravity = torch.tensor([0.0, (-9.81)], device=DEVICE)
 p = Particle(pos0, vel0, 9.0)
 ke0 = p.kinetic_energy()
 physika_print(ke0)
@@ -143,7 +144,7 @@ p1 = p.step(gravity, 0.5)
 physika_print(p1.pos)
 p2 = p1.step(gravity, 0.5)
 physika_print(p2.pos)
-v = torch.as_tensor(torch.tensor([2.0, 3.4])).requires_grad_(True)
+v = torch.as_tensor(torch.tensor([2.0, 3.4], device=DEVICE)).requires_grad_(True).to(DEVICE)
 ke0_v = ke_wrt_vel(v)
 physika_print(ke0_v)
 dKE_dv = compute_grad(lambda _dv: ke_wrt_vel(_dv), v)
@@ -155,12 +156,12 @@ x0 = torch.tensor(3.0, requires_grad=True)
 physika_print(norm_sq_wrt_x(x0))
 physika_print(compute_grad(lambda _dx0: norm_sq_wrt_x(_dx0), x0))
 x1 = torch.tensor(5.0, requires_grad=True)
-vec = Vec(x1, 4.0)
+vec = Vec(x1, 4.0).to(DEVICE)
 physika_print(compute_grad(vec.norm_sq(), x1))
 x1 = torch.tensor(5.0, requires_grad=True)
-vec = Vec(x1, 4.0)
+vec = Vec(x1, 4.0).to(DEVICE)
 physika_print(compute_grad(vec.x, x1))
-obj_A = A(1.0)
-obj_B = B(obj_A)
+obj_A = A(1.0).to(DEVICE)
+obj_B = B(obj_A).to(DEVICE)
 physika_print(obj_B.access_member())
 physika_print(obj_B.access_memeber_in_loop())

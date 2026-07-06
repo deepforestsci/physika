@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import compute_grad
@@ -42,7 +43,7 @@ class PiecewiseNet(nn.Module):
 
     def forward(self, x):
         this = self
-        x = torch.as_tensor(x).float()
+        x = torch.as_tensor(x, device=DEVICE).float()
         if x > self.threshold:
             y = (x * x)
         else:
@@ -51,8 +52,8 @@ class PiecewiseNet(nn.Module):
 
     def loss(self, pred, target):
         this = self
-        pred = torch.as_tensor(pred).float()
-        target = torch.as_tensor(target).float()
+        pred = torch.as_tensor(pred, device=DEVICE).float()
+        target = torch.as_tensor(target, device=DEVICE).float()
         return ((pred - target) ** 2)
 
     @property

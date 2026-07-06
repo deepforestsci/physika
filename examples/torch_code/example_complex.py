@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 from physika.runtime import compute_grad
@@ -21,12 +22,12 @@ class A(nn.Module):
 
     def f(self, y):
         this = self
-        y = torch.as_tensor(y).float()
+        y = torch.as_tensor(y, device=DEVICE).float()
         return torch.abs((self.x ** y) if isinstance((self.x ** y), torch.Tensor) else torch.tensor(float((self.x ** y))))
 
     def forward(self, y):
         this = self
-        y = torch.as_tensor(y).float()
+        y = torch.as_tensor(y, device=DEVICE).float()
         f_value = self.f(y)
         return compute_grad(f_value, self.x)
 
@@ -60,10 +61,10 @@ physika_print(nested_complex)
 scalar_x = torch.tensor((1 + 3j), dtype=torch.complex64)
 scalar_grad = compute_grad(f, scalar_x)
 physika_print(scalar_grad)
-z = torch.as_tensor(torch.stack([torch.as_tensor((1 + 2j), dtype=torch.complex64), torch.as_tensor((3 + 1j), dtype=torch.complex64)])).requires_grad_(True)
+z = torch.as_tensor(torch.stack([torch.as_tensor((1 + 2j), dtype=torch.complex64), torch.as_tensor((3 + 1j), dtype=torch.complex64)])).requires_grad_(True).to(DEVICE)
 loss = torch.sum((torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) * torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z)))) if isinstance((torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) * torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z)))), torch.Tensor) else torch.tensor(float((torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) * torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z)))))))
 tensor_grad = compute_grad(loss, z)
 physika_print(tensor_grad)
-objA = A((1 + 2j))
+objA = A((1 + 2j)).to(DEVICE)
 class_grad = objA(2)
 physika_print(class_grad)
