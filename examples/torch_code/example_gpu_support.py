@@ -31,11 +31,11 @@ class MatrixMultiply(nn.Module):
 # === Program ===
 x_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device=DEVICE)
 n_values = 10
-x = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+x_matrix = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 for i in range(int(0), int(100)):
-    x = torch.sin(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    x = torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    x = torch.log(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    x_matrix = torch.sin(x_matrix if isinstance(x_matrix, torch.Tensor) else torch.tensor(float(x_matrix)))
+    x_matrix = torch.exp(x_matrix if isinstance(x_matrix, torch.Tensor) else torch.tensor(float(x_matrix)))
+    x_matrix = torch.log(x_matrix if isinstance(x_matrix, torch.Tensor) else torch.tensor(float(x_matrix)))
 n_values = 10
 A = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 B = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])

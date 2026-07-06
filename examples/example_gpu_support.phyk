@@ -26,12 +26,12 @@ x_tensor: R[5] = [1.0, 2.0, 3.0, 4.0, 5.0]
 # change `n_values` to 1000 or even higher, the current value is set to reduce CI run time
 
 n_values: R = 10
-x: R[n_values, n_values] = for i:N(n_values) -> for j:N(n_values) -> i*1
+x_matrix: R[n_values, n_values] = for i:N(n_values) -> for j:N(n_values) -> i*1
 
 for i:N(100):
-    x = sin(x)
-    x = exp(x)
-    x = log(x)
+    x_matrix = sin(x_matrix)
+    x_matrix = exp(x_matrix)
+    x_matrix = log(x_matrix)
 
 
 # -----------------------------
