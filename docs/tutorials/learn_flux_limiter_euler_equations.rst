@@ -49,10 +49,10 @@ interface flux between cells :math:`i` and :math:`i+1` is
 
    F_{i+1/2}
    = \underbrace{\tfrac{1}{2}\left(f_i + f_{i+1}\right)
-   - \tfrac{1}{2} a \, \Delta q}_{\text{Rusanov (first order, robust)}}
+   - \tfrac{1}{2} a \, \Delta q}\limits_{\text{Rusanov (first order, robust)}}
    \;+\;
    \underbrace{\tfrac{1}{2} a \left(1 - a \tfrac{\Delta t}{\Delta x}\right)
-   \phi(r) \, \Delta q}_{\text{limited anti-diffusion}},
+   \phi(r) \, \Delta q}\limits_{\text{limited anti-diffusion}},
 
 where :math:`\Delta q = q_{i+1} - q_i` and :math:`a = |\bar u| + \bar c` is
 the local maximum wave speed at the interface. With :math:`\phi = 0` this is
@@ -107,7 +107,7 @@ classical limiters, following [Huang2026]_:
 
 .. math::
 
-   \phi(r) = \big(1 - s(r)\big)\, \phi_{\mathrm{minmod}}(r)
+   \phi(r) = \left(1 - s(r)\right)\, \phi_{\mathrm{minmod}}(r)
            + s(r)\, \phi_{\mathrm{superbee}}(r).
 
 minmod is the most diffusive classical limiter and superbee the most
@@ -346,10 +346,12 @@ Full Code
          this.t_adam = this.t_adam + 1.0
          this.m_θ = β1 * this.m_θ + (1.0 - β1) * learnable_grads[0]
          this.v_θ = β2 * this.v_θ + (1.0 - β2) * learnable_grads[0] * learnable_grads[0]
-         this.θ = this.θ - lr * (this.m_θ / (1.0 - β1 ** this.t_adam)) / (sqrt(this.v_θ / (1.0 - β2 ** this.t_adam)) + 1e-8)
+         this.θ = this.θ - lr * (this.m_θ / (1.0 - β1 ** this.t_adam)) / \
+         (sqrt(this.v_θ / (1.0 - β2 ** this.t_adam)) + 1e-8)
          this.m_b = β1 * this.m_b + (1.0 - β1) * learnable_grads[1]
          this.v_b = β2 * this.v_b + (1.0 - β2) * learnable_grads[1] * learnable_grads[1]
-         this.b2 = this.b2 - lr * (this.m_b / (1.0 - β1 ** this.t_adam)) / (sqrt(this.v_b / (1.0 - β2 ** this.t_adam)) + 1e-8)
+         this.b2 = this.b2 - lr * (this.m_b / (1.0 - β1 ** this.t_adam)) / \
+         (sqrt(this.v_b / (1.0 - β2 ** this.t_adam)) + 1e-8)
 
    θ_zero: ℝ[3,8] = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
