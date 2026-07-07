@@ -14,3 +14,4 @@ Tutorials
    learn_parameter_schrodinger_equation
    allen_cahn
    ising_model
+   learn_flux_limiter_euler_equations

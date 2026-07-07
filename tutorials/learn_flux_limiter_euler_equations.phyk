@@ -1,0 +1,288 @@
+# ==========================================================================
+# Learning a Neural Flux Limiter for the 1D Euler Equations
+# ==========================================================================
+#
+# High-resolution shock-capturing schemes blend a robust low-order flux
+# with an accurate high-order flux using a *flux limiter* φ(r), a scalar
+# function of the local smoothness ratio r. Classical limiters (minmod,
+# van Leer, superbee, ...) are hand-designed. Here we instead *learn* the
+# limiter: a small neural network φ(r) is trained end-to-end through a
+# differentiable finite-volume solver so that the simulated shock-tube
+# density profile matches the exact solution. Tutorial-scale version of:
+#
+#   Huang, Sebastian & Viswanathan, "Learning second-order total variation
+#   diminishing flux limiters using differentiable solvers",
+#   Physics of Fluids 38, 036102 (2026).
+#
+# Problem setup
+# -------------
+# 1D Euler equations for q = (ρ, ρu, E) on x ∈ [0, 1], ideal gas with
+# γ = 1.4, on a 100-cell mesh. The initial condition is the canonical Sod
+# shock tube: (ρ, u, p) = (1, 0, 1) on the left half and (0.125, 0, 0.1)
+# on the right. Its exact density profile at t = 0.1 (rarefaction, contact
+# discontinuity, shock) is embedded below as the training target. All
+# waves stay inside the domain at t = 0.1, so the boundary cells keep
+# their initial values.
+#
+# Numerical scheme: component-wise flux-limited TVD
+# -------------------------------------------------
+# For each conserved component q with physical flux f, the interface
+# flux between cells i and i+1 is
+#
+#   F = 0.5 (f_i + f_{i+1}) - 0.5 a Δq      <- Rusanov (robust, diffusive)
+#     + 0.5 a (1 - a dt/dx) φ(r) Δq         <- limited anti-diffusion
+#
+# with a = |u| + c the local max wave speed and r the upwind gradient
+# ratio. φ = 0 recovers the first-order Rusanov scheme, φ = 1 a
+# second-order Lax-Wendroff-type scheme. The neural limiter outputs a
+# sigmoid gate s ∈ (0, 1) and returns
+#
+#   φ(r) = (1 - s(r)) minmod(r) + s(r) superbee(r)
+#
+# so for any network weights φ stays inside the classical second-order 
+# total variation diminishing (TVD) region, with minmod and superbee as
+# the lower and upper bound, and training can explore freely without 
+# losing the shock-capturing robustness of the classical schemes.
+#
+# --------------------------------------------------------------------------
+# Constants. dt comes from an offline CFL bound: the largest |u| + c over
+# the exact solution is 2.41 (incl. 1.1x safety), so Nt = ceil(0.1 * 2.41
+# / (0.4 * 0.01)) = 61 steps of dt = 0.1 / 61 reach t = 0.1 at CFL <= 0.4.
+# Regenerate these if the initial condition changes.
+# --------------------------------------------------------------------------
+
+γ: ℝ = 1.4
+Nx: ℕ = 100
+dx: ℝ = 0.01
+dt: ℝ = 0.00163934
+Nt: ℕ = 61
+ε: ℝ = 1e-8
+
+# --------------------------------------------------------------------------
+# Training data: the initial state (ρL, uL, pL, ρR, uR, pR) and the exact
+# density at t = 0.1 on the 100-cell mesh (cell centers x_i = (i + 0.5) dx),
+# from the analytic solution of the Riemann problem.
+# --------------------------------------------------------------------------
+
+initial_states: ℝ[1,6] = [
+    [1, 0, 1, 0.125, 0, 0.1]]
+
+true_rho: ℝ[1,100] = [
+    [1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 0.976824, 0.909632,
+      0.84619, 0.786338, 0.729922, 0.676791, 0.6268, 0.579808, 0.535677, 0.494276,
+      0.455475, 0.426319, 0.426319, 0.426319, 0.426319, 0.426319, 0.426319, 0.426319,
+      0.426319, 0.426319, 0.426319, 0.265574, 0.265574, 0.265574, 0.265574, 0.265574,
+      0.265574, 0.265574, 0.265574, 0.265574, 0.125, 0.125, 0.125, 0.125,
+      0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125,
+      0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125,
+      0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125,
+      0.125, 0.125, 0.125, 0.125]]
+
+# --------------------------------------------------------------------------
+# Helper functions. The classical limiters are written with the identities 
+# min(a,b) = (a + b - |a - b|)/2 and max(a,b) = (a + b + |a - b|)/2, which 
+# vectorize with abs().
+# --------------------------------------------------------------------------
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def minmod(r: ℝ[m]): ℝ[m]:
+    # max(0, min(1, r))
+    m1 = 0.5 * (1.0 + r - abs(1.0 - r))
+    phi = 0.5 * (m1 + abs(m1))
+    return phi
+
+def superbee(r: ℝ[m]): ℝ[m]:
+    # max(0, min(2r, 1), min(r, 2))
+    s1 = 0.5 * (2.0 * r + 1.0 - abs(2.0 * r - 1.0))
+    s2 = 0.5 * (r + 2.0 - abs(r - 2.0))
+    s3 = 0.5 * (s1 + s2 + abs(s1 - s2))
+    phi = 0.5 * (s3 + abs(s3))
+    return phi
+
+def tanh_act(x: ℝ[m]): ℝ[m]:
+    # tanh written so that large |x| saturates instead of overflowing
+    y = 1.0 - 2.0 / (exp(2.0 * x) + 1.0)
+    return y
+
+# Boundary mask: interior cells evolve, the first and last cell keep their
+# initial (exact) values (Dirichlet treatment). No wave reaches the boundary 
+# by t = 0.1.
+mask: ℝ[100] = zero_1d_array(Nx)
+for i:ℕ(1, 99):
+    mask[i] = 1.0
+
+# --------------------------------------------------------------------------
+# The neural flux limiter: a 1 -> 8 -> 1 tanh MLP evaluated elementwise
+# (so it applies to a whole array of ratios at once), gating a blend of
+# minmod and superbee.
+#
+# The MLP weights live in θ: row 0 holds the input weights, row 1 the
+# hidden biases, row 2 the output weights; b2 is the output bias. The
+# remaining constructor arguments (m_θ, v_θ, m_b, v_b, t_adam) carry the
+# Adam optimizer state explicitly.
+#
+# The class also owns the differentiable shock-tube solver, so the loss
+# can be written per initial condition and gradients flow from the final
+# density profile back into the limiter weights.
+# --------------------------------------------------------------------------
+
+class NeuralFluxLimiter(θ: ℝ[3,8], b2: ℝ, m_θ: ℝ[3,8], v_θ: ℝ[3,8], m_b: ℝ, v_b: ℝ, t_adam: ℝ):
+    def λ(r: ℝ[m]) → ℝ[m]:
+        # clamp r to [-2, 10]: both classical limiters are constant outside
+        rc = 0.5 * (r + 10.0 - abs(r - 10.0))
+        rc = 0.5 * (rc - 2.0 + abs(rc + 2.0))
+        w_in = this.θ[0]
+        b_h = this.θ[1]
+        w_out = this.θ[2]
+        z = 0.0 * rc + this.b2
+        for k:ℕ(0, 8):
+            z = z + w_out[k] * tanh_act(w_in[k] * rc + b_h[k])
+        s = 1.0 / (1.0 + exp(0.0 - z))
+        phi = (1.0 - s) * minmod(rc) + s * superbee(rc)
+        return phi
+    def solve(ic: ℝ[6]) → ℝ[100]:
+        # piecewise-constant initial state: left half / right half
+        ρ = zero_1d_array(Nx)
+        u0 = zero_1d_array(Nx)
+        p0 = zero_1d_array(Nx)
+        for i:ℕ(0, 50):
+            ρ[i] = ic[0]
+            u0[i] = ic[1]
+            p0[i] = ic[2]
+        for i:ℕ(50, 100):
+            ρ[i] = ic[3]
+            u0[i] = ic[4]
+            p0[i] = ic[5]
+        mom = ρ * u0
+        E = p0 / (γ - 1.0) + 0.5 * ρ * u0 * u0
+        for n:ℕ(0, Nt):
+            u = mom / ρ
+            p = (γ - 1.0) * (E - 0.5 * mom * u)
+            c = sqrt(γ * p / ρ)
+            # local max wave speed at the interface and LW correction factor
+            a = abs(u) + c
+            a_face = 0.5 * (a + roll(a, -1) + abs(a - roll(a, -1)))
+            lw = 0.5 * a_face * (1.0 - a_face * dt / dx)
+            # smooth upwind selector from the interface velocity sign
+            u_face = 0.5 * (u + roll(u, -1))
+            w_up = 0.5 * (1.0 + u_face / (abs(u_face) + ε))
+            # density flux
+            Δρ = roll(ρ, -1) - ρ
+            r_ρ = w_up * roll(Δρ, 1) / (Δρ + ε) + (1.0 - w_up) * roll(Δρ, -1) / (Δρ + ε)
+            F_ρ = 0.5 * (mom + roll(mom, -1)) - 0.5 * a_face * Δρ + lw * this(r_ρ) * Δρ
+            # momentum flux
+            f_m = mom * u + p
+            Δm = roll(mom, -1) - mom
+            r_m = w_up * roll(Δm, 1) / (Δm + ε) + (1.0 - w_up) * roll(Δm, -1) / (Δm + ε)
+            F_m = 0.5 * (f_m + roll(f_m, -1)) - 0.5 * a_face * Δm + lw * this(r_m) * Δm
+            # energy flux
+            f_E = u * (E + p)
+            ΔE = roll(E, -1) - E
+            r_E = w_up * roll(ΔE, 1) / (ΔE + ε) + (1.0 - w_up) * roll(ΔE, -1) / (ΔE + ε)
+            F_E = 0.5 * (f_E + roll(f_E, -1)) - 0.5 * a_face * ΔE + lw * this(r_E) * ΔE
+            # conservative update on interior cells
+            ρ = ρ - dt / dx * mask * (F_ρ - roll(F_ρ, 1))
+            mom = mom - dt / dx * mask * (F_m - roll(F_m, 1))
+            E = E - dt / dx * mask * (F_E - roll(F_E, 1))
+        return ρ
+    def loss_ic(ic: ℝ[6], target: ℝ[100]) → ℝ:
+        pred = this.solve(ic)
+        diff = pred - target
+        l = mean(diff * diff)
+        return l
+    def evaluate(X: ℝ[1,6], Y: ℝ[1,100]) → ℝ:
+        l = this.loss_ic(X[0], Y[0])
+        return l
+    def train(X: ℝ[1,6], Y: ℝ[1,100], epochs: ℕ, lr: ℝ) → ℝ:
+        last: ℝ = 0
+        for e:ℕ(epochs):
+            # loop over the training problems (one here; extend by adding rows)
+            for j:ℕ(0, 1):
+                current_loss = this.loss_ic(X[j], Y[j])
+                learnable_grads = grad(current_loss, this.learnable_params)
+                this.update_params(lr, learnable_grads)
+                last = current_loss
+        return last
+    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+        # one Adam step; gradients through 61 solver steps are ~1e-5, so
+        # plain SGD would crawl — Adam rescales per-parameter (as in the
+        # full-scale experiment)
+        β1: ℝ = 0.9
+        β2: ℝ = 0.999
+        this.t_adam = this.t_adam + 1.0
+        this.m_θ = β1 * this.m_θ + (1.0 - β1) * learnable_grads[0]
+        this.v_θ = β2 * this.v_θ + (1.0 - β2) * learnable_grads[0] * learnable_grads[0]
+        this.θ = this.θ - lr * (this.m_θ / (1.0 - β1 ** this.t_adam)) / (sqrt(this.v_θ / (1.0 - β2 ** this.t_adam)) + 1e-8)
+        this.m_b = β1 * this.m_b + (1.0 - β1) * learnable_grads[1]
+        this.v_b = β2 * this.v_b + (1.0 - β2) * learnable_grads[1] * learnable_grads[1]
+        this.b2 = this.b2 - lr * (this.m_b / (1.0 - β1 ** this.t_adam)) / (sqrt(this.v_b / (1.0 - β2 ** this.t_adam)) + 1e-8)
+
+# --------------------------------------------------------------------------
+# Baselines: with zero weights the gate is s = sigmoid(b2), so b2 = -20
+# pins the limiter to pure minmod and b2 = +20 to pure superbee. The
+# learned limiter should end up between (or better than) both.
+# --------------------------------------------------------------------------
+
+θ_zero: ℝ[3,8] = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+minmod_limiter = NeuralFluxLimiter(θ_zero, -20.0, θ_zero, θ_zero, 0.0, 0.0, 0.0)
+superbee_limiter = NeuralFluxLimiter(θ_zero, 20.0, θ_zero, θ_zero, 0.0, 0.0, 0.0)
+
+# density MSE at t = 0.1: minmod, then superbee
+minmod_loss = minmod_limiter.evaluate(initial_states, true_rho)
+minmod_loss
+superbee_loss = superbee_limiter.evaluate(initial_states, true_rho)
+superbee_loss
+
+# --------------------------------------------------------------------------
+# Train the neural limiter with hand-rolled Adam, one step per training
+# problem per epoch. Converges in ~8 epochs here.
+# --------------------------------------------------------------------------
+
+θ_0: ℝ[3,8] = [[0.5, -0.5, 0.3, -0.3, 0.8, -0.8, 0.2, -0.2],
+               [0.1, -0.1, 0.4, -0.4, 0.2, -0.2, -0.3, 0.3],
+               [0.3, -0.2, 0.25, -0.3, 0.2, 0.15, -0.25, 0.2]]
+b2_0: ℝ = -3.0   # gate starts near minmod, so training traverses the envelope
+adam_m0: ℝ[3,8] = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+adam_v0: ℝ[3,8] = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+
+net = NeuralFluxLimiter(θ_0, b2_0, adam_m0, adam_v0, 0.0, 0.0, 0.0)
+
+# loss before training
+loss_before = net.evaluate(initial_states, true_rho)
+loss_before
+
+epochs: ℕ = 16
+lr: ℝ = 0.1
+final_loss = net.train(initial_states, true_rho, epochs, lr)
+
+# loss after training: converges to the superbee loss — for this problem
+# and scheme the most compressive limiter in the envelope is optimal, and
+# the network discovers that end-to-end through the solver
+loss_after = net.evaluate(initial_states, true_rho)
+loss_after
+
+# --------------------------------------------------------------------------
+# Inspect the learned limiter on a few smoothness ratios and compare with
+# the classical limiters it interpolates.
+# --------------------------------------------------------------------------
+
+r_sample: ℝ[12] = [-2.0, -1.0, -0.5, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 4.0, 8.0]
+learned_phi = net(r_sample)
+learned_phi
+minmod_phi = minmod(r_sample)
+minmod_phi
+superbee_phi = superbee(r_sample)
+superbee_phi
