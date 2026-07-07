@@ -35,3 +35,4 @@ snippets.
    tutorials/index
    elf
    motivation
+   cic
