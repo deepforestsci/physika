@@ -1,0 +1,121 @@
+# ============================================================
+# DFT operators (port of SimpleDFT.jl operators.jl)
+# ============================================================
+#
+# All operators act on flat complex vectors. Two grids appear:
+# the full reciprocal grid (length s1*s2*s3) and the active subset
+# of plane waves below the energy cutoff. Orbitals live on the
+# active subset; densities and potentials live on the full grid.
+#
+# Each operator has a vector form and a matrix (multi-state) form.
+# Julia overloads one name for both via multiple dispatch; Physika
+# keeps one def per name (a second def silently replaces the first),
+# so the matrix forms carry a _mat suffix. NOTE the layout transpose:
+# Julia stores W as (plane waves x states) and loops columns; Physika
+# indexes rows, so matrix W here is (states x plane waves).
+
+#----------------------------------------------------------------
+#   W           wavefunctions / orbitals
+#   Ω           cell volume
+#   s1, s2, s3  number of grid points along each axis
+#   G2          |G|^2 on the full grid
+#   G2c         |G|^2 on the active subset
+#   active      mask selecting the active subset out of the full grid
+
+#------------------------------------------------------------------
+# Overlap operator: scale by the cell volume.
+#------------------------------------------------------------------
+
+def op_O(W: ℂ[k], Ω: ℝ): ℂ[k]:
+    return Ω * W
+
+def op_O_mat(W: ℂ[m, k], Ω: ℝ): ℂ[m, k]:
+    return Ω * W
+
+#------------------------------------------------------------------
+# Laplacian operator, applied to active-set orbitals.
+#------------------------------------------------------------------
+
+def op_L(W: ℂ[p], G2c: ℝ[p], Ω: ℝ): ℂ[p]:
+    return (-Ω) * G2c * W
+
+def op_L_mat(W: ℂ[m, p], G2c: ℝ[p], Ω: ℝ): ℂ[m, p]:
+    Ns: ℝ = len(W)
+    out: ℂ[Ns, p] = for i: ℕ(Ns) -> op_L(W[i], G2c, Ω)
+    return out
+
+#------------------------------------------------------------------
+# Inverse Laplacian operator, applied to full-grid fields. Julia
+# zeroes the G=0 entry after dividing (out[1] = 0.0); here the safe
+# denominator is substituted before dividing, because dividing by
+# zero and overwriting afterwards would leave a 0*inf = NaN in the
+# gradient, and these operators must stay differentiable.
+#------------------------------------------------------------------
+
+def op_Linv(W: ℂ[k], G2: ℝ[k], Ω: ℝ): ℂ[k]:
+    nonzero: ℝ[k] = gt(G2, 0.0) * 1.0
+    safe_G2: ℝ[k] = G2 + (1.0 - nonzero)
+    return (W / safe_G2 / (-Ω)) * nonzero
+
+def op_Linv_mat(W: ℂ[m, k], G2: ℝ[k], Ω: ℝ): ℂ[m, k]:
+    Ns: ℝ = len(W)
+    out: ℂ[Ns, k] = for i: ℕ(Ns) -> op_Linv(W[i], G2, Ω)
+    return out
+
+#------------------------------------------------------------------
+# Forward transform, real space -> full reciprocal grid.
+#------------------------------------------------------------------
+
+def op_J(W: ℂ[k], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[k]:
+    n: ℕ = s1 * s2 * s3
+    cube: ℂ[s1, s2, s3] = reshape(W, s1, s2, s3)
+    spec: ℂ[s1, s2, s3] = fftn(cube)
+    return reshape(spec, n) / n
+
+def op_J_mat(W: ℂ[m, k], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[m, k]:
+    Ns: ℝ = len(W)
+    out: ℂ[Ns, k] = for i: ℕ(Ns) -> op_J(W[i], s1, s2, s3)
+    return out
+
+#------------------------------------------------------------------
+# Backward transform, full reciprocal grid -> real space.
+# Inverse of op_J.
+#------------------------------------------------------------------
+
+def op_I(W: ℂ[k], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[k]:
+    n: ℕ = s1 * s2 * s3
+    cube: ℂ[s1, s2, s3] = reshape(W, s1, s2, s3)
+    field: ℂ[s1, s2, s3] = ifftn(cube)
+    return reshape(field, n) * n
+
+def op_I_mat(W: ℂ[m, k], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[m, k]:
+    Ns: ℝ = len(W)
+    out: ℂ[Ns, k] = for i: ℕ(Ns) -> op_I(W[i], s1, s2, s3)
+    return out
+
+#------------------------------------------------------------------
+# Adjoint of op_I, real space -> active reciprocal subset.
+# Takes full-grid input only.
+#------------------------------------------------------------------
+
+def op_Idag(W: ℂ[k], active: ℝ[k], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[p]:
+    n: ℕ = s1 * s2 * s3
+    F: ℂ[k] = op_J(W, s1, s2, s3)
+    return mask_select(F, active) * n
+
+def op_Idag_mat(W: ℂ[m, k], active: ℝ[k], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[m, p]:
+    Ns: ℝ = len(W)
+    out: ℂ[Ns, p] = for i: ℕ(Ns) -> op_Idag(W[i], active, s1, s2, s3)
+    return out
+
+#------------------------------------------------------------------
+# Adjoint of op_J, full reciprocal grid -> real space.
+#------------------------------------------------------------------
+
+def op_Jdag(W: ℂ[k], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[k]:
+    n: ℕ = s1 * s2 * s3
+    return op_I(W, s1, s2, s3) / n
+
+def op_Jdag_mat(W: ℂ[m, k], s1: ℕ, s2: ℕ, s3: ℕ): ℂ[m, k]:
+    n: ℕ = s1 * s2 * s3
+    return op_I_mat(W, s1, s2, s3) / n
