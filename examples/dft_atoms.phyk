@@ -1,0 +1,127 @@
+# ============================================================
+# DFT atoms / cell setup (port of SimpleDFT.jl atoms.jl)
+# ============================================================
+#
+# SimpleDFT's cell is always cubic (R = a·I), where R is lattice vector and
+# a is cube side lenght, so the general matrix algebra becomes: |det R| = a³ and inv(R) = (1/a)·I.
+
+#----------------------------------------------------------------
+#   k   full reciprocal grid, length s1*s2*s3
+#   p   active subset below the cutoff
+#   ms  flat index of every grid point, 0..k-1
+#   m   integer grid coordinate along one axis (get_index_matrices M)
+#   n   signed frequency index along one axis (get_index_matrices N)
+#   c   reciprocal-space scale 2π/a
+#   G2  |G|² per plane wave; G2c the same on the active subset
+#----------------------------------------------------------------
+
+π = 3.141592653589793
+
+#----------------------------------------------------------------
+# Grid coordinates and folded frequencies.
+#----------------------------------------------------------------
+
+# Generates a flat 1D sequence of linear grid points: [0, 1, ..., k-1].
+def flat_index(k: ℕ): ℝ[k]:
+    return arange(k)
+
+# Unravels a 1D linear index into a single axis coordinate (C-order / Row-Major).
+# Pattern for a 3D grid (sizes: s0, s1, s2):
+#   m0 (slowest axis) = axis_index(ms, s1 * s2, s0)
+#   m1 (middle axis)  = axis_index(ms, s2,      s1)
+#   m2 (fastest axis) = axis_index(ms, 1,       s2)
+
+def axis_index(ms: ℝ[k], divisor: ℕ, modulus: ℕ): ℝ[k]:
+    return mod(floor(ms / divisor), modulus)
+
+# Fold the upper half of an axis to negative frequencies: 
+def fold_freq(m: ℝ[k], q: ℕ): ℝ[k]:
+    return m - gt(m, q / 2) * q
+
+#----------------------------------------------------------------
+# Cell Geometry & Real-Space Sampling
+#----------------------------------------------------------------
+
+# Volume of a cubic unit cell (Ω = a³).
+def cell_volume(a: ℝ): ℝ:
+    return a * a * a
+
+# Real-space coordinate of each grid point along one axis (rx, ry, rz).
+def sample_coord(m: ℝ[k], a: ℝ, s: ℕ): ℝ[k]:
+    return m * (a / s)
+
+#----------------------------------------------------------------
+# Reciprocal Space & Structure Factor (Cubic Cell: G = (2π/a)·N)
+#----------------------------------------------------------------
+
+# Reciprocal space scaling factor (c = 2π/a)
+def recip_scale(a: ℝ): ℝ:
+    return 2 * π / a
+
+# Squared reciprocal-vector magnitude |G|² on the full grid
+def g_squared(n1: ℝ[k], n2: ℝ[k], n3: ℝ[k], c: ℝ): ℝ[k]:
+    return c * c * (n1 * n1 + n2 * n2 + n3 * n3)
+
+# Cutoff mask: 1 where the plane wave is kept, |G|² ≤ 2·ecut
+def active_mask(G2: ℝ[k], ecut: ℝ): ℝ[k]:
+    return le(G2, 2 * ecut)
+
+# Compresses full grid |G|² down to only the active plane waves inside the cutoff sphere.
+def active_subset(G2: ℝ[k], active: ℝ[k]): ℝ[p]:
+    return mask_select(G2, active)
+
+# Structure factor measures plane-wave phase shift from atomic positions: Sf = exp(-i * G · pos)
+def structure_factor(n1: ℝ[k], n2: ℝ[k], n3: ℝ[k], cc: ℝ, px: ℝ, py: ℝ, pz: ℝ): ℂ[k]:
+    phase = cc * (n1 * px + n2 * py + n3 * pz)
+    return exp(-i * phase)
+
+
+#----------------------------------------------------------------
+# Atoms: holds the system + cell parameters and
+# builds each derived field on access via the functions above.
+#----------------------------------------------------------------
+class Atoms:
+    a : ℝ            # cubic cell side
+    ecut : ℝ         # kinetic-energy cutoff
+    s1 : ℕ           # grid points, axis 1
+    s2 : ℕ           # grid points, axis 2
+    s3 : ℕ           # grid points, axis 3
+    px : ℝ           # atom position, x
+    py : ℝ           # atom position, y
+    pz : ℝ           # atom position, z
+    Natoms : ℕ       # atom count 
+    Nstate : ℕ       # occupied states 
+    def volume() : ℝ:
+        return cell_volume(this.a)
+    def freq_x() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return fold_freq(axis_index(ms, this.s3 * this.s2, this.s1), this.s1)
+    def freq_y() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return fold_freq(axis_index(ms, this.s3, this.s2), this.s2)
+    def freq_z() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return fold_freq(axis_index(ms, 1, this.s3), this.s3)
+    def coord_x() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return sample_coord(axis_index(ms, this.s3 * this.s2, this.s1), this.a, this.s1)
+    def coord_y() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return sample_coord(axis_index(ms, this.s3, this.s2), this.a, this.s2)
+    def coord_z() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return sample_coord(axis_index(ms, 1, this.s3), this.a, this.s3)
+    def gx() : ℝ[k]:
+        return recip_scale(this.a) * this.freq_x()
+    def gy() : ℝ[k]:
+        return recip_scale(this.a) * this.freq_y()
+    def gz() : ℝ[k]:
+        return recip_scale(this.a) * this.freq_z()
+    def g2() : ℝ[k]:
+        return g_squared(this.freq_x(), this.freq_y(), this.freq_z(), recip_scale(this.a))
+    def active() : ℝ[k]:
+        return active_mask(this.g2(), this.ecut)
+    def g2c() : ℝ[p]:
+        return active_subset(this.g2(), this.active())
+    def sf() : ℂ[k]:
+        return structure_factor(this.freq_x(), this.freq_y(), this.freq_z(), recip_scale(this.a), this.px, this.py, this.pz)

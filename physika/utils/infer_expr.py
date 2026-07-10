@@ -1026,7 +1026,7 @@ def expr_call(node: Any,
 
     # Built-in functions
     elementwise_ops = ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh",
-                       "real", "imag","gt")
+                       "real", "imag","gt","le", "mod", "floor")
     if func_name in elementwise_ops:
         # Element-wise ops preserve the shape of their argument
         if arg_types:
@@ -1047,7 +1047,7 @@ def expr_call(node: Any,
             else:
                 dims.append((new_dim(), "invariant"))
         return TTensor(tuple(dims)), s
-    if func_name == "mask_select":
+    if func_name in ("mask_select", "arange"):
         # boolean select -> 1-D, runtime-dependent length
         return TTensor(((new_dim(), "invariant"), )), s
 

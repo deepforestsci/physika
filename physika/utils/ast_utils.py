@@ -699,6 +699,7 @@ def ast_to_torch_expr(node: ASTNode,
             "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
+            "floor": "torch.floor",
         }
         multi_arg_funcs = {
             "roll": "torch.roll",
@@ -709,6 +710,9 @@ def ast_to_torch_expr(node: ASTNode,
             "fftn": "torch.fft.fftn",
             "ifftn": "torch.fft.ifftn",
             "gt": "torch.gt",
+            "le": "torch.le",
+            "mod": "torch.remainder",
+            "arange": "torch.arange",
             "mask_select": "torch.masked_select",
         }
         list_arg_funcs = {
