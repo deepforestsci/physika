@@ -72,7 +72,7 @@ def active_subset(G2: ℝ[k], active: ℝ[k]): ℝ[p]:
 
 # Structure factor measures plane-wave phase shift from atomic positions: Sf = exp(-i * G · pos)
 def structure_factor(n1: ℝ[k], n2: ℝ[k], n3: ℝ[k], cc: ℝ, px: ℝ, py: ℝ, pz: ℝ): ℂ[k]:
-    phase = cc * (n1 * px + n2 * py + n3 * pz)
+    phase : ℝ[k] = cc * (n1 * px + n2 * py + n3 * pz)
     return exp(-i * phase)
 
 
