@@ -29,7 +29,8 @@ def atoms_ns():
 @pytest.fixture(scope="module")
 def h_atom(atoms_ns):
     """Atoms instance for the H-atom validation system (Natoms=1, Nstate=1)."""
-    return atoms_ns["Atoms"](H_A, H_ECUT, H_S, H_S, H_S, 0.0, 0.0, 0.0, 1, 1)
+    return atoms_ns["Atoms"](H_A, H_ECUT, H_S, H_S, H_S, 0.0, 0.0, 0.0, 1, 1,
+                              torch.tensor([1.0]), torch.tensor([1.0]))
 
 
 class TestGridIndices:

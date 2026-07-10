@@ -38,7 +38,7 @@ def structure_factor(n1, n2, n3, cc, px, py, pz):
 
 # === Classes ===
 class Atoms(nn.Module):
-    def __init__(self, a, ecut, s1, s2, s3, px, py, pz, Natoms, Nstate):
+    def __init__(self, a, ecut, s1, s2, s3, px, py, pz, Natoms, Nstate, Z_nuc, f):
         super().__init__()
         self.a = torch.as_tensor(a).float()
         self.ecut = torch.as_tensor(ecut).float()
@@ -50,7 +50,9 @@ class Atoms(nn.Module):
         self.pz = torch.as_tensor(pz).float()
         self.Natoms = torch.as_tensor(Natoms).float() if isinstance(Natoms, (int, float, torch.Tensor)) else Natoms
         self.Nstate = torch.as_tensor(Nstate).float() if isinstance(Nstate, (int, float, torch.Tensor)) else Nstate
-        self.learnable_params = [self.a, self.ecut, self.px, self.py, self.pz]
+        self.Z_nuc = torch.as_tensor(Z_nuc).float()
+        self.f = torch.as_tensor(f).float()
+        self.learnable_params = [self.a, self.ecut, self.px, self.py, self.pz, self.Z_nuc, self.f]
 
     def volume(self):
         this = self

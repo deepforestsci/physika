@@ -91,6 +91,8 @@ class Atoms:
     pz : ℝ           # atom position, z
     Natoms : ℕ       # atom count 
     Nstate : ℕ       # occupied states 
+    Z_nuc : ℝ[Natoms]    # nuclear charge per atom
+    f : ℝ[Nstate]    # occupation number per state
     def volume() : ℝ:
         return cell_volume(this.a)
     def freq_x() : ℝ[k]:
