@@ -447,14 +447,15 @@ FFT, exact and just as cheap, :math:`O(N \log N)`.
 In Physika this needs no special handling. ``grad(expr, x)`` compiles to
 ``compute_grad``, which calls ``torch.autograd.grad``.
 
+We now see this on two examples.
+
 .. note::
 
-   ``grad`` differentiates with respect to real variables. A complex variable is
-   differentiated through its real and imaginary parts separately, so to optimize
-   a complex input you carry it as a pair of real variables, its real and
-   imaginary parts, and take the gradient with respect to each. [TorchComplexAutograd]_
+    In these examples, we differentiate **through** complex-valued operations with respect to
+    a **real input**. We use real inputs here primarily for illustration, though ``grad`` 
+    also supports differentiating with respect to **complex inputs**. 
+    For a worked example of complex-variable differentiation, see the Complex section of :doc:`/examples`.
 
-We now see this on two examples.
 
 Gradient of a single coefficient
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -609,9 +610,6 @@ References
 
 .. [TorchFFT] torch.fft. *PyTorch Documentation*.
    `<https://pytorch.org/docs/stable/fft.html>`_.
-
-.. [TorchComplexAutograd] Autograd for complex numbers. *PyTorch Documentation*.
-   `<https://pytorch.org/docs/stable/notes/autograd.html#autograd-for-complex-numbers>`_.
 
 .. [ParsevalWiki] Parseval's theorem. *Wikipedia*.
    `<https://en.wikipedia.org/wiki/Parseval%27s_theorem>`_.
