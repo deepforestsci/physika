@@ -327,6 +327,8 @@ def _is_loop_var(expr: ASTNode, var: str) -> bool:
     >>> _is_loop_var(("var", "j"), "k")
     False
     """
+    if isinstance(expr, tuple) and expr[0] == "index_item":
+        expr = expr[1]
     return ((isinstance(expr, tuple) and expr[0] == "var" and expr[1] == var)
             or (var == "i" and isinstance(expr, tuple)
                 and expr[0] == "imaginary"))
@@ -466,6 +468,9 @@ def _lhs_var_name(expr: ASTNode) -> str | None:
     'i'
     >>> _lhs_var_name(("num", 0.0))
     """
+    if isinstance(expr, tuple) and expr[0] == "index_item":
+        expr = expr[1]
+
     if isinstance(expr, tuple) and expr[0] == "var":
         return expr[1]
     if isinstance(expr, tuple) and expr[0] == "imaginary":
@@ -566,6 +571,9 @@ def ast_to_torch_expr(node: ASTNode,
     elif op == "complex":
         val = node[1]
         return repr(val)
+
+    elif op == "index_item":
+        return ast_to_torch_expr(node[1], indent, current_loop_var)
 
     elif op == "var":
         return node[1]
@@ -674,11 +682,18 @@ def ast_to_torch_expr(node: ASTNode,
 
     elif op == "indexN":
         arr = node[1]
-        idx_codes = [
-            f"int({ast_to_torch_expr(e, indent, current_loop_var)})"
-            for e in node[2]
-        ]
-        return f"{arr}[{', '.join(idx_codes)}]"
+        parts = []
+        for item in node[2]:
+            if item[0] == "index_item":
+                idx = ast_to_torch_expr(item[1], indent, current_loop_var)
+                parts.append(f"int({idx})")
+            elif item[0] == "slice_item":
+                start = (ast_to_torch_expr(item[1], indent, current_loop_var)
+                         if item[1] is not None else "")
+                end = (ast_to_torch_expr(item[2], indent, current_loop_var)
+                       if item[2] is not None else "")
+                parts.append(f"{start}:{end}")
+        return f"{arr}[{', '.join(parts)}]"
 
     elif op == "call":
         func_name = node[1]
@@ -703,7 +718,6 @@ def ast_to_torch_expr(node: ASTNode,
         multi_arg_funcs = {
             "roll": "torch.roll",
         }
-
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
 
@@ -965,15 +979,24 @@ def emit_func_loop_body(
             lines.append(
                 f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=active)}"  # noqa: E501
             )
+
         elif tag == "loop_index_pluseq":
             _, arr_name, idx_list, rhs = loop_stmt
-            idx_codes = [
-                ast_to_torch_expr(e, current_loop_var=active) for e in idx_list
-            ]
+            parts = []
+            for item in idx_list:
+                if item[0] == "index_item":
+                    idx = ast_to_torch_expr(item[1], current_loop_var=active)
+                    parts.append(f"int({idx})")
+                elif item[0] == "slice_item":
+                    start = (ast_to_torch_expr(item[1],
+                                               current_loop_var=active)
+                             if item[1] is not None else "")
+                    end = (ast_to_torch_expr(item[2], current_loop_var=active)
+                           if item[2] is not None else "")
+                    parts.append(f"{start}:{end}")
             rhs_code = ast_to_torch_expr(rhs, current_loop_var=active)
             lines.append(
-                f"{prefix}{arr_name}[{', '.join(f'int({c})' for c in idx_codes)}] += {rhs_code}"  # noqa: E501
-            )
+                f"{prefix}{arr_name}[{', '.join(parts)}] += {rhs_code}")
         elif tag == "loop_for_range":
             _, inner_var, start_expr, end_expr, inner_body = loop_stmt
             start_code = ast_to_torch_expr(start_expr, current_loop_var=active)
@@ -1100,8 +1123,19 @@ def emit_body_stmts(
             lines.append(f"{prefix}{name}[int({idx_code})] = {val_code}")
         elif stmt_op == "body_index_assign_nd":
             _, name, indices, val = stmt
-            idx_code = ", ".join(f"int({ast_to_torch_expr(i)})"
-                                 for i in indices)
+            parts = []
+            for item in indices:
+                if item[0] == "index_item":
+                    idx = ast_to_torch_expr(item[1])
+                    parts.append(f"int({idx})")
+
+                elif item[0] == "slice_item":
+                    start = ast_to_torch_expr(
+                        item[1]) if item[1] is not None else ""
+                    end = ast_to_torch_expr(
+                        item[2]) if item[2] is not None else ""
+                    parts.append(f"{start}:{end}")
+            idx_code = ", ".join(parts)
             val_code = ast_to_torch_expr(val)
             lines.append(f"{prefix}{name}[{idx_code}] = {val_code}")
         elif stmt_op == "body_tuple_unpack":
@@ -1175,7 +1209,6 @@ def emit_body_stmts(
             _, loop_vars, loop_body = stmt
             assign_stmt = loop_body[0]
             _, tensor_name, lhs_idx_exprs, rhs_expr = assign_stmt
-
             ranges = {
                 v:
                 _infer_range(v, rhs_expr, tensor_name)
@@ -1587,7 +1620,19 @@ def generate_statement(stmt: ASTNode,
 
     elif op == "index_assign_nd":
         name, indices, val = stmt[1], stmt[2], stmt[3]
-        idx_code = ", ".join(f"int({ast_to_torch_expr(i)})" for i in indices)
+        parts = []
+        for item in indices:
+            if item[0] == "index_item":
+                idx = ast_to_torch_expr(item[1])
+                parts.append(f"int({idx})")
+
+            elif item[0] == "slice_item":
+                start = (ast_to_torch_expr(item[1])
+                         if item[1] is not None else "")
+                end = (ast_to_torch_expr(item[2])
+                       if item[2] is not None else "")
+                parts.append(f"{start}:{end}")
+        idx_code = ", ".join(parts)
         return f"{name}[{idx_code}] = {ast_to_torch_expr(val)}"
 
     elif op == "expr":

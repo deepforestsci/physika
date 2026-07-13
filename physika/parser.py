@@ -653,7 +653,7 @@ def p_loop_index_list_single(p):
     # p[1] — index expression
     # Returns:
     #   [p[1]]
-    p[0] = [p[1]]
+    p[0] = [("index_item", p[1])]
 
 
 def p_loop_index_list_multi(p):
@@ -664,7 +664,7 @@ def p_loop_index_list_multi(p):
     # p[3] — next index expression
     # Returns:
     #   p[1] + [p[3]]
-    p[0] = p[1] + [p[3]]
+    p[0] = p[1] + [("index_item", p[3])]
 
 
 def p_func_loop_stmt_index_pluseq(p):
@@ -1137,8 +1137,33 @@ def p_func_factor_index(p):
     p[0] = ("index", p[1], p[3])
 
 
+def p_multi_index_item_index(p):
+    """multi_index_item : func_expr"""
+    p[0] = ("index_item", p[1])
+
+
+def p_multi_index_item_slice(p):
+    """multi_index_item : func_expr COLON func_expr
+                        | func_expr COLON
+                        | COLON func_expr
+                        | COLON"""
+    if len(p) == 4:
+        p[0] = ("slice_item", p[1], p[3])
+    elif len(p) == 3 and p[1] == ":":
+        p[0] = ("slice_item", None, p[2])
+    elif len(p) == 3:
+        p[0] = ("slice_item", p[1], None)
+    else:
+        p[0] = ("slice_item", None, None)
+
+
+def p_multi_index_list_single(p):
+    """multi_index_list : multi_index_item"""
+    p[0] = [p[1]]
+
+
 def p_multi_index_list_base(p):
-    """multi_index_list : func_expr COMMA func_expr"""
+    """multi_index_list : multi_index_item COMMA multi_index_item"""
     # Base case: 2 comma-separated index expressions.
     # Requires at least one COMMA, so there is no conflict with 1
     # index rule.
@@ -1153,7 +1178,7 @@ def p_multi_index_list_base(p):
 
 
 def p_multi_index_list_extend(p):
-    """multi_index_list : multi_index_list COMMA func_expr"""
+    """multi_index_list : multi_index_list COMMA multi_index_item"""
     # Extend an existing index list by one more dimension.
     # Example:
     #   T[i, j, k]
@@ -1189,12 +1214,6 @@ def p_func_factor_chain_index(p):
     """func_factor : func_factor LBRACKET func_expr RBRACKET"""
     # Chain indexing: A[i][k], B[k][j], etc.
     p[0] = ("chain_index", p[1], p[3])
-
-
-def p_func_factor_step_slice(p):
-    """func_factor : ID LBRACKET NUMBER COLON COLON NUMBER RBRACKET"""
-    # Step slice: x[0::2]  (start::step, no stop)
-    p[0] = ("step_slice", p[1], int(p[3]), int(p[6]))
 
 
 def p_func_factor_array(p):
@@ -1480,10 +1499,10 @@ def p_factor_indexN(p):
     p[0] = ("indexN", p[1], p[3])
 
 
-def p_factor_slice(p):
-    """factor : ID LBRACKET NUMBER COLON NUMBER RBRACKET"""
-    # Return AST node for array slicing
-    p[0] = ("slice", p[1], ("num", p[3]), ("num", p[5]))
+# def p_factor_slice(p):
+#     """factor : ID LBRACKET NUMBER COLON NUMBER RBRACKET"""
+#     # Return AST node for array slicing
+#     p[0] = ("slice", p[1], ("num", p[3]), ("num", p[5]))
 
 
 # Function Arguments

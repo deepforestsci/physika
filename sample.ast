@@ -1,0 +1,16 @@
+("indexN", "A", [
+    ("var", "i"),
+    ("var", "j"),
+])
+
+
+("indexN", "A", [
+    ("index_item", ("var", "i")),
+    ("index_item", ("var", "j")),
+])
+
+
+("indexN", "A", [
+    ("slice_item", None, None),
+    ("index_item", ("var", "j")),
+])
