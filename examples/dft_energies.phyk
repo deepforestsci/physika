@@ -1,0 +1,100 @@
+# ============================================================
+# DFT total energy (port of SimpleDFT.jl energies.jl)
+# ============================================================
+#
+# Computes the five energy contributions of the LDA DFT functional:
+# kinetic, Hartree, exchange-correlation, electron-ion, and Ewald.
+# Eewald is independent of the wavefunction, so it is computed once
+# outside the SCF loop and stored in the SCF state.
+# ============================================================
+
+from dft_atoms import Atoms
+from dft_operators import op_O, op_L, op_J, op_Jdag
+from dft_scf import SCF
+
+π = 3.141592653589793
+
+
+# ----------------------------------------------------------------
+# Main quantities:
+#
+#   Y           normalized orbital coefficients, active subset, ℂ[p]
+#   n           electron density, full real-space grid, ℝ[k]
+#   phi         Hartree potential, full grid, ℂ[k]
+#   exc         exchange-correlation energy density, full grid, ℂ[k]
+#   ionic_potential         ionic (Coulomb) potential, full grid, ℂ[k]
+# ----------------------------------------------------------------
+
+
+# ------------------------------------------------------------------
+# Kinetic energy: Ekin = -1/2 f₀ Re<Y | L | Y>  
+# (f₀: occupation number of the single state; L: Laplacian operator - op_L)
+# ------------------------------------------------------------------
+
+def get_Ekin(atoms: Atoms, Y: ℂ[p]): ℝ:
+    LY : ℂ[p] = op_L(Y, atoms.g2c(), atoms.volume())                         # Apply Laplacian operator to the orbital
+    real_inner_product : ℝ = sum(real(Y) * real(LY) + imag(Y) * imag(LY))   # Compute Re<Y|LY>: sum Re(conj(Y) * LY) = Re(Y)Re(LY) + Im(Y)Im(LY) over all plane-wave components
+    f0 : ℝ = atoms.f[0]                                                       # Occupation number of the single state
+    return (-0.5) * f0 * real_inner_product                                  # Kinetic energy
+
+# ------------------------------------------------------------------
+# Coulomb (Hartree) energy: Ecoul = 1/2 n · J† O phi  
+# (J†: adjoint transform - op_Jdag, O: overlap operator - op_O)
+# ------------------------------------------------------------------
+
+def get_Ecoul(atoms: Atoms, n: ℝ[k], phi: ℂ[k]): ℝ:
+    phi_real : ℂ[k] = op_Jdag(op_O(phi, atoms.volume()), atoms.s1, atoms.s2, atoms.s3)  # Transform the overlap-weighted Hartree potential to the real-space grid
+    return 0.5 * sum(n * real(phi_real))                                                    # Hartree electron-electron energy
+
+# ------------------------------------------------------------------
+# Exchange-correlation energy: Exc = n · J† O J(exc)  
+# (J: forward transform - op_J; J†: adjoint transform - op_Jdag; O: overlap operator - op_O)
+# ------------------------------------------------------------------
+
+def get_Exc(atoms: Atoms, n: ℝ[k], exc: ℂ[k]): ℝ:
+    exc_recip : ℂ[k] = op_J(exc, atoms.s1, atoms.s2, atoms.s3)  # Transform XC energy density to the reciprocal-space grid
+    exc_real : ℂ[k] = op_Jdag(op_O(exc_recip, atoms.volume()), atoms.s1, atoms.s2, atoms.s3)  # Transform the overlap-weighted XC energy density to the real-space grid
+    return sum(n * real(exc_real))                                                       # Exchange-correlation energy
+
+#------------------------------------------------------------------
+# Electron-ion energy: n . ionic_potential
+#------------------------------------------------------------------
+
+def get_Een(n: ℝ[k], ionic_potential: ℂ[k]): ℝ:
+    return sum(n * real(ionic_potential))
+
+# ------------------------------------------------------------------
+# Ewald ion-ion energy
+# Eewald = Eself + Eneutral + Ereal + Erecip
+#
+# Splits the long-range Coulomb interaction between periodic nuclei
+# into rapidly convergent real-space and reciprocal-space sums, with
+# self-interaction and neutralizing-background corrections.
+# ------------------------------------------------------------------
+
+def get_Eewald(atoms: Atoms, zz_real: ℝ[Nimg], r_real: ℝ[Nimg], g2_rec: ℝ[Nshell], rho2_rec: ℝ[Nshell], gcut: ℝ, gamma: ℝ): ℝ:
+    gexp : ℝ = (-1.0) * log(gamma)                                            # Exponential cutoff parameter: -log(gamma)
+    nu : ℝ = 0.5 * sqrt(gcut ** 2.0 / gexp)                                  # Ewald splitting parameter ν
+    Ω : ℝ = atoms.volume()                                                     # Unit-cell volume
+    total_charge : ℝ = sum(atoms.Z_nuc)                                       # Total nuclear charge
+
+    self_term : ℝ = (-nu) * sum(atoms.Z_nuc ** 2.0) / sqrt(π)                # Remove Gaussian self-interaction of each nucleus
+    neutral_term : ℝ = ((-π) * total_charge ** 2.0) / (2.0 * Ω * nu ** 2.0)  # Neutralizing-background correction
+    real_term : ℝ = 0.5 * sum(zz_real * erfc(nu * r_real) / r_real)          # Short-range screened Coulomb sum in real space
+    recip_term : ℝ = (2.0 * π / Ω) * sum(
+        exp((-0.25) * g2_rec / nu ** 2.0) / g2_rec * rho2_rec                # Long-range Coulomb sum in reciprocal space
+    )
+
+    return self_term + neutral_term + real_term + recip_term                   # Total periodic ion-ion energy
+
+# ------------------------------------------------------------------
+# Total Kohn-Sham DFT energy
+# E = Ekin + Ecoul + Exc + Een + Eewald
+# ------------------------------------------------------------------
+
+def get_E(scf: SCF): ℝ:
+    Ekin : ℝ = get_Ekin(scf.atoms, scf.Y)                                     # Electron kinetic energy
+    Ecoul : ℝ = get_Ecoul(scf.atoms, scf.n, scf.phi)                          # Hartree electron-electron repulsion
+    Exc : ℝ = get_Exc(scf.atoms, scf.n, scf.exc)                              # Exchange-correlation energy
+    Een : ℝ = get_Een(scf.n, scf.ionic_potential)                             # Electron-ion interaction energy
+    return Ekin + Ecoul + Exc + Een + scf.Eewald                              # Total DFT energy

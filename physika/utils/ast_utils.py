@@ -696,6 +696,7 @@ def ast_to_torch_expr(node: ASTNode,
             "real": "torch.real",
             "floor": "torch.floor",
             "atan": "torch.atan",
+            "erfc": "torch.erfc",
         }
         multi_arg_funcs = {
             "roll": "torch.roll",

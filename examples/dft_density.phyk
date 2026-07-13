@@ -1,0 +1,73 @@
+# ============================================================
+# DFT density and electrostatics (port of SimpleDFT.jl dft.jl)
+# ============================================================
+#
+# Computes the normalized orbital, total electron density, and
+# Hartree potential from the orbital coefficients.
+
+from dft_atoms import Atoms, flat_index, axis_index, fold_freq, cell_volume, sample_coord, recip_scale, g_squared, active_mask, active_subset, structure_factor
+from dft_operators import op_I, op_J, op_O, op_Linv
+
+#----------------------------------------------------------------
+# Helper Functions: places active-subset values into a zero-filled full grid
+# (the inverse of mask_select). 
+#----------------------------------------------------------------
+def mask_embed(values: ℂ[p], active: ℝ[k], n: ℕ): ℂ[k]:
+    positions : ℝ[p] = mask_select(arange(n), active)  # integer index of each active slot
+    out : ℂ[k] = (0.0 * arange(n)) * (1.0 + 0j)         # zero-filled complex array, length n
+    count : ℝ = len(values)
+    for i: ℕ(count):
+        out[positions[i]] = values[i]
+    return out
+#----------------------------------------------------------------
+
+π = 3.141592653589793
+
+#----------------------------------------------------------------
+#   W    un-normalized orbital coefficients, active subset, ℂ[p]
+#   Y    normalized orbital, active subset, ℂ[p]
+#   n      electron density, full real-space grid, ℝ[k]
+#   phi    Hartree potential, full reciprocal-space grid, ℂ[k]
+#----------------------------------------------------------------
+
+#------------------------------------------------------------------
+# Löwdin normalization: Y = W (W^H O W)^(-1/2)
+# (W^H: conjugate transpose of W; O: overlap operator - op_O)
+#
+# For a single occupied state (Nstate = 1), W^H O W is a scalar.
+# Since O(W) = ΩW: Y = W / sqrt(Ω Σ_G |W_G|²)
+#------------------------------------------------------------------
+
+def orth(atoms: Atoms, W: ℂ[p]): ℂ[p]:
+    norm : ℝ = sqrt(atoms.volume() * sum(abs(W) ** 2.0))  # Compute sqrt(W^H O W) = sqrt(Ω Σ_G |W_G|²)
+    return W / norm                                        # Normalize the orbital so that Y^H O Y = 1
+
+#------------------------------------------------------------------
+# Total electron density: n = f₀ |Yrs|²
+# (f₀: occupation number of the single state; Yrs: orbital on the real-space grid)
+#
+# Y contains only active plane-wave coefficients, so it is first
+# embedded into the full grid and then inverse-transformed by op_I.
+#------------------------------------------------------------------
+
+def get_n_total(atoms: Atoms, Y: ℂ[p]): ℝ[k]:
+    n_full : ℕ = atoms.s1 * atoms.s2 * atoms.s3             # Total number of full-grid points
+    Y_full : ℂ[k] = mask_embed(Y, atoms.active(), n_full)    # Embed active coefficients into the full reciprocal-space grid
+    Yrs : ℂ[k] = op_I(Y_full, atoms.s1, atoms.s2, atoms.s3)  # Transform orbital to the real-space grid
+    f0 : ℝ = atoms.f[0]                                      # Occupation number of the single state
+    return f0 * abs(Yrs) ** 2.0                              # Electron density from the orbital probability density
+
+#------------------------------------------------------------------
+# Hartree potential: phi = -4π L^(-1) O J(n)
+# (J: forward transform - op_J; O: overlap operator - op_O;
+#  L^(-1): inverse Laplacian operator - op_Linv)
+#
+# Solves Poisson's equation ∇² phi = -4πn in reciprocal space.
+# The real density n is cast to complex because the operators act on ℂ[k].
+#------------------------------------------------------------------
+
+def get_phi(atoms: Atoms, n: ℝ[k]): ℂ[k]:
+    n_c : ℂ[k] = n * (1.0 + 0j)                              # Cast real electron density to complex for the transform operators
+    n_recip : ℂ[k] = op_J(n_c, atoms.s1, atoms.s2, atoms.s3)  # Transform electron density to the reciprocal-space grid
+    Ω : ℝ = atoms.volume()                                    # Unit-cell volume
+    return (-4.0) * π * op_Linv(op_O(n_recip, Ω), atoms.g2(), Ω)  # Solve Poisson's equation for the reciprocal-space Hartree potential

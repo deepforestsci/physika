@@ -860,7 +860,11 @@ def expr_call(node: Any,
 
     # Built-in functions
     elementwise_ops = ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh",
+<<<<<<< HEAD
                        "real", "imag", "gt", "le", "mod", "floor", "atan")
+=======
+                       "real", "imag","gt","le", "mod", "floor", "atan", "erfc")
+>>>>>>> 1d446d5 (Ported energies, scf, denisity)
     if func_name in elementwise_ops:
         # Element-wise ops preserve the shape of their argument
         if arg_types:
