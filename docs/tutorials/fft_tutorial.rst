@@ -45,9 +45,11 @@ only the component at frequency :math:`k` in :math:`X_k`.
 Its magnitude :math:`|X_k|` is proportional to the amplitude of that frequency and
 its angle :math:`\arg(X_k)` records the phase.
 
-The inverse transform reverses this. It scales each sinusoid by its coefficient
-:math:`X_k` and adds them all back together, recovering the original samples
-:math:`x_n` exactly.
+The inverse transform reconstructs the original signal from these frequency
+coefficients. For each sample :math:`x_n`, every coefficient :math:`X_k` is
+multiplied by the corresponding complex sinusoid :math:`e^{2\pi i kn/N}`.
+These contributions are then summed over all frequencies and normalized by
+:math:`1/N` to recover the original sample.
 
 Computing DFT in Physika
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -57,16 +59,26 @@ The forward and inverse Discrete Fourier Transforms (DFT) can be implemented in 
 .. code-block:: text
 
     π: ℝ = 3.141592653589793
-    # Discrete Fourier Transform (Forward and Inverse):
 
+    # Forward Discrete Fourier Transform:
+    # x: input signal samples
     def dft(x: ℂ[m]): ℂ[m]:
-        s: ℝ = len(x)                        # number of samples
-        coeffs: ℂ[s] = for k: ℕ(s) → sum(for n: ℕ(s) → x[n] * (cos(2*π*k*n / s) - 1j * sin(2*π*k*n / s)))  # one coefficient per frequency k
+        # number of input samples
+        s: ℝ = len(x)
+        # one coefficient per frequency k
+        coeffs: ℂ[s] = for k: ℕ(s) → sum(
+            for n: ℕ(s) → x[n] * (cos(2*π*k*n / s) - 1j * sin(2*π*k*n / s))
+        )
         return coeffs
 
+    # Inverse Discrete Fourier Transform:
+    # X: DFT coefficients of the input signal
     def idft(X: ℂ[m]): ℂ[m]:
-        s: ℝ = len(X)                        # number of samples
-        samples: ℂ[s] = for n: ℕ(s) → sum(for k: ℕ(s) → X[k] * (cos(2*π*k*n / s) + 1j * sin(2*π*k*n / s))) / s  # one reconstructed sample per n
+        # number of DFT coefficients
+        s: ℝ = len(X)
+        # reconstruct the original samples from the DFT coefficients
+        samples: ℂ[s] = for n: ℕ(s) → sum(
+            for k: ℕ(s) → X[k] * (cos(2*π*k*n / s) + 1j * sin(2*π*k*n / s))) / s
         return samples
 
 For example, consider a cosine signal that completes one full cycle over four samples,
@@ -105,10 +117,16 @@ Transform is not a different transform. It computes exactly the same :math:`X_k`
 values, but does so in :math:`O(N \log N)` time by avoiding redundant work in the
 direct sum.
 
-The most widely used FFT is the Cooley-Tukey algorithm [CooleyTukey1965]_, which
-brings this cost down by divide and conquer. We split the
-forward sum into its even-indexed samples (:math:`n = 2m`) and its odd-indexed
-ones (:math:`n = 2m + 1`):
+The Cooley-Tukey algorithm [CooleyTukey1965]_ is the most common FFT algorithm.
+For a composite size :math:`N = N_1 N_2`, it recursively re-expresses the DFT in
+terms of :math:`N_1` smaller DFTs of size :math:`N_2`, reducing the computational
+cost to :math:`O(N \log N)` for highly composite :math:`N`.
+
+The radix-2 decimation-in-time FFT is the simplest and most common form of
+the Cooley-Tukey algorithm. It divides an :math:`N`-point DFT into two interleaved
+DFTs of size :math:`N/2`, formed from the even and odd-indexed samples. The
+forward sum can therefore be separated using :math:`n = 2m` for the even indices
+and :math:`n = 2m + 1` for the odd indices:
 
 .. math::
 
@@ -119,10 +137,7 @@ ones (:math:`n = 2m + 1`):
          + e^{-2\pi i \, k/N} \sum_{m=0}^{N/2-1} x_{2m+1} \, e^{-2\pi i \, km/(N/2)}
 
 The two summations are now recognizable as DFTs of length :math:`N/2`: one over the 
-even-indexed samples and one over the odd-indexed samples. The odd transform carries 
-the additional factor :math:`e^{-2\pi i\,k/N}`, obtained by rewriting
-:math:`e^{-2\pi i\,k(2m+1)/N}` as
-:math:`e^{-2\pi i\,km/(N/2)}e^{-2\pi i\,k/N}`. Writing the two half transforms
+even-indexed samples and one over the odd-indexed samples. Writing the two half transforms
 as
 
 .. math::
@@ -144,13 +159,21 @@ factor [TwiddleWiki]_. Since
     e^{-2\pi i\,k/N} = \cos(2\pi k/N) - i\sin(2\pi k/N), \qquad
     \left|e^{-2\pi i\,k/N}\right| = 1,
 
-multiplying :math:`O_k` by it changes only its phase, rotating it by
-:math:`-2\pi k/N` radians while leaving its magnitude unchanged. That rotation
-is necessary because :math:`O_k` is a length-:math:`N/2` DFT of the odd
-samples taken on their own, as if they started at time zero, when in the
-original signal they actually sit one position after the even samples. The
-twiddle factor reinstates that one-sample offset, aligning :math:`O_k` with
-:math:`E_k` before the two are added.
+multiplying :math:`O_k` by the twiddle factor rotates its phase by
+:math:`-2\pi k/N` radians without changing its magnitude.
+The twiddle factor arises from the odd-index substitution :math:`n = 2m + 1`.
+In particular,
+
+.. math::
+
+    e^{-2\pi i\,k(2m+1)/N}
+    =
+    e^{-2\pi i\,km/(N/2)}
+    e^{-2\pi i\,k/N}.
+
+The first factor forms part of the length-:math:`N/2` DFT :math:`O_k`, while
+the remaining factor :math:`e^{-2\pi i\,k/N}` is needed to combine :math:`O_k`
+with :math:`E_k` and recover the original :math:`N`-point DFT.
 
 Each half transform has period :math:`N/2`, and the twiddle factor flips sign
 over that same half period:
@@ -178,51 +201,102 @@ length one. This gives :math:`\log_2 N` levels of splitting, each costing
 :math:`O(N)` to recombine, so the whole transform runs in :math:`O(N \log N)`,
 against :math:`O(N^2)` for the direct sum.
 
-Computing FFT (Cooley-Tukey) in Physika
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The radix-2 derivation above is one instance of the general Cooley-Tukey
+factorization. For a composite size :math:`N = N_1 N_2`, the decomposition
+proceeds in three steps: first, perform :math:`N_1` DFTs of size :math:`N_2`;
+next, multiply the results by twiddle factors; and finally, perform
+:math:`N_2` DFTs of size :math:`N_1` [CooleyTukey1965]_.
 
-The recursive Cooley-Tukey FFT algorithm can be implemented in Physika as follows:
+Typically, either :math:`N_1` or :math:`N_2` is chosen as a small factor called
+the **radix**, which may differ between stages of the recursion. Two common
+forms of the Cooley-Tukey algorithm are decimation in time (DIT) and decimation
+in frequency (DIF), distinguished by whether the recursive decomposition is
+applied to the input indices or the output frequency indices. DIT partitions
+the input sequence according to its indices, whereas DIF partitions the output
+spectrum according to its frequency indices. The derivation above is the
+radix-2 DIT case, where the input samples are separated into even- and
+odd-indexed subsequences, giving two length-:math:`N/2` DFTs, :math:`E_k` and
+:math:`O_k`.
+
+Computing the radix-2 Cooley-Tukey FFT in Physika
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The radix-2 Cooley-Tukey FFT derived above can be implemented in
+Physika as follows:
+
+.. note::
+
+   For the radix-2 Cooley-Tukey algorithm, the size argument ``s`` must be a
+   power of 2. At each recursive step, the input is split into equal-sized
+   even and odd-indexed subsequences, so repeated halving must eventually
+   reach the base case of length 1.
 
 .. code-block:: text
 
     π: ℝ = 3.141592653589793
-    # Fast Fourier Transform, recursive radix-2 Cooley-Tukey (O(N log N)):
 
-    def ct_fft(x: ℂ[m], s: ℝ): ℂ[m]:                  # x: input signal array; s: size (length) of the array
-        if s == 1.0:
-            return x                                        # base case: a length-1 transform is the sample itself
-        half_size: ℝ = s / 2                                 # size of each half-transform
-        even: ℂ[half_size] = for a: ℕ(half_size) → x[2 * a]      # even-indexed samples
-        odd:  ℂ[half_size] = for a: ℕ(half_size) → x[2 * a + 1]  # odd-indexed samples
-        E: ℂ[half_size] = ct_fft(even, half_size)                # transform of the even half
-        O: ℂ[half_size] = ct_fft(odd, half_size)                 # transform of the odd half
-        twiddle: ℂ[half_size] = for k: ℕ(half_size) → cos(2*π*k / s) - 1j * sin(2*π*k / s)  # twiddle factor
-        lower: ℂ[half_size] = for k: ℕ(half_size) → E[k] + twiddle[k] * O[k]                # first half of the output
-        upper: ℂ[half_size] = for k: ℕ(half_size) → E[k] - twiddle[k] * O[k]                # second half of the output
-        return concat(lower, upper)
+    # ct_fft: recursive radix-2 Cooley-Tukey FFT
+    # x: input signal array
+    # s: size (length) of x, must be a power of 2
 
-    def ict_fft(X: ℂ[m], s: ℝ): ℂ[m]:                 # X: input spectrum array; s: size (length) of the array
+    def ct_fft(x: ℂ[m], s: ℝ): ℂ[m]:
+        # base case: a length-1 transform is the sample itself
         if s == 1.0:
-            return X                                        # base case: a length-1 inverse transform is the sample itself
-        half_size: ℝ = s / 2                                 # size of each half-transform
-        even: ℂ[half_size] = for a: ℕ(half_size) → X[2 * a]      # even-indexed coefficients
-        odd:  ℂ[half_size] = for a: ℕ(half_size) → X[2 * a + 1]  # odd-indexed coefficients
-        E: ℂ[half_size] = ict_fft(even, half_size)               # inverse transform of the even half
-        O: ℂ[half_size] = ict_fft(odd, half_size)                # inverse transform of the odd half
-        twiddle: ℂ[half_size] = for k: ℕ(half_size) → cos(2*π*k / s) + 1j * sin(2*π*k / s)  # twiddle factor, conjugated for the inverse
-        lower: ℂ[half_size] = for k: ℕ(half_size) → E[k] + twiddle[k] * O[k]                # first half of the output
-        upper: ℂ[half_size] = for k: ℕ(half_size) → E[k] - twiddle[k] * O[k]                # second half of the output
-        return concat(lower, upper)
+            return x
+        # Split the input into its even and odd-indexed samples, then
+        # recursively compute the DFT of each half.
+        half_size: ℝ = s / 2
+        even: ℂ[half_size] = for a: ℕ(half_size) → x[2 * a]
+        odd:  ℂ[half_size] = for a: ℕ(half_size) → x[2 * a + 1]
+        E: ℂ[half_size] = ct_fft(even, half_size)
+        O: ℂ[half_size] = ct_fft(odd, half_size)
+        # Combine the two half transforms into the full transform, using the twiddle factor
+        twiddle: ℂ[half_size] = for k: ℕ(half_size) → cos(2*π*k / s) - 1j * sin(2*π*k / s)
+        first_half: ℂ[half_size] = for k: ℕ(half_size) → E[k] + twiddle[k] * O[k]
+        second_half: ℂ[half_size] = for k: ℕ(half_size) → E[k] - twiddle[k] * O[k]
+        return concat(first_half, second_half)
+
+The inverse transform follows the recursive structure of the forward FFT, with
+the inverse twiddle factor using the opposite sign in the complex exponential.
+The :math:`1/N` normalization is applied once at the top level of the recursion.
+
+.. code-block:: text
+
+    # ict_fft: recursive radix-2 Cooley-Tukey inverse FFT
+    # X: input spectrum array (or sub-array, during recursion)
+    # total_size: size of the full transform, must be a power of 2
+
+    def ict_fft(X: ℂ[m], total_size: ℝ): ℂ[m]:
+        s: ℝ = len(X)
+        # base case: a length-1 inverse transform is the sample itself
+        if s == 1.0:
+            return X
+        # Recursively compute the inverse transforms of the even and odd-indexed coefficients
+        half_size: ℝ = s / 2
+        even: ℂ[half_size] = for a: ℕ(half_size) → X[2 * a]
+        odd:  ℂ[half_size] = for a: ℕ(half_size) → X[2 * a + 1]
+        E: ℂ[half_size] = ict_fft(even, total_size)
+        O: ℂ[half_size] = ict_fft(odd, total_size)
+        # Combine the half-transforms using the inverse twiddle factor
+        inv_twiddle: ℂ[half_size] = for k: ℕ(half_size) → cos(2*π*k / s) + 1j * sin(2*π*k / s)
+        first_half: ℂ[half_size] = for k: ℕ(half_size) → E[k] + inv_twiddle[k] * O[k]
+        second_half: ℂ[half_size] = for k: ℕ(half_size) → E[k] - inv_twiddle[k] * O[k]
+        combined: ℂ[s] = concat(first_half, second_half)
+        # apply the 1/N normalization once
+        if s == total_size:
+            return combined / total_size
+        return combined
+
 
 Using the same cosine signal as before:
 
 .. code-block:: text
 
     signal: ℂ[4] = for n: ℕ(4) → cos(2*π*n / 4)
-    fft_spectrum: ℂ[4] = ct_fft(signal, 4)            # forward transform via Cooley-Tukey
+    fft_spectrum: ℂ[4] = ct_fft(signal, 4)            # forward transform via radix-2 Cooley-Tukey
     fft_spectrum
     abs(fft_spectrum)                                 # magnitude of the spectrum
-    ict_fft(fft_spectrum, 4) / 4                      # inverse transform
+    ict_fft(fft_spectrum, 4)                          # normalized inverse transform via radix-2 Cooley-Tukey
 
 Output::
 
@@ -340,9 +414,9 @@ frequency 3:
     π: ℝ = 3.141592653589793
     center: ℝ = 4.0
 
-    signal_1d: ℝ[Ns] = for n: ℕ(Ns) -> cos(2*π * (n - center) / Ns) + 0.5 * cos(2*π * 3 * (n - center) / Ns)  # two cosines: strong at k=1, weaker at k=3
+    signal_1d: ℝ[Ns] = for n: ℕ(Ns) -> cos(2*π * (n - center) / Ns) + 0.5 * cos(2*π * 3 * (n - center) / Ns)
     spectrum_1d: ℂ[Ns] = fft(signal_1d)   # 1D Fourier transform of signal_1d
-    abs(spectrum_1d)                       # magnitude at each frequency, peaks mark k=1 and k=3
+    abs(spectrum_1d)                       # magnitude at each frequency
     ifft(spectrum_1d)                      # inverse transform, recovers signal_1d
 
 
@@ -407,7 +481,7 @@ original tensor. Take a small 2×2×2 tensor as an example:
 
 .. code-block:: text
 
-    tensor: ℝ[2, 2, 2] = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]    # a small 2x2x2 tensor
+    tensor: ℝ[2, 2, 2] = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]    # 2x2x2 tensor
     spectrum_Nd: ℂ[2, 2, 2] = fftn(tensor)                        # N-D Fourier transform of tensor
     spectrum_Nd
     ifftn(spectrum_Nd)                                            # inverse transform, recovers tensor  
@@ -436,13 +510,69 @@ Differentiating through the FFT
 We now differentiate through the transform, then see it on two examples in
 Physika.
 
-The DFT is a linear map, :math:`X = Fx`, with the constant matrix
-:math:`F_{kn} = e^{-2\pi i \, kn/N}`. Backpropagating through a linear map applies
-its adjoint, the conjugate transpose :math:`F^{H}`. A gradient :math:`\bar{X}`
-arriving on the output becomes the gradient :math:`\bar{x} = F^{H} \, \bar{X}` on
-the input. For the DFT, this adjoint is the inverse transform without its
-:math:`1/N` normalization, so the backward pass of an FFT is itself an inverse
-FFT, exact and just as cheap, :math:`O(N \log N)`.
+An FFT computes the DFT efficiently. To understand how gradients propagate
+through an FFT, we consider the underlying DFT. Recall that the forward DFT is
+
+.. math::
+
+    X_k = \sum_{n=0}^{N-1} x_n e^{-2\pi i\,kn/N}.
+
+This can be written compactly as the matrix-vector product
+
+.. math::
+
+    X = Fx,
+
+where :math:`F` is the DFT matrix with entries
+:math:`F_{kn} = e^{-2\pi i\,kn/N}`. To see this explicitly, the :math:`k`-th entry of
+:math:`Fx` is
+
+.. math::
+
+    (Fx)_k = \sum_{n=0}^{N-1} F_{kn}x_n
+           = \sum_{n=0}^{N-1} x_n e^{-2\pi i\,kn/N}
+           = X_k.
+
+The DFT is therefore a linear transformation: the matrix :math:`F` is fixed and does not
+depend on the input :math:`x`. This makes differentiation through the transform
+particularly simple.
+
+When differentiating through the DFT, a gradient :math:`\bar{X}` is propagated
+from subsequent computations to the DFT output. Each :math:`\bar{X}_k`
+measures how the final scalar result changes with respect to the DFT
+coefficient :math:`X_k`. The goal is to determine the corresponding gradient
+:math:`\bar{x}_n` with respect to each input sample :math:`x_n`.
+
+Since every input sample :math:`x_n` contributes to every DFT coefficient
+:math:`X_k`, its gradient must accumulate contributions from all the output
+gradients :math:`\bar{X}_k`. For the linear transformation :math:`X = Fx`,
+these contributions are collected by applying the adjoint of the DFT matrix:
+
+.. math::
+
+    \bar{x} = F^H \bar{X},
+
+where :math:`F^H` is the conjugate transpose, or adjoint, of :math:`F`. In
+component form,
+
+.. math::
+
+    \bar{x}_n = \sum_{k=0}^{N-1} F_{kn}^{*}\,\bar{X}_k.
+
+The expression above has the same form as the inverse DFT. The complex
+conjugation changes the negative exponential in :math:`F_{kn}` to the positive
+exponential used by the inverse transform. The only difference is the
+normalization. With the convention used here, the inverse DFT includes a factor
+of :math:`1/N`, so
+
+.. math::
+
+    F^{-1} = \frac{1}{N}F^H
+
+Therefore, the backward operation :math:`F^H\bar{X}` is exactly an inverse DFT
+without the :math:`1/N` normalization. Instead of evaluating this operation
+directly in :math:`O(N^2)` time, it can be computed using an unnormalized
+inverse FFT in :math:`O(N \log N)` time.
 
 In Physika this needs no special handling. ``grad(expr, x)`` compiles to
 ``compute_grad``, which calls ``torch.autograd.grad``.
@@ -452,9 +582,9 @@ We now see this on two examples.
 .. note::
 
     In these examples, we differentiate **through** complex-valued operations with respect to
-    a **real input**. We use real inputs here primarily for illustration, though ``grad`` 
+    **real inputs**. We use real inputs here primarily for illustration, though ``grad`` 
     also supports differentiating with respect to **complex inputs**. 
-    For a worked example of complex-variable differentiation, see the Complex section of :doc:`/examples`.
+    For worked examples of differentiation with respect to complex variables, see the Complex section of :doc:`/examples`.
 
 
 Gradient of a single coefficient

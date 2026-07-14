@@ -26,22 +26,26 @@ def ct_fft(x, s):
     E = ct_fft(even, half_size)
     O = ct_fft(odd, half_size)
     twiddle = torch.stack([(torch.cos((((2 * π) * k) / s) if isinstance((((2 * π) * k) / s), torch.Tensor) else torch.tensor(float((((2 * π) * k) / s)))) - (1j * torch.sin((((2 * π) * k) / s) if isinstance((((2 * π) * k) / s), torch.Tensor) else torch.tensor(float((((2 * π) * k) / s)))))) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
-    lower = torch.stack([(E[int(k)] + (twiddle[int(k)] * O[int(k)])) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
-    upper = torch.stack([(E[int(k)] - (twiddle[int(k)] * O[int(k)])) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
-    return torch.cat([lower, upper])
+    first_half = torch.stack([(E[int(k)] + (twiddle[int(k)] * O[int(k)])) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
+    second_half = torch.stack([(E[int(k)] - (twiddle[int(k)] * O[int(k)])) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
+    return torch.cat([first_half, second_half])
 
-def ict_fft(X, s):
+def ict_fft(X, total_size):
+    s = len(X)
     if s == 1.0:
         return X
     half_size = (s / 2)
     even = torch.stack([X[int((2 * a))] for _fi_a in range(int(half_size)) for a in [torch.tensor(float(_fi_a), device=DEVICE)]])
     odd = torch.stack([X[int(((2 * a) + 1))] for _fi_a in range(int(half_size)) for a in [torch.tensor(float(_fi_a), device=DEVICE)]])
-    E = ict_fft(even, half_size)
-    O = ict_fft(odd, half_size)
-    twiddle = torch.stack([(torch.cos((((2 * π) * k) / s) if isinstance((((2 * π) * k) / s), torch.Tensor) else torch.tensor(float((((2 * π) * k) / s)))) + (1j * torch.sin((((2 * π) * k) / s) if isinstance((((2 * π) * k) / s), torch.Tensor) else torch.tensor(float((((2 * π) * k) / s)))))) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
-    lower = torch.stack([(E[int(k)] + (twiddle[int(k)] * O[int(k)])) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
-    upper = torch.stack([(E[int(k)] - (twiddle[int(k)] * O[int(k)])) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
-    return torch.cat([lower, upper])
+    E = ict_fft(even, total_size)
+    O = ict_fft(odd, total_size)
+    inv_twiddle = torch.stack([(torch.cos((((2 * π) * k) / s) if isinstance((((2 * π) * k) / s), torch.Tensor) else torch.tensor(float((((2 * π) * k) / s)))) + (1j * torch.sin((((2 * π) * k) / s) if isinstance((((2 * π) * k) / s), torch.Tensor) else torch.tensor(float((((2 * π) * k) / s)))))) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
+    first_half = torch.stack([(E[int(k)] + (inv_twiddle[int(k)] * O[int(k)])) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
+    second_half = torch.stack([(E[int(k)] - (inv_twiddle[int(k)] * O[int(k)])) for _fi_k in range(int(half_size)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]])
+    combined = torch.cat([first_half, second_half])
+    if s == total_size:
+        return (combined / total_size)
+    return combined
 
 # === Program ===
 π = 3.141592653589793
@@ -53,7 +57,7 @@ physika_print(idft(dft_spectrum))
 fft_spectrum = ct_fft(signal, 4)
 physika_print(fft_spectrum)
 physika_print(torch.abs(fft_spectrum if isinstance(fft_spectrum, torch.Tensor) else torch.tensor(float(fft_spectrum))))
-physika_print((ict_fft(fft_spectrum, 4) / 4))
+physika_print(ict_fft(fft_spectrum, 4))
 physika_print(dft(signal))
 physika_print(ct_fft(signal, 4))
 physika_print(torch.fft.fft(signal))
