@@ -113,7 +113,8 @@ Substituting the stencil into the stabilized equation at grid cell
 
 .. math::
 
-   (1 + \Delta t\,S)\eta^{n+1}_{i,j}
+   \begin{aligned}
+   &(1 + \Delta t\,S)\eta^{n+1}_{i,j}
    - \Delta t\,\varepsilon^2
    \frac{
       \eta^{n+1}_{i-1,j}
@@ -121,10 +122,11 @@ Substituting the stencil into the stabilized equation at grid cell
       + \eta^{n+1}_{i,j-1}
       + \eta^{n+1}_{i,j+1}
       - 4\eta^{n+1}_{i,j}
-   }{\Delta x^2}
-   =
+   }{\Delta x^2} \\
+   &=
    (1 + \Delta t\,S)\eta^n_{i,j}
    - \Delta t((\eta^n_{i,j})^3 - \eta^n_{i,j}).
+   \end{aligned}
 
 Now define
 
