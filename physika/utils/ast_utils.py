@@ -661,10 +661,10 @@ def ast_to_torch_expr(node: ASTNode,
                     wrapped = [f"torch.as_tensor({s})" for s in elem_strs]
                     return f"torch.stack([{', '.join(wrapped)}])"
 
-    elif op == "index":
-        var_name = node[1]
-        idx = ast_to_torch_expr(node[2], indent, current_loop_var)
-        return f"{var_name}[int({idx})]"
+    # elif op == "index":
+    #     var_name = node[1]
+    #     idx = ast_to_torch_expr(node[2], indent, current_loop_var)
+    #     return f"{var_name}[int({idx})]"
 
     elif op == "slice":
         var_name = node[1]
@@ -680,20 +680,20 @@ def ast_to_torch_expr(node: ASTNode,
         idx = ast_to_torch_expr(node[2], indent, current_loop_var)
         return f"{obj}[int({idx})]"
 
-    elif op == "indexN":
-        arr = node[1]
-        parts = []
-        for item in node[2]:
-            if item[0] == "index_item":
-                idx = ast_to_torch_expr(item[1], indent, current_loop_var)
-                parts.append(f"int({idx})")
-            elif item[0] == "slice_item":
-                start = (ast_to_torch_expr(item[1], indent, current_loop_var)
-                         if item[1] is not None else "")
-                end = (ast_to_torch_expr(item[2], indent, current_loop_var)
-                       if item[2] is not None else "")
-                parts.append(f"{start}:{end}")
-        return f"{arr}[{', '.join(parts)}]"
+    # elif op == "indexN":
+    #     arr = node[1]
+    #     parts = []
+    #     for item in node[2]:
+    #         if item[0] == "index_item":
+    #             idx = ast_to_torch_expr(item[1], indent, current_loop_var)
+    #             parts.append(f"int({idx})")
+    #         elif item[0] == "slice_item":
+    #             start = (ast_to_torch_expr(item[1], indent, current_loop_var)
+    #                      if item[1] is not None else "")
+    #             end = (ast_to_torch_expr(item[2], indent, current_loop_var)
+    #                    if item[2] is not None else "")
+    #             parts.append(f"{start}:{end}")
+    #     return f"{arr}[{', '.join(parts)}]"
 
     elif op == "call":
         func_name = node[1]
@@ -1453,13 +1453,13 @@ def emit_for_stmts(
             result.append(
                 f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=loop_var)}"  # noqa: E501
             )
-        elif body_op == "for_index_assign_nd":
-            _, arr_name, idx_list, rhs_expr = s
-            indices = ", ".join(
-                f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
-                for idx in idx_list)
-            rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=loop_var)
-            result.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
+        # elif body_op == "for_index_assign_nd":
+        #     _, arr_name, idx_list, rhs_expr = s
+        #     indices = ", ".join(
+        #         f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
+        #         for idx in idx_list)
+        #     rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=loop_var)
+        #     result.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
         elif body_op == "for_call":
             _, func_name, arg_asts = s
             arg_strs = [

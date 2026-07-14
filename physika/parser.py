@@ -907,24 +907,24 @@ def p_for_body_multi(p):
     p[0] = p[1] + ([p[2]] if p[2] is not None else [])
 
 
-def p_for_statement_index_assign_nd(p):
-    """for_statement : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
-    # nd Indexed assignment inside top-level for-body
-    # Example:
-    # # 1d array
-    # for i:
-    #   arr1d[i] = 1
-    # # 2d array
-    # for i:
-    #   for j:
-    #       arr2d[i, j] = 1
-    # Parameters:
-    # p[1] — array name
-    # p[3] — list of index expressions
-    # p[5] — right hand side expression
-    # Returns:
-    #   ("for_index_assign_nd", arr_name, [idx_exprs], rhs)
-    p[0] = ("for_index_assign_nd", p[1], p[3], p[6])
+# def p_for_statement_index_assign_nd(p):
+#     """for_statement : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
+#     # nd Indexed assignment inside top-level for-body
+#     # Example:
+#     # # 1d array
+#     # for i:
+#     #   arr1d[i] = 1
+#     # # 2d array
+#     # for i:
+#     #   for j:
+#     #       arr2d[i, j] = 1
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — list of index expressions
+#     # p[5] — right hand side expression
+#     # Returns:
+#     #   ("for_index_assign_nd", arr_name, [idx_exprs], rhs)
+#     p[0] = ("for_index_assign_nd", p[1], p[3], p[6])
 
 
 def p_for_statement_assign(p):
@@ -1131,77 +1131,71 @@ def p_func_factor_call(p):
     p[0] = ("call", p[1], p[3])
 
 
-def p_func_factor_index(p):
-    """func_factor : ID LBRACKET func_expr RBRACKET"""
-    # Tensor indexing: W[i]
-    p[0] = ("index", p[1], p[3])
+# def p_func_factor_index(p):
+#     """func_factor : ID LBRACKET func_expr RBRACKET"""
+#     # Tensor indexing: W[i]
+#     p[0] = ("index", p[1], p[3])
 
+# def p_multi_index_item_index(p):
+#     """multi_index_item : func_expr"""
+#     p[0] = ("index_item", p[1])
 
-def p_multi_index_item_index(p):
-    """multi_index_item : func_expr"""
-    p[0] = ("index_item", p[1])
+# def p_multi_index_item_slice(p):
+#     """multi_index_item : func_expr COLON func_expr
+#                         | func_expr COLON
+#                         | COLON func_expr
+#                         | COLON"""
+#     if len(p) == 4:
+#         p[0] = ("slice_item", p[1], p[3])
+#     elif len(p) == 3 and p[1] == ":":
+#         p[0] = ("slice_item", None, p[2])
+#     elif len(p) == 3:
+#         p[0] = ("slice_item", p[1], None)
+#     else:
+#         p[0] = ("slice_item", None, None)
 
+# def p_multi_index_list_single(p):
+#     """multi_index_list : multi_index_item"""
+#     p[0] = [p[1]]
 
-def p_multi_index_item_slice(p):
-    """multi_index_item : func_expr COLON func_expr
-                        | func_expr COLON
-                        | COLON func_expr
-                        | COLON"""
-    if len(p) == 4:
-        p[0] = ("slice_item", p[1], p[3])
-    elif len(p) == 3 and p[1] == ":":
-        p[0] = ("slice_item", None, p[2])
-    elif len(p) == 3:
-        p[0] = ("slice_item", p[1], None)
-    else:
-        p[0] = ("slice_item", None, None)
+# def p_multi_index_list_base(p):
+#     """multi_index_list : multi_index_item COMMA multi_index_item"""
+#     # Base case: 2 comma-separated index expressions.
+#     # Requires at least one COMMA, so there is no conflict with 1
+#     # index rule.
+#     # Example:
+#     #   A[i, k]
+#     # Parameters:
+#     # p[1] — first index expression
+#     # p[3] — second index expression
+#     # Returns:
+#     #   [p[1], p[3]]
+#     p[0] = [p[1], p[3]]
 
+# def p_multi_index_list_extend(p):
+#     """multi_index_list : multi_index_list COMMA multi_index_item"""
+#     # Extend an existing index list by one more dimension.
+#     # Example:
+#     #   T[i, j, k]
+#     # Parameters:
+#     # p[1] — existing index list
+#     # p[3] — next index expression
+#     # Returns:
+#     #   p[1] + [p[3]]
+#     p[0] = p[1] + [p[3]]
 
-def p_multi_index_list_single(p):
-    """multi_index_list : multi_index_item"""
-    p[0] = [p[1]]
-
-
-def p_multi_index_list_base(p):
-    """multi_index_list : multi_index_item COMMA multi_index_item"""
-    # Base case: 2 comma-separated index expressions.
-    # Requires at least one COMMA, so there is no conflict with 1
-    # index rule.
-    # Example:
-    #   A[i, k]
-    # Parameters:
-    # p[1] — first index expression
-    # p[3] — second index expression
-    # Returns:
-    #   [p[1], p[3]]
-    p[0] = [p[1], p[3]]
-
-
-def p_multi_index_list_extend(p):
-    """multi_index_list : multi_index_list COMMA multi_index_item"""
-    # Extend an existing index list by one more dimension.
-    # Example:
-    #   T[i, j, k]
-    # Parameters:
-    # p[1] — existing index list
-    # p[3] — next index expression
-    # Returns:
-    #   p[1] + [p[3]]
-    p[0] = p[1] + [p[3]]
-
-
-def p_func_factor_indexN(p):
-    """func_factor : ID LBRACKET multi_index_list RBRACKET"""
-    # N-dimensional comma indexing inside a function body.
-    # Example:
-    #   A[i, k]
-    #   T[i, j, k]
-    # Parameters:
-    # p[1] — array name
-    # p[3] — list of index expressions (length ≥ 2)
-    # Returns:
-    #   ("indexN", name, [idx_exprs])
-    p[0] = ("indexN", p[1], p[3])
+# def p_func_factor_indexN(p):
+#     """func_factor : ID LBRACKET multi_index_list RBRACKET"""
+#     # N-dimensional comma indexing inside a function body.
+#     # Example:
+#     #   A[i, k]
+#     #   T[i, j, k]
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — list of index expressions (length ≥ 2)
+#     # Returns:
+#     #   ("indexN", name, [idx_exprs])
+#     p[0] = ("indexN", p[1], p[3])
 
 
 def p_func_factor_call_index(p):
@@ -1455,49 +1449,46 @@ def p_elements_newline(p):
         p[0] = p[2] if isinstance(p[2], list) else p[1]
 
 
-def p_factor_index(p):
-    """factor : ID LBRACKET NUMBER RBRACKET"""
-    # Numeric literal indexing of array at program level
-    # Example:
-    # arr[0]
-    # arr[2]
-    # Parameters:
-    # p[1] — array name
-    # p[3] — numeric literal index
-    # Returns:
-    #   ("index", name, ("num", index))
-    p[0] = ("index", p[1], ("num", p[3]))
+# def p_factor_index(p):
+#     """factor : ID LBRACKET NUMBER RBRACKET"""
+#     # Numeric literal indexing of array at program level
+#     # Example:
+#     # arr[0]
+#     # arr[2]
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — numeric literal index
+#     # Returns:
+#     #   ("index", name, ("num", index))
+#     p[0] = ("index", p[1], ("num", p[3]))
 
+# def p_factor_index_var(p):
+#     """factor : ID LBRACKET ID RBRACKET"""
+#     # Variable indexing of array at program level
+#     # Example:
+#     # arr[i]
+#     # arr[m]
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — variable name used as index
+#     # Returns:
+#     #   ("index", name, ("var", index))
+#     p[0] = ("index", p[1], ("var", p[3]))
 
-def p_factor_index_var(p):
-    """factor : ID LBRACKET ID RBRACKET"""
-    # Variable indexing of array at program level
-    # Example:
-    # arr[i]
-    # arr[m]
-    # Parameters:
-    # p[1] — array name
-    # p[3] — variable name used as index
-    # Returns:
-    #   ("index", name, ("var", index))
-    p[0] = ("index", p[1], ("var", p[3]))
-
-
-def p_factor_indexN(p):
-    """factor : ID LBRACKET multi_index_list RBRACKET"""
-    # N-dimensional comma indexing at program level.
-    # Reuses the multi_index_list shared with function bodies,
-    # which requires at least one comma.
-    # Example:
-    #   u0[1, 2]
-    #   T[0, 1, 2]
-    # Parameters:
-    # p[1] — array name
-    # p[3] — list of index expressions built by multi_index_list
-    # Returns:
-    #   ("indexN", name, [idx_expr, ...])
-    p[0] = ("indexN", p[1], p[3])
-
+# def p_factor_indexN(p):
+#     """factor : ID LBRACKET multi_index_list RBRACKET"""
+#     # N-dimensional comma indexing at program level.
+#     # Reuses the multi_index_list shared with function bodies,
+#     # which requires at least one comma.
+#     # Example:
+#     #   u0[1, 2]
+#     #   T[0, 1, 2]
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — list of index expressions built by multi_index_list
+#     # Returns:
+#     #   ("indexN", name, [idx_expr, ...])
+#     p[0] = ("indexN", p[1], p[3])
 
 # def p_factor_slice(p):
 #     """factor : ID LBRACKET NUMBER COLON NUMBER RBRACKET"""
@@ -1609,6 +1600,6 @@ if REGISTRY.features != []:
     # refresh after ELF have added new tokens
     tokens = lexer_mod.tokens  # noqa: F811
     REGISTRY.add_parser_rules(sys.modules[__name__])
-    parser = yacc.yacc(outputdir=str(Path(__file__).parent))
+    parser = yacc.yacc(start="program", outputdir=str(Path(__file__).parent))
 else:
     parser = yacc.yacc()
