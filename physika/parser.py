@@ -26,6 +26,8 @@ precedence = (
     ("right", "EQUALS"),
 )
 
+start = "program"
+
 
 # Program
 def p_program(p):
@@ -249,36 +251,35 @@ def p_func_body_stmt_assign(p):
     p[0] = ("body_assign", p[1], p[3])
 
 
-def p_func_body_stmt_index_assign(p):
-    """func_body_stmt : ID LBRACKET func_expr RBRACKET EQUALS func_expr NEWLINE"""  # noqa
-    # Indexed assignment of array inside function body
-    # Example:
-    # def update_1d_array(x: R[m]): R[m]:
-    #   x[1] = 3
-    #   return x
-    # arr1d = [1, 2, 3]
-    # update_1d_array(arr1d)
-    # Parameters:
-    # p[1] — array name
-    # p[3] — index expression/number
-    # p[5] — right hand side expression/number
-    p[0] = ("body_index_assign", p[1], p[3], p[6])
+# def p_func_body_stmt_index_assign(p):
+#     """func_body_stmt : ID LBRACKET func_expr RBRACKET EQUALS func_expr NEWLINE"""  # noqa
+#     # Indexed assignment of array inside function body
+#     # Example:
+#     # def update_1d_array(x: R[m]): R[m]:
+#     #   x[1] = 3
+#     #   return x
+#     # arr1d = [1, 2, 3]
+#     # update_1d_array(arr1d)
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — index expression/number
+#     # p[5] — right hand side expression/number
+#     p[0] = ("body_index_assign", p[1], p[3], p[6])
 
-
-def p_func_body_stmt_index_assign_nd(p):
-    """func_body_stmt : ID LBRACKET multi_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
-    # nd Indexed assignment of array inside function body
-    # Example:
-    # def update_2d_array(x: R[m, n]): R[m, n]:
-    #   x[1, 1] = 3
-    #   return x
-    # 2d_array: R[2 , 2] = [[1, 1], [1, 1]]
-    # update_2d_array(2d_array)
-    # Parameters:
-    # p[1] — array name
-    # p[3] — index list of numbers/expressions
-    # p[5] — right hand side expression/number
-    p[0] = ("body_index_assign_nd", p[1], p[3], p[6])
+# def p_func_body_stmt_index_assign_nd(p):
+#     """func_body_stmt : ID LBRACKET multi_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
+#     # nd Indexed assignment of array inside function body
+#     # Example:
+#     # def update_2d_array(x: R[m, n]): R[m, n]:
+#     #   x[1, 1] = 3
+#     #   return x
+#     # 2d_array: R[2 , 2] = [[1, 1], [1, 1]]
+#     # update_2d_array(2d_array)
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — index list of numbers/expressions
+#     # p[5] — right hand side expression/number
+#     p[0] = ("body_index_assign_nd", p[1], p[3], p[6])
 
 
 def p_func_body_stmt_decl(p):
@@ -612,24 +613,24 @@ def p_func_loop_stmt_assign(p):
     p[0] = ("loop_assign", p[1], p[3])
 
 
-def p_func_loop_stmt_index_assign_nd(p):
-    """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
-    # nd Indexed assignment inside a loop body
-    # Example:
-    # # 1d array
-    # for i:
-    #   arr1d[i] = 1
-    # # 2d array
-    # for i:
-    #   for j:
-    #       arr2d[i, j] = 1
-    # Parameters:
-    # p[1] — array name
-    # p[3] — list of index expressions
-    # p[5] — right hand side expression
-    # Returns:
-    #   ("loop_index_assign_nd", arr_name, [idx_exprs], rhs)
-    p[0] = ("loop_index_assign_nd", p[1], p[3], p[6])
+# def p_func_loop_stmt_index_assign_nd(p):
+#     """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
+#     # nd Indexed assignment inside a loop body
+#     # Example:
+#     # # 1d array
+#     # for i:
+#     #   arr1d[i] = 1
+#     # # 2d array
+#     # for i:
+#     #   for j:
+#     #       arr2d[i, j] = 1
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — list of index expressions
+#     # p[5] — right hand side expression
+#     # Returns:
+#     #   ("loop_index_assign_nd", arr_name, [idx_exprs], rhs)
+#     p[0] = ("loop_index_assign_nd", p[1], p[3], p[6])
 
 
 def p_func_loop_stmt_pluseq(p):
@@ -645,41 +646,39 @@ def p_func_loop_stmt_pluseq(p):
     p[0] = ("loop_pluseq", p[1], p[3])
 
 
-def p_loop_index_list_single(p):
-    """loop_index_list : func_expr"""
-    # Single-element index list.
-    # Base case for nD subscript accumulation.
-    # Parameters:
-    # p[1] — index expression
-    # Returns:
-    #   [p[1]]
-    p[0] = [("index_item", p[1])]
+# def p_loop_index_list_single(p):
+#     """loop_index_list : func_expr"""
+#     # Single-element index list.
+#     # Base case for nD subscript accumulation.
+#     # Parameters:
+#     # p[1] — index expression
+#     # Returns:
+#     #   [p[1]]
+#     p[0] = [("index_item", p[1])]
 
+# def p_loop_index_list_multi(p):
+#     """loop_index_list : loop_index_list COMMA func_expr"""
+#     # Extend index list.
+#     # Parameters:
+#     # p[1] — existing index list
+#     # p[3] — next index expression
+#     # Returns:
+#     #   p[1] + [p[3]]
+#     p[0] = p[1] + [("index_item", p[3])]
 
-def p_loop_index_list_multi(p):
-    """loop_index_list : loop_index_list COMMA func_expr"""
-    # Extend index list.
-    # Parameters:
-    # p[1] — existing index list
-    # p[3] — next index expression
-    # Returns:
-    #   p[1] + [p[3]]
-    p[0] = p[1] + [("index_item", p[3])]
-
-
-def p_func_loop_stmt_index_pluseq(p):
-    """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET PLUSEQ func_expr NEWLINE"""  # noqa: E501
-    # N-dimensional indexed accumulation statement inside a loop body.
-    # Example:
-    #   C[i, j]    += A[i, k] * B[k, j]
-    #   T[i, j, l] += A[i, k] * B[k, j, l]
-    # Parameters:
-    # p[1] — tensor name
-    # p[3] — list of index expressions
-    # p[6] — right-hand side expression
-    # Returns:
-    #   ("loop_index_pluseq", name, [idx_exprs], rhs)
-    p[0] = ("loop_index_pluseq", p[1], p[3], p[6])
+# def p_func_loop_stmt_index_pluseq(p):
+#     """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET PLUSEQ func_expr NEWLINE"""  # noqa: E501
+#     # N-dimensional indexed accumulation statement inside a loop body.
+#     # Example:
+#     #   C[i, j]    += A[i, k] * B[k, j]
+#     #   T[i, j, l] += A[i, k] * B[k, j, l]
+#     # Parameters:
+#     # p[1] — tensor name
+#     # p[3] — list of index expressions
+#     # p[6] — right-hand side expression
+#     # Returns:
+#     #   ("loop_index_pluseq", name, [idx_exprs], rhs)
+#     p[0] = ("loop_index_pluseq", p[1], p[3], p[6])
 
 
 def p_func_loop_stmt_if(p):
@@ -781,35 +780,34 @@ def p_statement_expr(p):
     p[0] = ("expr", p[1], p.lineno(1))
 
 
-def p_statement_index_assign(p):
-    """statement : ID LBRACKET ID RBRACKET EQUALS expr NEWLINE
-                 | ID LBRACKET NUMBER RBRACKET EQUALS expr NEWLINE"""
-    # Indexed assignment of array at program level
-    # Example:
-    # arr1d = [1, 2, 3]
-    # arr1d[1] = 2
-    # m: R = 1
-    # arr1d[m] = 3
-    # Parameters:
-    # p[1] — array name
-    # p[3] — index expression/number
-    # p[5] — right hand side expression/number
-    p[0] = ("index_assign", p[1], p[3], p[6], p.lineno(1))
+# def p_statement_index_assign(p):
+#     """statement : ID LBRACKET ID RBRACKET EQUALS expr NEWLINE
+#                  | ID LBRACKET NUMBER RBRACKET EQUALS expr NEWLINE"""
+#     # Indexed assignment of array at program level
+#     # Example:
+#     # arr1d = [1, 2, 3]
+#     # arr1d[1] = 2
+#     # m: R = 1
+#     # arr1d[m] = 3
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — index expression/number
+#     # p[5] — right hand side expression/number
+#     p[0] = ("index_assign", p[1], p[3], p[6], p.lineno(1))
 
-
-def p_statement_index_assign_nd(p):
-    """statement : ID LBRACKET multi_index_list RBRACKET EQUALS expr NEWLINE"""
-    # Indexed assignment of array at program level
-    # Example:
-    # arr2d = [[1, 1], [1, 1]]
-    # arr2d[1, 1] = 2
-    # m: R = 1
-    # arr1d[m, m] = 3
-    # Parameters:
-    # p[1] — array name
-    # p[3] — index expression/number
-    # p[5] — right hand side expression/number
-    p[0] = ("index_assign_nd", p[1], p[3], p[6], p.lineno(1))
+# def p_statement_index_assign_nd(p):
+#     """statement : ID LBRACKET multi_index_list RBRACKET EQUALS expr NEWLINE"""  # noqa
+#     # Indexed assignment of array at program level
+#     # Example:
+#     # arr2d = [[1, 1], [1, 1]]
+#     # arr2d[1, 1] = 2
+#     # m: R = 1
+#     # arr1d[m, m] = 3
+#     # Parameters:
+#     # p[1] — array name
+#     # p[3] — index expression/number
+#     # p[5] — right hand side expression/number
+#     p[0] = ("index_assign_nd", p[1], p[3], p[6], p.lineno(1))
 
 
 def p_statement_empty(p):
@@ -1600,6 +1598,6 @@ if REGISTRY.features != []:
     # refresh after ELF have added new tokens
     tokens = lexer_mod.tokens  # noqa: F811
     REGISTRY.add_parser_rules(sys.modules[__name__])
-    parser = yacc.yacc(start="program", outputdir=str(Path(__file__).parent))
+    parser = yacc.yacc(outputdir=str(Path(__file__).parent))
 else:
     parser = yacc.yacc()
