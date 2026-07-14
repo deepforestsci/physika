@@ -686,7 +686,8 @@ def ast_to_torch_expr(node: ASTNode,
         arg_strs = [
             ast_to_torch_expr(arg, indent, current_loop_var) for arg in args
         ]
-        arg = arg_strs[0]
+        if arg_strs:
+            arg = arg_strs[0]
 
         # Map built-in functions to PyTorch equivalents
         torch_funcs = {
