@@ -26,6 +26,8 @@ precedence = (
     ("right", "EQUALS"),
 )
 
+start = "program"
+
 
 # Program
 def p_program(p):
