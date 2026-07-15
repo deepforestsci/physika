@@ -255,7 +255,7 @@ def make_parser_rules():
     ]
 
 
-class Indexing(ELF):
+class IndexingandSlicing(ELF):
     """
     """
     name = "Indexing"
