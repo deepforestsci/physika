@@ -486,7 +486,7 @@ faster because it is implemented by PyTorch's highly optimized compiled backend 
 Having seen that the builtins produce the same results much more efficiently, we now look at 
 how to use them, starting with the one-dimensional transform.
 
-A one-dimensional transform
+One-dimensional transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In one dimension, ``fft`` turns an array of :math:`N` samples into its :math:`N`
@@ -530,7 +530,7 @@ samples.
 
 
 
-A two-dimensional transform
+Two-dimensional transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In two dimensions, ``fft2`` treats a matrix as a two-dimensional signal and computes its 
@@ -558,7 +558,7 @@ The remaining coefficients describe the matrix's spatial frequency content. ``if
 original matrix.
 
 
-An N-dimensional transform
+N-dimensional transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The same idea extends to any number of dimensions. ``fftn`` computes the complex
