@@ -51,8 +51,6 @@ multiplied by the corresponding complex sinusoid :math:`e^{2\pi i kn/N}`.
 These contributions are then summed over all frequencies and normalized by
 :math:`1/N` to recover the original sample.
 
-Computing DFT in Physika
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The forward and inverse Discrete Fourier Transforms (DFT) can be implemented in Physika as follows:
 
@@ -124,9 +122,21 @@ cost to :math:`O(N \log N)` for highly composite :math:`N`.
 
 The radix-2 decimation-in-time FFT is the simplest and most common form of
 the Cooley-Tukey algorithm. It divides an :math:`N`-point DFT into two interleaved
-DFTs of size :math:`N/2`, formed from the even and odd-indexed samples. The
-forward sum can therefore be separated using :math:`n = 2m` for the even indices
-and :math:`n = 2m + 1` for the odd indices:
+DFTs of size :math:`N/2`, formed from the even and odd-indexed samples.
+
+Forward radix-2 Cooley-Tukey FFT
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The forward FFT computes the DFT
+
+.. math::
+
+    X_k = \sum_{n=0}^{N-1} x_n \, e^{-2\pi i kn/N},
+
+for :math:`k = 0, \dots, N-1`.
+
+The forward sum can therefore be separated using :math:`n = 2m` for the even
+indices and :math:`n = 2m + 1` for the odd indices:
 
 .. math::
 
@@ -201,28 +211,7 @@ length one. This gives :math:`\log_2 N` levels of splitting, each costing
 :math:`O(N)` to recombine, so the whole transform runs in :math:`O(N \log N)`,
 against :math:`O(N^2)` for the direct sum.
 
-The radix-2 derivation above is one instance of the general Cooley-Tukey
-factorization. For a composite size :math:`N = N_1 N_2`, the decomposition
-proceeds in three steps: first, perform :math:`N_1` DFTs of size :math:`N_2`;
-next, multiply the results by twiddle factors; and finally, perform
-:math:`N_2` DFTs of size :math:`N_1` [CooleyTukey1965]_.
-
-Typically, either :math:`N_1` or :math:`N_2` is chosen as a small factor called
-the **radix**, which may differ between stages of the recursion. Two common
-forms of the Cooley-Tukey algorithm are decimation in time (DIT) and decimation
-in frequency (DIF), distinguished by whether the recursive decomposition is
-applied to the input indices or the output frequency indices. DIT partitions
-the input sequence according to its indices, whereas DIF partitions the output
-spectrum according to its frequency indices. The derivation above is the
-radix-2 DIT case, where the input samples are separated into even- and
-odd-indexed subsequences, giving two length-:math:`N/2` DFTs, :math:`E_k` and
-:math:`O_k`.
-
-Computing the radix-2 Cooley-Tukey FFT in Physika
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The radix-2 Cooley-Tukey FFT derived above can be implemented in
-Physika as follows:
+This can be implemented in Physika as follows:
 
 .. note::
 
@@ -256,9 +245,84 @@ Physika as follows:
         second_half: ℂ[half_size] = for k: ℕ(half_size) → E[k] - twiddle[k] * O[k]
         return concat(first_half, second_half)
 
-The inverse transform follows the recursive structure of the forward FFT, with
-the inverse twiddle factor using the opposite sign in the complex exponential.
-The :math:`1/N` normalization is applied once at the top level of the recursion.
+Consider the cosine signal used earlier to illustrate the DFT,
+:math:`x_n = \cos(2\pi n/4)` for :math:`n = 0, 1, 2, 3`, giving the samples
+:math:`x = (1, 0, -1, 0)`. Its forward transform can be computed using
+``ct_fft`` as follows:
+
+.. code-block:: text
+
+    signal: ℂ[4] = for n: ℕ(4) → cos(2*π*n / 4)
+    fft_spectrum: ℂ[4] = ct_fft(signal, 4)
+    fft_spectrum
+    abs(fft_spectrum)
+
+Output::
+
+    [0j, (2+0j), 0j, (2+0j)] ∈ ℂ[4]
+    [0.0, 2.0, 0.0, 2.0] ∈ ℝ[4]
+
+
+Inverse radix-2 Cooley-Tukey FFT
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The inverse FFT computes the inverse DFT
+
+.. math::
+
+    x_n = \frac{1}{N} \sum_{k=0}^{N-1} X_k \, e^{+2\pi i kn/N},
+
+for :math:`n = 0, \dots, N-1`.
+
+Like the forward FFT, the inverse radix-2 Cooley-Tukey algorithm uses an
+even-odd decomposition, dividing the input spectrum :math:`X_k` into its
+even-indexed coefficients :math:`X_{2m}` and odd-indexed coefficients
+:math:`X_{2m+1}`. The inverse DFT sum can therefore be separated using
+:math:`k = 2m` for the even indices and :math:`k = 2m + 1` for the odd indices:
+
+.. math::
+
+    x_n
+    &= \frac{1}{N} \sum_{k=0}^{N-1} X_k \, e^{+2\pi i kn/N} \\
+    &= \frac{1}{N} \left(
+       \sum_{m=0}^{N/2-1} X_{2m} \, e^{+2\pi i nm/(N/2)}
+       + e^{+2\pi i n/N}
+         \sum_{m=0}^{N/2-1} X_{2m+1} \, e^{+2\pi i nm/(N/2)}
+       \right).
+
+The two sums correspond to the unnormalized inverse transforms of the even-
+and odd-indexed coefficients. Denoting them by :math:`\widetilde{E}_n` and
+:math:`\widetilde{O}_n`, respectively,
+
+.. math::
+
+    \widetilde{E}_n
+    &= \sum_{m=0}^{N/2-1} X_{2m} \, e^{+2\pi i nm/(N/2)}, \\
+    \widetilde{O}_n
+    &= \sum_{m=0}^{N/2-1} X_{2m+1} \, e^{+2\pi i nm/(N/2)},
+
+the two halves of the inverse transform are obtained from
+
+.. math::
+
+    x_n
+    &= \frac{1}{N}
+       \left(
+       \widetilde{E}_n + e^{+2\pi i n/N}\widetilde{O}_n
+       \right), \\
+    x_{n+N/2}
+    &= \frac{1}{N}
+       \left(
+       \widetilde{E}_n - e^{+2\pi i n/N}\widetilde{O}_n
+       \right),
+
+for :math:`n = 0, \dots, N/2 - 1`.
+
+In the implementation, the two half-transforms are combined recursively
+without normalization at each level, and the :math:`1/N` factor is applied
+once after the full transform has been computed.
+
+This can be implemented in Physika as follows:
 
 .. code-block:: text
 
@@ -287,30 +351,39 @@ The :math:`1/N` normalization is applied once at the top level of the recursion.
             return combined / total_size
         return combined
 
-
-Using the same cosine signal as before:
+Applying ``ict_fft`` to the spectrum obtained by applying ``ct_fft`` to this
+cosine signal reconstructs the original samples:
 
 .. code-block:: text
 
-    signal: ℂ[4] = for n: ℕ(4) → cos(2*π*n / 4)
-    fft_spectrum: ℂ[4] = ct_fft(signal, 4)            # forward transform via radix-2 Cooley-Tukey
-    fft_spectrum
-    abs(fft_spectrum)                                 # magnitude of the spectrum
-    ict_fft(fft_spectrum, 4)                          # normalized inverse transform via radix-2 Cooley-Tukey
+    ict_fft(fft_spectrum, 4)
 
 Output::
 
-    [0j, (2+0j), 0j, (2+0j)] ∈ ℂ[4]
-    [0.0, 2.0, 0.0, 2.0] ∈ ℝ[4]
     [(1+0j), 0j, (-1+0j), 0j] ∈ ℂ[4]
 
-The FFT produces the same result as ``dft``/ ``idft``, computed in
-:math:`O(N \log N)` instead of :math:`O(N^2)`.
+
+.. note::
+
+    The radix-2 derivation above is one instance of the general Cooley-Tukey
+    factorization. For a composite size :math:`N = N_1 N_2`, the decomposition
+    proceeds in three steps: first, perform :math:`N_1` DFTs of size :math:`N_2`;
+    next, multiply the results by twiddle factors; and finally, perform
+    :math:`N_2` DFTs of size :math:`N_1` [CooleyTukey1965]_.
+
+    Typically, either :math:`N_1` or :math:`N_2` is chosen as a small factor called
+    the **radix**, which may differ between stages of the recursion. Two common
+    forms of the Cooley-Tukey algorithm are decimation in time (DIT), which
+    partitions the input sequence, and decimation in frequency (DIF), which
+    partitions the output spectrum. The forward and inverse derivations above use
+    the radix-2 DIT decomposition, where the respective inputs are separated into
+    even- and odd-indexed subsequences, reducing each transform to two transforms
+    of length :math:`N/2`.
 
 Built-in FFTs
 ------------------
 
-The ``dft`` and ``ct_fft`` implementations above illustrate the underlying algorithms, but in
+The ``dft``, ``idft``, ``ct_fft`` and ``ict_fft`` implementations above illustrate the underlying algorithms, but in
 practice Physika provides FFTs as builtins that compile directly to PyTorch's highly 
 optimized FFT functions [TorchFFT]_. We first introduce these builtins, then compare 
 them with the implementations above, verifying that they produce the same results while 
@@ -336,8 +409,9 @@ factor, so ``ifft(fft(x))`` returns the original signal.
 Comparing implementations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Before using the builtin FFT, we can verify that all three implementations
-compute the same transform. Using the cosine signal from earlier:
+We can compare the direct DFT and radix-2 Cooley-Tukey implementations against
+the builtin FFT implementation to verify that they produce the same forward
+and inverse transforms. Using the cosine signal from earlier:
 
 .. code-block:: text
 
@@ -345,13 +419,25 @@ compute the same transform. Using the cosine signal from earlier:
     ct_fft(signal, 4)
     fft(signal)
 
+    idft(dft_spectrum)
+    ict_fft(fft_spectrum, 4)
+    ifft(fft_spectrum)
+
+
 Output::
 
     [0j, (2+0j), 0j, (2+0j)] ∈ ℂ[4]
     [0j, (2+0j), 0j, (2+0j)] ∈ ℂ[4]
     [0j, (2+0j), 0j, (2+0j)] ∈ ℂ[4]
 
-All three produce the same Fourier transform, up to floating-point roundoff.
+    [(1+0j), 0j, (-1+0j), 0j] ∈ ℂ[4]
+    [(1+0j), 0j, (-1+0j), 0j] ∈ ℂ[4]
+    [(1+0j), 0j, (-1+0j), 0j] ∈ ℂ[4]
+
+The ``dft`` and ``ct_fft`` implementations produce the same forward transform
+as the builtin ``fft``, while ``idft`` and ``ict_fft`` both recover the original
+signal and match the builtin ``ifft``, verifying the correctness of the
+implemented transforms against the builtins.
 
 Having verified that all three implementations compute the same transform, 
 we can now compare how efficiently they do so. We benchmark the implementations on randomly 

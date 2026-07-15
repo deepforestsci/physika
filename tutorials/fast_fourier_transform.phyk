@@ -96,7 +96,12 @@ ict_fft(fft_spectrum, 4)                          # inverse transform via radix-
 # --- Comparing implementations ---------------------------------------
 dft(signal)
 ct_fft(signal, 4)
-fft(signal)     
+fft(signal)
+
+idft(dft_spectrum)
+ict_fft(fft_spectrum, 4)
+ifft(fft_spectrum)
+
 
 # --- 1D: fft and ifft ---------------------------------------
 # Two cosines: a strong one at k=1 and a weaker one at k=3.

@@ -61,6 +61,9 @@ physika_print(ict_fft(fft_spectrum, 4))
 physika_print(dft(signal))
 physika_print(ct_fft(signal, 4))
 physika_print(torch.fft.fft(signal))
+physika_print(idft(dft_spectrum))
+physika_print(ict_fft(fft_spectrum, 4))
+physika_print(torch.fft.ifft(fft_spectrum))
 Ns = 9
 center = 4.0
 signal_1d = torch.stack([(torch.cos((((2 * π) * (n - center)) / Ns) if isinstance((((2 * π) * (n - center)) / Ns), torch.Tensor) else torch.tensor(float((((2 * π) * (n - center)) / Ns)))) + (0.5 * torch.cos(((((2 * π) * 3) * (n - center)) / Ns) if isinstance(((((2 * π) * 3) * (n - center)) / Ns), torch.Tensor) else torch.tensor(float(((((2 * π) * 3) * (n - center)) / Ns)))))) for _fi_n in range(int(Ns)) for n in [torch.tensor(float(_fi_n), device=DEVICE)]])
