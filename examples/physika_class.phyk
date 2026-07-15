@@ -17,7 +17,7 @@ obj_example_class.class_method()
 class Scalar_class:
     x: ℝ
     def return_member_variable(): ℝ:
-        return x
+        return this.x
 
 
 obj_scalar_class = Scalar_class(3.0)
