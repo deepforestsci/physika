@@ -387,6 +387,12 @@ def expr_indexN(node: Any,
     >>> t, _= expr_indexN(("indexN", "T", [("index_item", ("num", 0.0)), ("index_item", ("num", 1.0)), ("index_item", ("num", 2.0))]), ctx)  # fully indexed → ℝ  # noqa: E501
     >>> t
     ℝ
+    >>> t, _= expr_indexN(("indexN", "T", [("slice_item", None, None), ("index_item", ("num", 1.0))]), ctx)
+    >>> t
+    ℝ[2,4]
+    >>> t, _= expr_indexN(("indexN", "T", [("slice_item", None, None), ("slice_item", None, None), ("slice_item", None, None)]), ctx)
+    >>> t
+    ℝ[2,3,4]
     """
     from physika.utils.type_checker_utils import get_tensor_shape, unify_dim, make_tensor  # noqa: E501
 
