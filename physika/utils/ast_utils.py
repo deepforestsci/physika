@@ -702,13 +702,24 @@ def ast_to_torch_expr(node: ASTNode,
         }
         multi_arg_funcs = {
             "roll": "torch.roll",
+            "fft": "torch.fft.fft",
+            "ifft": "torch.fft.ifft",
+            "fft2": "torch.fft.fft2",
+            "ifft2": "torch.fft.ifft2",
+            "fftn": "torch.fft.fftn",
+            "ifftn": "torch.fft.ifftn",
         }
-
+        list_arg_funcs = {
+            "concat": "torch.cat",
+        }
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
 
         elif func_name in multi_arg_funcs:
             return f"{multi_arg_funcs[func_name]}({', '.join(arg_strs)})"
+
+        elif func_name in list_arg_funcs:
+            return f"{list_arg_funcs[func_name]}([{', '.join(arg_strs)}])"
 
         elif func_name == "grad":
             # grad(output, input) -> compute_grad(output, input)

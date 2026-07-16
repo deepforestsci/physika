@@ -15,3 +15,5 @@ Tutorials
    allen_cahn
    ising_model
    learn_flux_limiter_euler_equations
+   fft_tutorial
+
