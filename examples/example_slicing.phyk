@@ -1,0 +1,100 @@
+# =======================================================
+# Slicing in Physika
+# 
+# This Physika file showcases how you can use slicing in 
+# physika programs on N dimensional arrays/tensor
+# 
+# This are the subsections:
+# * Program level
+# * Function level
+# * Class level
+# * Slice assignment
+# =======================================================
+
+
+
+x: ℝ[8] = [1, 2, 3, 4, 5, 6, 7, 8]
+
+y: ℝ[4, 4] = [
+    [1, 2, 3, 4],
+    [5, 6, 7, 8],
+    [9, 10, 11, 12],
+    [13, 14, 15, 16]
+]
+
+z: ℝ[2, 2, 2] = [
+    [
+        [1, 2],
+        [3, 4]
+    ],
+    [
+        [5, 6],
+        [7, 8]
+    ]
+]
+
+
+# ----------------------------------------
+# Program level
+# ----------------------------------------
+
+x[1:3]
+x[:4]
+
+y[1:3, :]
+y[:, 2]
+
+z[1, :, :]
+z[:, 0, 0]
+
+
+
+# ----------------------------------------
+# Function level
+# ----------------------------------------
+
+def slice_demo_1d(a: ℝ[m]): ℝ[m]:
+    return a[:2]
+
+def slice_demo_2d(a: ℝ[m, n]): ℝ[n]:
+    return a[:, 0]
+
+def slice_demo_3d(a: ℝ[m, n, o]): ℝ[m]:
+    return a[:, 0, 0]
+
+
+slice_demo_1d(x)
+slice_demo_2d(y)
+slice_demo_3d(z)
+
+
+# ----------------------------------------
+# Class level
+# ----------------------------------------
+
+class SliceDemo:
+    def return_x(x: ℝ[8]): ℝ[m]:
+        return x[:4]
+    def return_y(y: ℝ[4, 4]): ℝ[n]:
+        return y[:, 1]
+    def return_z(z: ℝ[2, 2, 2]): R[m]:
+        return z[:, 1, 0]
+
+obj_slice_demo: SliceDemo = SliceDemo()
+obj_slice_demo.return_x(x)
+obj_slice_demo.return_y(y)
+obj_slice_demo.return_z(z)
+
+
+# ----------------------------------------
+# Slice assignment
+# ----------------------------------------
+
+
+x[1:3] = [10, 20]
+y[:, 0] = [10, 20, 30, 40]
+z[:, :, 0] = [10, 20]
+
+x
+y
+z
