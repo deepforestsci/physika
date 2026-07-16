@@ -592,8 +592,9 @@ class TestEmitFuncLoopBody:
 
     def test_loop_index_pluseq(self):
         """Verify ``loop_index_pluseq`` emits an indexed ``+=`` line."""
-        stmts = [("loop_index_pluseq", "C", [("var", "i"),
-                                             ("var", "j")], ("var", "v"))]
+        stmts = [("loop_index_pluseq", "C", [("index_item", ("var", "i")),
+                                             ("index_item", ("var", "j"))],
+                  ("var", "v"))]
         lines = _run_emit_loop_body(stmts, loop_var={"i", "j"})
         assert lines == ["    C[int(i), int(j)] += v"]
 
