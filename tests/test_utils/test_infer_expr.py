@@ -628,6 +628,40 @@ class TestExprIndexN:
                            ctx)
         assert t == T_REAL
 
+    def test_2d_full_slice(self):
+        """
+        Slicing all dimensions of matrix.
+        A is shape of [3, 4]
+        slicing for [:, :]
+        """
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        t, _ = expr_indexN(
+            ("indexN", "A", [
+                ("slice_item", None, None),
+                ("slice_item", None, None),
+            ]),
+            ctx,
+        )
+        assert t == TTensor(((3, "invariant"), (4, "invariant")))
+
+    def test_2d_slice_index(self):
+        """
+        Slicing one dimension and indexing another which returns vector.
+        A is shape of [3, 4]
+        slicing for [:, 1]
+        """
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        t, _ = expr_indexN(
+            ("indexN", "A", [
+                ("slice_item", None, None),
+                ("index_item", ("num", 1)),
+            ]),
+            ctx,
+        )
+        assert t == TTensor(((3, "invariant"), ))
+
 
 class TestExprChainIndex:
     """Tests for ``expr_chain_index``."""
