@@ -545,7 +545,8 @@ class TestExprIndexN:
         """
         ctx = make_ctx(
             env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
-        t, _ = expr_indexN(("indexN", "A", [("num", 0), ("num", 1)]), ctx)
+        t, _ = expr_indexN(("indexN", "A", [("index_item", ("num", 0)),
+                                            ("index_item", ("num", 1))]), ctx)
         assert t == T_REAL
 
     def test_3d_index(self):
@@ -556,7 +557,8 @@ class TestExprIndexN:
             "T":
             TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
         })
-        t, _ = expr_indexN(("indexN", "T", [("num", 0), ("num", 1)]), ctx)
+        t, _ = expr_indexN(("indexN", "T", [("index_item", ("num", 0)),
+                                            ("index_item", ("num", 1))]), ctx)
         assert t == TTensor(((4, "invariant"), ))
 
         # Indexing all three dims gives ℝ
@@ -564,15 +566,16 @@ class TestExprIndexN:
             "T":
             TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
         })
-        t, _ = expr_indexN(("indexN", "T", [("num", 0), ("num", 1),
-                                            ("num", 2)]), ctx)
+        t, _ = expr_indexN(("indexN", "T", [("index_item", ("num", 0)),
+                                            ("index_item", ("num", 1)),
+                                            ("index_item", ("num", 2))]), ctx)
         assert t == T_REAL
 
     def test_matrix_index(self):
         """One index on a matrix gives row vector."""
         ctx = make_ctx(
             env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
-        t, _ = expr_indexN(("indexN", "A", [("num", 1)]), ctx)
+        t, _ = expr_indexN(("indexN", "A", [("index_item", ("num", 1))]), ctx)
         assert t == TTensor(((4, "invariant"), ))
 
     def test_unknown_variable_returns_none(self):
@@ -600,8 +603,9 @@ class TestExprIndexN:
         ctx = make_ctx(env={"v": TTensor(((3, "invariant"), ))}, errors=errors)
         # v is ℝ[3] (rank 1).
         # supplying [i][j][k] indices is overindexing
-        t, _ = expr_indexN(("indexN", "v", [("num", 0), ("num", 1),
-                                            ("num", 2)]), ctx)
+        t, _ = expr_indexN(("indexN", "v", [("index_item", ("num", 0)),
+                                            ("index_item", ("num", 1)),
+                                            ("index_item", ("num", 2))]), ctx)
         assert t is None
         assert len(errors) == 1
         assert errors[0] == "Over-indexed 'v': 3 indices for a rank-1 tensor"
@@ -619,7 +623,9 @@ class TestExprIndexN:
                 "i": T_REAL,
                 "j": T_REAL
             })
-        t, _ = expr_indexN(("indexN", "A", [("var", "i"), ("var", "j")]), ctx)
+        t, _ = expr_indexN(("indexN", "A", [("index_item", ("var", "i")),
+                                            ("index_item", ("var", "j"))]),
+                           ctx)
         assert t == T_REAL
 
 
