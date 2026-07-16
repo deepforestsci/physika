@@ -859,9 +859,10 @@ class TestStmtForEq:
         j_dim = new_dim()
         ctx.env['i'] = i_dim
         ctx.env['j'] = j_dim
-        stmt_for_eq(('loop_index_assign_nd', 'results', [('var', 'i'),
-                                                         ('var', 'j')],
-                     ('num', 1.0)), ctx)
+        stmt_for_eq(
+            ('loop_index_assign_nd', 'results', [("index_item", ('var', 'i')),
+                                                 ("index_item", ('var', 'j'))],
+             ('num', 1.0)), ctx)
         assert errors == []
         # env keeps the raw TDim objects unchanged
         assert ctx.env['i'] is i_dim
@@ -894,8 +895,9 @@ class TestStmtForPluseq:
         ctx.env['i'] = i_dim
         ctx.env['j'] = j_dim
         stmt_for_pluseq(
-            ('loop_index_pluseq', 'C', [('var', 'i'),
-                                        ('var', 'j')], ('num', 1.0)), ctx)
+            ('loop_index_pluseq', 'C', [("index_item", ('var', 'i')),
+                                        ("index_item", ('var', 'j'))],
+             ('num', 1.0)), ctx)
         assert errors == []
         # env keeps the raw TDim objects unchanged
         assert ctx.env['i'] is i_dim
