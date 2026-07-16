@@ -30,8 +30,8 @@ def main():
                                     print_ast=print_ast)
 
     # Type checking
-    # type_status = TypeChecker(unified_ast).run()
-    # print_type_check_results(type_status)
+    type_status = TypeChecker(unified_ast).run()
+    print_type_check_results(type_status)
 
     # Generate PyTorch code and execute it
     generated_code = from_ast_to_torch(unified_ast, print_code=print_code)
