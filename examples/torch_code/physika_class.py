@@ -20,7 +20,7 @@ def norm_sq_wrt_x(x):
     return vec.norm_sq()
 
 # === Classes ===
-class Example_class(nn.Module):
+class ExampleClass(nn.Module):
     def __init__(self, ):
         super().__init__()
         self.learnable_params = []
@@ -39,7 +39,7 @@ class Example_class(nn.Module):
                 if g is not None:
                     p -= lr * g
 
-class Scalar_class(nn.Module):
+class ScalarClass(nn.Module):
     def __init__(self, x):
         super().__init__()
         self.x = torch.as_tensor(x).float()
@@ -164,9 +164,9 @@ class B(nn.Module):
                     p -= lr * g
 
 # === Program ===
-obj_example_class = Example_class()
+obj_example_class = ExampleClass().to(DEVICE)
 physika_print(obj_example_class.class_method())
-obj_scalar_class = Scalar_class(3.0)
+obj_scalar_class = ScalarClass(3.0).to(DEVICE)
 physika_print(obj_scalar_class.return_member_variable())
 a = Vec(3.0, 4.0)
 b = Vec(1.0, 0.0)
