@@ -676,14 +676,37 @@ def stmt_for_eq(stmt: Any, ctx: StmtContext) -> None:
         shape = get_tensor_shape(arr_t)
         if shape is not None:
             for idx_expr, dim in zip(idx_exprs, shape):
-                idx_t, ctx.s = infer_expr(idx_expr, ctx.env, ctx.s,
-                                          ctx.func_env, ctx.class_env,
-                                          ctx.add_error)
-                if isinstance(idx_t, (TVar, TDim, str, int)):
-                    try:
-                        ctx.s = unify_dim(idx_t, dim, ctx.s)
-                    except TypeError as e:
-                        ctx.add_error(f"Index mismatch for '{arr_name}': {e}")
+                if idx_expr[0] == "index_item":
+                    idx_t, ctx.s = infer_expr(idx_expr[1], ctx.env, ctx.s,
+                                              ctx.func_env, ctx.class_env,
+                                              ctx.add_error)
+                    if isinstance(idx_t, (TVar, TDim, str, int)):
+                        try:
+                            ctx.s = unify_dim(idx_t, dim, ctx.s)
+                        except TypeError as e:
+                            ctx.add_error(
+                                f"Index mismatch for '{arr_name}': {e}")
+                elif idx_expr[0] == "slice_item":
+                    if idx_expr[1] is not None:
+                        idx_t, ctx.s = infer_expr(idx_expr[1], ctx.env, ctx.s,
+                                                  ctx.func_env, ctx.class_env,
+                                                  ctx.add_error)
+                        if isinstance(idx_t, (TVar, TDim, str, int)):
+                            try:
+                                ctx.s = unify_dim(idx_t, dim, ctx.s)
+                            except TypeError as e:
+                                ctx.add_error(
+                                    f"Index mismatch for '{arr_name}': {e}")
+                    if idx_expr[2] is not None:
+                        idx_t, ctx.s = infer_expr(idx_expr[2], ctx.env, ctx.s,
+                                                  ctx.func_env, ctx.class_env,
+                                                  ctx.add_error)
+                        if isinstance(idx_t, (TVar, TDim, str, int)):
+                            try:
+                                ctx.s = unify_dim(idx_t, dim, ctx.s)
+                            except TypeError as e:
+                                ctx.add_error(
+                                    f"Index mismatch for '{arr_name}': {e}")
 
 
 def stmt_for_pluseq(stmt: Any, ctx: StmtContext) -> None:
@@ -737,14 +760,37 @@ def stmt_for_pluseq(stmt: Any, ctx: StmtContext) -> None:
         shape = get_tensor_shape(arr_t)
         if shape is not None:
             for idx_expr, dim in zip(idx_exprs, shape):
-                idx_t, ctx.s = infer_expr(idx_expr, ctx.env, ctx.s,
-                                          ctx.func_env, ctx.class_env,
-                                          ctx.add_error)
-                if isinstance(idx_t, (TVar, TDim, str, int)):
-                    try:
-                        ctx.s = unify_dim(idx_t, dim, ctx.s)
-                    except TypeError as e:
-                        ctx.add_error(f"Index mismatch for '{arr_name}': {e}")
+                if idx_expr[0] == "index_item":
+                    idx_t, ctx.s = infer_expr(idx_expr[1], ctx.env, ctx.s,
+                                              ctx.func_env, ctx.class_env,
+                                              ctx.add_error)
+                    if isinstance(idx_t, (TVar, TDim, str, int)):
+                        try:
+                            ctx.s = unify_dim(idx_t, dim, ctx.s)
+                        except TypeError as e:
+                            ctx.add_error(
+                                f"Index mismatch for '{arr_name}': {e}")
+                elif idx_expr[0] == "slice_item":
+                    if idx_expr[1] is not None:
+                        idx_t, ctx.s = infer_expr(idx_expr[1], ctx.env, ctx.s,
+                                                  ctx.func_env, ctx.class_env,
+                                                  ctx.add_error)
+                        if isinstance(idx_t, (TVar, TDim, str, int)):
+                            try:
+                                ctx.s = unify_dim(idx_t, dim, ctx.s)
+                            except TypeError as e:
+                                ctx.add_error(
+                                    f"Index mismatch for '{arr_name}': {e}")
+                    if idx_expr[2] is not None:
+                        idx_t, ctx.s = infer_expr(idx_expr[2], ctx.env, ctx.s,
+                                                  ctx.func_env, ctx.class_env,
+                                                  ctx.add_error)
+                        if isinstance(idx_t, (TVar, TDim, str, int)):
+                            try:
+                                ctx.s = unify_dim(idx_t, dim, ctx.s)
+                            except TypeError as e:
+                                ctx.add_error(
+                                    f"Index mismatch for '{arr_name}': {e}")
 
 
 def stmt_decl(stmt: Any, ctx: StmtContext) -> None:
