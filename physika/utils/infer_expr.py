@@ -381,10 +381,10 @@ def expr_indexN(node: Any,
     >>> from physika.utils.infer_expr import ExprContext, expr_indexN, TTensor
     >>> from physika.utils.types import Substitution
     >>> ctx = ExprContext({"T": TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))}, Substitution(), {}, {}, [].append)
-    >>> t, _= expr_indexN(("indexN", "T", [("num", 0.0), ("num", 1.0)]), ctx)  # ℝ[2,3,4][0,1] → ℝ[4]  # noqa: E501
+    >>> t, _= expr_indexN(("indexN", "T", [("index_item", ("num", 0.0)), ("index_item", ("num", 1.0))]), ctx)  # ℝ[2,3,4][0,1] → ℝ[4]  # noqa: E501
     >>> t
     ℝ[4]
-    >>> t, _= expr_indexN(("indexN", "T", [("num", 0.0), ("num", 1.0), ("num", 2.0)]), ctx)  # fully indexed → ℝ  # noqa: E501
+    >>> t, _= expr_indexN(("indexN", "T", [("index_item", ("num", 0.0)), ("index_item", ("num", 1.0)), ("index_item", ("num", 2.0))]), ctx)  # fully indexed → ℝ  # noqa: E501
     >>> t
     ℝ
     """
@@ -400,31 +400,139 @@ def expr_indexN(node: Any,
     s = ctx.s
     # Unify each index expression against the corresponding leading dimension
     for idx_expr, dim in zip(idx_exprs, shape or []):
-        idx_t, s = infer_expr(idx_expr, ctx.env, s, ctx.func_env,
-                              ctx.class_env, ctx.add_error)
-        if isinstance(idx_t, (TVar, TDim, str, int)):
-            try:
-                s = unify_dim(idx_t, dim, s)
-            except TypeError as e:
-                ctx.add_error(f"Index mismatch for '{arr_name}[...]: {e}")
+        if idx_expr[0] == "index_item":
+            idx_t, s = infer_expr(idx_expr[1], ctx.env, s, ctx.func_env,
+                                  ctx.class_env, ctx.add_error)
+            if isinstance(idx_t, (TVar, TDim, str, int)):
+                try:
+                    s = unify_dim(idx_t, dim, s)
+                except TypeError as e:
+                    ctx.add_error(f"Index mismatch for '{arr_name}[...]: {e}")
+
+        elif idx_expr[0] == "slice_item":
+            if idx_expr[1] is not None:
+                idx_t, s = infer_expr(idx_expr[1], ctx.env, s, ctx.func_env,
+                                      ctx.class_env, ctx.add_error)
+                if isinstance(idx_t, (TVar, TDim, str, int)):
+                    try:
+                        s = unify_dim(idx_t, dim, s)
+                    except TypeError as e:
+                        ctx.add_error(
+                            f"Index mismatch for '{arr_name}[...]: {e}")
+
+            if idx_expr[2] is not None:
+                idx_t, s = infer_expr(idx_expr[2], ctx.env, s, ctx.func_env,
+                                      ctx.class_env, ctx.add_error)
+                if isinstance(idx_t, (TVar, TDim, str, int)):
+                    try:
+                        s = unify_dim(idx_t, dim, s)
+                    except TypeError as e:
+                        ctx.add_error(
+                            f"Index mismatch for '{arr_name}[...]: {e}")
 
     n_idx = len(idx_exprs)
     # arr is scalar (catched by expr_index as well)
     # or not in scope (runtime error before type checking)
     if shape is None:
         return None, s
-    # overindexed expression
-    if n_idx > len(shape):
-        ctx.add_error(
-            f"Over-indexed '{arr_name}': {n_idx} indices for a rank-{len(shape)} tensor"  # noqa: E501
-        )
-        return None, s
 
-    # fully indexed
-    if n_idx == len(shape):
+    result_shape = []
+    shape_i = 0
+
+    for item in idx_exprs:
+
+        if shape_i >= len(shape):
+            ctx.add_error(
+                f"Over-indexed '{arr_name}': {n_idx} indices for a rank-{len(shape)} tensor"  # noqa
+            )
+            return None, s
+
+        dim = shape[shape_i]
+
+        if item[0] == "index_item":
+            # Scalar indexing removes this dimension.
+            shape_i += 1
+            continue
+
+        elif item[0] == "slice_item":
+            start, end = item[1], item[2]
+
+            # Fully static slice
+            if (isinstance(start, tuple) and start[0] == "num"
+                    and isinstance(end, tuple) and end[0] == "num"):
+                s_val = int(start[1])
+                e_val = int(end[1])
+
+                if s_val < 0:
+                    ctx.add_error(
+                        f"Slice start {s_val} is negative in '{arr_name}[{s_val}:{e_val}]'"  # noqa
+                    )
+                    return None, s
+
+                if e_val < 0:
+                    ctx.add_error(
+                        f"Slice end {e_val} is negative in '{arr_name}[{s_val}:{e_val}]'"  # noqa
+                    )
+                    return None, s
+
+                if e_val < s_val:
+                    ctx.add_error(
+                        f"Slice end {e_val} is less than start {s_val} "
+                        f"in '{arr_name}[{s_val}:{e_val}]'")
+                    return None, s
+
+                if e_val == s_val:
+                    ctx.add_error(f"Empty slice '{arr_name}[{s_val}:{e_val}]'")
+                    return None, s
+
+                if isinstance(dim, int):
+                    if s_val >= dim:
+                        ctx.add_error(
+                            f"Slice start {s_val} is out of bounds for '{arr_name}' "  # noqa
+                            f"with dimension {dim}")
+                        return None, s
+
+                    if e_val > dim:
+                        ctx.add_error(
+                            f"Slice end {e_val} is out of bounds for '{arr_name}' "  # noqa
+                            f"with dimension {dim}")
+                        return None, s
+
+                result_shape.append(e_val - s_val)
+
+            # [:]
+            elif start is None and end is None:
+                result_shape.append(dim)
+
+            # [:end]
+            elif start is None:
+                if isinstance(end, tuple) and end[0] == "num":
+                    result_shape.append(end[1])
+                else:
+                    result_shape.append(dim)
+
+            # [start:]
+            elif end is None:
+                if (isinstance(start, tuple) and start[0] == "num"
+                        and isinstance(dim, int)):
+                    result_shape.append(dim - start[1])
+                else:
+                    result_shape.append(dim)
+
+            else:
+                # Symbolic slice
+                result_shape.append(dim)
+
+            shape_i += 1
+
+    # Append untouched trailing dimensions
+    result_shape.extend(shape[shape_i:])
+
+    # Scalar if every dimension was indexed away.
+    if not result_shape:
         return T_REAL, s
-    # partial indexed
-    return make_tensor(shape[n_idx:]), s
+
+    return make_tensor(result_shape), s
 
 
 def expr_chain_index(node: Any,
