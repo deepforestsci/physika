@@ -1005,12 +1005,6 @@ def p_func_factor_chain_index(p):
     p[0] = ("chain_index", p[1], p[3])
 
 
-def p_func_factor_step_slice(p):
-    """func_factor : ID LBRACKET NUMBER COLON COLON NUMBER RBRACKET"""
-    # Step slice: x[0::2]  (start::step, no stop)
-    p[0] = ("step_slice", p[1], int(p[3]), int(p[6]))
-
-
 def p_func_factor_array(p):
     """func_factor : LBRACKET func_elements RBRACKET"""
     # Array literal in function body: [1.0, 2.0, 3.0]
