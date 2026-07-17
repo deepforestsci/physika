@@ -15,16 +15,14 @@ PI = 3.141592653589793
 
 # active set for ecut=5: G2 = pi^2*(m1^2+m2^2+m3^2) <= 10 at flat
 # indices 0, 1, 2, 4.
-ACTIVE = torch.tensor(
-    [True, True, True, False, True, False, False, False])
+ACTIVE = torch.tensor([True, True, True, False, True, False, False, False])
 G2 = PI**2 * torch.tensor([0., 1., 1., 2., 1., 2., 2., 3.])
 G2C = torch.masked_select(G2, ACTIVE)
 
 W_FULL = torch.tensor(
     [1 + 0j, 2 + 1j, 0 + 3j, -1 + 0j, 2 + 0j, 1 - 1j, 0 + 0j, 3 + 2j],
     dtype=torch.complex64)
-W_ACT = torch.tensor([0 + 0j, 1 + 2j, -1 + 0j, 0 + 3j],
-                     dtype=torch.complex64)
+W_ACT = torch.tensor([0 + 0j, 1 + 2j, -1 + 0j, 0 + 3j], dtype=torch.complex64)
 W_MAT = torch.stack([W_FULL, W_FULL.flip(0)])  # 2 states x 8
 
 
@@ -68,11 +66,17 @@ class TestLaplacian:
 
     def test_op_L_active_uses_G2c(self, ops, atoms):
         out = ops["op_L"](atoms, W_ACT)
-        assert torch.allclose(out, -OMEGA * G2C * W_ACT, rtol=r_tol, atol=a_tol)
+        assert torch.allclose(out,
+                              -OMEGA * G2C * W_ACT,
+                              rtol=r_tol,
+                              atol=a_tol)
 
     def test_op_L_full_uses_G2(self, ops, atoms):
         out = ops["op_L"](atoms, W_FULL)
-        assert torch.allclose(out, -OMEGA * G2 * W_FULL, rtol=r_tol, atol=a_tol)
+        assert torch.allclose(out,
+                              -OMEGA * G2 * W_FULL,
+                              rtol=r_tol,
+                              atol=a_tol)
 
     def test_op_Linv_inverts_op_L_off_DC(self, ops, atoms):
         # op_Linv always divides by the full G2, as in SimpleDFT, so it takes
@@ -131,7 +135,8 @@ class TestEmbed:
             ACTIVE, W_ACT)
         assert torch.allclose(ops["op_I"](atoms, W_ACT),
                               ops["op_I"](atoms, scaffold),
-                              rtol=r_tol, atol=a_tol)
+                              rtol=r_tol,
+                              atol=a_tol)
 
     def test_mask_embed_roundtrips_through_mask_select(self, ops):
         out = ops["mask_embed"](W_ACT, ACTIVE, N)
@@ -169,8 +174,7 @@ class TestMatrixForms:
     def test_op_J_mat_is_rowwise_op_J(self, ops, atoms):
         out = ops["op_J_mat"](atoms, W_MAT)
         expected = torch.stack(
-            [torch.fft.fftn(row.reshape(S)).reshape(-1) / N
-             for row in W_MAT])
+            [torch.fft.fftn(row.reshape(S)).reshape(-1) / N for row in W_MAT])
         assert torch.allclose(out, expected, rtol=r_tol, atol=a_tol)
 
     def test_op_I_mat_inverts_op_J_mat(self, ops, atoms):
@@ -184,8 +188,10 @@ class TestMatrixForms:
 
     def test_op_Linv_mat_matches_rowwise(self, ops, atoms):
         out = ops["op_Linv_mat"](atoms, W_MAT)
-        assert torch.allclose(out[0], ops["op_Linv"](atoms, W_MAT[0]),
-                              rtol=r_tol, atol=a_tol)
+        assert torch.allclose(out[0],
+                              ops["op_Linv"](atoms, W_MAT[0]),
+                              rtol=r_tol,
+                              atol=a_tol)
 
     def test_op_Idag_mat_shape_and_values(self, ops, atoms):
         out = ops["op_Idag_mat"](atoms, W_MAT)

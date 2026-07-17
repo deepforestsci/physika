@@ -30,7 +30,7 @@ def atoms_ns():
 def h_atom(atoms_ns):
     """Atoms instance for the H-atom validation system (Natoms=1, Nstate=1)."""
     return atoms_ns["Atoms"](H_A, H_ECUT, H_S, H_S, H_S, 0.0, 0.0, 0.0, 1, 1,
-                              torch.tensor([1.0]), torch.tensor([1.0]))
+                             torch.tensor([1.0]), torch.tensor([1.0]))
 
 
 class TestGridIndices:
@@ -44,12 +44,12 @@ class TestGridIndices:
         m1 = atoms_ns["axis_index"](ms, S[1] * S[2], S[0])
         m2 = atoms_ns["axis_index"](ms, S[2], S[1])
         m3 = atoms_ns["axis_index"](ms, 1, S[2])
-        assert torch.equal(m1, torch.tensor([0, 0, 0, 0, 1, 1, 1, 1],
-                                            dtype=m1.dtype))
-        assert torch.equal(m2, torch.tensor([0, 0, 1, 1, 0, 0, 1, 1],
-                                            dtype=m2.dtype))
-        assert torch.equal(m3, torch.tensor([0, 1, 0, 1, 0, 1, 0, 1],
-                                            dtype=m3.dtype))
+        assert torch.equal(
+            m1, torch.tensor([0, 0, 0, 0, 1, 1, 1, 1], dtype=m1.dtype))
+        assert torch.equal(
+            m2, torch.tensor([0, 0, 1, 1, 0, 0, 1, 1], dtype=m2.dtype))
+        assert torch.equal(
+            m3, torch.tensor([0, 1, 0, 1, 0, 1, 0, 1], dtype=m3.dtype))
 
     def test_fold_freq_wraps_upper_half(self, atoms_ns):
         # q=4: q/2=2.0, only m>2 folds (m=3 -> 3-4=-1); m=2 stays put.
@@ -67,8 +67,10 @@ class TestCellGeometry:
     def test_sample_coord_spacing(self, atoms_ns):
         m = torch.tensor([0., 1., 2., 3.])
         out = atoms_ns["sample_coord"](m, torch.tensor(4.0), 4)
-        assert torch.allclose(out, torch.tensor([0., 1., 2., 3.]),
-                              rtol=r_tol, atol=a_tol)
+        assert torch.allclose(out,
+                              torch.tensor([0., 1., 2., 3.]),
+                              rtol=r_tol,
+                              atol=a_tol)
 
 
 class TestReciprocalSpace:
@@ -82,8 +84,10 @@ class TestReciprocalSpace:
         n2 = torch.tensor([0., 1.])
         n3 = torch.tensor([0., 0.])
         out = atoms_ns["g_squared"](n1, n2, n3, torch.tensor(2.0))
-        assert torch.allclose(out, torch.tensor([4.0, 4.0]),
-                              rtol=r_tol, atol=a_tol)
+        assert torch.allclose(out,
+                              torch.tensor([4.0, 4.0]),
+                              rtol=r_tol,
+                              atol=a_tol)
 
     def test_active_mask_is_bool(self, atoms_ns):
         G2 = torch.tensor([0., 1., 2., 3.])
@@ -104,18 +108,21 @@ class TestStructureFactor:
         n1 = torch.tensor([0., 1., -1.])
         n2 = torch.tensor([1., 0., 2.])
         n3 = torch.tensor([2., -1., 0.])
-        out = atoms_ns["structure_factor"](
-            n1, n2, n3, torch.tensor(1.0),
-            torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0))
-        assert torch.allclose(out, torch.ones_like(out), rtol=r_tol,
+        out = atoms_ns["structure_factor"](n1, n2, n3, torch.tensor(1.0),
+                                           torch.tensor(0.0),
+                                           torch.tensor(0.0),
+                                           torch.tensor(0.0))
+        assert torch.allclose(out,
+                              torch.ones_like(out),
+                              rtol=r_tol,
                               atol=a_tol)
 
     def test_phase_matches_reference(self, atoms_ns):
         n1, n2, n3 = torch.tensor(1.0), torch.tensor(2.0), torch.tensor(0.0)
         cc, px, py, pz = 0.5, 1.0, 0.5, 0.0
-        out = atoms_ns["structure_factor"](
-            n1, n2, n3, torch.tensor(cc), torch.tensor(px), torch.tensor(py),
-            torch.tensor(pz))
+        out = atoms_ns["structure_factor"](n1, n2, n3, torch.tensor(cc),
+                                           torch.tensor(px), torch.tensor(py),
+                                           torch.tensor(pz))
         phase = cc * (1.0 * px + 2.0 * py + 0.0 * pz)
         expected = torch.exp(torch.tensor(-1j * phase, dtype=torch.complex64))
         assert torch.allclose(out, expected, rtol=r_tol, atol=a_tol)
@@ -150,11 +157,13 @@ class TestHAtomBasis:
     def test_real_space_sampling_matches_grid(self, h_atom):
         # Max real-space coordinate along an axis is a*(s-1)/s.
         expected_max = H_A * (H_S - 1) / H_S
-        assert float(h_atom.coord_x().max()) == pytest.approx(
-            expected_max, rel=1e-4)
+        assert float(h_atom.coord_x().max()) == pytest.approx(expected_max,
+                                                              rel=1e-4)
 
     def test_g_vectors_consistent_with_g2(self, h_atom):
         gx, gy, gz = h_atom.gx(), h_atom.gy(), h_atom.gz()
         g2_from_components = gx * gx + gy * gy + gz * gz
-        assert torch.allclose(g2_from_components, h_atom.g2(), rtol=r_tol,
+        assert torch.allclose(g2_from_components,
+                              h_atom.g2(),
+                              rtol=r_tol,
                               atol=a_tol)
