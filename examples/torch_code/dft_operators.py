@@ -1,72 +1,219 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 
 # === Functions ===
-def op_O(W, Ω):
-    return (Ω * W)
+def mask_embed(values, mask, n):
+    empty = (torch.arange(n) * 0j)
+    return torch.masked_scatter(empty, mask, values)
 
-def op_O_mat(W, Ω):
-    return (Ω * W)
+def op_O(atoms, W):
+    return (atoms.volume() * W)
 
-def op_L(W, G2c, Ω):
-    return (((-Ω) * G2c) * W)
+def op_O_mat(atoms, W):
+    return (atoms.volume() * W)
 
-def op_L_mat(W, G2c, Ω):
-    Ns = len(W)
-    out = torch.stack([op_L(W[int(i)], G2c, Ω) for _fi_i in range(int(Ns)) for i in [torch.tensor(float(_fi_i))]])
+def op_L(atoms, W):
+    G2c = atoms.g2c()
+    if len(W) == len(G2c):
+        G2 = G2c
+    else:
+        G2 = atoms.g2()
+    return (((-atoms.volume()) * G2) * W)
+
+def op_L_mat(atoms, W):
+    Nstate = len(W)
+    G2c = atoms.g2c()
+    if len(W[int(0)]) == len(G2c):
+        G2 = G2c
+    else:
+        G2 = atoms.g2()
+    Ω = atoms.volume()
+    out = torch.stack([(((-Ω) * G2) * W[int(state)]) for _fi_state in range(int(Nstate)) for state in [torch.tensor(float(_fi_state), device=DEVICE)]])
     return out
 
-def op_Linv(W, G2, Ω):
+def op_Linv(atoms, W):
+    G2 = atoms.g2()
     nonzero = (torch.gt(G2, 0.0) * 1.0)
     safe_G2 = (G2 + (1.0 - nonzero))
-    return (((W / safe_G2) / (-Ω)) * nonzero)
+    return (((W / safe_G2) / (-atoms.volume())) * nonzero)
 
-def op_Linv_mat(W, G2, Ω):
-    Ns = len(W)
-    out = torch.stack([op_Linv(W[int(i)], G2, Ω) for _fi_i in range(int(Ns)) for i in [torch.tensor(float(_fi_i))]])
+def op_Linv_mat(atoms, W):
+    Nstate = len(W)
+    G2 = atoms.g2()
+    nonzero = (torch.gt(G2, 0.0) * 1.0)
+    safe_G2 = (G2 + (1.0 - nonzero))
+    Ω = atoms.volume()
+    out = torch.stack([(((W[int(state)] / safe_G2) / (-Ω)) * nonzero) for _fi_state in range(int(Nstate)) for state in [torch.tensor(float(_fi_state), device=DEVICE)]])
     return out
 
-def op_J(W, s1, s2, s3):
-    n = ((s1 * s2) * s3)
-    cube = torch.reshape(W, (int(s1), int(s2), int(s3),))
-    spec = torch.fft.fftn(cube)
-    return (torch.reshape(spec, (int(n),)) / n)
+def op_J(atoms, W):
+    s1 = atoms.s1
+    s2 = atoms.s2
+    s3 = atoms.s3
+    Ngrid = ((s1 * s2) * s3)
+    real_grid = torch.reshape(W, (int(s1), int(s2), int(s3),))
+    reciprocal_grid = torch.fft.fftn(real_grid)
+    return (torch.reshape(reciprocal_grid, (int(Ngrid),)) / Ngrid)
 
-def op_J_mat(W, s1, s2, s3):
-    Ns = len(W)
-    out = torch.stack([op_J(W[int(i)], s1, s2, s3) for _fi_i in range(int(Ns)) for i in [torch.tensor(float(_fi_i))]])
+def op_J_mat(atoms, W):
+    Nstate = len(W)
+    out = torch.stack([op_J(atoms, W[int(state)]) for _fi_state in range(int(Nstate)) for state in [torch.tensor(float(_fi_state), device=DEVICE)]])
     return out
 
-def op_I(W, s1, s2, s3):
-    n = ((s1 * s2) * s3)
-    cube = torch.reshape(W, (int(s1), int(s2), int(s3),))
-    field = torch.fft.ifftn(cube)
-    return (torch.reshape(field, (int(n),)) * n)
+def op_I(atoms, W):
+    s1 = atoms.s1
+    s2 = atoms.s2
+    s3 = atoms.s3
+    Ngrid = ((s1 * s2) * s3)
+    active = atoms.active()
+    if len(W) == len(active):
+        reciprocal_grid = W
+    else:
+        reciprocal_grid = mask_embed(W, active, Ngrid)
+    reciprocal_grid3d = torch.reshape(reciprocal_grid, (int(s1), int(s2), int(s3),))
+    real_grid = torch.fft.ifftn(reciprocal_grid3d)
+    return (torch.reshape(real_grid, (int(Ngrid),)) * Ngrid)
 
-def op_I_mat(W, s1, s2, s3):
-    Ns = len(W)
-    out = torch.stack([op_I(W[int(i)], s1, s2, s3) for _fi_i in range(int(Ns)) for i in [torch.tensor(float(_fi_i))]])
+def op_I_mat(atoms, W):
+    Nstate = len(W)
+    out = torch.stack([op_I(atoms, W[int(state)]) for _fi_state in range(int(Nstate)) for state in [torch.tensor(float(_fi_state), device=DEVICE)]])
     return out
 
-def op_Idag(W, active, s1, s2, s3):
-    n = ((s1 * s2) * s3)
-    F = op_J(W, s1, s2, s3)
-    return (torch.masked_select(F, active) * n)
+def op_Idag(atoms, W):
+    Ngrid = ((atoms.s1 * atoms.s2) * atoms.s3)
+    F = op_J(atoms, W)
+    return (torch.masked_select(F, atoms.active()) * Ngrid)
 
-def op_Idag_mat(W, active, s1, s2, s3):
-    Ns = len(W)
-    out = torch.stack([op_Idag(W[int(i)], active, s1, s2, s3) for _fi_i in range(int(Ns)) for i in [torch.tensor(float(_fi_i))]])
+def op_Idag_mat(atoms, W):
+    Nstate = len(W)
+    out = torch.stack([op_Idag(atoms, W[int(state)]) for _fi_state in range(int(Nstate)) for state in [torch.tensor(float(_fi_state), device=DEVICE)]])
     return out
 
-def op_Jdag(W, s1, s2, s3):
-    n = ((s1 * s2) * s3)
-    return (op_I(W, s1, s2, s3) / n)
+def op_Jdag(atoms, W):
+    Ngrid = ((atoms.s1 * atoms.s2) * atoms.s3)
+    return (op_I(atoms, W) / Ngrid)
 
-def op_Jdag_mat(W, s1, s2, s3):
-    n = ((s1 * s2) * s3)
-    return (op_I_mat(W, s1, s2, s3) / n)
+def op_Jdag_mat(atoms, W):
+    Ngrid = ((atoms.s1 * atoms.s2) * atoms.s3)
+    return (op_I_mat(atoms, W) / Ngrid)
+
+def cell_volume(a):
+    return ((a * a) * a)
+
+def flat_index(k):
+    return torch.arange(k)
+
+def axis_index(ms, axis_stride, axis_length):
+    return torch.remainder(torch.floor((ms / axis_stride) if isinstance((ms / axis_stride), torch.Tensor) else torch.tensor(float((ms / axis_stride)))), axis_length)
+
+def fold_freq(m, axis_length):
+    return (m - (torch.gt(m, (axis_length / 2)) * axis_length))
+
+def recip_scale(a):
+    return ((2 * π) / a)
+
+def g_squared(n1, n2, n3, c):
+    return ((c * c) * (((n1 * n1) + (n2 * n2)) + (n3 * n3)))
+
+def active_mask(G2, ecut):
+    return torch.le(G2, (2 * ecut))
+
+def active_subset(G2, active):
+    return torch.masked_select(G2, active)
+
+# === Classes ===
+class Atoms(nn.Module):
+    def __init__(self, a, ecut, s1, s2, s3, px, py, pz, Natoms, Nstate, Z_nuc, f):
+        super().__init__()
+        self.a = torch.as_tensor(a).float()
+        self.ecut = torch.as_tensor(ecut).float()
+        self.s1 = torch.as_tensor(s1).float() if isinstance(s1, (int, float, torch.Tensor)) else s1
+        self.s2 = torch.as_tensor(s2).float() if isinstance(s2, (int, float, torch.Tensor)) else s2
+        self.s3 = torch.as_tensor(s3).float() if isinstance(s3, (int, float, torch.Tensor)) else s3
+        self.px = torch.as_tensor(px).float()
+        self.py = torch.as_tensor(py).float()
+        self.pz = torch.as_tensor(pz).float()
+        self.Natoms = torch.as_tensor(Natoms).float() if isinstance(Natoms, (int, float, torch.Tensor)) else Natoms
+        self.Nstate = torch.as_tensor(Nstate).float() if isinstance(Nstate, (int, float, torch.Tensor)) else Nstate
+        self.Z_nuc = torch.as_tensor(Z_nuc).float()
+        self.f = torch.as_tensor(f).float()
+        self.learnable_params = [self.a, self.ecut, self.px, self.py, self.pz, self.Z_nuc, self.f]
+
+    def volume(self):
+        this = self
+        return cell_volume(self.a)
+
+    def freq_x(self):
+        this = self
+        ms = flat_index(((self.s1 * self.s2) * self.s3))
+        return fold_freq(axis_index(ms, (self.s3 * self.s2), self.s1), self.s1)
+
+    def freq_y(self):
+        this = self
+        ms = flat_index(((self.s1 * self.s2) * self.s3))
+        return fold_freq(axis_index(ms, self.s3, self.s2), self.s2)
+
+    def freq_z(self):
+        this = self
+        ms = flat_index(((self.s1 * self.s2) * self.s3))
+        return fold_freq(axis_index(ms, 1, self.s3), self.s3)
+
+    def coord_x(self):
+        this = self
+        ms = flat_index(((self.s1 * self.s2) * self.s3))
+        return sample_coord(axis_index(ms, (self.s3 * self.s2), self.s1), self.a, self.s1)
+
+    def coord_y(self):
+        this = self
+        ms = flat_index(((self.s1 * self.s2) * self.s3))
+        return sample_coord(axis_index(ms, self.s3, self.s2), self.a, self.s2)
+
+    def coord_z(self):
+        this = self
+        ms = flat_index(((self.s1 * self.s2) * self.s3))
+        return sample_coord(axis_index(ms, 1, self.s3), self.a, self.s3)
+
+    def gx(self):
+        this = self
+        return (recip_scale(self.a) * self.freq_x())
+
+    def gy(self):
+        this = self
+        return (recip_scale(self.a) * self.freq_y())
+
+    def gz(self):
+        this = self
+        return (recip_scale(self.a) * self.freq_z())
+
+    def g2(self):
+        this = self
+        return g_squared(self.freq_x(), self.freq_y(), self.freq_z(), recip_scale(self.a))
+
+    def active(self):
+        this = self
+        return active_mask(self.g2(), self.ecut)
+
+    def g2c(self):
+        this = self
+        return active_subset(self.g2(), self.active())
+
+    def sf(self):
+        this = self
+        return structure_factor(self.freq_x(), self.freq_y(), self.freq_z(), recip_scale(self.a), self.px, self.py, self.pz)
+
+    @property
+    def params(self):
+        return list(self.parameters())
+
+    def update(self, lr, grads):
+        with torch.no_grad():
+            for p, g in zip(self.parameters(), grads):
+                if g is not None:
+                    p -= lr * g
 
 # === Program ===
+π = 3.141592653589793

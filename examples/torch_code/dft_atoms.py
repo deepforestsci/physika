@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from physika.runtime import DEVICE
 
 from physika.runtime import physika_print
 
@@ -8,11 +9,11 @@ from physika.runtime import physika_print
 def flat_index(k):
     return torch.arange(k)
 
-def axis_index(ms, divisor, modulus):
-    return torch.remainder(torch.floor((ms / divisor) if isinstance((ms / divisor), torch.Tensor) else torch.tensor(float((ms / divisor)))), modulus)
+def axis_index(ms, axis_stride, axis_length):
+    return torch.remainder(torch.floor((ms / axis_stride) if isinstance((ms / axis_stride), torch.Tensor) else torch.tensor(float((ms / axis_stride)))), axis_length)
 
-def fold_freq(m, q):
-    return (m - (torch.gt(m, (q / 2)) * q))
+def fold_freq(m, axis_length):
+    return (m - (torch.gt(m, (axis_length / 2)) * axis_length))
 
 def cell_volume(a):
     return ((a * a) * a)
@@ -32,8 +33,8 @@ def active_mask(G2, ecut):
 def active_subset(G2, active):
     return torch.masked_select(G2, active)
 
-def structure_factor(n1, n2, n3, cc, px, py, pz):
-    phase = (cc * (((n1 * px) + (n2 * py)) + (n3 * pz)))
+def structure_factor(n1, n2, n3, c, px, py, pz):
+    phase = (c * (((n1 * px) + (n2 * py)) + (n3 * pz)))
     return torch.exp(((-torch.tensor(1j)) * phase) if isinstance(((-torch.tensor(1j)) * phase), torch.Tensor) else torch.tensor(float(((-torch.tensor(1j)) * phase))))
 
 # === Classes ===
