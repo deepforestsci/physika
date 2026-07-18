@@ -3,6 +3,9 @@ from typing import Callable
 
 
 def make_parser_rules():
+    """
+    PLY grammar functions for Physika indexing and slicing syntax.
+    """
 
     def p_factor_index(p):
         """factor : ID LBRACKET NUMBER RBRACKET"""
@@ -257,20 +260,173 @@ def make_parser_rules():
 
 class IndexingandSlicing(ELF):
     """
+    Physika Indexing and Slicing support implemented as ELF subclass.
+
+    ``IndexingandSlicing`` injects rules via ``REGISTRY`` at parser,
+    type checker and code generator.
+
+    **Parser rules**
+    Nineteen PLY grammer functions (see ``make_parser_rules``) which
+    handles indexing and slicing.
+
+    **Forward rules**
+    Nine code-generation handlers are defined which handles
+    N-dimensional indexing and slicing rules for Top-level program,
+    Function-level programs, rules inside loops and also support
+    indexing/slicing assignment.
+
+    Physika syntax example (see ``examples/example_slicing.phyk``)::
+
+        y: ℝ[2, 2] = [
+            [1, 2],
+            [3, 4]
+        ]
+        y[:, 0]
+        y[0, 1]
+        y[1, :]
+
+    Examples
+    --------
+    >>> from physika.lexer import lexer
+    >>> from physika.parser import parser, symbol_table
+    >>> from physika.utils.ast_utils import build_unified_ast
+    >>> from physika.codegen import from_ast_to_torch
+    >>> def run_phyk(src):
+    ...     symbol_table.clear()
+    ...     lexer.lexer.lineno = 1
+    ...     ast = build_unified_ast(parser.parse(src, lexer=lexer), symbol_table)  # noqa
+    ...     exec(from_ast_to_torch(ast, print_code=False), {})
+
+    >>> # Physika Indexing and Slicing example
+    >>> src = '''
+    ... x: ℝ[5] = [1, 2, 3, 4, 5]
+    ... x[0]
+    ... x[1:3]
+    ... x[3:]
+    ... '''
+
+    >>> # Execute code and verify outputs
+    >>> run_phyk(src)
+    1 ∈ ℝ
+    [2, 3] ∈ ℝ[2]
+    [4, 5] ∈ ℝ[2]
     """
-    name = "Indexing"
+    name = "Indexing_and_Slicing"
 
     def parser_rules(self) -> list:
+        """
+        Override ``parser_rules`` handler for new grammer rules.
+
+        Nineteen PLY grammer functions (see ``make_parser_rules``) which
+        handles indexing and slicing.
+
+        Returns
+        -------
+        list
+            List of PLY grammer functions to be injected into
+            ``physika.parser``.
+
+        Examples
+        --------
+        >>> from physika.features import IndexingandSlicing
+        >>> rules = IndexingandSlicing().parser_rules()
+        >>> len(rules)
+        19
+        >>> rules[0].__name__
+        'p_factor_index'
+        """
         return make_parser_rules()
 
     def forward_rules(self) -> dict:
+        """
+        Nine code-generation handlers are defined which handles
+        N-dimensional indexing and slicing rules for Top-level
+        program, Function-level programs, rules inside loops and
+        also support indexing/slicing assignment.
+
+        Returns
+        -------
+        dict
+            Dictionary containing code generation handlers.
+
+        Examples
+        --------
+        >>> from physika.features import IndexingandSlicing
+        >>> from physika.utils.ast_utils import ast_to_torch_expr
+        >>> rules = IndexingandSlicing().forward_rules()
+
+        >>> # Physika code:
+        >>> # x: ℝ[5] = [1, 2, 3, 4, 5]
+        >>> # x[1]
+        >>> node = ("index", "x", ("num", 1))
+        >>> rules["index"](node, ast_to_torch_expr)
+        'x[int(1)]'
+        """
 
         def emit_index(node: tuple, to_expr: Callable, **ctx) -> str:
+            """
+            Emit code for single-dimensional tensor indexing.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("index", array_name, index_expr)``.
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit the index expression.
+
+            Returns
+            -------
+            str
+                Pytorch indexing expression.
+
+            Examples
+            --------
+            >>> from physika.features import IndexingandSlicing
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = IndexingandSlicing().forward_rules()
+            >>> node = ("index", "x", ("num", 1))
+            >>> rules["index"](node, ast_to_torch_expr)
+            'x[int(1)]'
+            """
             var_name = node[1]
             idx = to_expr(node[2])
             return f"{var_name}[int({idx})]"
 
         def emit_indexN(node: tuple, to_expr: Callable, **ctx) -> str:
+            """
+            Emit code for N-dimensinal indexing and slicing.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("indexN", array_name, index_list)`` where
+                ``index_list`` contains ``"index_item"`` and/or
+                ``"slice_item"`` AST nodes.
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit index and slice
+                expressions.
+
+            Returns
+            -------
+            str
+                Pytorch indexing or slicing expression.
+
+            Examples
+            --------
+            >>> from physika.features import IndexingandSlicing
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = IndexingandSlicing().forward_rules()
+            >>> node = (
+            ...     "indexN",
+            ...     "A",
+            ...     [
+            ...         ("index_item", ("num", 1)),
+            ...         ("index_item", ("num", 2)),
+            ...     ],
+            ... )
+            >>> rules["indexN"](node, ast_to_torch_expr)
+            'A[int(1), int(2)]'
+            """
             arr = node[1]
             parts = []
             for item in node[2]:
@@ -285,18 +441,117 @@ class IndexingandSlicing(ELF):
 
         def emit_for_index_assign_nd(node: tuple, to_expr: Callable,
                                      **ctx) -> str:
+            """
+            Emit code for indexed tensor assignment inside loop body.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("loop_index_assign_nd", array_name, index_list, rhs_expr)``
+                where ``index_list`` contains the index expressions for each
+                tensor dimension.
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit index expressions and the
+                right-hand side expression.
+            
+            Returns
+            -------
+            str
+                PyTorch indexed assignment statement.
+
+            Examples
+            --------
+            >>> from physika.features import IndexingandSlicing
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = IndexingandSlicing().forward_rules()
+            >>> node = (
+            ...     "loop_index_assign_nd",
+            ...     "A",
+            ...     [("var", "i"), ("var", "j")],
+            ...     ("num", 5),
+            ... )
+            >>> rules["loop_index_assign_nd"](node, ast_to_torch_expr, current_loop_var={"i", "j"})  # noqa
+            'A[int(i), int(j)] = 5'
+            """
             _, arr_name, idx_list, rhs_expr = node
             indices = ", ".join(f"int({to_expr(idx)})" for idx in idx_list)
             rhs_code = to_expr(rhs_expr)
             return f"{arr_name}[{indices}] = {rhs_code}"
 
         def emit_index_assign(node: tuple, to_expr: Callable, **ctx) -> str:
+            """
+            Emit code for one-dimensional indexed assignment.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("index_assign", array_name, index_expr, value_expr)``.
+                The index expression may be either an AST node or a variable
+                name represented as a string.
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit the index and value
+                expressions.
+
+            Returns
+            -------
+            str
+                PyTorch indexed assignment statement.
+
+            Examples
+            --------
+            >>> from physika.features import IndexingandSlicing
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = IndexingandSlicing().forward_rules()
+            >>> node = (
+            ...     "index_assign",
+            ...     "x",
+            ...     ("num", 1),
+            ...     ("num", 10),
+            ... )
+            >>> rules["index_assign"](node, ast_to_torch_expr)
+            'x[int(1)] = 10'
+            """
             name, idx, val = node[1], node[2], node[3]
             idx_code = to_expr(
                 ("var", idx)) if isinstance(idx, str) else to_expr(idx)
             return f"{name}[int({idx_code})] = {to_expr(val)}"
 
         def emit_index_assign_nd(node: tuple, to_expr: Callable, **ctx) -> str:
+            """
+            Emit code for N-dimensional indexed or sliced assignment.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("index_assign_nd", array_name, index_list, value_expr)``
+                where ``index_list`` contains ``"index_item"`` and/or
+                ``"slice_item"`` AST nodes.
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit index, slice, and
+                value expressions.
+
+            Returns
+            -------
+            str
+                PyTorch indexed or sliced assignment statement.
+
+            Examples
+            --------
+            >>> from physika.features import IndexingandSlicing
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = IndexingandSlicing().forward_rules()
+            >>> node = (
+            ...     "index_assign_nd",
+            ...     "A",
+            ...     [
+            ...         ("index_item", ("num", 1)),
+            ...         ("index_item", ("num", 2)),
+            ...     ],
+            ...     ("num", 5),
+            ... )
+            >>> rules["index_assign_nd"](node, ast_to_torch_expr)
+            'A[int(1), int(2)] = 5'
+            """
             name, indices, val = node[1], node[2], node[3]
             parts = []
             for item in indices:
@@ -313,6 +568,42 @@ class IndexingandSlicing(ELF):
 
         def emit_loop_index_pluseq(node: tuple, to_expr: Callable,
                                    **ctx) -> str:
+            """
+            Emit code for indexed plus equals ``+=`` assignment
+            inside loop body.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("loop_index_pluseq", array_name, index_list, rhs_expr)``
+                where ``index_list`` contains ``"index_item"`` and/or
+                ``"slice_item"`` AST nodes.
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit index, slice, and
+                right-hand side expressions.
+
+            Returns
+            -------
+            str
+                PyTorch indexed ``+=`` assignment statement.
+
+            Examples
+            --------
+            >>> from physika.features import IndexingandSlicing
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = IndexingandSlicing().forward_rules()
+            >>> node = (
+            ...     "loop_index_pluseq",
+            ...     "C",
+            ...     [
+            ...         ("index_item", ("var", "i")),
+            ...         ("index_item", ("var", "j")),
+            ...     ],
+            ...     ("var", "v"),
+            ... )
+            >>> rules["loop_index_pluseq"](node, ast_to_torch_expr)
+            'C[int(i), int(j)] += v'
+            """
             _, arr_name, idx_list, rhs = node
             parts = []
             for item in idx_list:
@@ -328,6 +619,46 @@ class IndexingandSlicing(ELF):
 
         def emit_loop_index_assign_nd(node: tuple, to_expr: Callable,
                                       **ctx) -> str:
+            """
+            Emit code for N-dimensional indexed assignment inside loop body.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("loop_index_assign_nd", array_name, index_list, rhs_expr)``
+                where ``index_list`` contains the index expressions for each
+                tensor dimension.
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit index expressions and the
+                right-hand side expression.
+            **ctx
+                Additional context passed to the emitter. The
+                ``current_loop_var`` entry is forwarded to ``to_expr`` so
+                loop variables are emitted correctly.
+
+            Returns
+            -------
+            str
+                PyTorch indexed assignment statement.
+
+            Examples
+            --------
+            >>> from physika.features import IndexingandSlicing
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = IndexingandSlicing().forward_rules()
+            >>> node = (
+            ...     "loop_index_assign_nd",
+            ...     "A",
+            ...     [("var", "i"), ("var", "j")],
+            ...     ("var", "v"),
+            ... )
+            >>> rules["loop_index_assign_nd"](
+            ...     node,
+            ...     ast_to_torch_expr,
+            ...     current_loop_var={"i", "j"},
+            ... )
+            'A[int(i), int(j)] = v'
+            """
             _, arr_name, idx_list, rhs = node
             indices = ", ".join(
                 f"int({to_expr(idx, current_loop_var = ctx['current_loop_var'])})"  # noqa
@@ -337,6 +668,37 @@ class IndexingandSlicing(ELF):
 
         def emit_body_index_assign(node: tuple, to_expr: Callable,
                                    **ctx) -> str:
+            """
+            Emit code for one-dimensional indexed assignment
+            inside function body.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("body_index_assign", array_name, index_expr, value_expr)``.
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit the index and value
+                expressions.
+
+            Returns
+            -------
+            str
+                PyTorch indexed assignment statement.
+
+            Examples
+            --------
+            >>> from physika.features import IndexingandSlicing
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = IndexingandSlicing().forward_rules()
+            >>> node = (
+            ...     "body_index_assign",
+            ...     "x",
+            ...     ("num", 1),
+            ...     ("num", 42),
+            ... )
+            >>> rules["body_index_assign"](node, ast_to_torch_expr)
+            'x[int((1)] = 42'
+            """
             _, name, idx, val = node
             idx_code = to_expr(idx)
             val_code = to_expr(val)
@@ -344,6 +706,42 @@ class IndexingandSlicing(ELF):
 
         def emit_body_index_assign_nd(node: tuple, to_expr: Callable,
                                       **ctx) -> str:
+            """
+            Emit code for N-dimensional indexed or sliced assignment
+            inside function body.
+
+            Parameters
+            ----------
+            node : tuple
+                ``("body_index_assign_nd", array_name, index_list, value_expr)``  # noqa
+                where ``index_list`` contains ``"index_item"`` and/or
+                ``"slice_item"`` AST nodes.
+            to_expr : Callable
+                ``ast_to_torch_expr`` used to emit index, slice, and
+                value expressions.
+
+            Returns
+            -------
+            str
+                PyTorch indexed or sliced assignment statement.
+
+            Examples
+            --------
+            >>> from physika.features import IndexingandSlicing
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> rules = IndexingandSlicing().forward_rules()
+            >>> node = (
+            ...     "body_index_assign_nd",
+            ...     "A",
+            ...     [
+            ...         ("index_item", ("num", 1)),
+            ...         ("index_item", ("num", 2)),
+            ...     ],
+            ...     ("num", 5),
+            ... )
+            >>> rules["body_index_assign_nd"](node, ast_to_torch_expr)
+            'A[int(1), int(2)] = 5'
+            """
             _, name, indices, val = node
             parts = []
             for item in indices:
