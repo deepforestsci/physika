@@ -1,0 +1,122 @@
+# ============================================================
+# Parameter Learning for the FitzHugh-Nagumo Neuron Model
+# ============================================================
+# A smooth 2-D reduction of the Hodgkin-Huxley equations:
+#
+#   dv/dt = v - v**3/3 - w + I      (fast: membrane potential)
+#   dw/dt = eps * (v + a - b*w)     (slow: recovery variable)
+#
+# Parameters theta = [a, b, eps, I]. We generate a "true"
+# trajectory from known parameters, then recover them from an
+# initial guess. This uses the same adjoint machinery as the
+# Lotka-Volterra tutorial, extended from a terminal-state loss
+# to a full-trajectory mean-squared-error loss: the co-state s
+# accumulates the per-step residual (1/m)(state_k - y_k) as it
+# is propagated backwards. Only f(state, theta), the loss, and
+# that one adjoint term differ from Lotka-Volterra.
+# ============================================================
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def append(x: ℝ[m], var: ℝ): ℝ[n]:
+    new_length: ℝ = len(x) + 1
+    results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
+    for i:ℕ(new_length):
+        if i<len_x:
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+def f(state: ℝ[2], θ: ℝ[4]): ℝ[2]:
+    v: ℝ = state[0]
+    w: ℝ = state[1]
+    a: ℝ = θ[0]
+    b: ℝ = θ[1]
+    eps: ℝ = θ[2]
+    Iext: ℝ = θ[3]
+    dv: ℝ = v - (v ** 3) / 3.0 - w + Iext
+    dw: ℝ = eps * (v + a - b * w)
+    return [dv, dw]
+
+def rk4_step(state: ℝ[2], θ: ℝ[4]): ℝ[2]:
+    k1: ℝ[2] = f(state, θ)
+    k2_state: ℝ[2] = state + 0.5 * dt * k1
+    k2: ℝ[2] = f(k2_state, θ)
+    k3_state: ℝ[2] = state + 0.5 * dt * k2
+    k3: ℝ[2] = f(k3_state, θ)
+    k4_state: ℝ[2] = state + dt * k3
+    k4: ℝ[2] = f(k4_state, θ)
+    return state + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+dt: ℝ = 0.1
+timesteps: ℝ = 200
+
+def solver(θ: ℝ[4]): ℝ[2, m]:
+    state: ℝ[2] = [-1.0, 1.0]
+    v_array: ℝ[1] = [-1.0]
+    w_array: ℝ[1] = [1.0]
+    for i:ℕ(timesteps):
+        results = rk4_step(state, θ)
+        v = results[0]
+        w = results[1]
+        v_array = append(v_array, v)
+        w_array = append(w_array, w)
+        state = results
+    return [v_array, w_array]
+
+true_theta: ℝ[4] = [0.7, 0.8, 0.08, 0.5]
+true_results: ℝ[2, m] = solver(true_theta)
+true_v: ℝ[m] = true_results[0]
+true_w: ℝ[m] = true_results[1]
+
+def adjoint_grad(θ: ℝ[4]): ℝ[n]:
+    states: ℝ[2, m] = solver(θ)
+    v_array: ℝ[m] = states[0]
+    w_array: ℝ[m] = states[1]
+    m: ℝ = get_1d_array_length(v_array)
+    s: ℝ[2] = [
+        (v_array[m-1] - true_v[m-1]) / m,
+        (w_array[m-1] - true_w[m-1]) / m
+    ]
+    L: ℝ[4] = zero_1d_array(4)
+    for i:ℕ(m-1):
+        idx = m - 2 - i
+        v = v_array[idx]
+        w = w_array[idx]
+        state = [v, w]
+        J_state = grad(rk4_step(state, θ), state)
+        J_theta = grad(rk4_step(state, θ), θ)
+        L += s @ J_theta
+        rv = (v_array[idx] - true_v[idx]) / m
+        rw = (w_array[idx] - true_w[idx]) / m
+        residual = [rv, rw]
+        s = residual + (s @ J_state)
+    return L
+
+θ: ℝ[4] = [0.6, 0.7, 0.10, 0.6]
+learning_rate: ℝ = 0.003
+
+# ------------------------------------------------------------------
+# set epoch value higher (e.g. 2000) for real training; here it is 1
+# so physika's test suite (tests/test_tutorials.py) runs quickly
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+for i:ℕ(epochs):
+    g = adjoint_grad(θ)
+    θ = θ - learning_rate * g
+
+pred_results = solver(θ)
+#plot_trajectories(true_results, pred_results)
