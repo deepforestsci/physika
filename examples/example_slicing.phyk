@@ -53,13 +53,13 @@ z[:, 0, 0]
 # Function level
 # ----------------------------------------
 
-def slice_demo_1d(a: ℝ[m]): ℝ[m]:
+def slice_demo_1d(a: ℝ[m]): ℝ[n]:
     return a[:2]
 
-def slice_demo_2d(a: ℝ[m, n]): ℝ[n]:
+def slice_demo_2d(a: ℝ[m, n]): ℝ[o]:
     return a[:, 0]
 
-def slice_demo_3d(a: ℝ[m, n, o]): ℝ[m]:
+def slice_demo_3d(a: ℝ[m, n, o]): ℝ[p]:
     return a[:, 0, 0]
 
 
@@ -68,9 +68,11 @@ slice_demo_2d(y)
 slice_demo_3d(z)
 
 
-# ----------------------------------------
+# -------------------------------------------
 # Class level
-# ----------------------------------------
+# NOTE - use ℝ[n] for general tensor shapes
+# in function arguments
+# -------------------------------------------
 
 class SliceDemo:
     def return_x(x: ℝ[8]): ℝ[m]:
