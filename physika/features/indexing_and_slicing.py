@@ -793,7 +793,7 @@ class IndexingandSlicing(ELF):
             """
             op = node[0]
             _, s = infer_expr(node[-1], env, s, func_env, class_env, add_error)
-            if op == "loop_index_assign_nd":
+            if op in ("loop_index_assign_nd", "body_for_map"):
                 _, arr_name, idx_exprs, _ = node
                 arr_t = s.apply(env[arr_name]) if arr_name in env else None
                 shape = get_tensor_shape(arr_t)
@@ -912,7 +912,7 @@ class IndexingandSlicing(ELF):
             # case basic accumulator (no indexing)
             _, s = infer_expr(node[-1], env, s, func_env, class_env, add_error)
             # case indexed acummulator
-            if op == "loop_index_pluseq":
+            if op in ("loop_index_pluseq", "for_pluseq"):
                 _, arr_name, idx_exprs, _ = node
                 arr_t = s.apply(env[arr_name]) if arr_name in env else None
                 shape = get_tensor_shape(arr_t)
