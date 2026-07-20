@@ -307,15 +307,119 @@ class TestExprIndexN:
                            infer_expr)
         assert t == TTensor(((3, "invariant"), ))
 
+    def test_2d_index_slice(self):
+        """
+        Indexing one dimension and slicing another returns a vector.
+
+        A is shape [3, 4]
+        indexing for [1, :]
+        """
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        t, _ = expr_indexN(("indexN", "A", [
+            ("index_item", ("num", 1)),
+            ("slice_item", None, None),
+        ]), ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error,
+                           infer_expr)
+        assert t == TTensor(((4, "invariant"), ))
+
+    def test_2d_partial_slice(self):
+        """
+        Slicing a range along one dimension.
+
+        A is shape [3, 4]
+        slicing for [1:3, :]
+        """
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        t, _ = expr_indexN(("indexN", "A", [
+            ("slice_item", ("num", 1), ("num", 3)),
+            ("slice_item", None, None),
+        ]), ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error,
+                           infer_expr)
+        assert t == TTensor(((2, "invariant"), (4, "invariant")))
+
+    def test_2d_partial_slice_both_dims(self):
+        """
+        Slicing ranges on both dimensions.
+
+        A is shape [3, 4]
+        slicing for [1:3, 1:3]
+        """
+        ctx = make_ctx(
+            env={"A": TTensor(((3, "invariant"), (4, "invariant")))})
+        t, _ = expr_indexN(("indexN", "A", [
+            ("slice_item", ("num", 1), ("num", 3)),
+            ("slice_item", ("num", 1), ("num", 3)),
+        ]), ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error,
+                           infer_expr)
+        assert t == TTensor(((2, "invariant"), (2, "invariant")))
+
+    def test_3d_full_slice(self):
+        """
+        Slicing all dimensions of a 3-D tensor.
+
+        T is shape [2, 3, 4]
+        slicing for [:, :, :]
+        """
+        ctx = make_ctx(env={
+            "T":
+            TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
+        })
+        t, _ = expr_indexN(("indexN", "T", [
+            ("slice_item", None, None),
+            ("slice_item", None, None),
+            ("slice_item", None, None),
+        ]), ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error,
+                           infer_expr)
+        assert t == TTensor(
+            ((2, "invariant"), (3, "invariant"), (4, "invariant")))
+
+    def test_3d_slice_index_slice(self):
+        """
+        Slicing, indexing and slicing on a 3-D tensor.
+
+        T is shape [2, 3, 4]
+        slicing for [:, 1, :]
+        """
+        ctx = make_ctx(env={
+            "T":
+            TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
+        })
+        t, _ = expr_indexN(("indexN", "T", [
+            ("slice_item", None, None),
+            ("index_item", ("num", 1)),
+            ("slice_item", None, None),
+        ]), ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error,
+                           infer_expr)
+        assert t == TTensor(((2, "invariant"), (4, "invariant")))
+
+    def test_3d_partial_slice(self):
+        """
+        Partial slicing on a 3-D tensor.
+
+        T is shape [2, 3, 4]
+        slicing for [0:2, 1:3, :]
+        """
+        ctx = make_ctx(env={
+            "T":
+            TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
+        })
+        t, _ = expr_indexN(("indexN", "T", [
+            ("slice_item", ("num", 0), ("num", 2)),
+            ("slice_item", ("num", 1), ("num", 3)),
+            ("slice_item", None, None),
+        ]), ctx.env, ctx.s, ctx.func_env, ctx.class_env, ctx.add_error,
+                           infer_expr)
+        assert t == TTensor(
+            ((2, "invariant"), (2, "invariant"), (4, "invariant")))
+
 
 class TestStmtForEq:
     """Test index assignment ``=`` statement type inference."""
 
     def test_basic_eq(self):
         """Basic loop_index_assign_nd infers rhs type."""
-        from physika.features.indexing_and_slicing import IndexingandSlicing
-        from physika.utils.infer_expr import infer_expr
-
         errors = []
         ctx = make_stmt_ctx(
             env={
@@ -344,8 +448,6 @@ class TestStmtForEq:
         loop_index_assign_nd unifies each loop var's TDim to the array
         dimension.
         """
-        from physika.features.indexing_and_slicing import IndexingandSlicing
-        from physika.utils.infer_expr import infer_expr
 
         errors = []
         mat = TTensor(((3, "invariant"), (4, "invariant")))
@@ -385,15 +487,187 @@ class TestStmtForEq:
         assert ctx.s.apply(i_dim) == 3
         assert ctx.s.apply(j_dim) == 4
 
+    def test_slice_start_end_eq(self):
+        """
+        loop_index_assign_nd unifies slice start/end variables with the
+        corresponding tensor dimension.
+        """
+
+        errors = []
+        mat = TTensor(((5, "invariant"), (4, "invariant")))
+        ctx = make_stmt_ctx(env={"results": mat}, errors=errors)
+
+        start_dim = new_dim()
+        end_dim = new_dim()
+
+        ctx.env["start"] = start_dim
+        ctx.env["end"] = end_dim
+
+        stmt_for_eq = IndexingandSlicing().type_rules()["loop_index_assign_nd"]
+
+        _, ctx.s = stmt_for_eq(
+            (
+                "loop_index_assign_nd",
+                "results",
+                [
+                    ("slice_item", ("var", "start"), ("var", "end")),
+                    ("index_item", ("num", 1)),
+                ],
+                ("num", 1.0),
+            ),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert errors == []
+        assert ctx.s.apply(start_dim) == 5
+        assert ctx.s.apply(end_dim) == 5
+
+    def test_open_slice_eq(self):
+        """
+        Open-ended slices do not produce type errors.
+        """
+        errors = []
+        mat = TTensor(((3, "invariant"), (4, "invariant")))
+        ctx = make_stmt_ctx(env={"results": mat}, errors=errors)
+
+        stmt_for_eq = IndexingandSlicing().type_rules()["loop_index_assign_nd"]
+
+        _, ctx.s = stmt_for_eq(
+            (
+                "loop_index_assign_nd",
+                "results",
+                [
+                    ("slice_item", None, None),
+                    ("index_item", ("num", 2)),
+                ],
+                ("num", 1.0),
+            ),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert errors == []
+
+    def test_body_for_map_basic(self):
+        """
+        body_for_map infers rhs type.
+        """
+        errors = []
+        ctx = make_stmt_ctx(
+            env={
+                "results": T_REAL,
+                "x": T_REAL,
+            },
+            errors=errors,
+        )
+
+        stmt_for_eq = IndexingandSlicing().type_rules()["body_for_map"]
+
+        _, ctx.s = stmt_for_eq(
+            ("body_for_map", "results", [], ("var", "x")),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert errors == []
+
+    def test_body_for_map_indexed(self):
+        """
+        body_for_map unifies each loop var's TDim to the array dimension.
+        """
+        errors = []
+        mat = TTensor(((3, "invariant"), (4, "invariant")))
+        ctx = make_stmt_ctx(env={"results": mat}, errors=errors)
+
+        i_dim = new_dim()
+        j_dim = new_dim()
+        ctx.env["i"] = i_dim
+        ctx.env["j"] = j_dim
+
+        stmt_for_eq = IndexingandSlicing().type_rules()["body_for_map"]
+
+        _, ctx.s = stmt_for_eq(
+            (
+                "body_for_map",
+                "results",
+                [
+                    ("index_item", ("var", "i")),
+                    ("index_item", ("var", "j")),
+                ],
+                ("num", 1.0),
+            ),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert errors == []
+        assert ctx.env["i"] is i_dim
+        assert ctx.env["j"] is j_dim
+        assert ctx.s.apply(i_dim) == 3
+        assert ctx.s.apply(j_dim) == 4
+
+    def test_body_for_map_slice(self):
+        """
+        body_for_map unifies slice start/end variables with the corresponding
+        tensor dimension.
+        """
+        errors = []
+        mat = TTensor(((5, "invariant"), (4, "invariant")))
+        ctx = make_stmt_ctx(env={"results": mat}, errors=errors)
+
+        start_dim = new_dim()
+        end_dim = new_dim()
+
+        ctx.env["start"] = start_dim
+        ctx.env["end"] = end_dim
+
+        stmt_for_eq = IndexingandSlicing().type_rules()["body_for_map"]
+
+        _, ctx.s = stmt_for_eq(
+            (
+                "body_for_map",
+                "results",
+                [
+                    ("slice_item", ("var", "start"), ("var", "end")),
+                    ("index_item", ("num", 1)),
+                ],
+                ("num", 1.0),
+            ),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert errors == []
+        assert ctx.s.apply(start_dim) == 5
+        assert ctx.s.apply(end_dim) == 5
+
 
 class TestStmtForPluseq:
     """Test += accumulation statement type inference."""
 
     def test_basic_pluseq(self):
         """Basic for_pluseq infers rhs type."""
-        from physika.features.indexing_and_slicing import IndexingandSlicing
-        from physika.utils.infer_expr import infer_expr
-
         errors = []
         ctx = make_stmt_ctx(
             env={
@@ -421,9 +695,6 @@ class TestStmtForPluseq:
         """
         loop_index_pluseq unifies each loop var's TDim to the array dimension.
         """
-        from physika.features.indexing_and_slicing import IndexingandSlicing
-        from physika.utils.infer_expr import infer_expr
-
         errors = []
         mat = TTensor(((3, "invariant"), (4, "invariant")))
         ctx = make_stmt_ctx(env={"C": mat}, errors=errors)
@@ -462,3 +733,144 @@ class TestStmtForPluseq:
         # substitution resolves them to concrete dimensions
         assert ctx.s.apply(i_dim) == 3
         assert ctx.s.apply(j_dim) == 4
+
+    def test_indexed_pluseq_slice(self):
+        """
+        loop_index_pluseq unifies slice bounds with the corresponding
+        array dimension.
+        """
+        errors = []
+        mat = TTensor(((3, "invariant"), (4, "invariant")))
+        ctx = make_stmt_ctx(env={"C": mat}, errors=errors)
+
+        i_dim = new_dim()
+        ctx.env["i"] = i_dim
+
+        stmt_for_pluseq = IndexingandSlicing().type_rules(
+        )["loop_index_pluseq"]
+
+        _, ctx.s = stmt_for_pluseq(
+            (
+                "loop_index_pluseq",
+                "C",
+                [
+                    ("slice_item", ("var", "i"), None),
+                    ("index_item", ("num", 1)),
+                ],
+                ("num", 1.0),
+            ),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert errors == []
+        assert ctx.env["i"] is i_dim
+        assert ctx.s.apply(i_dim) == 3
+
+    def test_for_pluseq_basic_indexed(self):
+        """
+        Basic indexed for_pluseq infers rhs type.
+        """
+        errors = []
+        mat = TTensor(((3, "invariant"), (4, "invariant")))
+        ctx = make_stmt_ctx(env={"C": mat}, errors=errors)
+
+        stmt_for_pluseq = IndexingandSlicing().type_rules()["for_pluseq"]
+
+        _, ctx.s = stmt_for_pluseq(
+            (
+                "for_pluseq",
+                "C",
+                [
+                    ("index_item", ("num", 0)),
+                    ("index_item", ("num", 1)),
+                ],
+                ("num", 1.0),
+            ),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert errors == []
+
+    def test_for_pluseq_indexed(self):
+        """
+        for_pluseq unifies each loop var's TDim to the array dimension.
+        """
+        errors = []
+        mat = TTensor(((3, "invariant"), (4, "invariant")))
+        ctx = make_stmt_ctx(env={"C": mat}, errors=errors)
+
+        i_dim = new_dim()
+        j_dim = new_dim()
+        ctx.env["i"] = i_dim
+        ctx.env["j"] = j_dim
+
+        stmt_for_pluseq = IndexingandSlicing().type_rules()["for_pluseq"]
+
+        _, ctx.s = stmt_for_pluseq(
+            (
+                "for_pluseq",
+                "C",
+                [
+                    ("index_item", ("var", "i")),
+                    ("index_item", ("var", "j")),
+                ],
+                ("num", 1.0),
+            ),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert errors == []
+        assert ctx.env["i"] is i_dim
+        assert ctx.env["j"] is j_dim
+        assert ctx.s.apply(i_dim) == 3
+        assert ctx.s.apply(j_dim) == 4
+
+    def test_for_pluseq_slice(self):
+        """
+        for_pluseq unifies slice bounds with the corresponding array dimension.
+        """
+        errors = []
+        mat = TTensor(((3, "invariant"), (4, "invariant")))
+        ctx = make_stmt_ctx(env={"C": mat}, errors=errors)
+
+        i_dim = new_dim()
+        ctx.env["i"] = i_dim
+
+        stmt_for_pluseq = IndexingandSlicing().type_rules()["for_pluseq"]
+
+        _, ctx.s = stmt_for_pluseq(
+            (
+                "for_pluseq",
+                "C",
+                [
+                    ("slice_item", ("var", "i"), None),
+                    ("index_item", ("num", 1)),
+                ],
+                ("num", 1.0),
+            ),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert errors == []
+        assert ctx.env["i"] is i_dim
+        assert ctx.s.apply(i_dim) == 3
