@@ -621,7 +621,6 @@ class TestStmtForEq:
         assert ctx.env["i"] is i_dim
         assert ctx.env["j"] is j_dim
 
-
     def test_body_for_map_slice(self):
         """
         body_for_map unifies slice start/end variables with the corresponding
