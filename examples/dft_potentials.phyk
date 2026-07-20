@@ -1,5 +1,5 @@
 # ============================================================
-# DFT external potentials (port of SimpleDFT.jl potentials.jl)
+# DFT external potentials
 # ============================================================
 
 from dft_atoms import Atoms, flat_index, axis_index, fold_freq, cell_volume, sample_coord, recip_scale, g_squared, active_mask, active_subset, structure_factor
@@ -8,19 +8,26 @@ from dft_operators import op_J
 π = 3.141592653589793
 
 #----------------------------------------------------------------
-#   Vcoul   Coulomb potential on the full reciprocal grid
-#   G2      |G|^2 on the full grid (atoms.g2())
-#   Sf      structure factor (atoms.sf())
+#   G2    :  |G|² on the full reciprocal grid (atoms.g2())
+#   Sf    :  Structure factor of all nuclei (atoms.sf())
+#   Vcoul :  Reciprocal-space Coulomb potential
 #----------------------------------------------------------------
 
 #------------------------------------------------------------------
-# All-electron Coulomb potential of a point nucleus.
-# Vcoul(G) = -4π Z / |G|², weighted by the structure factor,transformed to real space by op_J. 
+# Compute the reciprocal-space Coulomb potential of a point nucleus
+# located at the origin:
+#
+#     V(G) = -4πZ / |G|²
+#
+# The structure factor shifts this contribution to the actual nuclear
+# positions in the unit cell, after which op_J transforms the total
+# potential to real space.
 #------------------------------------------------------------------
 
 def coulomb(atoms: Atoms): ℂ[k]:
-    G2 : ℝ[k] = atoms.g2()              #  Get squared magnitudes of reciprocal lattice vectors |G|²
-    nonzero : ℝ[k] = gt(G2, 0.0) * 1.0  # Mask: 1.0 where G > 0, 0.0 at the origin
-    safe_G2 : ℝ[k] = G2 + (1.0 - nonzero) # Replace 0.0 with 1.0 to avoid division error
-    Vcoul : ℝ[k] = ((-4.0) * π * atoms.Z_nuc[0] / safe_G2) * nonzero    # Calc potential (-4πZ/G²), force origin back to 0.0
-    return op_J(Vcoul * atoms.sf(), atoms.s1, atoms.s2, atoms.s3)       #Apply structure factor and map the total potential back to real space
+    G2 : ℝ[k] = atoms.g2()
+    # Mask the G = 0 division to avoid propagating Inf/NaN through Physika's autodiff
+    nonzero : ℝ[k] = gt(G2, 0.0) * 1.0
+    safe_G2 : ℝ[k] = G2 + (1.0 - nonzero)
+    Vcoul : ℝ[k] = ((-4.0) * π * atoms.Z_nuc[0] / safe_G2) * nonzero
+    return op_J(Vcoul * atoms.sf(), atoms.s1, atoms.s2, atoms.s3)       # Apply structure factor and map the total potential back to real space
