@@ -701,6 +701,14 @@ class TestPhysikaClass:
         Verifies physika_class.phyk example runs correctly and checks
         output values.
         """
+        # Basic class examples
+        obj_example_class = ns()["obj_example_class"]
+        assert float(obj_example_class.class_method()) == pytest.approx(1.0)
+
+        obj_scalar_class = ns()["obj_scalar_class"]
+        assert float(
+            obj_scalar_class.return_member_variable()) == pytest.approx(3.0)
+
         a = ns()["a"]
         # checks field access
         assert float(a.x) == pytest.approx(3.0)

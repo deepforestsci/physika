@@ -20,6 +20,45 @@ def norm_sq_wrt_x(x):
     return vec.norm_sq()
 
 # === Classes ===
+class ExampleClass(nn.Module):
+    def __init__(self, ):
+        super().__init__()
+        self.learnable_params = []
+
+    def class_method(self):
+        this = self
+        return 1
+
+    @property
+    def params(self):
+        return list(self.parameters())
+
+    def update(self, lr, grads):
+        with torch.no_grad():
+            for p, g in zip(self.parameters(), grads):
+                if g is not None:
+                    p -= lr * g
+
+class ScalarClass(nn.Module):
+    def __init__(self, x):
+        super().__init__()
+        self.x = torch.as_tensor(x).float()
+        self.learnable_params = [self.x]
+
+    def return_member_variable(self):
+        this = self
+        return self.x
+
+    @property
+    def params(self):
+        return list(self.parameters())
+
+    def update(self, lr, grads):
+        with torch.no_grad():
+            for p, g in zip(self.parameters(), grads):
+                if g is not None:
+                    p -= lr * g
+
 class Vec(nn.Module):
     def __init__(self, x, y):
         super().__init__()
@@ -125,6 +164,10 @@ class B(nn.Module):
                     p -= lr * g
 
 # === Program ===
+obj_example_class = ExampleClass().to(DEVICE)
+physika_print(obj_example_class.class_method())
+obj_scalar_class = ScalarClass(3.0).to(DEVICE)
+physika_print(obj_scalar_class.return_member_variable())
 a = Vec(3.0, 4.0)
 b = Vec(1.0, 0.0)
 physika_print(a.x)
