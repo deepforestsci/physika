@@ -21,7 +21,7 @@
 
 # Imports required by Atoms and the DFT operators.
 
-from dft_atoms import Atoms, cell_volume, flat_index, axis_index, fold_freq, recip_scale, g_squared, active_mask, active_subset
+from dft_atoms import Atoms, cell_volume, flat_index, axis_index, fold_freq, recip_scale, g_squared, active_mask, active_subset, structure_factor
 
 π = 3.141592653589793
 
@@ -189,3 +189,55 @@ def op_Jdag(atoms: Atoms, W: ℂ[k]): ℂ[k]:
 def op_Jdag_mat(atoms: Atoms, W: ℂ[m, k]): ℂ[m, k]:
     Ngrid : ℕ = atoms.s1 * atoms.s2 * atoms.s3
     return op_I_mat(atoms, W) / Ngrid
+
+#------------------------------------------------------------------
+# Example: apply the DFT operators to a hydrogen atom
+# in a cubic simulation cell.
+#
+# The structure factor is used as a representative
+# reciprocal-space quantity. The operators shown
+# below act generically on reciprocal-space arrays,
+# such as wavefunctions, densities, and potentials.
+#------------------------------------------------------------------
+
+# Cubic cell: side a=16 Bohr, kinetic cutoff ecut=16 Hartree,
+# 60 grid points per axis
+a : ℝ = 16.0
+ecut : ℝ = 16.0
+s : ℕ = 60
+
+# Single H nucleus (Z=1) at the cell origin, one occupied state (f=1).
+px : ℝ = 0.0
+py : ℝ = 0.0
+pz : ℝ = 0.0
+Z_nuc : ℝ[1] = [1.0]
+f : ℝ[1] = [1.0]
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, 1, 1, Z_nuc, f)
+
+# Structure factor Sf(G)
+Sf : ℂ[k] = H_atom.sf()
+Sf[0]                                          # 1+0j
+
+# Overlap operator:
+Sf_overlap : ℂ[k] = op_O(H_atom, Sf)
+Sf_overlap[0]                                  # 4096+0j
+
+# Laplacian:
+Sf_laplacian : ℂ[k] = op_L(H_atom, Sf)
+Sf_laplacian_inv : ℂ[k] = op_Linv(H_atom, Sf_laplacian)
+Sf_laplacian_inv[0]                            # 0+0j
+Sf_laplacian_inv[1]                            # 1+0j
+
+# Forward/inverse transform pair: op_J and op_I round-trip exactly.
+Sf_forward : ℂ[k] = op_J(H_atom, Sf)
+Sf_forward_inverse : ℂ[k] = op_I(H_atom, Sf_forward)
+Sf_forward_inverse[0]                          # 1+0j
+
+# active plane-wave basis (|G|^2 <= 2*ecut).
+Sf_active : ℂ[p] = op_Idag(H_atom, Sf_forward_inverse)
+len(Sf_active)                                 # 12533 active plane waves
+
+# Adjoint of the forward transform.
+Sf_adjoint : ℂ[k] = op_Jdag(H_atom, Sf_forward)
+Sf_adjoint[0]                                  # 1/216000

@@ -129,3 +129,32 @@ class Atoms(nn.Module):
 
 # === Program ===
 π = 3.141592653589793
+a = 16.0
+ecut = 16.0
+s = 60
+px = 0.0
+py = 0.0
+pz = 0.0
+Natoms = 1
+Nstate = 1
+Z_nuc = torch.tensor([1.0], device=DEVICE)
+f = torch.tensor([1.0], device=DEVICE)
+H_atom = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f).to(DEVICE)
+physika_print(H_atom.volume())
+fx = H_atom.freq_x()
+fy = H_atom.freq_y()
+fz = H_atom.freq_z()
+x = H_atom.coord_x()
+y = H_atom.coord_y()
+z = H_atom.coord_z()
+gx = H_atom.gx()
+gy = H_atom.gy()
+gz = H_atom.gz()
+G2 = H_atom.g2()
+active = H_atom.active()
+G2c = H_atom.g2c()
+physika_print(len(G2c))
+Sf = H_atom.sf()
+physika_print(Sf[int(0)])
+He_atom = Atoms(16.0, 16.0, 60, 60, 60, 0.0, 0.0, 0.0, 1, 1, torch.tensor([2.0], device=DEVICE), torch.tensor([2.0], device=DEVICE)).to(DEVICE)
+physika_print(len(He_atom.g2c()))

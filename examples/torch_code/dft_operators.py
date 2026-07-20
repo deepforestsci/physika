@@ -125,6 +125,10 @@ def active_mask(G2, ecut):
 def active_subset(G2, active):
     return torch.masked_select(G2, active)
 
+def structure_factor(n1, n2, n3, c, px, py, pz):
+    phase = (c * (((n1 * px) + (n2 * py)) + (n3 * pz)))
+    return torch.exp(((-torch.tensor(1j)) * phase) if isinstance(((-torch.tensor(1j)) * phase), torch.Tensor) else torch.tensor(float(((-torch.tensor(1j)) * phase))))
+
 # === Classes ===
 class Atoms(nn.Module):
     def __init__(self, a, ecut, s1, s2, s3, px, py, pz, Natoms, Nstate, Z_nuc, f):
@@ -217,3 +221,27 @@ class Atoms(nn.Module):
 
 # === Program ===
 π = 3.141592653589793
+a = 16.0
+ecut = 16.0
+s = 60
+px = 0.0
+py = 0.0
+pz = 0.0
+Z_nuc = torch.tensor([1.0], device=DEVICE)
+f = torch.tensor([1.0], device=DEVICE)
+H_atom = Atoms(a, ecut, s, s, s, px, py, pz, 1, 1, Z_nuc, f).to(DEVICE)
+Sf = H_atom.sf()
+physika_print(Sf[int(0)])
+Sf_overlap = op_O(H_atom, Sf)
+physika_print(Sf_overlap[int(0)])
+Sf_laplacian = op_L(H_atom, Sf)
+Sf_laplacian_inv = op_Linv(H_atom, Sf_laplacian)
+physika_print(Sf_laplacian_inv[int(0)])
+physika_print(Sf_laplacian_inv[int(1)])
+Sf_forward = op_J(H_atom, Sf)
+Sf_forward_inverse = op_I(H_atom, Sf_forward)
+physika_print(Sf_forward_inverse[int(0)])
+Sf_active = op_Idag(H_atom, Sf_forward_inverse)
+physika_print(len(Sf_active))
+Sf_adjoint = op_Jdag(H_atom, Sf_forward)
+physika_print(Sf_adjoint[int(0)])
