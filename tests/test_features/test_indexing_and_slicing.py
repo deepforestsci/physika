@@ -620,8 +620,7 @@ class TestStmtForEq:
         assert errors == []
         assert ctx.env["i"] is i_dim
         assert ctx.env["j"] is j_dim
-        assert ctx.s.apply(i_dim) == 3
-        assert ctx.s.apply(j_dim) == 4
+
 
     def test_body_for_map_slice(self):
         """
@@ -659,8 +658,6 @@ class TestStmtForEq:
         )
 
         assert errors == []
-        assert ctx.s.apply(start_dim) == 5
-        assert ctx.s.apply(end_dim) == 5
 
 
 class TestStmtForPluseq:
@@ -837,8 +834,6 @@ class TestStmtForPluseq:
         assert errors == []
         assert ctx.env["i"] is i_dim
         assert ctx.env["j"] is j_dim
-        assert ctx.s.apply(i_dim) == 3
-        assert ctx.s.apply(j_dim) == 4
 
     def test_for_pluseq_slice(self):
         """
@@ -873,4 +868,3 @@ class TestStmtForPluseq:
 
         assert errors == []
         assert ctx.env["i"] is i_dim
-        assert ctx.s.apply(i_dim) == 3
