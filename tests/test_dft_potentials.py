@@ -38,8 +38,7 @@ def ref_coulomb(Z, G2, Sf):
     # then a plain torch.fft.fftn matching op_J's own definition.
     nonzero = G2 > 0
     safe_G2 = torch.where(nonzero, G2, torch.ones_like(G2))
-    Vcoul = torch.where(nonzero, -4.0 * PI * Z / safe_G2,
-                        torch.zeros_like(G2))
+    Vcoul = torch.where(nonzero, -4.0 * PI * Z / safe_G2, torch.zeros_like(G2))
     return torch.fft.fftn((Vcoul * Sf).reshape(S)).reshape(-1) / N
 
 
