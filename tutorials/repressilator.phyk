@@ -1,0 +1,175 @@
+# ============================================================
+# Parameter Learning for the Repressilator (3-gene oscillator)
+# ============================================================
+# The repressilator (Elowitz & Leibler, Nature 2000) is a
+# synthetic gene network of three repressors in a ring: each
+# protein represses the next gene's transcription, producing
+# sustained oscillations. In dimensionless form, for gene i
+# with mRNA m_i and protein p_i (repressor is p_{i-1}):
+#
+#   dm_i/dt = a0 + a / (1 + p_j^n) - m_i     (Hill repression)
+#   dp_i/dt = beta * (m_i - p_i)
+#
+# Parameters theta = [a, a0, beta] (Hill exponent n = 2 fixed).
+# Same adjoint machinery as FitzHugh-Nagumo (full-trajectory
+# MSE loss + running-cost co-state); only f, the state size
+# (6-D), and the optimiser differ. Because a (~20) dwarfs
+# a0, beta (~1), plain gradient descent is ill-conditioned, so
+# we hand-roll a bias-corrected Adam step -- scale-free updates
+# that Physika expresses with the same primitives.
+# ============================================================
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def append(x: ℝ[m], var: ℝ): ℝ[n]:
+    new_length: ℝ = len(x) + 1
+    results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
+    for i:ℕ(new_length):
+        if i<len_x:
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+def f(state: ℝ[6], θ: ℝ[3]): ℝ[6]:
+    m1: ℝ = state[0]
+    m2: ℝ = state[1]
+    m3: ℝ = state[2]
+    p1: ℝ = state[3]
+    p2: ℝ = state[4]
+    p3: ℝ = state[5]
+    a: ℝ = θ[0]
+    a0: ℝ = θ[1]
+    beta: ℝ = θ[2]
+    dm1: ℝ = a0 + a / (1.0 + p3 ** 2) - m1
+    dm2: ℝ = a0 + a / (1.0 + p1 ** 2) - m2
+    dm3: ℝ = a0 + a / (1.0 + p2 ** 2) - m3
+    dp1: ℝ = beta * (m1 - p1)
+    dp2: ℝ = beta * (m2 - p2)
+    dp3: ℝ = beta * (m3 - p3)
+    return [dm1, dm2, dm3, dp1, dp2, dp3]
+
+def rk4_step(state: ℝ[6], θ: ℝ[3]): ℝ[6]:
+    k1: ℝ[6] = f(state, θ)
+    k2_state: ℝ[6] = state + 0.5 * dt * k1
+    k2: ℝ[6] = f(k2_state, θ)
+    k3_state: ℝ[6] = state + 0.5 * dt * k2
+    k3: ℝ[6] = f(k3_state, θ)
+    k4_state: ℝ[6] = state + dt * k3
+    k4: ℝ[6] = f(k4_state, θ)
+    return state + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+dt: ℝ = 0.1
+timesteps: ℝ = 200
+
+def solver(θ: ℝ[3]): ℝ[6, m]:
+    state: ℝ[6] = [0.0, 0.0, 0.0, 1.0, 2.0, 3.0]
+    m1_array: ℝ[1] = [0.0]
+    m2_array: ℝ[1] = [0.0]
+    m3_array: ℝ[1] = [0.0]
+    p1_array: ℝ[1] = [1.0]
+    p2_array: ℝ[1] = [2.0]
+    p3_array: ℝ[1] = [3.0]
+    for i:ℕ(timesteps):
+        results = rk4_step(state, θ)
+        m1 = results[0]
+        m2 = results[1]
+        m3 = results[2]
+        p1 = results[3]
+        p2 = results[4]
+        p3 = results[5]
+        m1_array = append(m1_array, m1)
+        m2_array = append(m2_array, m2)
+        m3_array = append(m3_array, m3)
+        p1_array = append(p1_array, p1)
+        p2_array = append(p2_array, p2)
+        p3_array = append(p3_array, p3)
+        state = results
+    return [m1_array, m2_array, m3_array, p1_array, p2_array, p3_array]
+
+true_theta: ℝ[3] = [40.0, 1.0, 1.0]
+true_results: ℝ[6, m] = solver(true_theta)
+true_m1: ℝ[m] = true_results[0]
+true_m2: ℝ[m] = true_results[1]
+true_m3: ℝ[m] = true_results[2]
+true_p1: ℝ[m] = true_results[3]
+true_p2: ℝ[m] = true_results[4]
+true_p3: ℝ[m] = true_results[5]
+
+def adjoint_grad(θ: ℝ[3]): ℝ[n]:
+    states: ℝ[6, m] = solver(θ)
+    m1_array: ℝ[m] = states[0]
+    m2_array: ℝ[m] = states[1]
+    m3_array: ℝ[m] = states[2]
+    p1_array: ℝ[m] = states[3]
+    p2_array: ℝ[m] = states[4]
+    p3_array: ℝ[m] = states[5]
+    m: ℝ = get_1d_array_length(m1_array)
+    s: ℝ[6] = [
+        (m1_array[m-1] - true_m1[m-1]) / m,
+        (m2_array[m-1] - true_m2[m-1]) / m,
+        (m3_array[m-1] - true_m3[m-1]) / m,
+        (p1_array[m-1] - true_p1[m-1]) / m,
+        (p2_array[m-1] - true_p2[m-1]) / m,
+        (p3_array[m-1] - true_p3[m-1]) / m
+    ]
+    L: ℝ[3] = zero_1d_array(3)
+    for i:ℕ(m-1):
+        idx = m - 2 - i
+        m1 = m1_array[idx]
+        m2 = m2_array[idx]
+        m3 = m3_array[idx]
+        p1 = p1_array[idx]
+        p2 = p2_array[idx]
+        p3 = p3_array[idx]
+        state = [m1, m2, m3, p1, p2, p3]
+        J_state = grad(rk4_step(state, θ), state)
+        J_theta = grad(rk4_step(state, θ), θ)
+        L += s @ J_theta
+        r1 = (m1_array[idx] - true_m1[idx]) / m
+        r2 = (m2_array[idx] - true_m2[idx]) / m
+        r3 = (m3_array[idx] - true_m3[idx]) / m
+        r4 = (p1_array[idx] - true_p1[idx]) / m
+        r5 = (p2_array[idx] - true_p2[idx]) / m
+        r6 = (p3_array[idx] - true_p3[idx]) / m
+        residual = [r1, r2, r3, r4, r5, r6]
+        s = residual + (s @ J_state)
+    return L
+
+θ: ℝ[3] = [30.0, 1.5, 0.7]
+learning_rate: ℝ = 0.05
+beta1: ℝ = 0.9
+beta2: ℝ = 0.999
+eps_adam: ℝ = 0.00000001
+m_adam: ℝ[3] = [0.0, 0.0, 0.0]
+v_adam: ℝ[3] = [0.0, 0.0, 0.0]
+t_adam: ℝ = 0.0
+
+# ------------------------------------------------------------------
+# set epochs higher (e.g. 800) for real training; here it is 1 so
+# physika's test suite (tests/test_tutorials.py) runs quickly
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+for i:ℕ(epochs):
+    g = adjoint_grad(θ)
+    t_adam = t_adam + 1.0
+    m_adam = beta1 * m_adam + (1.0 - beta1) * g
+    v_adam = beta2 * v_adam + (1.0 - beta2) * (g * g)
+    mhat = m_adam / (1.0 - beta1 ** t_adam)
+    vhat = v_adam / (1.0 - beta2 ** t_adam)
+    θ = θ - learning_rate * mhat / (sqrt(vhat) + eps_adam)
+
+pred_results = solver(θ)
+#plot_trajectories(true_results, pred_results)
