@@ -23,3 +23,23 @@ def lda_c_chachiyo(n):
 
 # === Program ===
 π = 3.141592653589793
+n0 = (1.0 / 4096.0)
+n = torch.tensor([[n0, n0, n0, n0]], device=DEVICE)
+ex_vx = lda_x(n)
+ex = ex_vx[int(0)]
+vx = ex_vx[int(1)]
+physika_print(ex[int(0), int(0)])
+physika_print(vx[int(0), int(0)])
+physika_print(ex[int(0), int(1)])
+physika_print(vx[int(0), int(1)])
+ec_vc = lda_c_chachiyo(n)
+ec = ec_vc[int(0)]
+vc = ec_vc[int(1)]
+physika_print(ec[int(0), int(0)])
+physika_print(vc[int(0), int(0)])
+physika_print(ec[int(0), int(1)])
+physika_print(vc[int(0), int(1)])
+exc = (ex + ec)
+vxc = (vx + vc)
+physika_print(exc[int(0), int(0)])
+physika_print(vxc[int(0), int(0)])

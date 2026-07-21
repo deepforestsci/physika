@@ -30,4 +30,32 @@ def coulomb(atoms: Atoms): ℂ[k]:
     nonzero : ℝ[k] = gt(G2, 0.0) * 1.0
     safe_G2 : ℝ[k] = G2 + (1.0 - nonzero)
     Vcoul : ℝ[k] = ((-4.0) * π * atoms.Z_nuc[0] / safe_G2) * nonzero
-    return op_J(Vcoul * atoms.sf(), atoms.s1, atoms.s2, atoms.s3)       # Apply structure factor and map the total potential back to real space
+    # Apply structure factor and map the total potential back to real space
+    return op_J(atoms, Vcoul * atoms.sf())
+
+#------------------------------------------------------------------
+# Example: Coulomb potential of a hydrogen nucleus in a cubic cell.
+#------------------------------------------------------------------
+
+# Cubic cell: side a=16 Bohr, kinetic cutoff ecut=16 Hartree,
+# 60 grid points per axis.
+a : ℝ = 16.0
+ecut : ℝ = 16.0
+s : ℕ = 60
+
+# Hydrogen atom at the cell origin.
+px : ℝ = 0.0
+py : ℝ = 0.0
+pz : ℝ = 0.0
+
+Natoms : ℕ = 1
+Nstate : ℕ = 1
+Z_nuc : ℝ[1] = [1.0]      # Nuclear charge
+f : ℝ[1] = [1.0]          # Number of electrons
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f)
+
+# Real-space Coulomb potential of the nucleus, V(r).
+Vext : ℂ[k] = coulomb(H_atom)
+Vext[0]   # Potential at origin, where the hydrogen nucleus is located.
+Vext[1]   # Potential at the adjacent grid point.

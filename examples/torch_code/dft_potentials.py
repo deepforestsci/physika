@@ -11,7 +11,7 @@ def coulomb(atoms):
     nonzero = (torch.gt(G2, 0.0) * 1.0)
     safe_G2 = (G2 + (1.0 - nonzero))
     Vcoul = (((((-4.0) * π) * atoms.Z_nuc[int(0)]) / safe_G2) * nonzero)
-    return op_J((Vcoul * atoms.sf()), atoms.s1, atoms.s2, atoms.s3)
+    return op_J(atoms, (Vcoul * atoms.sf()))
 
 def flat_index(k):
     return torch.arange(k)
@@ -145,3 +145,17 @@ class Atoms(nn.Module):
 
 # === Program ===
 π = 3.141592653589793
+a = 16.0
+ecut = 16.0
+s = 60
+px = 0.0
+py = 0.0
+pz = 0.0
+Natoms = 1
+Nstate = 1
+Z_nuc = torch.tensor([1.0], device=DEVICE)
+f = torch.tensor([1.0], device=DEVICE)
+H_atom = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f).to(DEVICE)
+Vext = coulomb(H_atom)
+physika_print(Vext[int(0)])
+physika_print(Vext[int(1)])
