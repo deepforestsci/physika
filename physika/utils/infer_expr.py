@@ -860,7 +860,7 @@ def expr_call(node: Any,
 
     # Built-in functions
     elementwise_ops = ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh",
-                       "real", "imag")
+                       "real", "imag", "gt", "le", "mod", "floor")
     if func_name in elementwise_ops:
         # Element-wise ops preserve the shape of their argument
         if arg_types:
@@ -873,6 +873,17 @@ def expr_call(node: Any,
     if func_name == "grad":
         # TODO: We should add support to get the tangent space type (e.g. Tₓ)
         return (arg_types[1] if len(arg_types) >= 2 else None), s
+    if func_name == "reshape":
+        dims: list[tuple[Union[int, TDim], str]] = []
+        for d in args[1:]:
+            if isinstance(d, tuple) and d[0] == "num" and d[1] >= 0:
+                dims.append((int(d[1]), "invariant"))
+            else:
+                dims.append((new_dim(), "invariant"))
+        return TTensor(tuple(dims)), s
+    if func_name in ("mask_select", "arange"):
+        # boolean select -> 1-D, runtime-dependent length
+        return TTensor(((new_dim(), "invariant"), )), s
 
     # User defined functions
     if func_name in ctx.func_env:
