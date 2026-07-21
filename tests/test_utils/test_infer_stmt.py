@@ -6,7 +6,6 @@ from physika.utils.types import (
     TVar,
     TDim,
     Substitution,
-    new_dim,
 )
 from physika.utils.infer_stmts import (
     StmtContext,
@@ -20,8 +19,6 @@ from physika.utils.infer_stmts import (
     stmt_body_zeros_decl,
     stmt_body_for_accum,
     stmt_for_assign,
-    stmt_for_eq,
-    stmt_for_pluseq,
     stmt_if as stmt_loop_if,
     stmt_if as stmt_loop_if_else,
     stmt_decl,
@@ -830,79 +827,6 @@ class TestStmtForAssign:
         ctx = make_stmt_ctx(errors=errors)
         stmt_for_assign(('loop_assign', 'z', ('num', 3.14)), ctx)
         assert ctx.env['z'] == T_REAL
-
-
-class TestStmtForEq:
-    """Test index assignment ``=`` statement type inference."""
-
-    def test_basic_eq(self):
-        """Basic loop_index_assign_nd infers rhs type."""
-        errors = []
-        ctx = make_stmt_ctx(env={
-            'results': T_REAL,
-            'x': T_REAL
-        },
-                            errors=errors)
-        stmt_for_eq(('loop_index_assign_nd', 'results', [], ('var', 'x')), ctx)
-        assert errors == []
-
-    def test_indexed_eq(self):
-        """
-        loop_index_assign_nd unifies each loop var's TDim to the array
-        dimension.
-        """
-        errors = []
-        mat = TTensor(((3, 'invariant'), (4, 'invariant')))
-        ctx = make_stmt_ctx(env={'results': mat}, errors=errors)
-        # Simulate i, j registered by stmt_body_for_accum before this stmt
-        i_dim = new_dim()
-        j_dim = new_dim()
-        ctx.env['i'] = i_dim
-        ctx.env['j'] = j_dim
-        stmt_for_eq(('loop_index_assign_nd', 'results', [('var', 'i'),
-                                                         ('var', 'j')],
-                     ('num', 1.0)), ctx)
-        assert errors == []
-        # env keeps the raw TDim objects unchanged
-        assert ctx.env['i'] is i_dim
-        assert ctx.env['j'] is j_dim
-        # substitution resolves them to concrete dimensions
-        assert ctx.s.apply(i_dim) == 3
-        assert ctx.s.apply(j_dim) == 4
-
-
-class TestStmtForPluseq:
-    """Test += accumulation statement type inference."""
-
-    def test_basic_pluseq(self):
-        """Basic for_pluseq infers rhs type."""
-        errors = []
-        ctx = make_stmt_ctx(env={'total': T_REAL, 'x': T_REAL}, errors=errors)
-        stmt_for_pluseq(('for_pluseq', 'total', [], ('var', 'x')), ctx)
-        assert errors == []
-
-    def test_indexed_pluseq(self):
-        """
-        loop_index_pluseq unifies each loop var's TDim to the array dimension.
-        """
-        errors = []
-        mat = TTensor(((3, 'invariant'), (4, 'invariant')))
-        ctx = make_stmt_ctx(env={'C': mat}, errors=errors)
-        # Simulate i, j registered by stmt_body_for_accum before this stmt
-        i_dim = new_dim()
-        j_dim = new_dim()
-        ctx.env['i'] = i_dim
-        ctx.env['j'] = j_dim
-        stmt_for_pluseq(
-            ('loop_index_pluseq', 'C', [('var', 'i'),
-                                        ('var', 'j')], ('num', 1.0)), ctx)
-        assert errors == []
-        # env keeps the raw TDim objects unchanged
-        assert ctx.env['i'] is i_dim
-        assert ctx.env['j'] is j_dim
-        # substitution resolves them to concrete dimensions
-        assert ctx.s.apply(i_dim) == 3
-        assert ctx.s.apply(j_dim) == 4
 
 
 class TestStmtLoopIf:

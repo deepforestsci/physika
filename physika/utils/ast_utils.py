@@ -327,6 +327,8 @@ def _is_loop_var(expr: ASTNode, var: str) -> bool:
     >>> _is_loop_var(("var", "j"), "k")
     False
     """
+    if isinstance(expr, tuple) and expr[0] == "index_item":
+        expr = expr[1]
     return ((isinstance(expr, tuple) and expr[0] == "var" and expr[1] == var)
             or (var == "i" and isinstance(expr, tuple)
                 and expr[0] == "imaginary"))
@@ -466,6 +468,8 @@ def _lhs_var_name(expr: ASTNode) -> str | None:
     'i'
     >>> _lhs_var_name(("num", 0.0))
     """
+    if isinstance(expr, tuple) and expr[0] == "index_item":
+        expr = expr[1]
     if isinstance(expr, tuple) and expr[0] == "var":
         return expr[1]
     if isinstance(expr, tuple) and expr[0] == "imaginary":
@@ -570,6 +574,9 @@ def ast_to_torch_expr(node: ASTNode,
     elif op == "var":
         return node[1]
 
+    elif op == "index_item":
+        return ast_to_torch_expr(node[1], indent, current_loop_var)
+
     elif op == "add":
         left = ast_to_torch_expr(node[1], indent, current_loop_var)
         right = ast_to_torch_expr(node[2], indent, current_loop_var)
@@ -653,11 +660,6 @@ def ast_to_torch_expr(node: ASTNode,
                     wrapped = [f"torch.as_tensor({s})" for s in elem_strs]
                     return f"torch.stack([{', '.join(wrapped)}])"
 
-    elif op == "index":
-        var_name = node[1]
-        idx = ast_to_torch_expr(node[2], indent, current_loop_var)
-        return f"{var_name}[int({idx})]"
-
     elif op == "slice":
         var_name = node[1]
         start = ast_to_torch_expr(node[2], indent, current_loop_var)
@@ -672,21 +674,14 @@ def ast_to_torch_expr(node: ASTNode,
         idx = ast_to_torch_expr(node[2], indent, current_loop_var)
         return f"{obj}[int({idx})]"
 
-    elif op == "indexN":
-        arr = node[1]
-        idx_codes = [
-            f"int({ast_to_torch_expr(e, indent, current_loop_var)})"
-            for e in node[2]
-        ]
-        return f"{arr}[{', '.join(idx_codes)}]"
-
     elif op == "call":
         func_name = node[1]
         args = node[2]
         arg_strs = [
             ast_to_torch_expr(arg, indent, current_loop_var) for arg in args
         ]
-        arg = arg_strs[0]
+        if arg_strs:
+            arg = arg_strs[0]
 
         # Map built-in functions to PyTorch equivalents
         torch_funcs = {
@@ -981,26 +976,10 @@ def emit_func_loop_body(
             lines.append(
                 f"{prefix}{var_name} = {ast_to_torch_expr(expr, current_loop_var=active)}"  # noqa: E501
             )
-        elif tag == "loop_index_assign_nd":
-            _, arr_name, idx_list, rhs = loop_stmt
-            indices = ", ".join(
-                f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
-                for idx in idx_list)
-            rhs_code = ast_to_torch_expr(rhs, current_loop_var=loop_var)
-            lines.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
         elif tag == "loop_pluseq":
             _, var_name, expr = loop_stmt
             lines.append(
                 f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=active)}"  # noqa: E501
-            )
-        elif tag == "loop_index_pluseq":
-            _, arr_name, idx_list, rhs = loop_stmt
-            idx_codes = [
-                ast_to_torch_expr(e, current_loop_var=active) for e in idx_list
-            ]
-            rhs_code = ast_to_torch_expr(rhs, current_loop_var=active)
-            lines.append(
-                f"{prefix}{arr_name}[{', '.join(f'int({c})' for c in idx_codes)}] += {rhs_code}"  # noqa: E501
             )
         elif tag == "loop_for_range":
             _, inner_var, start_expr, end_expr, inner_body = loop_stmt
@@ -1121,17 +1100,6 @@ def emit_body_stmts(
             expr_code = generate_solve_call(expr)
             lines.append(f"{prefix}{var_name} = {expr_code}")
             known_vars.append(var_name)
-        elif stmt_op == "body_index_assign":
-            _, name, idx, val = stmt
-            idx_code = ast_to_torch_expr(idx)
-            val_code = ast_to_torch_expr(val)
-            lines.append(f"{prefix}{name}[int({idx_code})] = {val_code}")
-        elif stmt_op == "body_index_assign_nd":
-            _, name, indices, val = stmt
-            idx_code = ", ".join(f"int({ast_to_torch_expr(i)})"
-                                 for i in indices)
-            val_code = ast_to_torch_expr(val)
-            lines.append(f"{prefix}{name}[{idx_code}] = {val_code}")
         elif stmt_op == "body_tuple_unpack":
             _, var_names, expr = stmt
             names = [n if isinstance(n, str) else n[0] for n in var_names]
@@ -1448,13 +1416,6 @@ def emit_for_stmts(
             result.append(
                 f"{prefix}{var_name} = {var_name} + {ast_to_torch_expr(expr, current_loop_var=loop_var)}"  # noqa: E501
             )
-        elif body_op == "for_index_assign_nd":
-            _, arr_name, idx_list, rhs_expr = s
-            indices = ", ".join(
-                f"int({ast_to_torch_expr(idx, current_loop_var=loop_var)})"
-                for idx in idx_list)
-            rhs_code = ast_to_torch_expr(rhs_expr, current_loop_var=loop_var)
-            result.append(f"{prefix}{arr_name}[{indices}] = {rhs_code}")
         elif body_op == "for_call":
             _, func_name, arg_asts = s
             arg_strs = [
@@ -1606,17 +1567,6 @@ def generate_statement(stmt: ASTNode,
         expr = stmt[2]
         expr_code = ast_to_torch_expr(expr)
         return f"{name} = {expr_code}"
-
-    elif op == "index_assign":
-        name, idx, val = stmt[1], stmt[2], stmt[3]
-        idx_code = ast_to_torch_expr(
-            ("var", idx)) if isinstance(idx, str) else ast_to_torch_expr(idx)
-        return f"{name}[int({idx_code})] = {ast_to_torch_expr(val)}"
-
-    elif op == "index_assign_nd":
-        name, indices, val = stmt[1], stmt[2], stmt[3]
-        idx_code = ", ".join(f"int({ast_to_torch_expr(i)})" for i in indices)
-        return f"{name}[{idx_code}] = {ast_to_torch_expr(val)}"
 
     elif op == "expr":
         expr = stmt[1]

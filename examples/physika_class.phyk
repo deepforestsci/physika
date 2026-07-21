@@ -1,5 +1,31 @@
 # Physika classes
 
+# ----------------------------------------------
+# Basic Physika class implementation examples
+# ----------------------------------------------
+
+class ExampleClass:
+    def class_method(): ℝ:
+        return 1
+
+obj_example_class: ExampleClass = ExampleClass()
+obj_example_class.class_method()
+
+
+# Class with member variable
+
+class ScalarClass:
+    x: ℝ
+    def return_member_variable(): ℝ:
+        return this.x
+
+
+obj_scalar_class: ScalarClass = ScalarClass(3.0)
+obj_scalar_class.return_member_variable()
+
+
+# ----------------------------------------------
+
 class Vec:
     x : ℝ
     y : ℝ
