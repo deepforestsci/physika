@@ -6,8 +6,8 @@ synthetic bistable circuit of Gardner, Cantor & Collins (*Nature*, 2000). Two
 genes mutually repress each other; with cooperative (Hill) repression the
 circuit becomes **bistable**, settling into one of two stable states: "gene *u*
 on, gene *v* off" or "gene *v* on, gene *u* off". It is a direct sibling of the
-:doc:`/tutorials/repressilator` and :doc:`/tutorials/fitzhugh_nagumo`
-tutorials — the scaffolding (RK4 stepper, trajectory solver, full-trajectory
+:doc:`/tutorials/fitzhugh_nagumo` tutorial (and of the repressilator) — the
+scaffolding (RK4 stepper, trajectory solver, full-trajectory
 adjoint) is identical, and here the parameters even share a scale, so plain
 gradient descent fits them.
 
