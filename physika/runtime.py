@@ -323,6 +323,7 @@ def compute_grad(
         grads = torch.autograd.grad(out,
                                     x,
                                     create_graph=False,
+                                    retain_graph=True,
                                     allow_unused=True)
         result = []
         for g, p in zip(grads, x):
