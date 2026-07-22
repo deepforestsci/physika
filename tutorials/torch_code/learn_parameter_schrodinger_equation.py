@@ -52,7 +52,7 @@ def append_row(x, row):
 
 def schrodinger_rhs(ψ, V, Δx, ℏ, mass):
     ψ_xx = (((torch.roll(ψ, (-1)) - (2 * ψ)) + torch.roll(ψ, 1)) / (Δx ** 2))
-    H_ψ = (((-((ℏ ** 2) / (2 * mass))) * ψ) + (V * ψ))
+    H_ψ = (((-((ℏ ** 2) / (2 * mass))) * ψ_xx) + (V * ψ))
     result = (((-1j) / ℏ) * H_ψ)
     return result
 
@@ -74,7 +74,7 @@ def RK4_step(ψ, dt, V, Δx, ℏ, mass):
 
 def solver(V):
     x = linspace((-200), 200, Nx)
-    ψ0 = (((((1 / σ) * torch.sqrt(3.14 if isinstance(3.14, torch.Tensor) else torch.tensor(float(3.14)))) ** 0.5) * torch.exp(((1j * k0) * x) if isinstance(((1j * k0) * x), torch.Tensor) else torch.tensor(float(((1j * k0) * x))))) * torch.exp(((-((x - x0) ** 2)) / (2 * (σ ** 2))) if isinstance(((-((x - x0) ** 2)) / (2 * (σ ** 2))), torch.Tensor) else torch.tensor(float(((-((x - x0) ** 2)) / (2 * (σ ** 2)))))))
+    ψ0 = ((((1 / (σ * torch.sqrt(3.14 if isinstance(3.14, torch.Tensor) else torch.tensor(float(3.14))))) ** 0.5) * torch.exp(((1j * k0) * x) if isinstance(((1j * k0) * x), torch.Tensor) else torch.tensor(float(((1j * k0) * x))))) * torch.exp(((-((x - x0) ** 2)) / (2 * (σ ** 2))) if isinstance(((-((x - x0) ** 2)) / (2 * (σ ** 2))), torch.Tensor) else torch.tensor(float(((-((x - x0) ** 2)) / (2 * (σ ** 2)))))))
     history = torch.stack([torch.as_tensor(ψ0)])
     counter = 0
     ψ = ψ0
@@ -116,7 +116,7 @@ t_final = 100.0
 x0 = (-50.0)
 k0 = 2.0
 σ = 10.0
-ψ0 = (((((1 / σ) * torch.sqrt(3.14 if isinstance(3.14, torch.Tensor) else torch.tensor(float(3.14)))) ** 0.5) * torch.exp(((1j * k0) * x) if isinstance(((1j * k0) * x), torch.Tensor) else torch.tensor(float(((1j * k0) * x))))) * torch.exp(((-((x - x0) ** 2)) / ((2 * σ) ** 2)) if isinstance(((-((x - x0) ** 2)) / ((2 * σ) ** 2)), torch.Tensor) else torch.tensor(float(((-((x - x0) ** 2)) / ((2 * σ) ** 2))))))
+ψ0 = ((((1 / (σ * torch.sqrt(3.14 if isinstance(3.14, torch.Tensor) else torch.tensor(float(3.14))))) ** 0.5) * torch.exp(((1j * k0) * x) if isinstance(((1j * k0) * x), torch.Tensor) else torch.tensor(float(((1j * k0) * x))))) * torch.exp(((-((x - x0) ** 2)) / ((2 * σ) ** 2)) if isinstance(((-((x - x0) ** 2)) / ((2 * σ) ** 2)), torch.Tensor) else torch.tensor(float(((-((x - x0) ** 2)) / ((2 * σ) ** 2))))))
 V = make_potential(1.8)
 true_values = solver(V)
 guess_barrier_height = torch.tensor(6.0, requires_grad=True)
