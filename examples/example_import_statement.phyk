@@ -19,3 +19,15 @@ torch_funcs_results
 
 f_results: ℝ = f(x)
 f_results
+
+
+# ----------------------------------------------
+# Import from another directory/package
+# Here we import from ``tutorials/`` directory
+# ----------------------------------------------
+
+from tutorials.learn_flux_limiter_euler_equations import superbee
+
+r: ℝ[5] = [-1.0, 0.0, 0.5, 1.0, 2.0]
+phi: ℝ[5] = superbee(r)
+phi
