@@ -178,7 +178,7 @@ This is a product of three parts:
     k0: ℝ = 2.0      # wavenumber (controls momentum)
     σ: ℝ = 10.0     # width of the wave packet
 
-    ψ0: ℂ[Nx] = (1 / σ*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * σ**2))
+    ψ0: ℂ[Nx] = (1 / (σ*sqrt(3.14)))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * σ**2))
 
 
 Discretizing the RHS
@@ -250,7 +250,7 @@ all spatial points simultaneously:
 
     def schrodinger_rhs(ψ: ℂ[m], V: ℝ[n], Δx: ℝ, ℏ: ℝ, mass: ℝ): ℂ[o]:
         ψ_xx: ℂ[Nx] = (roll(ψ, -1) - 2*ψ + roll(ψ, 1)) / (Δx**2)
-        H_ψ: ℂ[Nx] = -(ℏ**2 / (2*mass)) * ψ + V * ψ
+        H_ψ: ℂ[Nx] = -(ℏ**2 / (2*mass)) * ψ_xx + V * ψ
         result: ℂ[Nx] = -1j / ℏ * H_ψ
         return result
 
@@ -309,7 +309,7 @@ every 5 steps to build the history:
 
     def solver(V: ℝ[m]): ℂ[m, n]:
         x: ℝ[Nx] = linspace(-200, 200, Nx)
-        ψ0: ℂ[Nx] = ((1 / σ*sqrt(3.14)) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * σ**2)))
+        ψ0: ℂ[Nx] = ((1 / (σ*sqrt(3.14))) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * σ**2)))
         history: ℂ[1, Nx] = [ψ0]
         counter: ℕ = 0
         ψ = ψ0
@@ -608,12 +608,12 @@ Full code
     k0: ℝ = 2.0      # wavenumber (controls momentum)
     σ: ℝ = 10.0     # width of the wave packet
 
-    ψ0: ℂ[Nx] = (1 / σ*sqrt(3.14))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * σ**2))
+    ψ0: ℂ[Nx] = (1 / (σ*sqrt(3.14)))**0.5 * exp(1j * k0 * x) * exp(-((x - x0)**2) / (2 * σ**2))
 
 
     def schrodinger_rhs(ψ: ℂ[m], V: ℝ[n], Δx: ℝ, ℏ: ℝ, mass: ℝ): ℂ[o]:
         ψ_xx: ℂ[Nx] = (roll(ψ, -1) - 2*ψ + roll(ψ, 1)) / (Δx**2)
-        H_ψ: ℂ[Nx] = -(ℏ**2 / (2*mass)) * ψ + V * ψ
+        H_ψ: ℂ[Nx] = -(ℏ**2 / (2*mass)) * ψ_xx + V * ψ
         result: ℂ[Nx] = -1j / ℏ * H_ψ
         return result
 
@@ -638,7 +638,7 @@ Full code
 
     def solver(V: ℝ[m]): ℂ[m, n]:
         x: ℝ[Nx] = linspace(-200, 200, Nx)
-        ψ0: ℂ[Nx] = ((1 / σ*sqrt(3.14)) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * σ**2)))
+        ψ0: ℂ[Nx] = ((1 / (σ*sqrt(3.14))) ** 0.5 * exp(1j * k0 * x) * exp(-((x - x0) ** 2) / (2 * σ**2)))
         history: ℂ[1, Nx] = [ψ0]
         counter: ℕ = 0
         ψ = ψ0
