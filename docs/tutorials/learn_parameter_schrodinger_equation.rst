@@ -347,6 +347,7 @@ Generate Ground Truth Data
 We fix the true barrier height at :math:`V_0 = 1.8` and run the solver to
 produce the ground truth wavefunction history:
 
+
 .. code-block:: text
 
     V: ℝ[Nx] = make_potential(1.8)
