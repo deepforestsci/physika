@@ -37,6 +37,14 @@ class TestExampleImportFile:
 
         assert abs(numeric_ns["f_results"].item() - 0.5403) < r_tol
 
+    def test_import_from_different_directory(self, numeric_ns):
+        """Test import from another directory"""
+        assert "superbee" in numeric_ns
+
+        phi = numeric_ns["phi"]
+        assert len(phi) == 5
+        assert phi.tolist() == [0.0, 0.0, 1.0, 1.0, 2.0]
+
 
 class TestImportManager:
     """Tests for physika/import_manager.py file"""
