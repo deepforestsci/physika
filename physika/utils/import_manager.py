@@ -34,9 +34,11 @@ def find_module(module_name: str, source_file_path: Path) -> Path:
     >>> module_path.name
     'factorial.phyk'
     """
+    module_path = Path(module_name.replace(".", "/"))
+    module_file = module_path.with_suffix(".phyk")
     search_paths = [source_file_path.parent, Path(".")]
     for path in search_paths:
-        file_name = path / f"{module_name}.phyk"
+        file_name = path / module_file
         if file_name.exists():
             return file_name
     raise ImportError(f"module '{module_name}' not found")
