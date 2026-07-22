@@ -12,7 +12,7 @@ Volume Method (FVM). They are accurate but they come with a fundamental limitati
 every new set of boundary conditions or parameters requires solving the PDE from scratch.
 
 Fourier Neural Operators take a different approach entirely. Instead of solving the PDE pointwise in the spatial domain, FNO lifts the input 
-function into a higher-dimensional latent space and operates on it in the frequency domain. [LiKovachki2021]_ , [HoraKapoorMatveev2026]_
+function into a higher-dimensional latent space and operates on it in the frequency domain. [LiKovachki2021]_ [HoraKapoorMatveev2026]_
 
 
 FNO Architecture
@@ -23,24 +23,40 @@ FNO Architecture
    :align: center
    :width: 700px
 
-   FNO Architecture
+   The Overall FNO Pipeline [LiKovachki2021]_
 
 Lets try to understand the FNO architecture in 2 parts:
 
-Part 1 :-
-~~~~~~~~~~~~~~~~~~
+Part 1 
+~~~~~~~
 
 .. figure:: /_static/tutorial_files/fno/fno_architecture_first_half.png
    :alt: FNO Architecture
    :align: center
    :width: 700px
 
-This is a outer structure and we can call this as main layer and it gets further divided into 3 parts. The input function :math:`a(x)`
-is first passed through a pointwise lifting operator :math:`P`, which projects the input data from its original low-dimensional 
-space into a higher-dimensional latent representation. This lifted representation then passes through a series of Fourier layers, 
-where the actual learning happens. Finally, a pointwise projection operator :math:`Q`  maps the latent representation back down to 
-the target output function :math:`u(x)`. Think of :math:`P` and :math:`Q` as the entry and exit gates which handles the dimensionality
-, while the Fourier layers handle the physics.
+   Lifting, Fourier Layers, and Projection
+
+
+
+This diagram shows the overall FNO architecture, which breaks down into three stages.
+The input function :math:`a(x)` is first passed through a pointwise lifting operator
+:math:`P`, which expands the raw input at each spatial location into a much richer
+internal representation:
+
+.. math::
+
+  v_0(x) = P(a(x)), \qquad P: \mathbb{R}^{d_a} \to \mathbb{R}^{d_v}
+
+This lifted representation then passes through a series of Fourier layers, 
+where the actual learning happens which we will discuss in Part 2. Finally, a pointwise projection
+operator :math:`Q` — the mirror image of lifting — maps
+the latent representation back down to the target output function :math:`u(x)`:
+
+.. math::
+
+  u(x) = Q(v_L(x)), \qquad Q: \mathbb{R}^{d_v} \to \mathbb{R}^{d_u}
+
 
 In our implementation code, :math:`P` is a simple ``Conv1d`` block, and :math:`Q` is a ``MLP`` block:
 
@@ -50,7 +66,7 @@ In our implementation code, :math:`P` is a simple ``Conv1d`` block, and :math:`Q
         def λ(x: ℝ[in, n]) -> ℝ[out, n]:
             z: ℝ[out, n] = this.W @ x + this.b
             return z
-        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+        def update_params(lr: ℝ, learnable_grads: ℝ[m]):
             this.W = this.W - lr * learnable_grads[0]
             this.b = this.b - lr * learnable_grads[1]
 
@@ -61,7 +77,7 @@ In our implementation code, :math:`P` is a simple ``Conv1d`` block, and :math:`Q
             a1: ℝ[mid, n] = gelu(z1)
             z2: ℝ[mid, n] = this.W2 @ a1 + this.b2
             return z2
-        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+        def update_params(lr: ℝ, learnable_grads: ℝ[m]):
             this.W1 = this.W1 - lr * learnable_grads[0]
             this.b1 = this.b1 - lr * learnable_grads[1]
             this.W2 = this.W2 - lr * learnable_grads[2]
@@ -69,21 +85,38 @@ In our implementation code, :math:`P` is a simple ``Conv1d`` block, and :math:`Q
 
 
 
-
-Part 2 :-
-~~~~~~~~~~~~~~~~~~
+Part 2
+~~~~~~~
 
 .. figure:: /_static/tutorial_files/fno/fno_architecture_second_half.png
    :alt: FNO Architecture
    :align: center
    :width: 700px
 
-Now here where the magic happens, Each Fourier layer takes an input :math:`v(x)` and splits it into two parallel branches. In the upper branch, the input is 
-transformed into the frequency domain via the Fast Fourier Transform. Since the input is real-valued, only the positive frequencies are retained using
-:math:`\text{rFFT}`, . The first :math:`modes` frequencies are then passed through a learnable MLP that applies complex-valued weights directly in frequency space 
-this is where the operator learns the global structure of the solution. An inverse FFT then brings the result back to the spatial domain. 
+   Inside a Single Fourier Layer
 
-In our implementation, this entire upper branch is captured by the ``SpectralConv`` block:
+Now here is where the magic happens. Each Fourier layer updates the hidden field
+:math:`v_\ell(x)` by combining a global and a local term, then applying a nonlinearity:
+
+.. math::
+
+  v_{\ell+1}(x) = \sigma\!\left(W_\ell\, v_\ell(x) + \int_{\Omega} K_\ell(x,y)\, v_\ell(y)\, dy\right), \qquad \ell = 0, \ldots, L-1
+
+The **global term**, :math:`\int_{\Omega} K_\ell(x,y)\, v_\ell(y)\, dy`, aggregates
+information from every location in the domain via a learned kernel :math:`K_\ell`. The
+**local term**, :math:`W_\ell\, v_\ell(x)`, is a learned matrix applied independently at
+each point, capturing local structure and acting as a residual bypass. :math:`\sigma` is
+the nonlinearity applied after combining both.
+
+Computing the integral directly is expensive, so FNO approximates :math:`K_\ell` in
+Fourier space instead. Each layer splits :math:`v(x)` into two parallel branches: the
+upper branch transforms :math:`v(x)` via ``rFFT``, applies a learnable complex weight
+matrix to the first :math:`\text{modes}` frequencies, then transforms back via
+``irFFT`` — this branch is the global term. The lower branch is a plain ``Conv1d``,
+playing the role of :math:`W_\ell` — the local term. The two branches are summed and
+passed through GELU.
+
+In our implementation, the upper branch is the ``SpectralConv`` block:
 
 .. code-block:: text
 
@@ -94,13 +127,10 @@ In our implementation, this entire upper branch is captured by the ``SpectralCon
             out_ft: ℂ[out_ch, modes] = compl_mul1d(x_ft, self.weights1)
             results: ℂ[out_ch, n] = irfft(out_ft, len(x[0]))
             return results
-        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+        def update_params(lr: ℝ, learnable_grads: ℝ[m]):
             this.weights1 = this.weights1 - lr * learnable_grads[0]
 
-
-In the lower branch, the same input :math:`v(x)` passes through a simple Conv1d block (W), which acts as a local, pointwise correction. The outputs of both branches are
-summed together and passed through a GELU activation, giving the layer the ability to capture both global frequency-domain patterns and local spatial features simultaneously.
-The lower branch is represented by `Conv1d` blocks.
+The lower branch is represented by ``Conv1d`` blocks.
 
 Here is the Physika implementation for 1d FNO model:
 
@@ -312,7 +342,7 @@ For optimization we use Stochastic Gradient Descent (SGD), which updates each pa
 
 
 where :math:`\theta` represents any learnable parameter in the network, :math:`\eta` is the learning rate, and :math:`\nabla_\theta \mathcal{L}` is the
-gradient of the loss with respect to that parameter. Each component of the model — p, conv0–conv3, mlp0–mlp3, w0–w3, and q — maintains its own parameters and receives its own gradient update independently.
+gradient of the loss with respect to that parameter. Each component of the model — ``(p, conv0–conv3, mlp0–mlp3, w0–w3, and q)`` — maintains its own parameters and receives its own gradient update independently.
 
 .. code-block:: text
 
@@ -410,7 +440,7 @@ Full code
         def λ(x: ℝ[in, n]) -> ℝ[out, n]:
             z: ℝ[out, n] = this.W @ x + this.b
             return z
-        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+        def update_params(lr: ℝ, learnable_grads: ℝ[m]):
             this.W = this.W - lr * learnable_grads[0]
             this.b = this.b - lr * learnable_grads[1]
 
@@ -421,7 +451,7 @@ Full code
             a1: ℝ[mid, n] = gelu(z1)
             z2: ℝ[mid, n] = this.W2 @ a1 + this.b2
             return z2
-        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+        def update_params(lr: ℝ, learnable_grads: ℝ[m]):
             this.W1 = this.W1 - lr * learnable_grads[0]
             this.b1 = this.b1 - lr * learnable_grads[1]
             this.W2 = this.W2 - lr * learnable_grads[2]
@@ -435,7 +465,7 @@ Full code
             out_ft: ℂ[out_ch, modes] = compl_mul1d(x_ft, self.weights1)
             results: ℂ[out_ch, n] = irfft(out_ft, len(x[0]))
             return results
-        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+        def update_params(lr: ℝ, learnable_grads: ℝ[m]):
             this.weights1 = this.weights1 - lr * learnable_grads[0]
 
 
