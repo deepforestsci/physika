@@ -37,6 +37,26 @@ class TestExampleImportFile:
 
         assert abs(numeric_ns["f_results"].item() - 0.5403) < r_tol
 
+    def test_import_class(self, numeric_ns):
+        """Test import class from another file"""
+        class_value = numeric_ns["class_value"]
+        assert class_value == 1
+
+    def test_import_array(self, numeric_ns):
+        """Test import array and perform operations"""
+        v = numeric_ns["v"]
+        grad_f_x = numeric_ns["grad_f_x"]
+        assert v.tolist() == [1.0, 2.0, 6.0]
+        assert grad_f_x == 12
+
+    def test_import_from_different_directory(self, numeric_ns):
+        """Test import from another directory"""
+        assert "superbee" in numeric_ns
+
+        phi = numeric_ns["φ"]
+        assert len(phi) == 5
+        assert phi.tolist() == [0.0, 0.0, 1.0, 1.0, 2.0]
+
 
 class TestImportManager:
     """Tests for physika/import_manager.py file"""
