@@ -1,0 +1,153 @@
+# ============================================================
+# Parameter Learning for the Genetic Toggle Switch
+# ============================================================
+# The genetic toggle switch (Gardner, Cantor & Collins,
+# Nature 2000) is a synthetic circuit of two genes whose
+# protein products repress each other. With cooperative
+# (Hill) repression the circuit is BISTABLE: it settles into
+# one of two stable states -- "u high, v low" or "v high,
+# u low". In dimensionless form:
+#
+#   du/dt = a1 / (1 + v^n) - u
+#   dv/dt = a2 / (1 + u^n) - v          (Hill exponent n = 2)
+#
+# We learn the two synthesis rates theta = [a1, a2] from
+# observed trajectories, using the same adjoint machinery as
+# the repressilator (full-trajectory MSE loss + running-cost
+# co-state); only f and the state size differ.
+#
+# The subtlety is IDENTIFIABILITY. A single experiment that
+# settles into "u high, v low" pins down a1 but leaves a2
+# badly ill-conditioned: with v ~ 0 the trajectory barely
+# depends on a2, so dL/da2 is ~40x weaker and a2 is only
+# recovered very slowly (and noisily). The fix is
+# experimental design -- fit TWO trajectories from opposite
+# initial conditions at once. We encode this as a single 4-D
+# augmented system state = [u1, v1, u2, v2], with (u1, v1)
+# starting in one basin and (u2, v2) in the other, so BOTH a1
+# and a2 are well-constrained. Since the two rates share a
+# scale, plain gradient descent suffices.
+# ============================================================
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def append(x: ℝ[m], var: ℝ): ℝ[n]:
+    new_length: ℝ = len(x) + 1
+    results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
+    for i:ℕ(new_length):
+        if i<len_x:
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+def f(state: ℝ[4], θ: ℝ[2]): ℝ[4]:
+    u1: ℝ = state[0]
+    v1: ℝ = state[1]
+    u2: ℝ = state[2]
+    v2: ℝ = state[3]
+    a1: ℝ = θ[0]
+    a2: ℝ = θ[1]
+    du1: ℝ = a1 / (1.0 + v1 ** 2) - u1
+    dv1: ℝ = a2 / (1.0 + u1 ** 2) - v1
+    du2: ℝ = a1 / (1.0 + v2 ** 2) - u2
+    dv2: ℝ = a2 / (1.0 + u2 ** 2) - v2
+    return [du1, dv1, du2, dv2]
+
+def rk4_step(state: ℝ[4], θ: ℝ[2]): ℝ[4]:
+    k1: ℝ[4] = f(state, θ)
+    k2_state: ℝ[4] = state + 0.5 * dt * k1
+    k2: ℝ[4] = f(k2_state, θ)
+    k3_state: ℝ[4] = state + 0.5 * dt * k2
+    k3: ℝ[4] = f(k3_state, θ)
+    k4_state: ℝ[4] = state + dt * k3
+    k4: ℝ[4] = f(k4_state, θ)
+    return state + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+dt: ℝ = 0.1
+timesteps: ℝ = 100
+
+def solver(θ: ℝ[2]): ℝ[4, m]:
+    state: ℝ[4] = [2.0, 0.1, 0.1, 2.0]
+    u1_array: ℝ[1] = [2.0]
+    v1_array: ℝ[1] = [0.1]
+    u2_array: ℝ[1] = [0.1]
+    v2_array: ℝ[1] = [2.0]
+    for i:ℕ(timesteps):
+        results = rk4_step(state, θ)
+        u1 = results[0]
+        v1 = results[1]
+        u2 = results[2]
+        v2 = results[3]
+        u1_array = append(u1_array, u1)
+        v1_array = append(v1_array, v1)
+        u2_array = append(u2_array, u2)
+        v2_array = append(v2_array, v2)
+        state = results
+    return [u1_array, v1_array, u2_array, v2_array]
+
+true_theta: ℝ[2] = [3.0, 3.0]
+true_results: ℝ[4, m] = solver(true_theta)
+true_u1: ℝ[m] = true_results[0]
+true_v1: ℝ[m] = true_results[1]
+true_u2: ℝ[m] = true_results[2]
+true_v2: ℝ[m] = true_results[3]
+
+def adjoint_grad(θ: ℝ[2]): ℝ[n]:
+    states: ℝ[4, m] = solver(θ)
+    u1_array: ℝ[m] = states[0]
+    v1_array: ℝ[m] = states[1]
+    u2_array: ℝ[m] = states[2]
+    v2_array: ℝ[m] = states[3]
+    m: ℝ = get_1d_array_length(u1_array)
+    s: ℝ[4] = [
+        (u1_array[m-1] - true_u1[m-1]) / m,
+        (v1_array[m-1] - true_v1[m-1]) / m,
+        (u2_array[m-1] - true_u2[m-1]) / m,
+        (v2_array[m-1] - true_v2[m-1]) / m
+    ]
+    L: ℝ[2] = zero_1d_array(2)
+    for i:ℕ(m-1):
+        idx = m - 2 - i
+        u1 = u1_array[idx]
+        v1 = v1_array[idx]
+        u2 = u2_array[idx]
+        v2 = v2_array[idx]
+        state = [u1, v1, u2, v2]
+        J_state = grad(rk4_step(state, θ), state)
+        J_theta = grad(rk4_step(state, θ), θ)
+        L += s @ J_theta
+        r1 = (u1_array[idx] - true_u1[idx]) / m
+        r2 = (v1_array[idx] - true_v1[idx]) / m
+        r3 = (u2_array[idx] - true_u2[idx]) / m
+        r4 = (v2_array[idx] - true_v2[idx]) / m
+        residual = [r1, r2, r3, r4]
+        s = residual + (s @ J_state)
+    return L
+
+θ: ℝ[2] = [2.0, 2.0]
+learning_rate: ℝ = 1.0
+
+# ------------------------------------------------------------------
+# set epochs higher (e.g. 2000) for real training; here it is 1 so
+# physika's test suite (tests/test_tutorials.py) runs quickly
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+for i:ℕ(epochs):
+    g = adjoint_grad(θ)
+    θ = θ - learning_rate * g
+
+pred_results = solver(θ)
+#plot_trajectories(true_results, pred_results)
