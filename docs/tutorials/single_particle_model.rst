@@ -27,7 +27,7 @@ The Single Particle Model
 -------------------------
 
 A lithium-ion cell has a porous negative electrode, a separator, and a porous
-positive electrode. Each electrode contains many active-material particles. During discharge:
+positive electrode. During discharge:
 
 * lithium leaves the negative particles,
 * lithium ions move through the electrolyte,
@@ -48,7 +48,7 @@ particle.
    particle.
 
 In this model we neglect the effects associated with the electrolyte, thus this approximation
-is only accurate at low and moderate currents, where electrolyte gradients are not dominant.
+is only accurate at low and moderate currents, where concentration gradients in the electrolyte are not dominant.
 
 We shall let :math:`k \in \{p, n\}`, where :math:`p, n` denote the positive and negative electrode
 respectively.
@@ -64,7 +64,8 @@ nominal capacity of ``5 Ah``, so
 
    I = (\text{C-rate})\,Q_{\mathrm{nominal}}.
 
-The current is therefore ``0.5 A`` at ``0.1C`` and ``0.25 A`` at ``0.05C``.
+The current is therefore ``0.5 A`` at ``0.1C``, ``0.25 A`` at ``0.05C``, and
+``1.0 A`` at ``0.2C``.
 
 For spherical particles, the active surface area per unit electrode volume is
 
@@ -138,8 +139,7 @@ conservation of lithium is
 with face area :math:`A_i=4\pi r_i^2` and shell volume
 :math:`V_i=\tfrac{4\pi}{3}(r_{i+1}^3-r_i^3)`.
 
-The factors of :math:`4\pi` cancel. That gives the compact spherical
-finite-volume update used in ``particle_rhs``:
+That gives the compact spherical finite-volume update used in ``particle_rhs``:
 
 .. code-block:: text
 
@@ -214,10 +214,11 @@ We define the  exchange-current density as
 .. math::
 
    i_{0,k}=k_{0,k}
-   \sqrt{c_e c_{k,\mathrm{surf}}
-   (c_{k,\max}-c_{k,\mathrm{surf}})},
+  \sqrt{c_e c_{k,\mathrm{surf}}
+  (c_{k,\max}-c_{k,\mathrm{surf}})},
 
-and use the symmetric Butler--Volmer kinetics given by
+where :math:`c_e` is the electrolyte concentration. To model the rate of the reaction at the interface we
+use the symmetric Butler--Volmer given by
 
 .. math::
 
@@ -324,9 +325,6 @@ records voltage after each group of RK4 steps:
            )
        return voltage
 
-At ``0.1C``, the solver records one voltage every ``0.5 h`` for ``10 h``. At
-``0.05C``, it records one voltage every hour for ``20 h``. Both runs therefore
-cover the same nominal discharged capacity.
 
 Learning the Active-Material Fraction
 -------------------------------------
@@ -388,36 +386,72 @@ We see that the optimization successfully moves :math:`\varepsilon_{s,p}` from `
    Left: the initial and fitted Physika SPM voltage curves against the 0.1C DFN
    training data. Right: the MSE loss recorded after each optimization epoch.
 
-The initial curve falls too quickly because ``eps_s_p=0.3`` gives too little
-positive active material. After fitting, the Physika curve follows both the
-gradual mid-discharge decline and the sharp end-of-discharge knee.
 
+Validation on a Dynamic Current Profile
+---------------------------------------
 
-Validation at a New C-Rate
---------------------------
+A fitted model should also respond correctly when the applied current changes.
+We therefore test the the model on the following six-hour protocol:
 
-A fitted model should work outside the data used to fit it. We therefore reuse
-the learned value without further training and simulate at ``0.05C``:
+.. math::
+
+   I(t)=
+   \begin{cases}
+   1.0\ \mathrm{A} & 0 \leq t < 2\ \mathrm{h},\\
+   0 & 2 \leq t < 4\ \mathrm{h},\\
+   0.25\ \mathrm{A} & 4 \leq t \leq 6\ \mathrm{h}.
+   \end{cases}
+
 
 .. code-block:: text
 
-   validation_voltage: ℝ[m] = spm_solver(
-       eps_s_p, validation_c_rate,
-       validation_substeps_per_sample, rk4_step_s
+   def validation_protocol_solver(eps_s_p: ℝ,
+                                  step_dt: ℝ): ℝ[m]:
+       # Initial particle concentrations are defined as in spm_solver.
+       voltage: ℝ[validation_num_samples] = zero_1d_array(
+           validation_num_samples
+       )
+       current: ℝ = validation_current_a[0]
+       first_transition: ℕ = 8
+       second_transition: ℕ = 17
+       voltage[0] = terminal_voltage(c_n, c_p, eps_s_p, current)
+
+       for sample:ℕ(0, validation_num_samples - 1):
+           current = validation_current_a[sample+1]
+           j_n = negative_surface_flux(current)
+           j_p = positive_surface_flux(current, eps_s_p)
+           if sample != first_transition:
+               if sample != second_transition:
+                   for substep:ℕ(0, validation_substeps_per_sample):
+                       c_n = rk4_particle(
+                           c_n, radius_n, diffusivity_n, j_n, step_dt
+                       )
+                       c_p = rk4_particle(
+                           c_p, radius_p, diffusivity_p, j_p, step_dt
+                       )
+           voltage[sample+1] = terminal_voltage(
+               c_n, c_p, eps_s_p, current
+           )
+       return voltage
+
+   validation_voltage: ℝ[m] = validation_protocol_solver(
+       eps_s_p, rk4_step_s
    )
    validation_rmse: ℝ = rmse(
-       validation_voltage, dfn_validation_voltage
+       validation_voltage, pybamm_validation_voltage
    )
 
-The validation RMSE is ``4.66 mV``.
+The reference curve is generated with the using the SPM in PyBaMM.
+The slight differences we see are a result of differences in numerical discretization
+and solver choice.
 
 .. figure:: /_static/tutorial_files/spm_validation.png
-   :alt: Physika SPM validation voltage curve at 0.05C
+   :alt: Current protocol and Physika versus PyBaMM SPM validation voltage
    :align: center
-   :width: 600px
+   :width: 700px
 
-   The fitted Physika SPM evaluated at 0.05C without further parameter updates.
-   The dashed SPM curve closely follows the independent DFN validation data.
+   Top: The applied current. Bottom: Voltage trace of the fitted
+   Physika SPM against the PyBaMM SPM.
 
 Generating the Figures
 ----------------------
@@ -484,10 +518,9 @@ computed by the Physika program:
        fig.tight_layout()
        plt.show()
 
-   def plot_spm_validation(dfn_voltage, validation_voltage,
-                           validation_rmse, sample_interval_s):
+   def plot_spm_validation(time_h, current_a, pybamm_voltage,
+                           validation_voltage, validation_rmse):
        import matplotlib.pyplot as plt
-       import numpy as np
 
        def as_numpy(value):
            return value.detach().cpu().numpy()
@@ -497,27 +530,38 @@ computed by the Physika program:
                return float(value.detach().cpu())
            return float(value)
 
-       dfn = as_numpy(dfn_voltage)
+       time = as_numpy(time_h)
+       current = as_numpy(current_a)
+       reference = as_numpy(pybamm_voltage)
        validation = as_numpy(validation_voltage)
-       time_h = (
-           np.arange(dfn.size) * as_float(sample_interval_s) / 3600.0
+
+       fig, (ax_current, ax_voltage) = plt.subplots(
+           2, 1, figsize=(7.2, 6.0), sharex=True,
+           gridspec_kw={"height_ratios": [1, 2]},
        )
 
-       fig, ax = plt.subplots(figsize=(6.2, 4.4))
-       ax.plot(time_h, dfn, color="black", lw=2.0,
-               label="Chen2020 DFN data")
-       ax.plot(time_h, validation, color="#0072B2", ls="--", lw=2.0,
-               label="Physika SPM with fitted parameter")
-       ax.set_title("Validation at 0.05C")
-       ax.set_xlabel("Time [h]")
-       ax.set_ylabel("Terminal voltage [V]")
-       ax.set_ylim(2.45, 4.22)
-       ax.grid(True, alpha=0.25)
-       ax.legend(fontsize=8, loc="upper right")
-       ax.text(
+       ax_current.plot(time, current, color="#333333", lw=2.0)
+       ax_current.set_ylabel("Current [A]")
+       ax_current.set_ylim(-0.08, 1.08)
+       ax_current.set_yticks([0.0, 0.25, 1.0])
+       ax_current.grid(True, alpha=0.25)
+       ax_current.set_title("Discharge-rest-discharge validation")
+
+       ax_voltage.plot(time, reference, color="black", lw=2.0,
+                       marker="o", ms=3.5, label="PyBaMM SPM")
+       ax_voltage.plot(time, validation, color="#0072B2", ls="--",
+                       lw=2.0, label="Physika SPM")
+       ax_voltage.set_xlabel("Time [h]")
+       ax_voltage.set_ylabel("Terminal voltage [V]")
+       ax_voltage.set_xlim(0.0, 6.0)
+       ax_voltage.set_ylim(3.65, 4.20)
+       ax_voltage.grid(True, alpha=0.25)
+       ax_voltage.legend(fontsize=8, loc="lower left")
+       ax_voltage.text(
            0.98, 0.05,
            f"RMSE: {1e3 * as_float(validation_rmse):.2f} mV",
-           transform=ax.transAxes, ha="right", va="bottom", fontsize=8,
+           transform=ax_voltage.transAxes,
+           ha="right", va="bottom", fontsize=8,
        )
        fig.tight_layout()
        plt.show()
@@ -530,51 +574,9 @@ After adding the helpers, uncomment these final lines in
    plot_spm_training(dfn_train_voltage, initial_train_voltage,
        fitted_train_voltage, loss_history, eps_s_p, initial_train_rmse,
        fitted_train_rmse, train_substeps_per_sample * rk4_step_s)
-   plot_spm_validation(dfn_validation_voltage, validation_voltage,
-       validation_rmse, validation_substeps_per_sample * rk4_step_s)
+   plot_spm_validation(validation_time_h, validation_current_a,
+       pybamm_validation_voltage, validation_voltage, validation_rmse)
 
-The code generator detects these calls and imports the helpers from
-``physika.runtime``. The checked-in documentation images are generated by a
-non-interactive wrapper around the same Physika outputs. It does not duplicate
-the battery equations.
-
-Regenerate the documentation images with:
-
-.. code-block:: console
-
-   source .venv/bin/activate
-   python scripts/gen_single_particle_model_figure.py
-
-Running the Tutorial
---------------------
-
-Run the complete model with:
-
-.. code-block:: console
-
-   source .venv/bin/activate
-   physika physika/tutorials/single_particle_model.phyk
-
-The program prints the fitted active-material fraction, the initial, fitted,
-and validation RMSE values, followed by the training and validation voltage
-arrays and the loss history used by the plotting helper.
-
-What the SPM Leaves Out
------------------------
-
-The SPM is intentionally compact. This implementation does not resolve:
-
-* electrolyte concentration or potential gradients,
-* variation through electrode thickness,
-* particle-size distributions,
-* thermal behavior,
-* degradation reactions,
-* or voltage-cutoff events.
-
-Those effects become increasingly important at high currents, low temperature,
-or near operating limits. The SPM remains valuable because it connects solid
-diffusion, interfacial kinetics, and terminal voltage with a small,
-differentiable state model.
 
 Full Source
 -----------
