@@ -344,6 +344,8 @@ def generate_class(name: str, class_def: dict) -> str:
                 # add tensor so grad flows through
                 class_lines.append(
                     f"        self.{pname} = torch.as_tensor({pname}).float()")
+        elif ptype == "ℕ":
+            class_lines.append(f"        self.{pname} = int({pname})")
         else:
             class_lines.append(
                 f"        self.{pname} = torch.as_tensor({pname}).float() "
