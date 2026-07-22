@@ -7,12 +7,12 @@ Whether we want to predict the temperature distribution on a rod, simulate flow 
 workflow is similar. We define the physical system, specify the boundary conditions and then use a numerical solver to 
 compute the solution.
 
-Traditional numerical methods such as Finite Difference Method (FDM), Finite Element Method (FEM) and Finite
-Volume Method (FVM) are being widely used. They are accurate and well-understood, but they come with a fundamental limitation — 
+Now to do this, we use traditional numerical methods such as Finite Difference Method (FDM), Finite Element Method (FEM) and Finite
+Volume Method (FVM). They are accurate but they come with a fundamental limitation which is,
 every new set of boundary conditions or parameters requires solving the PDE from scratch.
 
 Fourier Neural Operators take a different approach entirely. Instead of solving the PDE pointwise in the spatial domain, FNO lifts the input 
-function into a higher-dimensional latent space and operates on it in the frequency domain.
+function into a higher-dimensional latent space and operates on it in the frequency domain. [HoraKapoorMatveev2026]_
 
 
 FNO Architecture
@@ -35,36 +35,37 @@ Part 1 :-
    :align: center
    :width: 700px
 
-The outer structure is simple and gets divided into 3 parts. The input function :math:`a(x)`
+This is a outer structure and we can call this as main layer and it gets further divided into 3 parts. The input function :math:`a(x)`
 is first passed through a pointwise lifting operator :math:`P`, which projects the input data from its original low-dimensional 
 space into a higher-dimensional latent representation. This lifted representation then passes through a series of Fourier layers, 
 where the actual learning happens. Finally, a pointwise projection operator :math:`Q`  maps the latent representation back down to 
 the target output function :math:`u(x)`. Think of :math:`P` and :math:`Q` as the entry and exit gates which handles the dimensionality
 , while the Fourier layers handle the physics.
 
-In Physika code, :math:`P` is a simple ``Conv1d`` block, and :math:`Q` is a ``MLP`` block:
+In our implementation code, :math:`P` is a simple ``Conv1d`` block, and :math:`Q` is a ``MLP`` block:
 
 .. code-block:: text
 
-    class Conv1d(W: R[out, in], b: R[out, 1]):
-        def λ(x: R[in, n]) -> R[out, n]:
-            z: R[out, n] = W @ x + b
+    class Conv1d(W: ℝ[out, in], b: ℝ[out, 1]):
+        def λ(x: ℝ[in, n]) -> ℝ[out, n]:
+            z: ℝ[out, n] = this.W @ x + this.b
             return z
-        def update_params(lr: R, grads: R[List]):
-            this.W = this.W - lr * grads[0]
-            this.b = this.b - lr * grads[1]
+        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+            this.W = this.W - lr * learnable_grads[0]
+            this.b = this.b - lr * learnable_grads[1]
 
-    class MLP(W1: R[mid, in],  b1: R[mid, 1], W2: R[out, mid], b2: R[out, 1]):
-        def λ(x: R[in, n]) -> R[out, n]:
-            z1: R[mid, n] = W1 @ x + b1
-            a1: R[mid, n] = gelu(z1)
-            z2: R[mid, n] = W2 @ a1 + b2
+
+    class MLP(W1: ℝ[mid, in],  b1: ℝ[mid, 1], W2: ℝ[out, mid], b2: ℝ[out, 1]):
+        def λ(x: ℝ[in, n]) -> ℝ[out, n]:
+            z1: ℝ[mid, n] = this.W1 @ x + this.b1
+            a1: ℝ[mid, n] = gelu(z1)
+            z2: ℝ[mid, n] = this.W2 @ a1 + this.b2
             return z2
-        def update_params(lr: R, grads: R[List]):
-            this.W1 = this.W1 - lr * grads[0]
-            this.b1 = this.b1 - lr * grads[1]
-            this.W2 = this.W2 - lr * grads[2]
-            this.b2 = this.b2 - lr * grads[3]
+        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+            this.W1 = this.W1 - lr * learnable_grads[0]
+            this.b1 = this.b1 - lr * learnable_grads[1]
+            this.W2 = this.W2 - lr * learnable_grads[2]
+            this.b2 = this.b2 - lr * learnable_grads[3]
 
 
 
@@ -77,7 +78,7 @@ Part 2 :-
    :align: center
    :width: 700px
 
-Each Fourier layer takes an input :math:`v(x)` and splits it into two parallel branches. In the upper branch, the input is 
+Now here where the magic happens, Each Fourier layer takes an input :math:`v(x)` and splits it into two parallel branches. In the upper branch, the input is 
 transformed into the frequency domain via the Fast Fourier Transform. Since the input is real-valued, only the positive frequencies are retained using
 :math:`\text{rFFT}`, . The first :math:`modes` frequencies are then passed through a learnable MLP that applies complex-valued weights directly in frequency space 
 this is where the operator learns the global structure of the solution. An inverse FFT then brings the result back to the spatial domain. 
@@ -87,14 +88,14 @@ In our implementation, this entire upper branch is captured by the ``SpectralCon
 .. code-block:: text
 
     class SpectralConv(weights1: ℂ[in_ch, out_ch, modes], in_ch: ℕ, out_ch: ℕ, modes: ℕ):
-    def λ(x: ℂ[in_ch, n]) -> ℂ[out_ch, n]:
-        x_ft: ℂ[in_ch, n_ft] = rfft(x)
-        x_ft: ℂ[in_ch, modes] = truncate_modes(x_ft, modes)
-        out_ft: ℂ[out_ch, modes] = compl_mul1d(x_ft, weights1)
-        results: ℂ[out_ch, n] = irfft(out_ft, len(x[0]))
-        return results
-    def update_params(lr: R, grads: R[List]):
-        this.weights1 = this.weights1 - lr * grads[0]
+        def λ(x: ℂ[in_ch, n]) -> ℂ[out_ch, n]:
+            x_ft: ℂ[in_ch, n_ft] = rfft(x)
+            x_ft: ℂ[in_ch, modes] = x_ft[:, :self.modes]
+            out_ft: ℂ[out_ch, modes] = compl_mul1d(x_ft, self.weights1)
+            results: ℂ[out_ch, n] = irfft(out_ft, len(x[0]))
+            return results
+        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+            this.weights1 = this.weights1 - lr * learnable_grads[0]
 
 
 In the lower branch, the same input :math:`v(x)` passes through a simple Conv1d block (W), which acts as a local, pointwise correction. The outputs of both branches are
@@ -122,29 +123,29 @@ Here is the Physika implementation for 1d FNO model:
         q: MLP
         def λ(x: R[1, n]) -> R[1, n]:
             # Lifting
-            x = p(x)
+            x: ℝ[width, n] = p(x)
             # Layer 1
-            x1 = conv0(x)
-            x1 = mlp0(x1)
-            x2 = w0(x)
-            x = gelu(x1 + x2)
+            x1: ℝ[width, n] = conv0(x)
+            x1: ℝ[width, n] = mlp0(x1)
+            x2: ℝ[width, n] = w0(x)
+            x: ℝ[width, n] = gelu(x1 + x2)
             # Layer 2
-            x1 = conv1(x)
-            x1 = mlp1(x1)
-            x2 = w1(x)
-            x = gelu(x1 + x2)
+            x1: ℝ[width, n] = conv1(x)
+            x1: ℝ[width, n] = mlp1(x1)
+            x2: ℝ[width, n] = w1(x)
+            x: ℝ[width, n] = gelu(x1 + x2)
             # Layer 3
-            x1 = conv2(x)
-            x1 = mlp2(x1)
-            x2 = w2(x)
-            x = gelu(x1 + x2)
+            x1: ℝ[width, n] = conv2(x)
+            x1: ℝ[width, n] = mlp2(x1)
+            x2: ℝ[width, n] = w2(x)
+            x: ℝ[width, n] = gelu(x1 + x2)
             # Layer 4
-            x1 = conv3(x)
-            x1 = mlp3(x1)
-            x2 = w3(x)
-            x = x1 + x2
+            x1: ℝ[width, n] = conv3(x)
+            x1: ℝ[width, n] = mlp3(x1)
+            x2: ℝ[width, n] = w3(x)
+            x: ℝ[width, n] = x1 + x2
             # Projection
-            x = q(x)
+            x: ℝ[1, n] = q(x)
             return x
 
 
@@ -153,20 +154,20 @@ To summarize the architecture through Physika code, lets see how forward pass wo
 .. code-block:: text
 
     # Lifting
-    x = p(x)
+    x: ℝ[width, n] = p(x)
 
     # Layer 1
-    x1 = conv0(x)
-    x1 = mlp0(x1)
-    x2 = w0(x)
-    x = gelu(x1 + x2)
+    x1: ℝ[width, n] = conv0(x)
+    x1: ℝ[width, n] = mlp0(x1)
+    x2: ℝ[width, n] = w0(x)
+    x: ℝ[width, n] = gelu(x1 + x2)
 
     # Layer 2
     .....
     .....
 
     # Projection
-    x = q(x)
+    x: ℝ[1, n] = q(x)
     return x
 
 
@@ -192,33 +193,45 @@ corrections before passing to the next layer.
 Dataset
 -------
 
-For this tutorial, we use the nick-leland/heat1d-pde-dataset <https://huggingface.co/datasets/nick-leland/heat1d-pde-dataset>_ available on Hugging Face. 
+For this tutorial, we use the ``heat1d-pde-dataset`` [HeatDataset]_ available on Hugging Face.
 The dataset is built around the 1D heat equation:
+
 .. math::
 
     \frac{\partial u}{\partial t} = \alpha \frac{\partial^2 u}{\partial x^2}
 
 
-Each sample in the dataset consists of an input function representing the initial temperature distribution and a corresponding output label representing 
+Each sample in the dataset consists of an input data representing the initial temperature distribution and a corresponding output label representing 
 the final temperature distribution after the system has evolved forward in time. The task for the FNO is to learn the mapping between these two states.
-For this tutorial only download the ``initial_states.npy.gz`` and ``final_states.npy.gz`` files.
+For this tutorial we are only using ``tests/`` samples and then splitting total samples into train/test.
 
 
 .. note::
    ``create_heat_dataset`` is not a built-in Physika function. To use it,
-   add the following helper function to ``physika/runtime.py``, also edit the
-   ``initial_states_file_path`` and ``final-states_file_path`` variables with correct 
-   file paths:
+   add the following helper function to ``physika/runtime.py``.
 
    .. code-block:: python
 
         def create_heat_dataset(samples):
             import gzip
             import numpy as np
-            from torch.utils.data import random_split
+            import torch
+            from torch.utils.data import TensorDataset, random_split
+            from huggingface_hub import hf_hub_download
 
-            initial_states_file_path = "initial_states.npy.gz"
-            final_states_file_path = "final_states.npy.gz"
+            repo_id = "nick-leland/heat1d-pde-dataset"
+
+            initial_states_file_path = hf_hub_download(
+                repo_id=repo_id,
+                repo_type="dataset",
+                filename="test/initial_states.npy.gz",
+            )
+
+            final_states_file_path = hf_hub_download(
+                repo_id=repo_id,
+                repo_type="dataset",
+                filename="test/final_states.npy.gz",
+            )
 
             with gzip.open(initial_states_file_path, "rb") as f:
                 initial_states_data = np.load(f)
@@ -226,18 +239,16 @@ For this tutorial only download the ``initial_states.npy.gz`` and ``final_states
             with gzip.open(final_states_file_path, "rb") as f:
                 final_states_data = np.load(f)
 
+            initial_states_data = initial_states_data[:samples]
+            final_states_data = final_states_data[:samples]
 
-            initial_states_data = initial_states_data[:samples, :]
-            final_states_data = final_states_data[:samples, :]
-
-            import torch
-            X = torch.tensor(initial_states_data).float()
-            Y = torch.tensor(final_states_data).float()
+            X = torch.tensor(initial_states_data, dtype=torch.float32)
+            Y = torch.tensor(final_states_data, dtype=torch.float32)
 
             X = X.unsqueeze(1)
             Y = Y.unsqueeze(1)
 
-            dataset = torch.utils.data.TensorDataset(X, Y)
+            dataset = TensorDataset(X, Y)
 
             train_len = int(0.8 * samples)
             test_len = samples - train_len
@@ -248,8 +259,12 @@ For this tutorial only download the ``initial_states.npy.gz`` and ``final_states
                 generator=torch.Generator().manual_seed(42),
             )
 
-            train_X, train_Y = dataset[train_subset.indices]
-            test_X, test_Y = dataset[test_subset.indices]
+            # Extract tensors from subsets
+            train_X = X[train_subset.indices]
+            train_Y = Y[train_subset.indices]
+
+            test_X = X[test_subset.indices]
+            test_Y = Y[test_subset.indices]
 
             return train_X, train_Y, test_X, test_Y
 
@@ -267,17 +282,12 @@ Add this following code snippet to ``physika/runtime.py`` file.
         imag = torch.randn(*shape) * scale
         return torch.complex(real, imag)
 
-    def truncate_modes(x_ft, modes):
-        modes = int(modes)
-        return x_ft[:, :modes]
 
     def compl_mul1d(x_ft, weights1):
         return torch.einsum("ix,iox->ox", x_ft, weights1)
 
 ``random_complex`` :-  Physika's default random initializers only produce real tensors, so we need this to initialize the spectral
 weights as proper complex numbers with separate real and imaginary components.
-
-``truncate_modes`` :- after the FFT, we need to discard the high-frequency modes and keep only the first modes frequencies.
 
 ``compl_mul1d`` :- Physika currently dont have String as data type, so we can't pass ``ix, iox->ox`` as argument to einsum through
 physika, thats why we have to add this helper function in runtime.
@@ -306,14 +316,14 @@ gradient of the loss with respect to that parameter. Each component of the model
 
 .. code-block:: text
 
-    def loss(pred: R[1, n], label: R[1, n]) -> R:
-        diff = pred - label
+    def loss(pred: ℝ[1, n], label: ℝ[1, n]) -> ℝ:
+        diff: ℝ[1, n] = pred - label
         return mean(diff**2)
-    def train(X: R[m, 1, n], y: R[m, 1, n], epochs: N, lr: R) -> R:
+    def train(X: ℝ[m, 1, n], y: ℝ[m, 1, n], epochs: ℕ, lr: ℝ) -> ℝ:
         len_dataset = len(X)
-        for i:N(epochs):
+        for i:ℕ(epochs):
             epoch_loss = 0
-            for j:N(len_dataset):
+            for j:ℕ(len_dataset):
                 pred = this(X[j])
                 current_loss = this.loss(pred, y[j])
                 epoch_loss = epoch_loss + current_loss
@@ -396,37 +406,41 @@ Full code
 
 .. code-block:: text
 
-    class Conv1d(W: R[out, in], b: R[out, 1]):
-        def λ(x: R[in, n]) -> R[out, n]:
-            z: R[out, n] = W @ x + b
+    class Conv1d(W: ℝ[out, in], b: ℝ[out, 1]):
+        def λ(x: ℝ[in, n]) -> ℝ[out, n]:
+            z: ℝ[out, n] = this.W @ x + this.b
             return z
-        def update_params(lr: R, grads: R[List]):
-            this.W = this.W - lr * grads[0]
-            this.b = this.b - lr * grads[1]
-    
+        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+            this.W = this.W - lr * learnable_grads[0]
+            this.b = this.b - lr * learnable_grads[1]
 
-    class MLP(W1: R[mid, in],  b1: R[mid, 1], W2: R[out, mid], b2: R[out, 1]):
-        def λ(x: R[in, n]) -> R[out, n]:
-            z1: R[mid, n] = W1 @ x + b1
-            a1: R[mid, n] = gelu(z1)
-            z2: R[mid, n] = W2 @ a1 + b2
+
+    class MLP(W1: ℝ[mid, in],  b1: ℝ[mid, 1], W2: ℝ[out, mid], b2: ℝ[out, 1]):
+        def λ(x: ℝ[in, n]) -> ℝ[out, n]:
+            z1: ℝ[mid, n] = this.W1 @ x + this.b1
+            a1: ℝ[mid, n] = gelu(z1)
+            z2: ℝ[mid, n] = this.W2 @ a1 + this.b2
             return z2
-        def update_params(lr: R, grads: R[List]):
-            this.W1 = this.W1 - lr * grads[0]
-            this.b1 = this.b1 - lr * grads[1]
-            this.W2 = this.W2 - lr * grads[2]
-            this.b2 = this.b2 - lr * grads[3]
+        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+            this.W1 = this.W1 - lr * learnable_grads[0]
+            this.b1 = this.b1 - lr * learnable_grads[1]
+            this.W2 = this.W2 - lr * learnable_grads[2]
+            this.b2 = this.b2 - lr * learnable_grads[3]
 
 
     class SpectralConv(weights1: ℂ[in_ch, out_ch, modes], in_ch: ℕ, out_ch: ℕ, modes: ℕ):
         def λ(x: ℂ[in_ch, n]) -> ℂ[out_ch, n]:
             x_ft: ℂ[in_ch, n_ft] = rfft(x)
-            x_ft: ℂ[in_ch, modes] = truncate_modes(x_ft, modes)
-            out_ft: ℂ[out_ch, modes] = compl_mul1d(x_ft, weights1)
+            x_ft: ℂ[in_ch, modes] = x_ft[:, :self.modes]
+            out_ft: ℂ[out_ch, modes] = compl_mul1d(x_ft, self.weights1)
             results: ℂ[out_ch, n] = irfft(out_ft, len(x[0]))
             return results
-        def update_params(lr: R, grads: R[List]):
-            this.weights1 = this.weights1 - lr * grads[0]
+        def update_params(lr: ℝ, learnable_grads: ℝ[List]):
+            this.weights1 = this.weights1 - lr * learnable_grads[0]
+
+
+    width: ℕ = 16
+    modes: ℕ = 8
 
 
     class FNO1d:
@@ -446,38 +460,38 @@ Full code
         q: MLP
         def λ(x: R[1, n]) -> R[1, n]:
             # Lifting
-            x = p(x)
+            x: ℝ[width, n] = p(x)
             # Layer 1
-            x1 = conv0(x)
-            x1 = mlp0(x1)
-            x2 = w0(x)
-            x = gelu(x1 + x2)
+            x1: ℝ[width, n] = conv0(x)
+            x1: ℝ[width, n] = mlp0(x1)
+            x2: ℝ[width, n] = w0(x)
+            x: ℝ[width, n] = gelu(x1 + x2)
             # Layer 2
-            x1 = conv1(x)
-            x1 = mlp1(x1)
-            x2 = w1(x)
-            x = gelu(x1 + x2)
+            x1: ℝ[width, n] = conv1(x)
+            x1: ℝ[width, n] = mlp1(x1)
+            x2: ℝ[width, n] = w1(x)
+            x: ℝ[width, n] = gelu(x1 + x2)
             # Layer 3
-            x1 = conv2(x)
-            x1 = mlp2(x1)
-            x2 = w2(x)
-            x = gelu(x1 + x2)
+            x1: ℝ[width, n] = conv2(x)
+            x1: ℝ[width, n] = mlp2(x1)
+            x2: ℝ[width, n] = w2(x)
+            x: ℝ[width, n] = gelu(x1 + x2)
             # Layer 4
-            x1 = conv3(x)
-            x1 = mlp3(x1)
-            x2 = w3(x)
-            x = x1 + x2
+            x1: ℝ[width, n] = conv3(x)
+            x1: ℝ[width, n] = mlp3(x1)
+            x2: ℝ[width, n] = w3(x)
+            x: ℝ[width, n] = x1 + x2
             # Projection
-            x = q(x)
+            x: ℝ[1, n] = q(x)
             return x
-        def loss(pred: R[1, n], label: R[1, n]) -> R:
-            diff = pred - label
+        def loss(pred: ℝ[1, n], label: ℝ[1, n]) -> ℝ:
+            diff: ℝ[1, n] = pred - label
             return mean(diff**2)
-        def train(X: R[m, 1, n], y: R[m, 1, n], epochs: N, lr: R) -> R:
+        def train(X: ℝ[m, 1, n], y: ℝ[m, 1, n], epochs: ℕ, lr: ℝ) -> ℝ:
             len_dataset = len(X)
-            for i:N(epochs):
+            for i:ℕ(epochs):
                 epoch_loss = 0
-                for j:N(len_dataset):
+                for j:ℕ(len_dataset):
                     pred = this(X[j])
                     current_loss = this.loss(pred, y[j])
                     epoch_loss = epoch_loss + current_loss
@@ -515,61 +529,67 @@ Full code
             return last_loss
 
 
-
-    # ------------------------------------------
+    # --------------------------------------------------------
     # Initialize objects for each block
-    # ------------------------------------------
+    # --------------------------------------------------------
 
 
-    width: ℕ = 16
-    modes: ℕ = 8
-
-    # ------------------------------------------
+    # --------------------------------------------------------
+    # Lifting layer / Encoder (P)
+    # --------------------------------------------------------
 
     Wp: ℝ[width, 1] = for i:ℕ(width) -> ε: ℝ[1] ~ Normal(0.0, 0.1, 1)
     Bp: ℝ[width, 1] = for i:ℕ(width) -> ε: ℝ[1] ~ Normal(0.0, 0.1, 1)
 
     p = Conv1d(Wp, Bp)
 
-    # ------------------------------------------
 
+    # --------------------------------------------------------
+    # Fourier layers - spectral (global) path
+    # --------------------------------------------------------
 
     weights0: ℂ[width, width, modes] = random_complex(width, width, modes)
     weights1: ℂ[width, width, modes] = random_complex(width, width, modes)
     weights2: ℂ[width, width, modes] = random_complex(width, width, modes)
     weights3: ℂ[width, width, modes] = random_complex(width, width, modes)
 
-    conv0 = SpectralConv(weights0, width, width, modes)
-    conv1 = SpectralConv(weights1, width, width, modes)
-    conv2 = SpectralConv(weights2, width, width, modes)
-    conv3 = SpectralConv(weights3, width, width, modes)
+    conv0: SpectralConv = SpectralConv(weights0, width, width, modes)
+    conv1: SpectralConv = SpectralConv(weights1, width, width, modes)
+    conv2: SpectralConv = SpectralConv(weights2, width, width, modes)
+    conv3: SpectralConv = SpectralConv(weights3, width, width, modes)
 
-    # ------------------------------------------
+
+    # --------------------------------------------------------
+    # Local bypass path (W) — pointwise residual connection
+    # --------------------------------------------------------
 
     Ww0: ℝ[width, width] = for i:ℕ(width) -> ε: ℝ[width] ~ Normal(0.0, 0.1, width)
     Bw0: ℝ[width, 1] = for i:ℕ(width) -> ε: ℝ[1] ~ Normal(0.0, 0.1, 1)
 
-    w0 = Conv1d(Ww0, Bw0)
-    w1 = Conv1d(Ww0, Bw0)
-    w2 = Conv1d(Ww0, Bw0)
-    w3 = Conv1d(Ww0, Bw0)
+    w0: Conv1d = Conv1d(Ww0, Bw0)
+    w1: Conv1d = Conv1d(Ww0, Bw0)
+    w2: Conv1d = Conv1d(Ww0, Bw0)
+    w3: Conv1d = Conv1d(Ww0, Bw0)
 
-    # ------------------------------------------
+    # --------------------------------------------------------
+    # MLP blocks (applied after each SpectralConv)
+    # --------------------------------------------------------
 
     W1: ℝ[width, width] = for i:ℕ(width) -> ε: ℝ[width] ~ Normal(0.0, 0.1, width)
     b1: ℝ[width,1] = zeros(width, 1)
     W2: ℝ[width, width] = for i:ℕ(width) -> ε: ℝ[width] ~ Normal(0.0, 0.1, width)
     b2: ℝ[width,1] = zeros(width, 1)
 
-    #b1: ℝ[width,1] = for i:ℕ(width) -> ε: ℝ[1] ~ Normal(0.0, 0.1, width)
-    #b2: ℝ[width,1] = for i:ℕ(width) -> ε: ℝ[1] ~ Normal(0.0, 0.1, width)
 
-    mlp0 = MLP(W1, b1, W2, b2)
-    mlp1 = MLP(W1, b1, W2, b2)
-    mlp2 = MLP(W1, b1, W2, b2)
-    mlp3 = MLP(W1, b1, W2, b2)
+    mlp0: MLP = MLP(W1, b1, W2, b2)
+    mlp1: MLP = MLP(W1, b1, W2, b2)
+    mlp2: MLP = MLP(W1, b1, W2, b2)
+    mlp3: MLP = MLP(W1, b1, W2, b2)
 
-    # ------------------------------------------
+
+    # --------------------------------------------------------
+    # Projection / decoder (Q)
+    # --------------------------------------------------------
 
     q_width: N = 2 * width
     Wq1: ℝ[q_width, width] = for i:ℕ(q_width) -> ε: ℝ[width] ~ Normal(0.0, 0.1, width)
@@ -579,11 +599,11 @@ Full code
 
     q = MLP(Wq1, bq1, Wq2, bq2)
 
-    # ------------------------------------------
 
 
-    fno_obj = FNO1d(p, conv0, conv1, conv2, conv3, mlp0, mlp1, mlp2, mlp3, w0, w1, w2, w3, q)
-
+    # ----------------------------------------------------------------------------------------
+    # Heat equation dataset (https://huggingface.co/datasets/nick-leland/heat1d-pde-dataset)
+    # ----------------------------------------------------------------------------------------
 
     dataset = create_heat_dataset(50)
     train_X: ℝ[m,1,n] = dataset[0]
@@ -592,20 +612,42 @@ Full code
     test_y: ℝ[m,1,n] = dataset[1]
 
 
-    epochs: N = 2000
-    loss = fno_obj.train(train_X, train_y, epochs, 0.0001)   
+    # --------------------------------------------------------
+
+
+    fno_obj: FNO1d = FNO1d(p, conv0, conv1, conv2, conv3, mlp0, mlp1, mlp2, mlp3, w0, w1, w2, w3, q)
+
+
+    # --------------------------------------------------------
+    # Training and evaluation FNO model
+    # --------------------------------------------------------
+
+
+    epochs: ℕ = 1
+    loss: ℝ = fno_obj.train(train_X, train_y, epochs, 0.0001)
     loss
 
 
-    test_idx = 5
-    pred = fno_obj(test_X[test_idx])
+    test_idx: ℕ = 5
+    pred: ℝ[m, n] = fno_obj(test_X[test_idx])
     compare_states(pred, test_y[test_idx])
+
 
 
 References
 ----------
 
-- `Fourier Neural Operator for Parametric Partial Differential Equations <https://arxiv.org/pdf/2010.08895>`_
-- `How a Fourier Neural Operator Learns to Solve PDEs — and Where it Falls Short <https://www.physicsx.ai/newsroom/how-a-fourier-neural-operator-learns-to-solve-pdes----and-where-it-falls-short>`_
-- `Fourier Neural Operator 1D Implementation — GitHub <https://github.com/wenhangao21/fourier_neural_operator/blob/master/fourier_1d.py>`_
-- `heat1d-pde-dataset — Hugging Face <https://huggingface.co/datasets/nick-leland/heat1d-pde-dataset>`_
+.. [LiKovachki2021] Li, Z., Kovachki, N., Azizzadenesheli, K., Liu, B., Bhattacharya, K.,
+  Stuart, A., & Anandkumar, A. (2021). *Fourier Neural Operator for
+  Parametric Partial Differential Equations*. International Conference
+  on Learning Representations (ICLR). https://arxiv.org/pdf/2010.08895
+
+.. [HoraKapoorMatveev2026] Hora, G. S., Kapoor, P., & Matveev, A. (2026). *How a Fourier
+  Neural Operator Learns to Solve PDEs — and Where It Falls Short*.
+  PhysicsX Newsroom. https://www.physicsx.ai/newsroom/how-a-fourier-neural-operator-learns-to-solve-pdes----and-where-it-falls-short
+
+.. [Gao2024] Gao, W. (wenhangao21). *fourier_neural_operator: 1D Implementation*.
+  GitHub repository. https://github.com/wenhangao21/fourier_neural_operator/blob/master/fourier_1d.py
+
+.. [HeatDataset] Leland, N. (nick-leland). *heat1d-pde-dataset*. Hugging Face Datasets.
+  https://huggingface.co/datasets/nick-leland/heat1d-pde-dataset
