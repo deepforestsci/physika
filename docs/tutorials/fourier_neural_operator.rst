@@ -12,7 +12,7 @@ Volume Method (FVM). They are accurate but they come with a fundamental limitati
 every new set of boundary conditions or parameters requires solving the PDE from scratch.
 
 Fourier Neural Operators take a different approach entirely. Instead of solving the PDE pointwise in the spatial domain, FNO lifts the input 
-function into a higher-dimensional latent space and operates on it in the frequency domain. [HoraKapoorMatveev2026]_
+function into a higher-dimensional latent space and operates on it in the frequency domain. [LiKovachki2021]_ , [HoraKapoorMatveev2026]_
 
 
 FNO Architecture
@@ -646,8 +646,7 @@ References
   Neural Operator Learns to Solve PDEs — and Where It Falls Short*.
   PhysicsX Newsroom. https://www.physicsx.ai/newsroom/how-a-fourier-neural-operator-learns-to-solve-pdes----and-where-it-falls-short
 
-.. [Gao2024] Gao, W. (wenhangao21). *fourier_neural_operator: 1D Implementation*.
-  GitHub repository. https://github.com/wenhangao21/fourier_neural_operator/blob/master/fourier_1d.py
-
 .. [HeatDataset] Leland, N. (nick-leland). *heat1d-pde-dataset*. Hugging Face Datasets.
   https://huggingface.co/datasets/nick-leland/heat1d-pde-dataset
+
+- `fourier_neural_operator: 1D Implementation (GitHub, wenhangao21) <https://github.com/wenhangao21/fourier_neural_operator/blob/master/fourier_1d.py>`_
