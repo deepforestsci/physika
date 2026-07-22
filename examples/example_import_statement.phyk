@@ -21,6 +21,37 @@ f_results: ℝ = f(x)
 f_results
 
 
+# ----------------------------------
+# example of importing class
+# ----------------------------------
+
+from physika_class import ExampleClass
+
+obj_example_class: ExampleClass = ExampleClass()
+class_value: ℝ = obj_example_class.class_method()
+class_value
+
+
+# ----------------------------------
+# Example of importing an array and 
+# performing different operations
+# ----------------------------------
+
+from example_tensors import v
+
+for i:N(3):
+    if v[i] > 2:
+        v[i] = v[i]*2
+
+v
+
+def f_x(x: ℝ): ℝ:
+    return x**2
+
+grad_f_x: ℝ = grad(f_x, v[2])
+grad_f_x
+
+
 # ----------------------------------------------
 # Import from another directory/package
 # Here we import from ``tutorials/`` directory
@@ -29,5 +60,5 @@ f_results
 from tutorials.learn_flux_limiter_euler_equations import superbee
 
 r: ℝ[5] = [-1.0, 0.0, 0.5, 1.0, 2.0]
-phi: ℝ[5] = superbee(r)
-phi
+φ: ℝ[5] = superbee(r)
+φ
