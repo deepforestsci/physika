@@ -4,13 +4,11 @@
 #
 # Computes the five energy contributions of the LDA DFT functional:
 # kinetic, Hartree, exchange-correlation, electron-ion, and Ewald.
-# Eewald is independent of the wavefunction, so it is computed once
-# outside the SCF loop and stored in the SCF state.
 # ============================================================
 
-from dft_atoms import Atoms
-from dft_operators import op_O, op_L, op_J, op_Jdag
-from dft_scf import SCF
+from dft_atoms import Atoms, flat_index, axis_index, fold_freq, cell_volume, sample_coord, recip_scale, g_squared, active_mask, active_subset, structure_factor
+from dft_operators import op_O, op_L, op_J, op_Jdag, op_I, op_Linv
+from dft_density import orth, get_n_total, get_phi, mask_embed
 
 π = 3.141592653589793
 
@@ -20,72 +18,138 @@ from dft_scf import SCF
 #
 #   Y           normalized orbital coefficients, active subset, ℂ[p]
 #   n           electron density, full real-space grid, ℝ[k]
-#   phi         Hartree potential, full grid, ℂ[k]
+#   φ           Hartree potential, full grid, ℂ[k]
 #   exc         exchange-correlation energy density, full grid, ℂ[k]
 #   ionic_potential         ionic (Coulomb) potential, full grid, ℂ[k]
 # ----------------------------------------------------------------
 
 
 # ------------------------------------------------------------------
-# Kinetic energy: Ekin = -1/2 f₀ Re<Y | L | Y>  
-# (f₀: occupation number of the single state; L: Laplacian operator - op_L)
+# Kinetic energy (single occupied state, Nstate = 1):
+#
+#     Ekin = -1/2 f₀ <Y | L | Y>,
+#
+# where f₀ is the occupation of the state and L is the Laplacian
+# operator.
 # ------------------------------------------------------------------
 
 def get_Ekin(atoms: Atoms, Y: ℂ[p]): ℝ:
     LY : ℂ[p] = op_L(Y, atoms.g2c(), atoms.volume())                         # Apply Laplacian operator to the orbital
-    real_inner_product : ℝ = sum(real(Y) * real(LY) + imag(Y) * imag(LY))   # Compute Re<Y|LY>: sum Re(conj(Y) * LY) = Re(Y)Re(LY) + Im(Y)Im(LY) over all plane-wave components
-    f0 : ℝ = atoms.f[0]                                                       # Occupation number of the single state
-    return (-0.5) * f0 * real_inner_product                                  # Kinetic energy
+    real_inner_product : ℝ = sum(real(Y) * real(LY) + real(-i * Y) * real(-i * LY))    # Evaluate Re(<Y|LY>)
+    f0 : ℝ = atoms.f[0]
+    return (-0.5) * f0 * real_inner_product
 
 # ------------------------------------------------------------------
-# Coulomb (Hartree) energy: Ecoul = 1/2 n · J† O phi  
-# (J†: adjoint transform - op_Jdag, O: overlap operator - op_O)
+# Coulomb (Hartree) energy:
+#
+#     Ecoul = 1/2 n · J† O φ,
+#
+# where J† is the adjoint transform (op_Jdag), O is the overlap
+# operator (op_O), and φ is the Hartree potential.
 # ------------------------------------------------------------------
 
-def get_Ecoul(atoms: Atoms, n: ℝ[k], phi: ℂ[k]): ℝ:
-    phi_real : ℂ[k] = op_Jdag(op_O(phi, atoms.volume()), atoms.s1, atoms.s2, atoms.s3)  # Transform the overlap-weighted Hartree potential to the real-space grid
-    return 0.5 * sum(n * real(phi_real))                                                    # Hartree electron-electron energy
+def get_Ecoul(atoms: Atoms, n: ℝ[k], φ: ℂ[k]): ℝ:
+    # Transform the Hartree potential to the real-space grid
+    phi_real : ℂ[k] = op_Jdag(op_O(φ, atoms.volume()), atoms.s1, atoms.s2, atoms.s3)
+    return 0.5 * sum(n * real(phi_real))
 
 # ------------------------------------------------------------------
-# Exchange-correlation energy: Exc = n · J† O J(exc)  
-# (J: forward transform - op_J; J†: adjoint transform - op_Jdag; O: overlap operator - op_O)
+# Exchange-correlation energy:
+#
+#     Exc = n · J† O J(exc),
+#
+# where exc is the exchange-correlation energy density. The energy
+# density is transformed to reciprocal space, overlap-weighted, and
+# transformed back before integration with the electron density.
 # ------------------------------------------------------------------
 
 def get_Exc(atoms: Atoms, n: ℝ[k], exc: ℂ[k]): ℝ:
-    exc_recip : ℂ[k] = op_J(exc, atoms.s1, atoms.s2, atoms.s3)  # Transform XC energy density to the reciprocal-space grid
-    exc_real : ℂ[k] = op_Jdag(op_O(exc_recip, atoms.volume()), atoms.s1, atoms.s2, atoms.s3)  # Transform the overlap-weighted XC energy density to the real-space grid
-    return sum(n * real(exc_real))                                                       # Exchange-correlation energy
+    exc_recip : ℂ[k] = op_J(exc, atoms.s1, atoms.s2, atoms.s3)
+    exc_real : ℂ[k] = op_Jdag(op_O(exc_recip, atoms.volume()), atoms.s1, atoms.s2, atoms.s3)
+    return sum(n * real(exc_real))
 
 #------------------------------------------------------------------
-# Electron-ion energy: n . ionic_potential
+# Electron-ion energy:
+#
+#     Een = n · ionic_potential.
 #------------------------------------------------------------------
 
 def get_Een(n: ℝ[k], ionic_potential: ℂ[k]): ℝ:
     return sum(n * real(ionic_potential))
 
 # ------------------------------------------------------------------
-# Ewald ion-ion energy
-# Eewald = Eself + Eneutral + Ereal + Erecip
+# Ewald ion-ion energy:
 #
-# Splits the long-range Coulomb interaction between periodic nuclei
-# into rapidly convergent real-space and reciprocal-space sums, with
-# self-interaction and neutralizing-background corrections.
+#     Eewald = Eself + Eneutral + Ereal + Erecip
+#
+# Evaluates the electrostatic interaction between periodically
+# replicated nuclei using the Ewald summation method.
+#
+#     gcut    reciprocal-space cutoff.
+#     gamma   screening tolerance.
+#     ν       = 0.5 √(gcut² / -log(gamma))
+#               Ewald splitting parameter.
+#     Ω       simulation-cell volume.
+#     zz      = Z² (nuclear charge product).
+#
+#     Eself    = -ν * zz / √π
+#     Eneutral = -π * zz / (2 * Ω * ν²)
+#     Ereal    = 1/2 * zz * Σ erfc(ν * r) / r
+#     Erecip   = (2π / Ω) * zz * Σ exp(-G² / (4 * ν²)) / G²
+#
+# The real-space sum runs over periodic images (r), while the
+# reciprocal-space sum runs over reciprocal lattice vectors (G ≠ 0).
 # ------------------------------------------------------------------
 
-def get_Eewald(atoms: Atoms, zz_real: ℝ[Nimg], r_real: ℝ[Nimg], g2_rec: ℝ[Nshell], rho2_rec: ℝ[Nshell], gcut: ℝ, gamma: ℝ): ℝ:
-    gexp : ℝ = (-1.0) * log(gamma)                                            # Exponential cutoff parameter: -log(gamma)
-    nu : ℝ = 0.5 * sqrt(gcut ** 2.0 / gexp)                                  # Ewald splitting parameter ν
-    Ω : ℝ = atoms.volume()                                                     # Unit-cell volume
-    total_charge : ℝ = sum(atoms.Z_nuc)                                       # Total nuclear charge
-
-    self_term : ℝ = (-nu) * sum(atoms.Z_nuc ** 2.0) / sqrt(π)                # Remove Gaussian self-interaction of each nucleus
-    neutral_term : ℝ = ((-π) * total_charge ** 2.0) / (2.0 * Ω * nu ** 2.0)  # Neutralizing-background correction
-    real_term : ℝ = 0.5 * sum(zz_real * erfc(nu * r_real) / r_real)          # Short-range screened Coulomb sum in real space
-    recip_term : ℝ = (2.0 * π / Ω) * sum(
-        exp((-0.25) * g2_rec / nu ** 2.0) / g2_rec * rho2_rec                # Long-range Coulomb sum in reciprocal space
+def get_Eewald(atoms: Atoms, gcut: ℝ, gamma: ℝ): ℝ:
+    gexp : ℝ = (-1.0) * log(gamma)
+    ν : ℝ = 0.5 * sqrt(gcut ** 2.0 / gexp)      # Ewald splitting parameter.
+    Ω : ℝ = atoms.volume()
+    z_ion : ℝ = atoms.Z_nuc[0]
+    zz : ℝ = z_ion * z_ion
+    # Self-interaction and neutralizing-background corrections.
+    self_term : ℝ = (-ν) * zz / sqrt(π)
+    neutral_term : ℝ = ((-π) * zz) / (2.0 * Ω * ν ** 2.0)
+    # Real-space contribution.
+    # Determine the range of periodic images needed for the real-space sum.
+    real_cutoff : ℝ = sqrt(0.5 * gexp) / ν
+    max_image_index : ℝ = floor(real_cutoff / atoms.a + 2.0)
+    images_per_axis : ℝ = 2.0 * max_image_index + 1.0
+    n_images : ℕ = images_per_axis * images_per_axis * images_per_axis
+    # Generate the periodic-image indices.
+    idx_r : ℝ[n_images] = arange(n_images)
+    di : ℝ[n_images] = axis_index(idx_r, images_per_axis * images_per_axis, images_per_axis) - max_image_index
+    dj : ℝ[n_images] = axis_index(idx_r, images_per_axis, images_per_axis) - max_image_index
+    dk : ℝ[n_images] = axis_index(idx_r, 1, images_per_axis) - max_image_index
+    # Compute the distance to each periodic image.
+    dist : ℝ[n_images] = atoms.a * sqrt(di * di + dj * dj + dk * dk)
+    # Exclude the origin image to avoid the singularity at r = 0.
+    keep_r : ℝ[n_images] = gt(dist, 0.0) * 1.0
+    safe_dist : ℝ[n_images] = dist + (1.0 - keep_r)
+    # Evaluate the real-space Ewald sum.
+    real_term : ℝ = 0.5 * zz * sum(keep_r * erfc(ν * dist) / safe_dist)
+    # Reciprocal-space contribution.
+    # Determine the range of reciprocal lattice vectors.
+    g_scale : ℝ = recip_scale(atoms.a)
+    max_g_index : ℝ = floor(gcut / g_scale + 2.0)
+    g_vectors_per_axis : ℝ = 2.0 * max_g_index + 1.0
+    n_g_vectors : ℕ = g_vectors_per_axis * g_vectors_per_axis * g_vectors_per_axis
+    # Generate the reciprocal-space grid.
+    idx_g : ℝ[n_g_vectors] = arange(n_g_vectors)
+    gi : ℝ[n_g_vectors] = axis_index(idx_g, g_vectors_per_axis * g_vectors_per_axis, g_vectors_per_axis) - max_g_index
+    gj : ℝ[n_g_vectors] = axis_index(idx_g, g_vectors_per_axis, g_vectors_per_axis) - max_g_index
+    gk : ℝ[n_g_vectors] = axis_index(idx_g, 1, g_vectors_per_axis) - max_g_index
+    # Compute |G|² for each reciprocal vector.
+    G2 : ℝ[n_g_vectors] = (g_scale * g_scale) * (gi * gi + gj * gj + gk * gk)
+    # Exclude the G = 0 vector.
+    keep_g : ℝ[n_g_vectors] = gt(G2, 0.0) * 1.0
+    safe_G2 : ℝ[n_g_vectors] = G2 + (1.0 - keep_g)
+    # Evaluate the reciprocal-space Ewald sum.
+    recip_term : ℝ = (2.0 * π / Ω) * zz * sum(
+        keep_g * exp((-0.25) * G2 / ν ** 2.0) / safe_G2
     )
-
-    return self_term + neutral_term + real_term + recip_term                   # Total periodic ion-ion energy
+    # Total Ewald energy.
+    return self_term + neutral_term + real_term + recip_term
 
 # ------------------------------------------------------------------
 # Total Kohn-Sham DFT energy
@@ -98,3 +162,75 @@ def get_E(scf: SCF): ℝ:
     Exc : ℝ = get_Exc(scf.atoms, scf.n, scf.exc)                              # Exchange-correlation energy
     Een : ℝ = get_Een(scf.n, scf.ionic_potential)                             # Electron-ion interaction energy
     return Ekin + Ecoul + Exc + Een + scf.Eewald                              # Total DFT energy
+
+# ------------------------------------------------------------------
+# Example: compute the total DFT energy of a hydrogen atom.
+#
+# Starting from an initial orbital guess, construct the electron
+# density, Hartree potential, exchange-correlation energy density,
+# ionic potential, and Ewald energy. These quantities are then used
+# to evaluate each contribution to the total Kohn-Sham energy.
+# ------------------------------------------------------------------
+
+from dft_density import orth, get_n_total, get_phi
+from dft_potentials import coulomb
+from dft_xc import lda_x, lda_c_chachiyo
+
+# Define a hydrogen atom in a cubic simulation cell.
+a : ℝ = 16.0
+ecut : ℝ = 16.0
+s : ℕ = 60
+
+px : ℝ = 0.0
+py : ℝ = 0.0
+pz : ℝ = 0.0
+
+Natoms : ℕ = 1
+Nstate : ℕ = 1
+Z_nuc : ℝ[1] = [1.0]
+f : ℝ[1] = [1.0]
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f)
+
+# Construct a Gaussian trial orbital in reciprocal space and
+# Löwdin-normalize it with respect to the plane-wave overlap metric.
+W0 : ℂ[p] = exp(-0.5 * H_atom.g2c()) * (1.0 + 0j)
+Y0 : ℂ[p] = orth(H_atom, W0)
+
+# Compute the electron density and Hartree potential.
+n0 : ℝ[k] = get_n_total(H_atom, Y0)
+φ0 : ℂ[k] = get_phi(H_atom, n0)
+
+# Evaluate the LDA exchange-correlation energy density and potential.
+# A small density floor avoids evaluating the functionals at n = 0.
+n0_c : ℂ[k] = (n0 + 1.0e-10) * (1.0 + 0j)
+ex_vx0 : ℂ[2, k] = lda_x(n0_c)
+ec_vc0 : ℂ[2, k] = lda_c_chachiyo(n0_c)
+exc0 : ℂ[k] = ex_vx0[0] + ec_vc0[0]
+vxc0 : ℂ[k] = ex_vx0[1] + ec_vc0[1]
+
+# Compute the all-electron Coulomb potential of the nucleus.
+ionic_potential0 : ℂ[k] = coulomb(H_atom)
+
+# Compute the Ewald ion-ion interaction.
+#   gcut  : reciprocal-space cutoff.
+#   gamma : screening tolerance used to determine the Ewald splitting.
+gcut : ℝ = 2.0
+gamma : ℝ = 1.0e-8
+Eewald0 : ℝ = get_Eewald(H_atom, gcut, gamma)
+
+# Evaluate the individual energy contributions.
+Ekin0 : ℝ = get_Ekin(H_atom, Y0)
+Ecoul0 : ℝ = get_Ecoul(H_atom, n0, φ0)
+Exc0 : ℝ = get_Exc(H_atom, n0, exc0)
+Een0 : ℝ = get_Een(n0, ionic_potential0)
+
+# Total Kohn-Sham energy.
+E0 : ℝ = Ekin0 + Ecoul0 + Exc0 + Een0 + Eewald0
+
+Ekin0
+Ecoul0
+Exc0
+Een0
+Eewald0
+E0

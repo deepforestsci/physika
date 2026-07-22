@@ -9,15 +9,17 @@ from dft_atoms import Atoms, flat_index, axis_index, fold_freq, cell_volume, sam
 from dft_operators import op_I, op_J, op_O, op_Linv
 
 #----------------------------------------------------------------
-# Helper Functions: places active-subset values into a zero-filled full grid
-# (the inverse of mask_select). 
+# Helper Function: expand an array defined on the active plane-wave
+# subset back onto the full reciprocal-space grid.
+# Entries corresponding to inactive plane waves are filled with zero.
+# This is the inverse operation of mask_select().
 #----------------------------------------------------------------
 def mask_embed(values: ℂ[p], active: ℝ[k], n: ℕ): ℂ[k]:
-    positions : ℝ[p] = mask_select(arange(n), active)  # integer index of each active slot
-    out : ℂ[k] = (0.0 * arange(n)) * (1.0 + 0j)         # zero-filled complex array, length n
+    positions : ℝ[p] = mask_select(arange(n), active)  # Indices of the active plane waves
+    out : ℂ[k] = (0.0 * arange(n)) * (1.0 + 0j)        # Zero-initialized full reciprocal-space grid
     count : ℝ = len(values)
     for i: ℕ(count):
-        out[positions[i]] = values[i]
+        out[positions[i]] = values[i]                  # Restore each active coefficient to its original position
     return out
 #----------------------------------------------------------------
 
@@ -31,16 +33,19 @@ def mask_embed(values: ℂ[p], active: ℝ[k], n: ℕ): ℂ[k]:
 #----------------------------------------------------------------
 
 #------------------------------------------------------------------
-# Löwdin normalization: Y = W (W^H O W)^(-1/2)
-# (W^H: conjugate transpose of W; O: overlap operator - op_O)
+# Löwdin normalization.
 #
+# Computes the normalized orbital
+#
+#     Y = W (Wᴴ O W)^(-1/2)
 # For a single occupied state (Nstate = 1), W^H O W is a scalar.
-# Since O(W) = ΩW: Y = W / sqrt(Ω Σ_G |W_G|²)
+# Since O(W) = ΩW, this reduces to
+#     Y = W / sqrt(Ω Σ_G |W_G|²).
 #------------------------------------------------------------------
 
 def orth(atoms: Atoms, W: ℂ[p]): ℂ[p]:
-    norm : ℝ = sqrt(atoms.volume() * sum(abs(W) ** 2.0))  # Compute sqrt(W^H O W) = sqrt(Ω Σ_G |W_G|²)
-    return W / norm                                        # Normalize the orbital so that Y^H O Y = 1
+    norm : ℝ = sqrt(atoms.volume() * sum(abs(W) ** 2.0))
+    return W / norm
 
 #------------------------------------------------------------------
 # Total electron density: n = f₀ |Yrs|²
@@ -51,11 +56,11 @@ def orth(atoms: Atoms, W: ℂ[p]): ℂ[p]:
 #------------------------------------------------------------------
 
 def get_n_total(atoms: Atoms, Y: ℂ[p]): ℝ[k]:
-    n_full : ℕ = atoms.s1 * atoms.s2 * atoms.s3             # Total number of full-grid points
+    n_full : ℕ = atoms.s1 * atoms.s2 * atoms.s3             # Number of grid points
     Y_full : ℂ[k] = mask_embed(Y, atoms.active(), n_full)    # Embed active coefficients into the full reciprocal-space grid
-    Yrs : ℂ[k] = op_I(Y_full, atoms.s1, atoms.s2, atoms.s3)  # Transform orbital to the real-space grid
-    f0 : ℝ = atoms.f[0]                                      # Occupation number of the single state
-    return f0 * abs(Yrs) ** 2.0                              # Electron density from the orbital probability density
+    Yrs : ℂ[k] = op_I(Y_full, atoms.s1, atoms.s2, atoms.s3)  # Transform orbital to the real space
+    f0 : ℝ = atoms.f[0]
+    return f0 * abs(Yrs) ** 2.0
 
 #------------------------------------------------------------------
 # Hartree potential: phi = -4π L^(-1) O J(n)
@@ -67,7 +72,54 @@ def get_n_total(atoms: Atoms, Y: ℂ[p]): ℝ[k]:
 #------------------------------------------------------------------
 
 def get_phi(atoms: Atoms, n: ℝ[k]): ℂ[k]:
-    n_c : ℂ[k] = n * (1.0 + 0j)                              # Cast real electron density to complex for the transform operators
-    n_recip : ℂ[k] = op_J(n_c, atoms.s1, atoms.s2, atoms.s3)  # Transform electron density to the reciprocal-space grid
-    Ω : ℝ = atoms.volume()                                    # Unit-cell volume
-    return (-4.0) * π * op_Linv(op_O(n_recip, Ω), atoms.g2(), Ω)  # Solve Poisson's equation for the reciprocal-space Hartree potential
+    n_c : ℂ[k] = n * (1.0 + 0j)                               # Convert the real density to a complex array
+    n_recip : ℂ[k] = op_J(n_c, atoms.s1, atoms.s2, atoms.s3)  # Transform the density to reciprocal space
+    Ω : ℝ = atoms.volume()
+    return (-4.0) * π * op_Linv(op_O(n_recip, Ω), atoms.g2(), Ω)
+
+#------------------------------------------------------------------
+# Example: construct a normalized hydrogen orbital, compute the
+# corresponding electron density, and solve Poisson's equation
+# for the Hartree potential.
+#
+# The same hydrogen system used throughout the DFT examples is
+# employed here: a cubic cell of side 16 Bohr with one hydrogen
+# nucleus at the origin.
+#------------------------------------------------------------------
+
+a : ℝ = 16.0
+ecut : ℝ = 16.0
+s : ℕ = 60
+
+px : ℝ = 0.0
+py : ℝ = 0.0
+pz : ℝ = 0.0
+
+Natoms : ℕ = 1
+Nstate : ℕ = 1
+Z_nuc : ℝ[1] = [1.0]
+f : ℝ[1] = [1.0]
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f)
+
+# Initial orbital guess on the active plane-wave basis.
+# A Gaussian in reciprocal space provides a smooth, localized starting point before normalization.
+
+W0 : ℂ[p] = exp(-0.5 * H_atom.g2c()) * (1.0 + 0j)
+
+# Löwdin-normalize:
+Y0 : ℂ[p] = orth(H_atom, W0)
+norm_check : ℝ = H_atom.volume() * sum(abs(Y0) ** 2.0)
+norm_check             
+
+# Construct the electron density from the normalized orbital.
+# Integrating the density over the simulation cell should recover the occupation number.
+n0 : ℝ[k] = get_n_total(H_atom, Y0)
+dV : ℝ = H_atom.volume() / (s * s * s)
+density_check : ℝ = sum(n0) * dV
+density_check            
+
+# Solve Poisson's equation for the Hartree potential.
+phi0 : ℂ[k] = get_phi(H_atom, n0)
+phi0[0]                 
+phi0[1]                  # potential at the first nonzero |G|
