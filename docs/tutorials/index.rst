@@ -13,8 +13,8 @@ Tutorials
    learn_parameter_1d_wave_equation
    cnn_tutorial
    learn_parameter_schrodinger_equation
+   single_particle_model
    allen_cahn
    ising_model
    learn_flux_limiter_euler_equations
    fft_tutorial
-
