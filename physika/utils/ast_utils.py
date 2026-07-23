@@ -703,6 +703,10 @@ def ast_to_torch_expr(node: ASTNode,
             "ifft2": "torch.fft.ifft2",
             "fftn": "torch.fft.fftn",
             "ifftn": "torch.fft.ifftn",
+            "zeros": "torch.zeros",
+            "rfft": "torch.fft.rfft",
+            "irfft": "torch.fft.irfft",
+            "gelu": "torch.nn.functional.gelu"
         }
         list_arg_funcs = {
             "concat": "torch.cat",

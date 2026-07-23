@@ -75,7 +75,7 @@ class FullyConnectedNetwork(nn.Module):
         self.B = nn.Parameter(torch.as_tensor(B))
         self.w = nn.Parameter(torch.as_tensor(w))
         self.b = nn.Parameter(torch.as_tensor(b))
-        self.n = torch.as_tensor(n).float() if isinstance(n, (int, float, torch.Tensor)) else n
+        self.n = int(n)
         self.learnable_params = [self.W, self.B, self.w, self.b]
 
     def forward(self, x):
