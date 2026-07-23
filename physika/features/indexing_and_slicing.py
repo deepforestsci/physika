@@ -164,25 +164,47 @@ def make_parser_rules():
         # p[5] — right hand side expression/number
         p[0] = ("index_assign_nd", p[1], p[3], p[6], p.lineno(1))
 
+    def p_loop_index_item_index(p):
+        """loop_index_item : func_expr"""
+        p[0] = ("index_item", p[1])
+
+    def p_loop_index_item_slice(p):
+        """loop_index_item : func_expr COLON func_expr
+                           | func_expr COLON
+                           | COLON func_expr
+                           | COLON"""
+        if len(p) == 4:
+            p[0] = ("slice_item", p[1], p[3])
+        elif len(p) == 3 and p[1] == ":":
+            p[0] = ("slice_item", None, p[2])
+        elif len(p) == 3:
+            p[0] = ("slice_item", p[1], None)
+        else:
+            p[0] = ("slice_item", None, None)
+
     def p_loop_index_list_single(p):
-        """loop_index_list : func_expr"""
+        """loop_index_list : loop_index_item"""
         # Single-element index list.
         # Base case for nD subscript accumulation.
         # Parameters:
         # p[1] — index expression
         # Returns:
         #   [p[1]]
-        p[0] = [("index_item", p[1])]
+        p[0] = [p[1]]
 
-    def p_loop_index_list_multi(p):
-        """loop_index_list : loop_index_list COMMA func_expr"""
+    def p_loop_index_list_base(p):
+        """loop_index_list : loop_index_item COMMA loop_index_item"""
         # Extend index list.
         # Parameters:
         # p[1] — existing index list
         # p[3] — next index expression
         # Returns:
         #   p[1] + [p[3]]
-        p[0] = p[1] + [("index_item", p[3])]
+        p[0] = [p[1], p[3]]
+
+    def p_loop_index_list_extend(p):
+        """loop_index_list : loop_index_list COMMA loop_index_item"""
+        p[0] = p[1] + [p[3]]
 
     def p_func_loop_stmt_index_pluseq(p):
         """func_loop_stmt : ID LBRACKET loop_index_list RBRACKET PLUSEQ func_expr NEWLINE"""  # noqa: E501
@@ -254,9 +276,11 @@ def make_parser_rules():
         p_multi_index_list_base, p_multi_index_list_extend,
         p_func_factor_indexN, p_for_statement_index_assign_nd,
         p_statement_index_assign, p_statement_index_assign_nd,
-        p_loop_index_list_single, p_loop_index_list_multi,
-        p_func_loop_stmt_index_pluseq, p_func_loop_stmt_index_assign_nd,
-        p_func_body_stmt_index_assign, p_func_body_stmt_index_assign_nd
+        p_loop_index_item_index, p_loop_index_item_slice,
+        p_loop_index_list_single, p_loop_index_list_base,
+        p_loop_index_list_extend, p_func_loop_stmt_index_pluseq,
+        p_func_loop_stmt_index_assign_nd, p_func_body_stmt_index_assign,
+        p_func_body_stmt_index_assign_nd
     ]
 
 
@@ -268,7 +292,7 @@ class IndexingandSlicing(ELF):
     type checker and code generator.
 
     **Parser rules**
-    Nineteen PLY grammer functions (see ``make_parser_rules``) which
+    Twenty-two PLY grammer functions (see ``make_parser_rules``) which
     handles indexing and slicing.
 
     **Type rules**
@@ -324,7 +348,7 @@ class IndexingandSlicing(ELF):
         """
         Override ``parser_rules`` handler for new grammer rules.
 
-        Nineteen PLY grammer functions (see ``make_parser_rules``) which
+        Twenty-two PLY grammer functions (see ``make_parser_rules``) which
         handles indexing and slicing.
 
         Returns
@@ -1090,19 +1114,47 @@ class IndexingandSlicing(ELF):
             >>> from physika.features import IndexingandSlicing
             >>> from physika.utils.ast_utils import ast_to_torch_expr
             >>> rules = IndexingandSlicing().forward_rules()
+            >>> # Indexing example
             >>> node = (
-            ...     "loop_index_assign_nd",
+            ...     "for_index_assign_nd",
             ...     "A",
-            ...     [("var", "i"), ("var", "j")],
+            ...     [("index_item", ("var", "i")),
+            ...      ("index_item", ("var", "j"))],
             ...     ("num", 5),
             ... )
-            >>> rules["loop_index_assign_nd"](node, ast_to_torch_expr, current_loop_var={"i", "j"})  # noqa
+            >>> rules["for_index_assign_nd"](node, ast_to_torch_expr, current_loop_var={"i", "j"})  # noqa
             'A[int(i), int(j)] = 5'
+            >>> # Slicing example
+            >>> node = (
+            ...     "for_index_assign_nd",
+            ...     "A",
+            ...     [
+            ...         ("slice_item", None, None),
+            ...         ("index_item", ("num", 0)),
+            ...     ],
+            ...     ("num", 1),
+            ... )
+            >>> rules["for_index_assign_nd"](
+            ...     node,
+            ...     ast_to_torch_expr,
+            ...     current_loop_var={"i", "j"},
+            ... )
+            'A[:, int(0)] = 1'
             """
             _, arr_name, idx_list, rhs_expr = node
-            indices = ", ".join(f"int({to_expr(idx)})" for idx in idx_list)
+            parts = []
+            for item in idx_list:
+                if item[0] == "index_item":
+                    idx = to_expr(item[1])
+                    parts.append(f"int({idx})")
+
+                elif item[0] == "slice_item":
+                    start = to_expr(item[1]) if item[1] is not None else ""
+                    end = to_expr(item[2]) if item[2] is not None else ""
+                    parts.append(f"{start}:{end}")
             rhs_code = to_expr(rhs_expr)
-            return f"{arr_name}[{indices}] = {rhs_code}"
+            code = f"{arr_name}[{', '.join(parts)}] = {rhs_code}"
+            return code
 
         def emit_index_assign(node: tuple, to_expr: Callable, **ctx) -> str:
             """
@@ -1272,10 +1324,14 @@ class IndexingandSlicing(ELF):
             >>> from physika.features import IndexingandSlicing
             >>> from physika.utils.ast_utils import ast_to_torch_expr
             >>> rules = IndexingandSlicing().forward_rules()
+            >>> # Indexing example
             >>> node = (
             ...     "loop_index_assign_nd",
             ...     "A",
-            ...     [("var", "i"), ("var", "j")],
+            ...     [
+            ...         ("index_item", ("var", "i")),
+            ...         ("index_item", ("var", "j")),
+            ...     ],
             ...     ("var", "v"),
             ... )
             >>> rules["loop_index_assign_nd"](
@@ -1284,13 +1340,47 @@ class IndexingandSlicing(ELF):
             ...     current_loop_var={"i", "j"},
             ... )
             'A[int(i), int(j)] = v'
+            >>> # Slicing example
+            >>> node = (
+            ...     "loop_index_assign_nd",
+            ...     "A",
+            ...     [
+            ...         ("slice_item", None, None),
+            ...         ("index_item", ("num", 0)),
+            ...     ],
+            ...     ("num", 1),
+            ... )
+            >>> rules["loop_index_assign_nd"](
+            ...     node,
+            ...     ast_to_torch_expr,
+            ...     current_loop_var={"i"},
+            ... )
+            'A[:, int(0)] = 1'
             """
             _, arr_name, idx_list, rhs = node
-            indices = ", ".join(
-                f"int({to_expr(idx, current_loop_var = ctx['current_loop_var'])})"  # noqa
-                for idx in idx_list)
-            rhs_code = to_expr(rhs, current_loop_var=ctx["current_loop_var"])
-            return f"{arr_name}[{indices}] = {rhs_code}"
+            parts = []
+            for item in idx_list:
+                if item[0] == "index_item":
+                    idx = to_expr(
+                        item[1],
+                        current_loop_var=ctx["current_loop_var"]
+                    )
+                    parts.append(f"int({idx})")
+
+                elif item[0] == "slice_item":
+                    start = (to_expr(item[1],
+                                     current_loop_var=ctx["current_loop_var"])
+                             if item[1] is not None else "")
+                    end = (to_expr(item[2],
+                                   current_loop_var=ctx["current_loop_var"])
+                           if item[2] is not None else "")
+                    parts.append(f"{start}:{end}")
+            rhs_code = to_expr(
+                rhs,
+                current_loop_var=ctx["current_loop_var"],
+            )
+
+            return f"{arr_name}[{', '.join(parts)}] = {rhs_code}"
 
         def emit_body_index_assign(node: tuple, to_expr: Callable,
                                    **ctx) -> str:
