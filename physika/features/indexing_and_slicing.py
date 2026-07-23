@@ -1361,10 +1361,8 @@ class IndexingandSlicing(ELF):
             parts = []
             for item in idx_list:
                 if item[0] == "index_item":
-                    idx = to_expr(
-                        item[1],
-                        current_loop_var=ctx["current_loop_var"]
-                    )
+                    idx = to_expr(item[1],
+                                  current_loop_var=ctx["current_loop_var"])
                     parts.append(f"int({idx})")
 
                 elif item[0] == "slice_item":

@@ -75,12 +75,15 @@ class_z = obj_slice_demo.return_z(z)
 physika_print(class_x)
 physika_print(class_y)
 physika_print(class_z)
-x[1:3] = torch.tensor([10, 20], device=DEVICE)
-y[:, int(0)] = torch.tensor([10, 20, 30, 40], device=DEVICE)
-z[:, :, int(0)] = torch.tensor([10, 20], device=DEVICE)
-x_after_assignment = x
-y_after_assignment = y
-z_after_assignment = z
+x_assign = x
+y_assign = y
+z_assign = z
+x_assign[1:3] = torch.tensor([10, 20], device=DEVICE)
+y_assign[:, int(0)] = torch.tensor([10, 20, 30, 40], device=DEVICE)
+z_assign[:, :, int(0)] = torch.tensor([10, 20], device=DEVICE)
+x_after_assignment = x_assign
+y_after_assignment = y_assign
+z_after_assignment = z_assign
 physika_print(x_after_assignment)
 physika_print(y_after_assignment)
 physika_print(z_after_assignment)
