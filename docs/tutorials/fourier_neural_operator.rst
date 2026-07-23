@@ -83,6 +83,11 @@ In our implementation code, :math:`P` is a simple ``Conv1d`` block, and :math:`Q
             this.W2 = this.W2 - lr * learnable_grads[2]
             this.b2 = this.b2 - lr * learnable_grads[3]
 
+.. note::
+
+    ``learnable_grads`` is a special, reserved variable name. Physika has no general
+    ``list`` data type, so we cannot creates a list of grad variables (which usually have different shapes)/
+    This should get improved once Physika supports ``list`` data type.
 
 
 Part 2
