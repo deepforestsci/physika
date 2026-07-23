@@ -50,22 +50,45 @@ class SliceDemo(nn.Module):
 x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8], device=DEVICE)
 y = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]], device=DEVICE)
 z = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], device=DEVICE)
-physika_print(x[1:3])
-physika_print(x[:4])
-physika_print(y[1:3, :])
-physika_print(y[:, int(2)])
-physika_print(z[int(1), :, :])
-physika_print(z[:, int(0), int(0)])
-physika_print(slice_demo_1d(x))
-physika_print(slice_demo_2d(y))
-physika_print(slice_demo_3d(z))
+x_slice_1_to_3 = x[1:3]
+x_slice_start_to_4 = x[:4]
+y_rows_1_to_3 = y[1:3, :]
+y_column_2 = y[:, int(2)]
+z_layer_1 = z[int(1), :, :]
+z_first_element_each_layer = z[:, int(0), int(0)]
+physika_print(x_slice_1_to_3)
+physika_print(x_slice_start_to_4)
+physika_print(y_rows_1_to_3)
+physika_print(y_column_2)
+physika_print(z_layer_1)
+physika_print(z_first_element_each_layer)
+func_x = slice_demo_1d(x)
+func_y = slice_demo_2d(y)
+func_z = slice_demo_3d(z)
+physika_print(func_x)
+physika_print(func_y)
+physika_print(func_z)
 obj_slice_demo = SliceDemo().to(DEVICE)
-physika_print(obj_slice_demo.return_x(x))
-physika_print(obj_slice_demo.return_y(y))
-physika_print(obj_slice_demo.return_z(z))
+class_x = obj_slice_demo.return_x(x)
+class_y = obj_slice_demo.return_y(y)
+class_z = obj_slice_demo.return_z(z)
+physika_print(class_x)
+physika_print(class_y)
+physika_print(class_z)
 x[1:3] = torch.tensor([10, 20], device=DEVICE)
 y[:, int(0)] = torch.tensor([10, 20, 30, 40], device=DEVICE)
 z[:, :, int(0)] = torch.tensor([10, 20], device=DEVICE)
-physika_print(x)
-physika_print(y)
-physika_print(z)
+x_after_assignment = x
+y_after_assignment = y
+z_after_assignment = z
+physika_print(x_after_assignment)
+physika_print(y_after_assignment)
+physika_print(z_after_assignment)
+for i in range(int(0), int(2)):
+    y[:, int(0)] = torch.tensor([1, 2, 3, 4], device=DEVICE)
+for i in range(int(0), int(2)):
+    z[:, int(0), int(0)] = torch.tensor([9, 10], device=DEVICE)
+loop_y = y
+loop_z = z
+physika_print(loop_y)
+physika_print(loop_z)
