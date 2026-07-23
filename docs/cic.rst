@@ -413,7 +413,7 @@ For example, ``Nat`` has two constructors: ``zero`` and ``succ``. So, ``Recursor
 for ``Nat`` needs two rules; one for what happens at ``Nat.zero``, and one for
 what happens at ``Nat.succ``. During elaboration, when there is ``Nat`` type,
 ``Recursor`` contains the information and rules (as CIC expressions) and compute
-with them. Because a proof in CIC is just another term (the Curry-Howard correspondence),
+with them. Because a proof in CIC is just another term (Curry-Howard correspondence),
 proving a theorem using a natural number uses ``Recursor`` too.
 
 
