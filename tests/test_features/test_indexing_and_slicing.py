@@ -29,7 +29,7 @@ class TestIndexingandSlicing:
         parser_rules should return nineteen handlers.
         """
         rules = IndexingandSlicing().parser_rules()
-        assert len(rules) == 19
+        assert len(rules) == 22
         names = [r.__name__ for r in rules]
         assert "p_factor_index" in names
         assert "p_factor_index_var" in names
@@ -44,8 +44,11 @@ class TestIndexingandSlicing:
         assert "p_for_statement_index_assign_nd" in names
         assert "p_statement_index_assign" in names
         assert "p_statement_index_assign_nd" in names
+        assert "p_loop_index_item_index" in names
+        assert "p_loop_index_item_slice" in names
         assert "p_loop_index_list_single" in names
-        assert "p_loop_index_list_multi" in names
+        assert "p_loop_index_list_base" in names
+        assert "p_loop_index_list_extend" in names
         assert "p_func_loop_stmt_index_pluseq" in names
         assert "p_func_loop_stmt_index_assign_nd" in names
         assert "p_func_body_stmt_index_assign" in names
