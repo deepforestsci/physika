@@ -1,0 +1,203 @@
+# ============================================================
+# DFT atoms / cell setup
+# ============================================================
+#
+# Builds the simulation cell, real-space sampling, reciprocal-space
+# quantities, and plane-wave basis used throughout the DFT calculation.
+#
+# SimpleDFT assumes a cubic cell (R = a·I) where a is cube side length, so:
+#     |det(R)| = a³
+#     inv(R)  = (1/a)·I
+# which simplifies the general lattice algebra.
+
+#----------------------------------------------------------------
+# k   : total grid points (= s₁ × s₂ × s₃)
+#       where sᵢ is the number of grid points along axis i.
+# p   : number of active plane waves (|G|² ≤ 2Ecut)
+# ms  : flattened grid index (0, 1, ..., k−1)
+# m   : grid index along one axis
+# n   : signed FFT frequency index along one axis
+# axis_length : number of grid points along this axis.
+# axis_stride : spacing between consecutive indices of this axis in the flattened grid.
+# c   : reciprocal-space scaling factor (= 2π/a)
+# G2  : squared reciprocal-vector magnitude on the full grid
+# G2c : squared reciprocal-vector magnitude on the active basis
+# px, py, pz : atom position components, real space
+#----------------------------------------------------------------
+
+π = 3.141592653589793
+
+#----------------------------------------------------------------
+# Grid indexing and reciprocal-space frequencies
+#----------------------------------------------------------------
+
+# Flattened linear grid indices.
+def flat_index(k: ℕ): ℝ[k]:
+    return arange(k)
+
+# Recover the grid index along one axis from the flattened index.
+def axis_index(ms: ℝ[k], axis_stride: ℕ, axis_length: ℕ): ℝ[k]:
+    return mod(floor(ms / axis_stride), axis_length)
+
+# Fold the upper half of an axis to negative frequencies: 
+def fold_freq(m: ℝ[k], axis_length: ℕ): ℝ[k]:
+    # axis_length = number of grid points along the current axis.
+    return m - gt(m, axis_length / 2) * axis_length
+
+#----------------------------------------------------------------
+# Cell Geometry & Real-Space Sampling
+#----------------------------------------------------------------
+
+# Volume of a cubic unit cell (Ω = a³).
+# where a is the cubic cell side length.
+def cell_volume(a: ℝ): ℝ:
+    return a * a * a
+
+# Convert grid indices along one axis into real-space coordinates.
+# s : number of grid points along the axis
+def sample_coord(m: ℝ[k], a: ℝ, s: ℕ): ℝ[k]:
+    return m * (a / s)
+
+#----------------------------------------------------------------
+# Reciprocal-space quantities
+#----------------------------------------------------------------
+
+# Reciprocal space scaling factor (2π/a).
+def recip_scale(a: ℝ): ℝ:
+    return 2 * π / a
+
+# Squared reciprocal-vector magnitude |G|² for every grid point.
+def g_squared(n1: ℝ[k], n2: ℝ[k], n3: ℝ[k], c: ℝ): ℝ[k]:
+    return c * c * (n1 * n1 + n2 * n2 + n3 * n3)
+
+# Plane-wave cutoff mask (|G|² ≤ 2·ecut).
+def active_mask(G2: ℝ[k], ecut: ℝ): ℝ[k]:
+    return le(G2, 2 * ecut)
+
+# Restrict |G|² to the active plane-wave basis.
+# active : boolean mask selecting the active plane-wave subset (|G|² ≤ 2·ecut)
+def active_subset(G2: ℝ[k], active: ℝ[k]): ℝ[p]:
+    return mask_select(G2, active)
+
+# Structure factor measures plane-wave phase shift from atomic positions: Sf = exp(-i * G · pos)
+def structure_factor(n1: ℝ[k], n2: ℝ[k], n3: ℝ[k], c: ℝ, px: ℝ, py: ℝ, pz: ℝ): ℂ[k]:
+    phase : ℝ[k] = c * (n1 * px + n2 * py + n3 * pz)
+    return exp(-i * phase)
+
+
+#----------------------------------------------------------------
+# Atoms: holds the system + cell parameters and
+# builds each derived field on access via the functions above.
+#----------------------------------------------------------------
+class Atoms:
+    a : ℝ            # cubic cell side
+    ecut : ℝ         # kinetic-energy cutoff
+    s1 : ℕ           # grid points, axis 1
+    s2 : ℕ           # grid points, axis 2
+    s3 : ℕ           # grid points, axis 3
+    Natoms : ℕ       # atom count 
+    px : ℝ[Natoms]       # atom positions, x
+    py : ℝ[Natoms]       # atom positions, y
+    pz : ℝ[Natoms]       # atom positions, z
+    Nstate : ℕ       # occupied states 
+    Z_nuc : ℝ[Natoms]    # nuclear charge per atom
+    f : ℝ[Nstate]    # occupation number per state
+    def volume() : ℝ:
+        return cell_volume(this.a)
+    def freq_x() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return fold_freq(axis_index(ms, this.s3 * this.s2, this.s1), this.s1)
+    def freq_y() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return fold_freq(axis_index(ms, this.s3, this.s2), this.s2)
+    def freq_z() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return fold_freq(axis_index(ms, 1, this.s3), this.s3)
+    def coord_x() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return sample_coord(axis_index(ms, this.s3 * this.s2, this.s1), this.a, this.s1)
+    def coord_y() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return sample_coord(axis_index(ms, this.s3, this.s2), this.a, this.s2)
+    def coord_z() : ℝ[k]:
+        ms : ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return sample_coord(axis_index(ms, 1, this.s3), this.a, this.s3)
+    def gx() : ℝ[k]:
+        return recip_scale(this.a) * this.freq_x()
+    def gy() : ℝ[k]:
+        return recip_scale(this.a) * this.freq_y()
+    def gz() : ℝ[k]:
+        return recip_scale(this.a) * this.freq_z()
+    def g2() : ℝ[k]:
+        return g_squared(this.freq_x(), this.freq_y(), this.freq_z(), recip_scale(this.a))
+    def active() : ℝ[k]:
+        return active_mask(this.g2(), this.ecut)
+    def g2c() : ℝ[p]:
+        return active_subset(this.g2(), this.active())
+    def sf() : ℂ[k]:
+        n1 : ℝ[k] = this.freq_x()
+        n2 : ℝ[k] = this.freq_y()
+        n3 : ℝ[k] = this.freq_z()
+        c : ℝ = recip_scale(this.a)
+        natoms : ℕ = this.Natoms
+        Sf : ℂ[k] = structure_factor(n1, n2, n3, c, this.px[0], this.py[0], this.pz[0]) * 0.0
+        for a : ℕ(natoms):
+            Sf = Sf + structure_factor(n1, n2, n3, c, this.px[a], this.py[a], this.pz[a])
+        return Sf
+
+#------------------------------------------------------------------
+# Example: H and He, single-atom systems in a cubic simulation cell.
+#------------------------------------------------------------------
+
+# Cubic cell: side a=16 Bohr, kinetic cutoff ecut=16 Hartree,
+# 60 grid points per axis.
+a : ℝ = 16.0
+ecut : ℝ = 16.0
+s : ℕ = 60
+
+# Hydrogen atom at the cell origin.
+Natoms : ℕ = 1
+Nstate : ℕ = 1
+
+px : ℝ[1] = [0.0]
+py : ℝ[1] = [0.0]
+pz : ℝ[1] = [0.0]
+
+Z_nuc : ℝ[1] = [1.0]      # Nuclear charge
+f : ℝ[1] = [1.0]          # Number of electrons
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms, px, py, pz, Nstate, Z_nuc, f)
+
+# Cell geometry
+H_atom.volume()          # 4096.0
+
+# Reciprocal-space frequencies
+fx : ℝ[k] = H_atom.freq_x()
+fy : ℝ[k] = H_atom.freq_y()
+fz : ℝ[k] = H_atom.freq_z()
+
+# Real-space sampling
+x : ℝ[k] = H_atom.coord_x()
+y : ℝ[k] = H_atom.coord_y()
+z : ℝ[k] = H_atom.coord_z()
+
+# Reciprocal vectors
+gx : ℝ[k] = H_atom.gx()
+gy : ℝ[k] = H_atom.gy()
+gz : ℝ[k] = H_atom.gz()
+
+# Plane-wave basis
+G2 : ℝ[k] = H_atom.g2()
+active : ℝ[k] = H_atom.active()
+G2c : ℝ[p] = H_atom.g2c()
+
+len(G2c)                 # 12533 active plane waves
+
+# Structure factor
+Sf : ℂ[k] = H_atom.sf()
+Sf[0]                    # (1+0j) for an atom at the origin
+
+# Helium: same cell and cutoff, but Z = 2 and two electrons.
+He_atom : Atoms = Atoms(16.0, 16.0, 60, 60, 60, 1, [0.0], [0.0], [0.0], 1, [2.0], [2.0])
+
+len(He_atom.g2c())        # 12533: unchanged, since the active basis depends only on the cell and ecut

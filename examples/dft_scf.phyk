@@ -1,0 +1,190 @@
+# ============================================================
+# DFT self-consistent field driver
+# ============================================================
+#
+# Stores the intermediate DFT quantities and minimizes the total
+# energy with respect to the orbital coefficients using automatic
+# differentiation and steepest descent.
+# ============================================================
+
+from dft_atoms import Atoms, flat_index, axis_index, fold_freq, cell_volume, sample_coord, recip_scale, g_squared, active_mask, active_subset, structure_factor
+from dft_operators import op_O, op_L, op_Linv, op_J, op_I, op_Jdag
+from dft_density import orth, get_n_total, get_phi, mask_embed
+from dft_potentials import coulomb
+from dft_xc import lda_x, lda_c_chachiyo
+from dft_energies import get_Ekin, get_Ecoul, get_Exc, get_Een, get_Eewald
+
+
+# ----------------------------------------------------------------
+# SCF state
+#
+# Stores the system and all intermediate quantities required for
+# evaluating the total DFT energy.
+# ----------------------------------------------------------------
+
+class SCF:
+    atoms : Atoms               # System geometry, cell, grid, and nuclear parameters
+    ionic_potential : ℂ[k]      # Ionic Coulomb potential, full grid
+    W : ℂ[p]                    # Initial orbital coefficients, active subset
+    Y : ℂ[p]                    # Normalized orbital coefficients, active subset
+    n : ℝ[k]                    # Electron density, full real-space grid
+    φ : ℂ[k]                  # Hartree potential, full reciprocal-space grid
+    exc : ℂ[k]                  # Exchange-correlation energy density, full grid
+    vxc : ℂ[k]                  # Exchange-correlation potential, full grid
+    Eewald : ℝ                  # Wavefunction-independent ion-ion Ewald energy
+    def λ(_unused: ℝ) → ℝ:          # Dummy method required by the current code generator.
+        return _unused              # A class with no methods incorrectly loses the complex types of its fields during codegen.
+
+
+# ------------------------------------------------------------------
+# Initial orbital guess
+#
+# Samples random real coefficients and Löwdin-normalizes the resulting orbital
+# ------------------------------------------------------------------
+
+def init_W(atoms: Atoms, seed: ℕ): ℂ[p]:
+    physika.seed(seed)                        # Fix the RNG so the initial guess is reproducible
+    n_active : ℝ = len(atoms.g2c())          # Number of active plane-wave coefficients
+    W : ℝ[n_active] ~ 𝒰(0.0, 1.0, n_active)  # Sample the real part of the initial orbital
+    W : ℂ[p] = W * (1.0 + 0j)                # Cast the sampled coefficients to complex
+    return orth(atoms, W)                     # Return the Löwdin-normalized initial orbital
+
+
+# ------------------------------------------------------------------
+# Total energy from orbital coefficients
+#
+# Computes the Kohn-Sham DFT energy by orthonormalizing the orbital,
+# evaluating the density, electrostatic and exchange-correlation
+# terms, and assembling the total energy.
+#
+# Computational flow:
+#     W → Y → n → φ → Exc → E
+#
+# Automatic differentiation propagates through this complete energy map.
+# ------------------------------------------------------------------
+
+def energy_of_W(W: ℂ[p], atoms: Atoms, ionic_potential: ℂ[k], Eewald: ℝ): ℝ:
+    Y : ℂ[p] = orth(atoms, W)                           # Löwdin-normalize the orbital
+    n : ℝ[k] = get_n_total(atoms, Y)                    # Compute electron density on the real-space grid
+    φ : ℂ[k] = get_phi(atoms, n)                      # Solve Poisson's equation for the Hartree potential
+    n_c : ℂ[k] = (n + 0.0000000001) * (1.0 + 0j)       # Floor density at 1e-10 and cast to complex for XC evaluation
+    ex_vx : ℂ[2, k] = lda_x(n_c)                        # Compute LDA exchange energy density and potential
+    ec_vc : ℂ[2, k] = lda_c_chachiyo(n_c)               # Compute Chachiyo correlation energy density and potential
+    exc : ℂ[k] = ex_vx[0] + ec_vc[0]                    # Total XC energy density: exc = ex + ec
+    Ekin : ℝ = get_Ekin(atoms, Y)                        # Electron kinetic energy
+    Ecoul : ℝ = get_Ecoul(atoms, n, φ)                 # Hartree electron-electron energy
+    Exc : ℝ = get_Exc(atoms, n, exc)                     # Exchange-correlation energy
+    Een : ℝ = get_Een(n, ionic_potential)                # Electron-ion interaction energy
+    return Ekin + Ecoul + Exc + Een + Eewald             # Total Kohn-Sham DFT energy
+
+# ------------------------------------------------------------------
+# Steepest-descent minimization
+#
+# Starting from an initial SCF state, iteratively minimizes the total
+# energy by following the negative energy gradient. Once the change in
+# energy falls below the convergence tolerance, orbital updates are
+# disabled while the remaining iterations continue.
+#
+#     W <- W - β * dE/dW
+#
+# Returns the final total energy.
+# ------------------------------------------------------------------
+
+def sd(scf: SCF, Nit: ℕ, beta: ℝ, etol: ℝ): ℝ:
+    atoms : Atoms = scf.atoms                # Extract the system from the SCF state
+    ionic_potential : ℂ[k] = scf.ionic_potential
+    Eewald : ℝ = scf.Eewald
+    W : ℂ[p] = scf.W
+    g : ℂ[p] = scf.W * 0.0                   # Energy gradient dE/dW
+    E_prev : ℝ = 0.0                         # Energy from the previous iteration
+    E_cur : ℝ = 0.0                          # Energy from the current iteration
+    has_stepped : ℝ = 0.0                    # Skip the convergence check on the first iteration
+    converged : ℝ = 0.0                      # Stays 1.0 once |ΔE| <= etol
+    active : ℝ = 1.0                         # Disables updates after convergence
+    for i: ℕ(Nit):
+        E_cur = energy_of_W(W, atoms, ionic_potential, Eewald)         # Evaluate the total energy
+        converged = converged + (1.0 - converged) * has_stepped * (le(abs(E_cur - E_prev), etol) * 1.0)
+        active = 1.0 - converged                                       # Freeze the orbital after convergence
+        g = grad(energy_of_W(W, atoms, ionic_potential, Eewald), W)    # Compute the energy gradient
+        W = W - (beta * active) * g                                    # Steepest-descent update
+        E_prev = E_cur                                                 # Store the current energy
+        has_stepped = 1.0                                              # Enable convergence checks
+    return E_prev
+
+# ------------------------------------------------------------------
+# Top-level SCF driver
+#
+# Initializes the DFT quantities required for an SCF calculation,
+# constructs the initial SCF state, and starts energy minimization.
+# ------------------------------------------------------------------
+
+def runSCF(atoms: Atoms, Eewald: ℝ, Nit: ℕ, β: ℝ, etol: ℝ, seed: ℕ): ℝ:
+    ionic_potential : ℂ[k] = coulomb(atoms)               # Compute the ionic Coulomb potential
+    W0 : ℂ[p] = init_W(atoms, seed)                             # Generate the normalized initial orbital
+    Y0 : ℂ[p] = orth(atoms, W0)                           # Obtain the normalized orbital used for density evaluation
+    n0 : ℝ[k] = get_n_total(atoms, Y0)                    # Compute initial electron density
+    φ0 : ℂ[k] = get_phi(atoms, n0)                        # Compute initial Hartree potential
+    n0_c : ℂ[k] = (n0 + 0.0000000001) * (1.0 + 0j)        # Floor density and cast to complex for XC evaluation
+    ex_vx0 : ℂ[2, k] = lda_x(n0_c)                        # Initial LDA exchange energy density and potential
+    ec_vc0 : ℂ[2, k] = lda_c_chachiyo(n0_c)               # Initial Chachiyo correlation energy density and potential
+    exc0 : ℂ[k] = ex_vx0[0] + ec_vc0[0]                   # Initial XC energy density
+    vxc0 : ℂ[k] = ex_vx0[1] + ec_vc0[1]                   # Initial XC potential
+    scf : SCF = SCF(
+        atoms,
+        ionic_potential,
+        W0,
+        Y0,
+        n0,
+        φ0,
+        exc0,
+        vxc0,
+        Eewald
+    )                                                  # Assemble the fully populated initial SCF state
+    return sd(scf, Nit, β, etol)                     # Start steepest-descent minimization
+
+# ------------------------------------------------------------------
+# Example: run a full SCF calculation for a hydrogen atom.
+#
+# Builds the same cubic-cell hydrogen system used in the density and
+# energies examples, computes the fixed Ewald ion-ion energy once,
+# and minimizes the Kohn-Sham energy with steepest descent.
+# ------------------------------------------------------------------
+
+a : ℝ = 16.0
+ecut : ℝ = 16.0
+s : ℕ = 60
+π = 3.141592653589793
+
+Natoms : ℕ = 1
+Nstate : ℕ = 1
+
+px : ℝ[1] = [0.0]
+py : ℝ[1] = [0.0]
+pz : ℝ[1] = [0.0]
+
+Z_nuc : ℝ[1] = [1.0]
+f : ℝ[1] = [1.0]
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms, px, py, pz, Nstate, Z_nuc, f)
+
+# Ewald ion-ion energy is independent of the orbital, so it is
+# computed once, up front, and held fixed through the SCF loop.
+gcut : ℝ = 2.0
+gamma : ℝ = 1.0e-8
+Eewald0 : ℝ = get_Eewald(H_atom, gcut, gamma)
+
+# Steepest-descent settings: number of iterations and step size.
+Nit : ℕ = 10
+β : ℝ = 1.0e-5
+etol : ℝ = 1.0e-6
+seed = 1234
+
+# The direction sd() follows internally is the autodiff gradient dE/dW.
+ionic_potential0 : ℂ[k] = coulomb(H_atom)
+W0 : ℂ[p] = init_W(H_atom, seed)
+dE_dW : ℂ[p] = grad(energy_of_W(W0, H_atom, ionic_potential0, Eewald0), W0)
+dE_dW[0]
+
+# Run the SCF loop and report the converged total energy.
+E_total : ℝ = runSCF(H_atom, Eewald0, Nit, β, etol, seed)
+E_total

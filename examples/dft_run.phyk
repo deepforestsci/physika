@@ -1,0 +1,103 @@
+# ============================================================
+# DFT example calculations
+# ============================================================
+#
+# End-to-end Kohn-Sham DFT total-energy calculations for H, He, and
+# H2. For each system we build
+# an Atoms object, compute its wavefunction-independent Ewald ion-ion
+# energy once, and minimize the total energy with steepest descent
+# via runSCF.
+#
+# Reference values (SimpleDFT.jl examples.jl):
+#     Etot(H)  = -0.438418 Eh
+#     Etot(He) = -2.632035 Eh
+#     Etot(H2) = -1.1139689 Eh   (bond length 1.4 Bohr, CCCBDB geometry)
+# ============================================================
+
+from dft_atoms import Atoms, flat_index, axis_index, fold_freq, cell_volume, sample_coord, recip_scale, g_squared, active_mask, active_subset, structure_factor
+from dft_operators import op_O, op_L, op_Linv, op_J, op_I, op_Jdag
+from dft_density import orth, get_n_total, get_phi, mask_embed
+from dft_potentials import coulomb
+from dft_xc import lda_x, lda_c_chachiyo
+from dft_energies import get_Ekin, get_Ecoul, get_Exc, get_Een, get_Eewald
+from dft_scf import SCF, init_W, energy_of_W, sd, runSCF
+
+π = 3.141592653589793
+
+
+# ----------------------------------------------------------------
+# numerical settings
+# ----------------------------------------------------------------
+
+a : ℝ = 16.0        # cubic cell side (Bohr)
+ecut : ℝ = 16.0     # plane-wave kinetic-energy cutoff (Hartree)
+s : ℕ = 60          # grid points per axis (60 x 60 x 60)
+
+# Ewald summation parameters
+gcut : ℝ = 2.0
+gamma : ℝ = 1.0e-8
+
+# Steepest-descent controls
+Nit : ℕ = 1001      # maximum SCF iterations
+β : ℝ = 1.0e-5      # steepest-descent step size
+etol : ℝ = 1.0e-6   # energy convergence tolerance
+seed : ℕ = 1234     # RNG seed for the reproducible initial orbital
+
+# Single-atom geometry: one nucleus at the cell origin (H, He).
+Natoms1 : ℕ = 1
+Nstate1 : ℕ = 1
+px1 : ℝ[1] = [0.0]
+py1 : ℝ[1] = [0.0]
+pz1 : ℝ[1] = [0.0]
+
+
+# ----------------------------------------------------------------
+# Hydrogen atom: Z = 1, one electron in a singly-occupied state (f = 1).
+# Reference: Etot(H) = -0.438418 Eh
+# ----------------------------------------------------------------
+
+Z_H : ℝ[1] = [1.0]
+f_H : ℝ[1] = [1.0]
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms1, px1, py1, pz1, Nstate1, Z_H, f_H)
+
+Eewald_H : ℝ = get_Eewald(H_atom, gcut, gamma)
+E_H : ℝ = runSCF(H_atom, Eewald_H, Nit, β, etol, seed)
+E_H
+
+
+# ----------------------------------------------------------------
+# Helium atom: Z = 2, two electrons in one doubly-occupied state (f = 2).
+# Reference: Etot(He) = -2.632035 Eh
+# ----------------------------------------------------------------
+
+Z_He : ℝ[1] = [2.0]
+f_He : ℝ[1] = [2.0]
+
+He_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms1, px1, py1, pz1, Nstate1, Z_He, f_He)
+
+Eewald_He : ℝ = get_Eewald(He_atom, gcut, gamma)
+E_He : ℝ = runSCF(He_atom, Eewald_He, Nit, β, etol, seed)
+E_He
+
+
+# ----------------------------------------------------------------
+# Hydrogen molecule H2: two H nuclei 1.4 Bohr apart along x, two
+# electrons in one doubly-occupied state (f = 2).
+# Reference: Etot(H2) = -1.1139689 Eh
+# ----------------------------------------------------------------
+
+Natoms2 : ℕ = 2
+Nstate2 : ℕ = 1
+px2 : ℝ[2] = [0.0, 1.4]      # atom 0 at origin, atom 1 at (1.4, 0, 0)
+py2 : ℝ[2] = [0.0, 0.0]
+pz2 : ℝ[2] = [0.0, 0.0]
+
+Z_H2 : ℝ[2] = [1.0, 1.0]
+f_H2 : ℝ[1] = [2.0]
+
+H2_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms2, px2, py2, pz2, Nstate2, Z_H2, f_H2)
+
+Eewald_H2 : ℝ = get_Eewald(H2_atom, gcut, gamma)
+E_H2 : ℝ = runSCF(H2_atom, Eewald_H2, Nit, β, etol, seed)
+E_H2

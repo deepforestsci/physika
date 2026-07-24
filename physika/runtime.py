@@ -335,7 +335,10 @@ def compute_grad(
     if callable(f):
         # Evaluate f on a fresh leaf so the tape is always clean.
         if isinstance(x, torch.Tensor) and x.dim() > 0:
-            x_leaf = x.detach().clone().float().requires_grad_(True)
+            if x.is_complex():
+                x_leaf = x.detach().clone().requires_grad_(True)
+            else:
+                x_leaf = x.detach().clone().float().requires_grad_(True)
         else:
             x_val = x.item() if isinstance(x, torch.Tensor) else float(x)
             x_leaf = torch.tensor(x_val, requires_grad=True)
