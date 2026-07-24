@@ -860,11 +860,7 @@ def expr_call(node: Any,
 
     # Built-in functions
     elementwise_ops = ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh",
-<<<<<<< HEAD
-                       "real", "imag", "gt", "le", "mod", "floor", "atan")
-=======
                        "real", "imag","gt","le", "mod", "floor", "atan", "erfc")
->>>>>>> 1d446d5 (Ported energies, scf, denisity)
     if func_name in elementwise_ops:
         # Element-wise ops preserve the shape of their argument
         if arg_types:
@@ -888,8 +884,6 @@ def expr_call(node: Any,
     if func_name in ("mask_select", "arange"):
         # boolean select -> 1-D, runtime-dependent length
         return TTensor(((new_dim(), "invariant"), )), s
-    if func_name == "masked_scatter":
-        return (arg_types[0] if arg_types else None), s
 
     # User defined functions
     if func_name in ctx.func_env:
