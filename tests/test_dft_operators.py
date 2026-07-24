@@ -35,7 +35,9 @@ def ops():
 @pytest.fixture(scope="module")
 def atoms(ops):
     """Atoms on the 2x2x2 smoke grid; reproduces G2/ACTIVE above."""
-    return ops["Atoms"](A_SIDE, ECUT, 2, 2, 2, 0.0, 0.0, 0.0, 1, 1,
+    return ops["Atoms"](A_SIDE, ECUT, 2, 2, 2, 1,
+                        torch.tensor([0.0]), torch.tensor([0.0]),
+                        torch.tensor([0.0]), 1,
                         torch.tensor([1.0]), torch.tensor([1.0]))
 
 

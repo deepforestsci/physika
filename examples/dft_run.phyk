@@ -3,7 +3,7 @@
 # ============================================================
 #
 # End-to-end Kohn-Sham DFT total-energy calculations for H, He, and
-# H2, mirroring SimpleDFT.jl's examples.jl. For each system we build
+# H2. For each system we build
 # an Atoms object, compute its wavefunction-independent Ewald ion-ion
 # energy once, and minimize the total energy with steepest descent
 # via runSCF.
@@ -12,10 +12,6 @@
 #     Etot(H)  = -0.438418 Eh
 #     Etot(He) = -2.632035 Eh
 #     Etot(H2) = -1.1139689 Eh   (bond length 1.4 Bohr, CCCBDB geometry)
-#
-# Imports are non-recursive, so the full set of functions reached by
-# runSCF is imported explicitly below, and π is defined locally because
-# every imported functional references it as a module-level constant.
 # ============================================================
 
 from dft_atoms import Atoms, flat_index, axis_index, fold_freq, cell_volume, sample_coord, recip_scale, g_squared, active_mask, active_subset, structure_factor
@@ -30,18 +26,18 @@ from dft_scf import SCF, init_W, energy_of_W, sd, runSCF
 
 
 # ----------------------------------------------------------------
-# Shared numerical settings (identical to SimpleDFT.jl's examples.jl)
+# numerical settings
 # ----------------------------------------------------------------
 
 a : ℝ = 16.0        # cubic cell side (Bohr)
 ecut : ℝ = 16.0     # plane-wave kinetic-energy cutoff (Hartree)
 s : ℕ = 60          # grid points per axis (60 x 60 x 60)
 
-# Ewald summation parameters (SimpleDFT.jl defaults).
+# Ewald summation parameters
 gcut : ℝ = 2.0
 gamma : ℝ = 1.0e-8
 
-# Steepest-descent controls (SimpleDFT.jl defaults).
+# Steepest-descent controls
 Nit : ℕ = 1001      # maximum SCF iterations
 β : ℝ = 1.0e-5      # steepest-descent step size
 etol : ℝ = 1.0e-6   # energy convergence tolerance

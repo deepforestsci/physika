@@ -29,7 +29,9 @@ def atoms_ns():
 @pytest.fixture(scope="module")
 def h_atom(atoms_ns):
     """Atoms instance for the H-atom validation system (Natoms=1, Nstate=1)."""
-    return atoms_ns["Atoms"](H_A, H_ECUT, H_S, H_S, H_S, 0.0, 0.0, 0.0, 1, 1,
+    return atoms_ns["Atoms"](H_A, H_ECUT, H_S, H_S, H_S, 1,
+                             torch.tensor([0.0]), torch.tensor([0.0]),
+                             torch.tensor([0.0]), 1,
                              torch.tensor([1.0]), torch.tensor([1.0]))
 
 
@@ -167,3 +169,33 @@ class TestHAtomBasis:
                               h_atom.g2(),
                               rtol=r_tol,
                               atol=a_tol)
+
+H2_A = 16.0
+H2_S = 4
+
+
+@pytest.fixture(scope="module")
+def h2_atoms(atoms_ns):
+    """Two H nuclei at the origin and (1.4, 0, 0)."""
+    return atoms_ns["Atoms"](H2_A, H_ECUT, H2_S, H2_S, H2_S, 2,
+                             torch.tensor([0.0, 1.4]), torch.tensor([0.0, 0.0]),
+                             torch.tensor([0.0, 0.0]), 1,
+                             torch.tensor([1.0, 1.0]), torch.tensor([2.0]))
+
+
+class TestStructureFactorMultiAtom:
+    """sf() must sum the single-atom phase kernel over every atom."""
+
+    def test_two_atoms_sum_phases(self, atoms_ns, h2_atoms):
+        Sf = h2_atoms.sf()
+        n1, n2, n3 = h2_atoms.freq_x(), h2_atoms.freq_y(), h2_atoms.freq_z()
+        c = torch.tensor(2 * PI / H2_A)
+        z = torch.tensor(0.0)
+        kern = atoms_ns["structure_factor"]
+        expected = (kern(n1, n2, n3, c, z, z, z)
+                    + kern(n1, n2, n3, c, torch.tensor(1.4), z, z))
+        assert torch.allclose(Sf, expected, rtol=r_tol, atol=a_tol)
+
+    def test_dc_equals_atom_count(self, h2_atoms):
+        # Every atom contributes exp(0) = 1 at G = 0, so Sf[0] == Natoms.
+        assert h2_atoms.sf()[0].real == pytest.approx(2.0)

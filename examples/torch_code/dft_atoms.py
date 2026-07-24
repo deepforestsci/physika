@@ -39,17 +39,17 @@ def structure_factor(n1, n2, n3, c, px, py, pz):
 
 # === Classes ===
 class Atoms(nn.Module):
-    def __init__(self, a, ecut, s1, s2, s3, px, py, pz, Natoms, Nstate, Z_nuc, f):
+    def __init__(self, a, ecut, s1, s2, s3, Natoms, px, py, pz, Nstate, Z_nuc, f):
         super().__init__()
         self.a = torch.as_tensor(a).float()
         self.ecut = torch.as_tensor(ecut).float()
         self.s1 = torch.as_tensor(s1).float() if isinstance(s1, (int, float, torch.Tensor)) else s1
         self.s2 = torch.as_tensor(s2).float() if isinstance(s2, (int, float, torch.Tensor)) else s2
         self.s3 = torch.as_tensor(s3).float() if isinstance(s3, (int, float, torch.Tensor)) else s3
+        self.Natoms = torch.as_tensor(Natoms).float() if isinstance(Natoms, (int, float, torch.Tensor)) else Natoms
         self.px = torch.as_tensor(px).float()
         self.py = torch.as_tensor(py).float()
         self.pz = torch.as_tensor(pz).float()
-        self.Natoms = torch.as_tensor(Natoms).float() if isinstance(Natoms, (int, float, torch.Tensor)) else Natoms
         self.Nstate = torch.as_tensor(Nstate).float() if isinstance(Nstate, (int, float, torch.Tensor)) else Nstate
         self.Z_nuc = torch.as_tensor(Z_nuc).float()
         self.f = torch.as_tensor(f).float()
@@ -115,7 +115,15 @@ class Atoms(nn.Module):
 
     def sf(self):
         this = self
-        return structure_factor(self.freq_x(), self.freq_y(), self.freq_z(), recip_scale(self.a), self.px, self.py, self.pz)
+        n1 = self.freq_x()
+        n2 = self.freq_y()
+        n3 = self.freq_z()
+        c = recip_scale(self.a)
+        natoms = self.Natoms
+        Sf = (structure_factor(n1, n2, n3, c, self.px[int(0)], self.py[int(0)], self.pz[int(0)]) * 0.0)
+        for a in range(int(0), int(natoms)):
+            Sf = (Sf + structure_factor(n1, n2, n3, c, self.px[int(a)], self.py[int(a)], self.pz[int(a)]))
+        return Sf
 
     @property
     def params(self):
@@ -132,14 +140,14 @@ class Atoms(nn.Module):
 a = 16.0
 ecut = 16.0
 s = 60
-px = 0.0
-py = 0.0
-pz = 0.0
 Natoms = 1
 Nstate = 1
+px = torch.tensor([0.0], device=DEVICE)
+py = torch.tensor([0.0], device=DEVICE)
+pz = torch.tensor([0.0], device=DEVICE)
 Z_nuc = torch.tensor([1.0], device=DEVICE)
 f = torch.tensor([1.0], device=DEVICE)
-H_atom = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f).to(DEVICE)
+H_atom = Atoms(a, ecut, s, s, s, Natoms, px, py, pz, Nstate, Z_nuc, f).to(DEVICE)
 physika_print(H_atom.volume())
 fx = H_atom.freq_x()
 fy = H_atom.freq_y()
@@ -156,5 +164,5 @@ G2c = H_atom.g2c()
 physika_print(len(G2c))
 Sf = H_atom.sf()
 physika_print(Sf[int(0)])
-He_atom = Atoms(16.0, 16.0, 60, 60, 60, 0.0, 0.0, 0.0, 1, 1, torch.tensor([2.0], device=DEVICE), torch.tensor([2.0], device=DEVICE)).to(DEVICE)
+He_atom = Atoms(16.0, 16.0, 60, 60, 60, 1, torch.tensor([0.0], device=DEVICE), torch.tensor([0.0], device=DEVICE), torch.tensor([0.0], device=DEVICE), 1, torch.tensor([2.0], device=DEVICE), torch.tensor([2.0], device=DEVICE)).to(DEVICE)
 physika_print(len(He_atom.g2c()))

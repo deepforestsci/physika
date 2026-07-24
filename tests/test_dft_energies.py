@@ -41,14 +41,16 @@ def en_ns():
 
 @pytest.fixture(scope="module")
 def h_like_atoms(en_ns):
-    return en_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 0.0, 0.0, 0.0, 1, 1,
+    return en_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 1,
+                          torch.tensor([0.0]), torch.tensor([0.0]),
+                          torch.tensor([0.0]), 1,
                           torch.tensor([1.0]), torch.tensor([1.0]))
 
-
 def make_atoms(en_ns, f0=1.0, Z=1.0, a=H_A, ecut=H_ECUT, s=H_S):
-    return en_ns["Atoms"](a, ecut, s, s, s, 0.0, 0.0, 0.0, 1, 1,
+    return en_ns["Atoms"](a, ecut, s, s, s, 1,
+                          torch.tensor([0.0]), torch.tensor([0.0]),
+                          torch.tensor([0.0]), 1,
                           torch.tensor([Z]), torch.tensor([f0]))
-
 
 class TestKineticEnergy:
 
@@ -65,9 +67,13 @@ class TestKineticEnergy:
         assert float(out) >= -a_tol
 
     def test_scales_linearly_with_occupation(self, en_ns):
-        atoms_f1 = en_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 0.0, 0.0, 0.0, 1, 1,
+        atoms_f1 = en_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 1,
+                                  torch.tensor([0.0]), torch.tensor([0.0]),
+                                  torch.tensor([0.0]), 1,
                                   torch.tensor([1.0]), torch.tensor([1.0]))
-        atoms_f2 = en_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 0.0, 0.0, 0.0, 1, 1,
+        atoms_f2 = en_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 1,
+                                  torch.tensor([0.0]), torch.tensor([0.0]),
+                                  torch.tensor([0.0]), 1,
                                   torch.tensor([1.0]), torch.tensor([2.0]))
         e1 = float(en_ns["get_Ekin"](atoms_f1, W_ACT))
         e2 = float(en_ns["get_Ekin"](atoms_f2, W_ACT))
@@ -182,3 +188,54 @@ class TestTotalEnergy:
 
         out = en_ns["get_E"](scf_stub)
         assert float(out) == pytest.approx(expected, rel=r_tol, abs=a_tol)
+
+def ref_eewald_general(a, Omega, positions, Z, gcut, gamma):
+    """Independent pairwise Ewald reference — mirrors Julia's (ia, ja) double loop."""
+    gexp = -math.log(gamma)
+    nu = 0.5 * math.sqrt(gcut**2 / gexp)
+    E = -nu * sum(z * z for z in Z) / math.sqrt(math.pi)        # self:    Σ Z²
+    E += -math.pi * sum(Z)**2 / (2.0 * Omega * nu**2)           # neutral: (Σ Z)²
+    m_img = int(math.floor(math.sqrt(0.5 * gexp) / nu / a + 2.0))
+    g = 2.0 * math.pi / a
+    m_g = int(math.floor(gcut / g + 2.0))
+    for ia in range(len(Z)):
+        for ja in range(len(Z)):
+            dx = positions[ia][0] - positions[ja][0]
+            dy = positions[ia][1] - positions[ja][1]
+            dz = positions[ia][2] - positions[ja][2]
+            zz = Z[ia] * Z[ja]
+            for i in range(-m_img, m_img + 1):
+                for j in range(-m_img, m_img + 1):
+                    for k in range(-m_img, m_img + 1):
+                        r = math.sqrt((dx - a*i)**2 + (dy - a*j)**2 + (dz - a*k)**2)
+                        if r > 1e-12:                            # skip exact self term
+                            E += 0.5 * zz * math.erfc(nu * r) / r
+            for i in range(-m_g, m_g + 1):
+                for j in range(-m_g, m_g + 1):
+                    for k in range(-m_g, m_g + 1):
+                        if i or j or k:
+                            G2v = g * g * (i*i + j*j + k*k)
+                            gpos = g * (i*dx + j*dy + k*dz)
+                            E += (2.0*math.pi/Omega) * zz * math.exp(-0.25*G2v/nu**2) / G2v * math.cos(gpos)
+    return E
+
+
+class TestEwaldTwoAtom:
+    """H2 pairwise Ewald: exercises cos(G·dpos) and the Σ Z² vs (Σ Z)² split."""
+
+    def _h2(self, en_ns):
+        return en_ns["Atoms"](H_A, H_ECUT, H_S, H_S, H_S, 2,
+                              torch.tensor([0.0, 1.4]), torch.tensor([0.0, 0.0]),
+                              torch.tensor([0.0, 0.0]), 1,
+                              torch.tensor([1.0, 1.0]), torch.tensor([2.0]))
+
+    def test_matches_pairwise_reference(self, en_ns):
+        atoms = self._h2(en_ns)
+        Omega = float(atoms.volume())
+        expected = ref_eewald_general(
+            H_A, Omega, [[0.0, 0.0, 0.0], [1.4, 0.0, 0.0]], [1.0, 1.0], 2.0, 1e-8)
+        out = float(en_ns["get_Eewald"](atoms, 2.0, 1e-8))
+        assert out == pytest.approx(expected, rel=1e-4)
+
+    def test_no_nan_or_inf(self, en_ns):
+        assert math.isfinite(float(en_ns["get_Eewald"](self._h2(en_ns), 2.0, 1e-8)))
