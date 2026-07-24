@@ -15,12 +15,8 @@ from dft_operators import op_I, op_J, op_O, op_Linv
 # This is the inverse operation of mask_select().
 #----------------------------------------------------------------
 def mask_embed(values: ℂ[p], active: ℝ[k], n: ℕ): ℂ[k]:
-    positions : ℝ[p] = mask_select(arange(n), active)  # Indices of the active plane waves
-    out : ℂ[k] = (0.0 * arange(n)) * (1.0 + 0j)        # Zero-initialized full reciprocal-space grid
-    count : ℝ = len(values)
-    for i: ℕ(count):
-        out[positions[i]] = values[i]                  # Restore each active coefficient to its original position
-    return out
+    out : ℂ[k] = (0.0 * arange(n)) * (1.0 + 0j)   # Zero-initialized full reciprocal-space grid
+    return masked_scatter(out, active, values)     # Place active coefficients back at their grid positions
 #----------------------------------------------------------------
 
 π = 3.141592653589793

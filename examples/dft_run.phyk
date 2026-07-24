@@ -1,0 +1,74 @@
+# ============================================================
+# DFT example calculations (port of SimpleDFT.jl examples.jl)
+# ============================================================
+#
+# End-to-end Kohn-Sham DFT total-energy calculations for isolated
+# atoms, mirroring SimpleDFT.jl's examples.jl. For each system we
+# build an Atoms object, compute its wavefunction-independent Ewald
+# ion-ion energy once, and minimize the total energy with steepest
+# descent via runSCF.
+#
+# Reference values (SimpleDFT.jl, Nit=1001, etol=1e-6, beta=1e-5, seed=1234):
+#     Etot(H)  = -0.438418 Eh
+#     Etot(He) = -2.632035 Eh
+#
+# H2 (and any multi-atom system) is intentionally omitted: the current
+# Atoms / coulomb / get_Eewald port is single-atom only (one nuclear
+# position, one nuclear charge). Multi-atom support is a separate task.
+#
+# Imports are non-recursive, so the full set of functions reached by
+# runSCF is imported explicitly below, and π is defined locally because
+# every imported functional references it as a module-level constant.
+# ============================================================
+
+from dft_atoms import Atoms, flat_index, axis_index, fold_freq, cell_volume, sample_coord, recip_scale, g_squared, active_mask, active_subset, structure_factor
+from dft_operators import op_O, op_L, op_Linv, op_J, op_I, op_Jdag
+from dft_density import orth, get_n_total, get_phi, mask_embed
+from dft_potentials import coulomb
+from dft_xc import lda_x, lda_c_chachiyo
+from dft_energies import get_Ekin, get_Ecoul, get_Exc, get_Een, get_Eewald
+from dft_scf import SCF, init_W, energy_of_W, sd, runSCF
+
+π = 3.141592653589793
+
+
+# ----------------------------------------------------------------
+# Shared numerical settings (identical to SimpleDFT.jl's examples.jl)
+# ----------------------------------------------------------------
+
+a : ℝ = 16.0        # cubic cell side (Bohr)
+ecut : ℝ = 16.0     # plane-wave kinetic-energy cutoff (Hartree)
+s : ℕ = 60          # grid points per axis (60 x 60 x 60)
+
+px : ℝ = 0.0        # single nucleus at the cell origin
+py : ℝ = 0.0
+pz : ℝ = 0.0
+
+Natoms : ℕ = 1      # one atom
+Nstate : ℕ = 1      # one occupied Kohn-Sham state (closed shell)
+
+# Ewald summation parameters (SimpleDFT.jl defaults).
+gcut : ℝ = 2.0
+gamma : ℝ = 1.0e-8
+
+# Steepest-descent controls (SimpleDFT.jl defaults).
+Nit : ℕ = 1001      # maximum SCF iterations
+β : ℝ = 1.0e-5      # steepest-descent step size
+etol : ℝ = 1.0e-6   # energy convergence tolerance
+seed : ℕ = 1234     # RNG seed for the reproducible initial orbital
+
+
+
+# ----------------------------------------------------------------
+# Helium atom: Z = 2, two electrons in one doubly-occupied state (f = 2).
+# Reference: Etot(He) = -2.632035 Eh
+# ----------------------------------------------------------------
+
+Z_He : ℝ[1] = [2.0]
+f_He : ℝ[1] = [2.0]
+
+He_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_He, f_He)
+
+Eewald_He : ℝ = get_Eewald(He_atom, gcut, gamma)
+E_He : ℝ = runSCF(He_atom, Eewald_He, Nit, β, etol, seed)
+E_He

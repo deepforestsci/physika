@@ -888,6 +888,8 @@ def expr_call(node: Any,
     if func_name in ("mask_select", "arange"):
         # boolean select -> 1-D, runtime-dependent length
         return TTensor(((new_dim(), "invariant"), )), s
+    if func_name == "masked_scatter":
+        return (arg_types[0] if arg_types else None), s
 
     # User defined functions
     if func_name in ctx.func_env:

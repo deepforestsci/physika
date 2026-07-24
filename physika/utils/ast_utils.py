@@ -711,7 +711,7 @@ def ast_to_torch_expr(node: ASTNode,
             "mod": "torch.remainder",
             "arange": "torch.arange",
             "mask_select": "torch.masked_select",
-            "masked_scatter": "torch.masked_scatter",
+            "masked_scatter": "torch.masked_scatter",   
         }
         list_arg_funcs = {
             "concat": "torch.cat",
