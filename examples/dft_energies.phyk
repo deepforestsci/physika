@@ -34,7 +34,7 @@ from dft_density import orth, get_n_total, get_phi, mask_embed
 # ------------------------------------------------------------------
 
 def get_Ekin(atoms: Atoms, Y: ℂ[p]): ℝ:
-    LY : ℂ[p] = op_L(Y, atoms.g2c(), atoms.volume())                         # Apply Laplacian operator to the orbital
+    LY : ℂ[p] = op_L(atoms, Y)                         # Apply Laplacian operator to the orbital
     real_inner_product : ℝ = sum(real(Y) * real(LY) + real(-i * Y) * real(-i * LY))    # Evaluate Re(<Y|LY>)
     f0 : ℝ = atoms.f[0]
     return (-0.5) * f0 * real_inner_product
@@ -50,7 +50,7 @@ def get_Ekin(atoms: Atoms, Y: ℂ[p]): ℝ:
 
 def get_Ecoul(atoms: Atoms, n: ℝ[k], φ: ℂ[k]): ℝ:
     # Transform the Hartree potential to the real-space grid
-    phi_real : ℂ[k] = op_Jdag(op_O(φ, atoms.volume()), atoms.s1, atoms.s2, atoms.s3)
+    phi_real : ℂ[k] = op_Jdag(atoms, op_O(atoms, φ))
     return 0.5 * sum(n * real(phi_real))
 
 # ------------------------------------------------------------------
@@ -64,8 +64,8 @@ def get_Ecoul(atoms: Atoms, n: ℝ[k], φ: ℂ[k]): ℝ:
 # ------------------------------------------------------------------
 
 def get_Exc(atoms: Atoms, n: ℝ[k], exc: ℂ[k]): ℝ:
-    exc_recip : ℂ[k] = op_J(exc, atoms.s1, atoms.s2, atoms.s3)
-    exc_real : ℂ[k] = op_Jdag(op_O(exc_recip, atoms.volume()), atoms.s1, atoms.s2, atoms.s3)
+    exc_recip : ℂ[k] = op_J(atoms, exc)
+    exc_real : ℂ[k] = op_Jdag(atoms, op_O(atoms, exc_recip))
     return sum(n * real(exc_real))
 
 #------------------------------------------------------------------
@@ -103,53 +103,61 @@ def get_Een(n: ℝ[k], ionic_potential: ℂ[k]): ℝ:
 
 def get_Eewald(atoms: Atoms, gcut: ℝ, gamma: ℝ): ℝ:
     gexp : ℝ = (-1.0) * log(gamma)
-    ν : ℝ = 0.5 * sqrt(gcut ** 2.0 / gexp)      # Ewald splitting parameter.
+    ν : ℝ = 0.5 * sqrt(gcut ** 2.0 / gexp)              # Ewald splitting parameter
     Ω : ℝ = atoms.volume()
-    z_ion : ℝ = atoms.Z_nuc[0]
-    zz : ℝ = z_ion * z_ion
-    # Self-interaction and neutralizing-background corrections.
-    self_term : ℝ = (-ν) * zz / sqrt(π)
-    neutral_term : ℝ = ((-π) * zz) / (2.0 * Ω * ν ** 2.0)
-    # Real-space contribution.
-    # Determine the range of periodic images needed for the real-space sum.
+    natoms : ℕ = atoms.Natoms
+    # Charge sums differ: self uses Σ Zₐ², neutral uses (Σ Zₐ)².
+    sum_z2 : ℝ = sum(atoms.Z_nuc * atoms.Z_nuc)
+    total_z : ℝ = sum(atoms.Z_nuc)
+    self_term : ℝ = (-ν) * sum_z2 / sqrt(π)
+    neutral_term : ℝ = ((-π) * total_z * total_z) / (2.0 * Ω * ν ** 2.0)
+    # ---- Real-space image grid (independent of the atom pair) ----
     real_cutoff : ℝ = sqrt(0.5 * gexp) / ν
     max_image_index : ℝ = floor(real_cutoff / atoms.a + 2.0)
     images_per_axis : ℝ = 2.0 * max_image_index + 1.0
     n_images : ℕ = images_per_axis * images_per_axis * images_per_axis
-    # Generate the periodic-image indices.
     idx_r : ℝ[n_images] = arange(n_images)
     di : ℝ[n_images] = axis_index(idx_r, images_per_axis * images_per_axis, images_per_axis) - max_image_index
     dj : ℝ[n_images] = axis_index(idx_r, images_per_axis, images_per_axis) - max_image_index
     dk : ℝ[n_images] = axis_index(idx_r, 1, images_per_axis) - max_image_index
-    # Compute the distance to each periodic image.
-    dist : ℝ[n_images] = atoms.a * sqrt(di * di + dj * dj + dk * dk)
-    # Exclude the origin image to avoid the singularity at r = 0.
-    keep_r : ℝ[n_images] = gt(dist, 0.0) * 1.0
-    safe_dist : ℝ[n_images] = dist + (1.0 - keep_r)
-    # Evaluate the real-space Ewald sum.
-    real_term : ℝ = 0.5 * zz * sum(keep_r * erfc(ν * dist) / safe_dist)
-    # Reciprocal-space contribution.
-    # Determine the range of reciprocal lattice vectors.
+    Tx : ℝ[n_images] = atoms.a * di
+    Ty : ℝ[n_images] = atoms.a * dj
+    Tz : ℝ[n_images] = atoms.a * dk
+    # ---- Reciprocal-space grid (independent of the atom pair) ----
     g_scale : ℝ = recip_scale(atoms.a)
     max_g_index : ℝ = floor(gcut / g_scale + 2.0)
     g_vectors_per_axis : ℝ = 2.0 * max_g_index + 1.0
     n_g_vectors : ℕ = g_vectors_per_axis * g_vectors_per_axis * g_vectors_per_axis
-    # Generate the reciprocal-space grid.
     idx_g : ℝ[n_g_vectors] = arange(n_g_vectors)
     gi : ℝ[n_g_vectors] = axis_index(idx_g, g_vectors_per_axis * g_vectors_per_axis, g_vectors_per_axis) - max_g_index
     gj : ℝ[n_g_vectors] = axis_index(idx_g, g_vectors_per_axis, g_vectors_per_axis) - max_g_index
     gk : ℝ[n_g_vectors] = axis_index(idx_g, 1, g_vectors_per_axis) - max_g_index
-    # Compute |G|² for each reciprocal vector.
-    G2 : ℝ[n_g_vectors] = (g_scale * g_scale) * (gi * gi + gj * gj + gk * gk)
-    # Exclude the G = 0 vector.
+    Gx : ℝ[n_g_vectors] = g_scale * gi
+    Gy : ℝ[n_g_vectors] = g_scale * gj
+    Gz : ℝ[n_g_vectors] = g_scale * gk
+    G2 : ℝ[n_g_vectors] = Gx * Gx + Gy * Gy + Gz * Gz
     keep_g : ℝ[n_g_vectors] = gt(G2, 0.0) * 1.0
     safe_G2 : ℝ[n_g_vectors] = G2 + (1.0 - keep_g)
-    # Evaluate the reciprocal-space Ewald sum.
-    recip_term : ℝ = (2.0 * π / Ω) * zz * sum(
-        keep_g * exp((-0.25) * G2 / ν ** 2.0) / safe_G2
-    )
-    # Total Ewald energy.
-    return self_term + neutral_term + real_term + recip_term
+    g_weight : ℝ[n_g_vectors] = keep_g * exp((-0.25) * G2 / ν ** 2.0) / safe_G2
+    # ---- Pairwise ion-ion sum over (ia, ja) ----
+    Eewald : ℝ = self_term + neutral_term
+    for ia : ℕ(natoms):
+        for ja : ℕ(natoms):
+            dpos_x = atoms.px[ia] - atoms.px[ja]
+            dpos_y = atoms.py[ia] - atoms.py[ja]
+            dpos_z = atoms.pz[ia] - atoms.pz[ja]
+            zizj = atoms.Z_nuc[ia] * atoms.Z_nuc[ja]
+            rx = dpos_x - Tx
+            ry = dpos_y - Ty
+            rz = dpos_z - Tz
+            rmag = sqrt(rx * rx + ry * ry + rz * rz)
+            keep_r = gt(rmag, 0.0) * 1.0
+            safe_r = rmag + (1.0 - keep_r)
+            real_pair = 0.5 * zizj * sum(keep_r * erfc(ν * rmag) / safe_r)
+            gpos = Gx * dpos_x + Gy * dpos_y + Gz * dpos_z
+            recip_pair = (2.0 * π / Ω) * zizj * sum(g_weight * cos(gpos))
+            Eewald = Eewald + real_pair + recip_pair
+    return Eewald
 
 # ------------------------------------------------------------------
 # Total Kohn-Sham DFT energy
@@ -181,16 +189,17 @@ a : ℝ = 16.0
 ecut : ℝ = 16.0
 s : ℕ = 60
 
-px : ℝ = 0.0
-py : ℝ = 0.0
-pz : ℝ = 0.0
-
 Natoms : ℕ = 1
 Nstate : ℕ = 1
+
+px : ℝ[1] = [0.0]
+py : ℝ[1] = [0.0]
+pz : ℝ[1] = [0.0]
+
 Z_nuc : ℝ[1] = [1.0]
 f : ℝ[1] = [1.0]
 
-H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f)
+H_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms, px, py, pz, Nstate, Z_nuc, f)
 
 # Construct a Gaussian trial orbital in reciprocal space and
 # Löwdin-normalize it with respect to the plane-wave overlap metric.

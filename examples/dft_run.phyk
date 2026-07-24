@@ -1,20 +1,17 @@
 # ============================================================
-# DFT example calculations (port of SimpleDFT.jl examples.jl)
+# DFT example calculations
 # ============================================================
 #
-# End-to-end Kohn-Sham DFT total-energy calculations for isolated
-# atoms, mirroring SimpleDFT.jl's examples.jl. For each system we
-# build an Atoms object, compute its wavefunction-independent Ewald
-# ion-ion energy once, and minimize the total energy with steepest
-# descent via runSCF.
+# End-to-end Kohn-Sham DFT total-energy calculations for H, He, and
+# H2, mirroring SimpleDFT.jl's examples.jl. For each system we build
+# an Atoms object, compute its wavefunction-independent Ewald ion-ion
+# energy once, and minimize the total energy with steepest descent
+# via runSCF.
 #
-# Reference values (SimpleDFT.jl, Nit=1001, etol=1e-6, beta=1e-5, seed=1234):
+# Reference values (SimpleDFT.jl examples.jl):
 #     Etot(H)  = -0.438418 Eh
 #     Etot(He) = -2.632035 Eh
-#
-# H2 (and any multi-atom system) is intentionally omitted: the current
-# Atoms / coulomb / get_Eewald port is single-atom only (one nuclear
-# position, one nuclear charge). Multi-atom support is a separate task.
+#     Etot(H2) = -1.1139689 Eh   (bond length 1.4 Bohr, CCCBDB geometry)
 #
 # Imports are non-recursive, so the full set of functions reached by
 # runSCF is imported explicitly below, and π is defined locally because
@@ -40,13 +37,6 @@ a : ℝ = 16.0        # cubic cell side (Bohr)
 ecut : ℝ = 16.0     # plane-wave kinetic-energy cutoff (Hartree)
 s : ℕ = 60          # grid points per axis (60 x 60 x 60)
 
-px : ℝ = 0.0        # single nucleus at the cell origin
-py : ℝ = 0.0
-pz : ℝ = 0.0
-
-Natoms : ℕ = 1      # one atom
-Nstate : ℕ = 1      # one occupied Kohn-Sham state (closed shell)
-
 # Ewald summation parameters (SimpleDFT.jl defaults).
 gcut : ℝ = 2.0
 gamma : ℝ = 1.0e-8
@@ -57,6 +47,27 @@ Nit : ℕ = 1001      # maximum SCF iterations
 etol : ℝ = 1.0e-6   # energy convergence tolerance
 seed : ℕ = 1234     # RNG seed for the reproducible initial orbital
 
+# Single-atom geometry: one nucleus at the cell origin (H, He).
+Natoms1 : ℕ = 1
+Nstate1 : ℕ = 1
+px1 : ℝ[1] = [0.0]
+py1 : ℝ[1] = [0.0]
+pz1 : ℝ[1] = [0.0]
+
+
+# ----------------------------------------------------------------
+# Hydrogen atom: Z = 1, one electron in a singly-occupied state (f = 1).
+# Reference: Etot(H) = -0.438418 Eh
+# ----------------------------------------------------------------
+
+Z_H : ℝ[1] = [1.0]
+f_H : ℝ[1] = [1.0]
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms1, px1, py1, pz1, Nstate1, Z_H, f_H)
+
+Eewald_H : ℝ = get_Eewald(H_atom, gcut, gamma)
+E_H : ℝ = runSCF(H_atom, Eewald_H, Nit, β, etol, seed)
+E_H
 
 
 # ----------------------------------------------------------------
@@ -67,8 +78,30 @@ seed : ℕ = 1234     # RNG seed for the reproducible initial orbital
 Z_He : ℝ[1] = [2.0]
 f_He : ℝ[1] = [2.0]
 
-He_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_He, f_He)
+He_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms1, px1, py1, pz1, Nstate1, Z_He, f_He)
 
 Eewald_He : ℝ = get_Eewald(He_atom, gcut, gamma)
 E_He : ℝ = runSCF(He_atom, Eewald_He, Nit, β, etol, seed)
 E_He
+
+
+# ----------------------------------------------------------------
+# Hydrogen molecule H2: two H nuclei 1.4 Bohr apart along x, two
+# electrons in one doubly-occupied state (f = 2).
+# Reference: Etot(H2) = -1.1139689 Eh
+# ----------------------------------------------------------------
+
+Natoms2 : ℕ = 2
+Nstate2 : ℕ = 1
+px2 : ℝ[2] = [0.0, 1.4]      # atom 0 at origin, atom 1 at (1.4, 0, 0)
+py2 : ℝ[2] = [0.0, 0.0]
+pz2 : ℝ[2] = [0.0, 0.0]
+
+Z_H2 : ℝ[2] = [1.0, 1.0]
+f_H2 : ℝ[1] = [2.0]
+
+H2_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms2, px2, py2, pz2, Nstate2, Z_H2, f_H2)
+
+Eewald_H2 : ℝ = get_Eewald(H2_atom, gcut, gamma)
+E_H2 : ℝ = runSCF(H2_atom, Eewald_H2, Nit, β, etol, seed)
+E_H2

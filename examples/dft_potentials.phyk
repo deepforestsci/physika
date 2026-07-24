@@ -44,16 +44,17 @@ ecut : ℝ = 16.0
 s : ℕ = 60
 
 # Hydrogen atom at the cell origin.
-px : ℝ = 0.0
-py : ℝ = 0.0
-pz : ℝ = 0.0
-
 Natoms : ℕ = 1
 Nstate : ℕ = 1
+
+px : ℝ[1] = [0.0]
+py : ℝ[1] = [0.0]
+pz : ℝ[1] = [0.0]
+
 Z_nuc : ℝ[1] = [1.0]      # Nuclear charge
 f : ℝ[1] = [1.0]          # Number of electrons
 
-H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f)
+H_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms, px, py, pz, Nstate, Z_nuc, f)
 
 # Real-space Coulomb potential of the nucleus, V(r).
 Vext : ℂ[k] = coulomb(H_atom)

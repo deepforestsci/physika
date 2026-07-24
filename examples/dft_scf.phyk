@@ -155,16 +155,17 @@ ecut : ℝ = 16.0
 s : ℕ = 60
 π = 3.141592653589793
 
-px : ℝ = 0.0
-py : ℝ = 0.0
-pz : ℝ = 0.0
-
 Natoms : ℕ = 1
 Nstate : ℕ = 1
+
+px : ℝ[1] = [0.0]
+py : ℝ[1] = [0.0]
+pz : ℝ[1] = [0.0]
+
 Z_nuc : ℝ[1] = [1.0]
 f : ℝ[1] = [1.0]
 
-H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f)
+H_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms, px, py, pz, Nstate, Z_nuc, f)
 
 # Ewald ion-ion energy is independent of the orbital, so it is
 # computed once, up front, and held fixed through the SCF loop.

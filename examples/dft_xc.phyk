@@ -27,11 +27,11 @@
 #   vx = (4/3) ex
 #------------------------------------------------------------------
 
-def lda_x(n: ℂ[m, k]): ℂ[2, m, k]:
+def lda_x(n: ℂ[k]): ℂ[2, k]:
     cx : ℝ = (-3.0 / 4.0) * (3.0 / (2.0 * π)) ** (2.0 / 3.0)   # Slater exchange constant
-    rs : ℂ[m, k] = (3.0 / (4.0 * π * n)) ** (1.0 / 3.0)        # Wigner-Seitz radius
-    ex : ℂ[m, k] = cx / rs                                      # exchange energy density
-    vx : ℂ[m, k] = (4.0 / 3.0) * ex                             # exchange potential
+    rs : ℂ[k] = (3.0 / (4.0 * π * n)) ** (1.0 / 3.0)           # Wigner-Seitz radius
+    ex : ℂ[k] = cx / rs                                         # exchange energy density
+    vx : ℂ[k] = (4.0 / 3.0) * ex                               # exchange potential
     return [ex, vx]
 
 #------------------------------------------------------------------
@@ -42,12 +42,12 @@ def lda_x(n: ℂ[m, k]): ℂ[2, m, k]:
 # electron gas.
 #------------------------------------------------------------------
 
-def lda_c_chachiyo(n: ℂ[m, k]): ℂ[2, m, k]:
+def lda_c_chachiyo(n: ℂ[k]): ℂ[2, k]:
     a : ℝ = -0.01554535   # Chachiyo fit parameter
     b : ℝ = 20.4562557    # Chachiyo fit parameter
-    rs : ℂ[m, k] = (3.0 / (4.0 * π * n)) ** (1.0 / 3.0)                        # Wigner-Seitz radius
-    ec : ℂ[m, k] = a * log(1.0 + b / rs + b / rs ** 2.0)                       # correlation energy density
-    vc : ℂ[m, k] = ec + a * b * (2.0 + rs) / (3.0 * (b + b * rs + rs ** 2.0))  # correlation potential
+    rs : ℂ[k] = (3.0 / (4.0 * π * n)) ** (1.0 / 3.0)                        # Wigner-Seitz radius
+    ec : ℂ[k] = a * log(1.0 + b / rs + b / rs ** 2.0)                       # correlation energy density
+    vc : ℂ[k] = ec + a * b * (2.0 + rs) / (3.0 * (b + b * rs + rs ** 2.0))  # correlation potential
     return [ec, vc]
 
 
@@ -65,43 +65,34 @@ def lda_c_chachiyo(n: ℂ[m, k]): ℂ[2, m, k]:
 # Average density n0:
 n0 : ℝ = 1.0 / 4096.0
 
-# lda_x and lda_c_chachiyo operate on density arrays with shape
-# [states, grid points] (ℂ[m, k]). To keep this example compact,
+# To keep this example compact,
 # the uniform density n0 is evaluated on four representative
 # grid points.
 
-n : ℂ[1, 4] = [[n0, n0, n0, n0]]
+n : ℂ[4] = [n0, n0, n0, n0]
 
 # Slater exchange: returns [ex, vx]
-ex_vx : ℂ[2, 1, 4] = lda_x(n)
-ex : ℂ[1, 4] = ex_vx[0]
-vx : ℂ[1, 4] = ex_vx[1]
+ex_vx : ℂ[2, 4] = lda_x(n)
+ex : ℂ[4] = ex_vx[0]
+vx : ℂ[4] = ex_vx[1]
 
-# First state, first sample grid point.
-ex[0, 0]                  # -0.046160: exchange energy density
-vx[0, 0]                  # -0.061547: exchange potential
-
-# First state, second sample grid point.
-# Same values because the density is uniform.
-ex[0, 1]                  # -0.046160
-vx[0, 1]                  # -0.061547
+ex[0]                     # -0.046160: exchange energy density
+vx[0]                     # -0.061547: exchange potential
+ex[1]                     # -0.046160 (uniform density)
+vx[1]                     # -0.061547
 
 # Chachiyo correlation: returns [ec, vc]
-ec_vc : ℂ[2, 1, 4] = lda_c_chachiyo(n)
-ec : ℂ[1, 4] = ec_vc[0]
-vc : ℂ[1, 4] = ec_vc[1]
+ec_vc : ℂ[2, 4] = lda_c_chachiyo(n)
+ec : ℂ[4] = ec_vc[0]
+vc : ℂ[4] = ec_vc[1]
 
-# First state, first sample grid point.
-ec[0, 0]                  # -0.018411: correlation energy density
-vc[0, 0]                  # -0.022337: correlation potential
-
-# First state, second sample grid point.
-# Same values because the density is uniform.
-ec[0, 1]                  # -0.018411
-vc[0, 1]                  # -0.022337
+ec[0]                     # -0.018411: correlation energy density
+vc[0]                     # -0.022337: correlation potential
+ec[1]                     # -0.018411
+vc[1]                     # -0.022337
 
 # Total LDA exchange-correlation energy density and potential.
-exc : ℂ[1, 4] = ex + ec
-vxc : ℂ[1, 4] = vx + vc
-exc[0, 0]                 # -0.064571
-vxc[0, 0]                 # -0.083884
+exc : ℂ[4] = ex + ec
+vxc : ℂ[4] = vx + vc
+exc[0]                    # -0.064571
+vxc[0]                    # -0.083884

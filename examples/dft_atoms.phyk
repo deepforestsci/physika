@@ -95,10 +95,10 @@ class Atoms:
     s1 : ℕ           # grid points, axis 1
     s2 : ℕ           # grid points, axis 2
     s3 : ℕ           # grid points, axis 3
-    px : ℝ           # atom position, x
-    py : ℝ           # atom position, y
-    pz : ℝ           # atom position, z
     Natoms : ℕ       # atom count 
+    px : ℝ[Natoms]       # atom positions, x
+    py : ℝ[Natoms]       # atom positions, y
+    pz : ℝ[Natoms]       # atom positions, z
     Nstate : ℕ       # occupied states 
     Z_nuc : ℝ[Natoms]    # nuclear charge per atom
     f : ℝ[Nstate]    # occupation number per state
@@ -135,7 +135,15 @@ class Atoms:
     def g2c() : ℝ[p]:
         return active_subset(this.g2(), this.active())
     def sf() : ℂ[k]:
-        return structure_factor(this.freq_x(), this.freq_y(), this.freq_z(), recip_scale(this.a), this.px, this.py, this.pz)
+        n1 : ℝ[k] = this.freq_x()
+        n2 : ℝ[k] = this.freq_y()
+        n3 : ℝ[k] = this.freq_z()
+        c : ℝ = recip_scale(this.a)
+        natoms : ℕ = this.Natoms
+        Sf : ℂ[k] = structure_factor(n1, n2, n3, c, this.px[0], this.py[0], this.pz[0]) * 0.0
+        for a : ℕ(natoms):
+            Sf = Sf + structure_factor(n1, n2, n3, c, this.px[a], this.py[a], this.pz[a])
+        return Sf
 
 #------------------------------------------------------------------
 # Example: H and He, single-atom systems in a cubic simulation cell.
@@ -148,17 +156,17 @@ ecut : ℝ = 16.0
 s : ℕ = 60
 
 # Hydrogen atom at the cell origin.
-px : ℝ = 0.0
-py : ℝ = 0.0
-pz : ℝ = 0.0
-
 Natoms : ℕ = 1
 Nstate : ℕ = 1
+
+px : ℝ[1] = [0.0]
+py : ℝ[1] = [0.0]
+pz : ℝ[1] = [0.0]
 
 Z_nuc : ℝ[1] = [1.0]      # Nuclear charge
 f : ℝ[1] = [1.0]          # Number of electrons
 
-H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f)
+H_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms, px, py, pz, Nstate, Z_nuc, f)
 
 # Cell geometry
 H_atom.volume()          # 4096.0
@@ -190,6 +198,6 @@ Sf : ℂ[k] = H_atom.sf()
 Sf[0]                    # (1+0j) for an atom at the origin
 
 # Helium: same cell and cutoff, but Z = 2 and two electrons.
-He_atom : Atoms = Atoms(16.0, 16.0, 60, 60, 60, 0.0, 0.0, 0.0, 1, 1, [2.0], [2.0])
+He_atom : Atoms = Atoms(16.0, 16.0, 60, 60, 60, 1, [0.0], [0.0], [0.0], 1, [2.0], [2.0])
 
 len(He_atom.g2c())        # 12533: unchanged, since the active basis depends only on the cell and ecut
