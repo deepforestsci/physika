@@ -694,6 +694,8 @@ def ast_to_torch_expr(node: ASTNode,
             "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
+            "floor": "torch.floor",
+            "atan": "torch.atan",
         }
         multi_arg_funcs = {
             "roll": "torch.roll",
@@ -703,9 +705,20 @@ def ast_to_torch_expr(node: ASTNode,
             "ifft2": "torch.fft.ifft2",
             "fftn": "torch.fft.fftn",
             "ifftn": "torch.fft.ifftn",
+            "gt": "torch.gt",
+            "le": "torch.le",
+            "mod": "torch.remainder",
+            "arange": "torch.arange",
+            "mask_select": "torch.masked_select",
+            "masked_scatter": "torch.masked_scatter",
         }
         list_arg_funcs = {
             "concat": "torch.cat",
+        }
+        # funcs whose trailing args are passed as one tuple of ints
+        # (shapes, dims): f(x, d1, ...) -> torch_f(x, (int(d1), ...))
+        tuple_arg_funcs = {
+            "reshape": "torch.reshape",
         }
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
@@ -715,6 +728,10 @@ def ast_to_torch_expr(node: ASTNode,
 
         elif func_name in list_arg_funcs:
             return f"{list_arg_funcs[func_name]}([{', '.join(arg_strs)}])"
+
+        elif func_name in tuple_arg_funcs:
+            dims = ", ".join(f"int({a})" for a in arg_strs[1:])
+            return f"{tuple_arg_funcs[func_name]}({arg_strs[0]}, ({dims},))"
 
         elif func_name == "grad":
             # grad(output, input) -> compute_grad(output, input)

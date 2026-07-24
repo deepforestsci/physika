@@ -1,0 +1,243 @@
+# ============================================================
+# DFT operators
+# ============================================================
+#
+# Operators acting on wavefunctions, densities and potentials.
+#
+# Orbitals are represented on the active plane-wave basis,
+# while densities and potentials use the full reciprocal grid.
+#
+# Matrix variants (_mat) apply the same operator to each state,
+# with matrices stored as (states × plane waves).
+
+#----------------------------------------------------------------
+#   W         Input quantity (wavefunction, density, or potential, depending on the operator)
+#   Ω         Cell volume
+#   G2        |G|² on the full reciprocal grid
+#   G2c       |G|² on the active plane-wave basis
+#   active    Mask selecting the active plane-wave coefficients
+#   s1,s2,s3  FFT grid dimensions
+#----------------------------------------------------------------
+
+# Imports required by Atoms and the DFT operators.
+
+from dft_atoms import Atoms, cell_volume, flat_index, axis_index, fold_freq, recip_scale, g_squared, active_mask, active_subset, structure_factor
+
+π = 3.141592653589793
+
+#------------------------------------------------------------------
+# Helper function - mask_embed.
+
+# values : coefficients on the active plane-wave basis
+# mask   : active-plane-wave mask on the full reciprocal grid
+# n      : size of the full reciprocal grid
+#
+# Returns the coefficients embedded into the full reciprocal grid.
+#------------------------------------------------------------------
+
+# Embed active-basis coefficients into the full reciprocal grid.
+def mask_embed(values: ℂ[p], mask: ℝ[k], n: ℕ): ℂ[k]:
+    # Allocate a zero-filled vector on the full reciprocal grid.
+    empty : ℂ[k] = arange(n) * 0j
+    # Scatter the active-basis coefficients into the masked positions.
+    return masked_scatter(empty, mask, values)
+
+#------------------------------------------------------------------
+# Overlap operator.
+# Applies the overlap matrix ΩI, where Ω is the cell volume
+#------------------------------------------------------------------
+
+def op_O(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    return atoms.volume() * W
+
+def op_O_mat(atoms: Atoms, W: ℂ[m, k]): ℂ[m, k]:
+    return atoms.volume() * W
+
+#------------------------------------------------------------------
+# Laplacian operator.
+# Uses the active or full reciprocal grid depending on the size
+# of the input, then multiplies by -Ω|G|².
+#------------------------------------------------------------------
+
+def op_L(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    # Active-basis |G|² values.
+    G2c : ℝ[p] = atoms.g2c()
+    if len(W) == len(G2c):
+        # Active-basis input: use |G|² on the active plane-wave basis.
+        G2 : ℝ[k] = G2c
+    else:
+        # Full-grid input: use |G|² on the full reciprocal grid.
+        G2 : ℝ[k] = atoms.g2()
+    return (-atoms.volume()) * G2 * W
+
+def op_L_mat(atoms: Atoms, W: ℂ[m, k]): ℂ[m, k]:
+    Nstate : ℕ = len(W)     # Number of states 
+    G2c : ℝ[p] = atoms.g2c()
+    if len(W[0]) == len(G2c):
+        G2 : ℝ[k] = G2c
+    else:
+        G2 : ℝ[k] = atoms.g2()
+    Ω : ℝ = atoms.volume()
+    # Apply the Laplacian to each state independently.
+    out : ℂ[Nstate, k] = for state: ℕ(Nstate) → (-Ω) * G2 * W[state]
+    return out
+
+#------------------------------------------------------------------
+# Inverse Laplacian operator.
+# Applies -1/(Ω|G|²) in reciprocal space.
+#------------------------------------------------------------------
+
+def op_Linv(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    G2 : ℝ[k] = atoms.g2()
+    # Mask identifying nonzero reciprocal vectors.
+    nonzero : ℝ[k] = gt(G2, 0.0) * 1.0
+    # Replace G² = 0 with 1 so division remains well-defined.
+    safe_G2 : ℝ[k] = G2 + (1.0 - nonzero)
+    return (W / safe_G2 / (-atoms.volume())) * nonzero
+
+def op_Linv_mat(atoms: Atoms, W: ℂ[m, k]): ℂ[m, k]:
+    Nstate : ℕ = len(W)
+    G2 : ℝ[k] = atoms.g2()
+    nonzero : ℝ[k] = gt(G2, 0.0) * 1.0
+    safe_G2 : ℝ[k] = G2 + (1.0 - nonzero)
+    Ω : ℝ = atoms.volume()
+    out : ℂ[Nstate, k] = for state: ℕ(Nstate) → (W[state] / safe_G2 / (-Ω)) * nonzero
+    return out
+
+#------------------------------------------------------------------
+# Forward Fourier transform.
+# Maps a real-space field to the full reciprocal grid.
+#------------------------------------------------------------------
+
+def op_J(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    s1 : ℕ = atoms.s1
+    s2 : ℕ = atoms.s2
+    s3 : ℕ = atoms.s3
+    Ngrid : ℕ = s1 * s2 * s3
+    # Reshape the flattened input onto the 3D real-space grid.
+    real_grid : ℂ[s1, s2, s3] = reshape(W, s1, s2, s3)
+    # Transform to the reciprocal grid.
+    reciprocal_grid : ℂ[s1, s2, s3] = fftn(real_grid)
+    # Flatten and normalize the Fourier coefficients.
+    return reshape(reciprocal_grid, Ngrid) / Ngrid
+
+def op_J_mat(atoms: Atoms, W: ℂ[m, k]): ℂ[m, k]:
+    Nstate : ℕ = len(W)
+    # Apply the forward Fourier transform to each state independently.
+    out : ℂ[Nstate, k] = for state: ℕ(Nstate) → op_J(atoms, W[state])
+    return out
+
+#------------------------------------------------------------------
+# Inverse Fourier transform.
+# Maps reciprocal-space coefficients to real space.
+#------------------------------------------------------------------
+
+def op_I(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    s1 : ℕ = atoms.s1
+    s2 : ℕ = atoms.s2
+    s3 : ℕ = atoms.s3
+    Ngrid : ℕ = s1 * s2 * s3
+    # Embed active-basis inputs into the full reciprocal grid.
+    active : ℝ[k] = atoms.active()
+    if len(W) == len(active):
+        reciprocal_grid : ℂ[k] = W
+    else:
+        reciprocal_grid : ℂ[k] = mask_embed(W, active, Ngrid)
+    # Reshape onto the 3D reciprocal grid.
+    reciprocal_grid3d : ℂ[s1, s2, s3] = reshape(reciprocal_grid, s1, s2, s3)
+    # Transform to the real-space grid.
+    real_grid : ℂ[s1, s2, s3] = ifftn(reciprocal_grid3d)
+    return reshape(real_grid, Ngrid) * Ngrid
+
+def op_I_mat(atoms: Atoms, W: ℂ[m, k]): ℂ[m, k]:
+    Nstate : ℕ = len(W)
+    # Apply the inverse Fourier transform to each state independently.
+    out : ℂ[Nstate, k] = for state: ℕ(Nstate) → op_I(atoms, W[state])
+    return out
+
+#------------------------------------------------------------------
+# Adjoint of the inverse Fourier transform.
+# Maps a real-space field to the active plane-wave basis by
+# transforming to reciprocal space and selecting the active
+# plane-wave coefficients.
+#------------------------------------------------------------------
+
+def op_Idag(atoms: Atoms, W: ℂ[k]): ℂ[p]:
+    Ngrid : ℕ = atoms.s1 * atoms.s2 * atoms.s3
+    # Transform to the reciprocal space.
+    F : ℂ[k] = op_J(atoms, W)
+    # Keep only the active plane-wave coefficients.
+    return mask_select(F, atoms.active()) * Ngrid
+
+def op_Idag_mat(atoms: Atoms, W: ℂ[m, k]): ℂ[m, p]:
+    Nstate : ℕ = len(W)
+    # Apply the adjoint inverse Fourier transform to each state independently.
+    out : ℂ[Nstate, p] = for state: ℕ(Nstate) → op_Idag(atoms, W[state])
+    return out
+
+#------------------------------------------------------------------
+# Adjoint of the forward Fourier transform.
+# Maps reciprocal-space coefficients to the real-space grid.
+# Equivalent to the inverse transform with adjoint normalization.
+#------------------------------------------------------------------
+
+def op_Jdag(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    Ngrid : ℕ = atoms.s1 * atoms.s2 * atoms.s3
+    # Apply the inverse transform with adjoint normalization.
+    return op_I(atoms, W) / Ngrid
+
+def op_Jdag_mat(atoms: Atoms, W: ℂ[m, k]): ℂ[m, k]:
+    Ngrid : ℕ = atoms.s1 * atoms.s2 * atoms.s3
+    return op_I_mat(atoms, W) / Ngrid
+
+#------------------------------------------------------------------
+# Example: apply the DFT operators to a hydrogen atom
+# in a cubic simulation cell.
+#
+# The structure factor is used as a representative
+# reciprocal-space quantity. The operators shown
+# below act generically on reciprocal-space arrays,
+# such as wavefunctions, densities, and potentials.
+#------------------------------------------------------------------
+
+# Cubic cell: side a=16 Bohr, kinetic cutoff ecut=16 Hartree,
+# 60 grid points per axis
+a : ℝ = 16.0
+ecut : ℝ = 16.0
+s : ℕ = 60
+
+# Single H nucleus (Z=1) at the cell origin, one occupied state (f=1).
+px : ℝ = 0.0
+py : ℝ = 0.0
+pz : ℝ = 0.0
+Z_nuc : ℝ[1] = [1.0]
+f : ℝ[1] = [1.0]
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, 1, 1, Z_nuc, f)
+
+# Structure factor Sf(G)
+Sf : ℂ[k] = H_atom.sf()
+Sf[0]                                          # 1+0j
+
+# Overlap operator:
+Sf_overlap : ℂ[k] = op_O(H_atom, Sf)
+Sf_overlap[0]                                  # 4096+0j
+
+# Laplacian:
+Sf_laplacian : ℂ[k] = op_L(H_atom, Sf)
+Sf_laplacian_inv : ℂ[k] = op_Linv(H_atom, Sf_laplacian)
+Sf_laplacian_inv[0]                            # 0+0j
+Sf_laplacian_inv[1]                            # 1+0j
+
+# Forward/inverse transform pair: op_J and op_I round-trip exactly.
+Sf_forward : ℂ[k] = op_J(H_atom, Sf)
+Sf_forward_inverse : ℂ[k] = op_I(H_atom, Sf_forward)
+Sf_forward_inverse[0]                          # 1+0j
+
+# active plane-wave basis (|G|^2 <= 2*ecut).
+Sf_active : ℂ[p] = op_Idag(H_atom, Sf_forward_inverse)
+len(Sf_active)                                 # 12533 active plane waves
+
+# Adjoint of the forward transform.
+Sf_adjoint : ℂ[k] = op_Jdag(H_atom, Sf_forward)
+Sf_adjoint[0]                                  # 1/216000
