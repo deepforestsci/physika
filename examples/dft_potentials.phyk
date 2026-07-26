@@ -1,0 +1,61 @@
+# ============================================================
+# DFT external potentials
+# ============================================================
+
+from dft_atoms import Atoms, flat_index, axis_index, fold_freq, cell_volume, sample_coord, recip_scale, g_squared, active_mask, active_subset, structure_factor
+from dft_operators import op_J
+
+π = 3.141592653589793
+
+#----------------------------------------------------------------
+#   G2    :  |G|² on the full reciprocal grid (atoms.g2())
+#   Sf    :  Structure factor of all nuclei (atoms.sf())
+#   Vcoul :  Reciprocal-space Coulomb potential
+#----------------------------------------------------------------
+
+#------------------------------------------------------------------
+# Compute the reciprocal-space Coulomb potential of a point nucleus
+# located at the origin:
+#
+#     V(G) = -4πZ / |G|²
+#
+# The structure factor shifts this contribution to the actual nuclear
+# positions in the unit cell, after which op_J transforms the total
+# potential to real space.
+#------------------------------------------------------------------
+
+def coulomb(atoms: Atoms): ℂ[k]:
+    G2 : ℝ[k] = atoms.g2()
+    # Mask the G = 0 division to avoid propagating Inf/NaN through Physika's autodiff
+    nonzero : ℝ[k] = gt(G2, 0.0) * 1.0
+    safe_G2 : ℝ[k] = G2 + (1.0 - nonzero)
+    Vcoul : ℝ[k] = ((-4.0) * π * atoms.Z_nuc[0] / safe_G2) * nonzero
+    # Apply structure factor and map the total potential back to real space
+    return op_J(atoms, Vcoul * atoms.sf())
+
+#------------------------------------------------------------------
+# Example: Coulomb potential of a hydrogen nucleus in a cubic cell.
+#------------------------------------------------------------------
+
+# Cubic cell: side a=16 Bohr, kinetic cutoff ecut=16 Hartree,
+# 60 grid points per axis.
+a : ℝ = 16.0
+ecut : ℝ = 16.0
+s : ℕ = 60
+
+# Hydrogen atom at the cell origin.
+px : ℝ = 0.0
+py : ℝ = 0.0
+pz : ℝ = 0.0
+
+Natoms : ℕ = 1
+Nstate : ℕ = 1
+Z_nuc : ℝ[1] = [1.0]      # Nuclear charge
+f : ℝ[1] = [1.0]          # Number of electrons
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, px, py, pz, Natoms, Nstate, Z_nuc, f)
+
+# Real-space Coulomb potential of the nucleus, V(r).
+Vext : ℂ[k] = coulomb(H_atom)
+Vext[0]   # Potential at origin, where the hydrogen nucleus is located.
+Vext[1]   # Potential at the adjacent grid point.
