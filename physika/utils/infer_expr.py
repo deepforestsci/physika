@@ -860,7 +860,7 @@ def expr_call(node: Any,
 
     # Built-in functions
     elementwise_ops = ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh",
-                       "real", "imag")
+                       "real", "imag", "gt", "le", "floor", "mod")
     if func_name in elementwise_ops:
         # Element-wise ops preserve the shape of their argument
         if arg_types:
@@ -873,6 +873,8 @@ def expr_call(node: Any,
     if func_name == "grad":
         # TODO: We should add support to get the tangent space type (e.g. Tₓ)
         return (arg_types[1] if len(arg_types) >= 2 else None), s
+    if func_name in ("mask_select", "arange"):
+        return TTensor(((new_dim(), "invariant"), )), s
 
     # User defined functions
     if func_name in ctx.func_env:

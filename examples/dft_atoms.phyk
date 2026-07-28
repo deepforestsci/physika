@@ -1,0 +1,162 @@
+# ============================================================
+# DFT atoms / cell setup
+# ============================================================
+#
+# Builds the simulation cell, real-space sampling, reciprocal-space
+# quantities, and plane-wave basis used throughout the DFT calculation.
+
+#----------------------------------------------------------------
+# k   : total grid points (= s₁ × s₂ × s₃)
+#       where sᵢ is the number of grid points along axis i.
+# p   : number of active plane waves (|G|² ≤ 2Ecut)
+# ms  : flattened grid index (0, 1, ..., k−1)
+# m   : grid index along one axis
+# n   : signed FFT frequency index along one axis
+# axis_length : number of grid points along this axis.
+# axis_stride : spacing between consecutive indices of this axis in the flattened grid.
+# c   : reciprocal-space scaling factor (= 2π/a)
+# G2  : squared reciprocal-vector magnitude on the full grid
+# G2c : squared reciprocal-vector magnitude on the active basis
+# px, py, pz : atom position components, real space
+#----------------------------------------------------------------
+
+π = 3.141592653589793
+
+class Atoms:
+    a : ℝ            # cubic cell side
+    ecut : ℝ         # kinetic-energy cutoff
+    s1 : ℕ           # grid points, axis 1
+    s2 : ℕ           # grid points, axis 2
+    s3 : ℕ           # grid points, axis 3
+    Natoms : ℕ       # atom count 
+    px : ℝ[Natoms]       # atom positions, x
+    py : ℝ[Natoms]       # atom positions, y
+    pz : ℝ[Natoms]       # atom positions, z
+    Nstate : ℕ       # occupied states 
+    Z_nuc : ℝ[Natoms]    # nuclear charge per atom
+    f : ℝ[Nstate]    # occupation number per state
+    def volume() : ℝ:
+        # Volume of a cubic unit cell (Ω = a³).
+        # where a is the cubic cell side length.
+        return this.a * this.a * this.a
+    def flat_index() : ℝ[k]:
+        # Flattened linear grid indices.
+        return arange(this.s1 * this.s2 * this.s3)
+    def m1() : ℝ[k]:
+        # Grid index along axis 1, recovered from the flattened index.
+        return mod(floor(this.flat_index() / (this.s3 * this.s2)), this.s1)
+    def m2() : ℝ[k]:
+        # Grid index along axis 2.
+        return mod(floor(this.flat_index() / this.s3), this.s2)
+    def m3() : ℝ[k]:
+        # Grid index along axis 3 (innermost, stride 1).
+        return mod(this.flat_index(), this.s3)
+    def fold_freq(m: ℝ[k], axis_length: ℕ) : ℝ[k]:
+        # Fold the upper half of an axis to negative frequencies:
+        # axis_length = number of grid points along the current axis.
+        return m - gt(m, axis_length / 2) * axis_length
+    def sample_coord(m: ℝ[k], s: ℕ) : ℝ[k]:
+        # Convert grid indices along one axis into real-space coordinates.
+        # s : number of grid points along the axis
+        return m * (this.a / s)
+    def recip_scale() : ℝ:
+        # Reciprocal space scaling factor (2π/a).
+        return 2 * π / this.a
+    def structure_factor(n1: ℝ[k], n2: ℝ[k], n3: ℝ[k], c: ℝ, px: ℝ, py: ℝ, pz: ℝ) : ℂ[k]:
+        # Structure factor measures plane-wave phase shift from atomic positions: Sf = exp(-i * G · pos)
+        phase : ℝ[k] = c * (n1 * px + n2 * py + n3 * pz)
+        return exp(-i * phase)
+    def freq_x() : ℝ[k]:
+        return this.fold_freq(this.m1(), this.s1)
+    def freq_y() : ℝ[k]:
+        return this.fold_freq(this.m2(), this.s2)
+    def freq_z() : ℝ[k]:
+        return this.fold_freq(this.m3(), this.s3)
+    def coord_x() : ℝ[k]:
+        return this.sample_coord(this.m1(), this.s1)
+    def coord_y() : ℝ[k]:
+        return this.sample_coord(this.m2(), this.s2)
+    def coord_z() : ℝ[k]:
+        return this.sample_coord(this.m3(), this.s3)
+    def gx() : ℝ[k]:
+        return this.recip_scale() * this.freq_x()
+    def gy() : ℝ[k]:
+        return this.recip_scale() * this.freq_y()
+    def gz() : ℝ[k]:
+        return this.recip_scale() * this.freq_z()
+    def g2() : ℝ[k]:
+        # Squared reciprocal-vector magnitude |G|² for every grid point.
+        c : ℝ = this.recip_scale()
+        n1 : ℝ[k] = this.freq_x()
+        n2 : ℝ[k] = this.freq_y()
+        n3 : ℝ[k] = this.freq_z()
+        return c * c * (n1 * n1 + n2 * n2 + n3 * n3)
+    def active() : ℝ[k]:
+        # Plane-wave cutoff mask.
+        return le(this.g2(), 2 * this.ecut)
+    def g2c() : ℝ[p]:
+        # Restrict |G|² to the active plane-wave basis.
+        return mask_select(this.g2(), this.active())
+    def sf() : ℂ[k]:
+        n1 : ℝ[k] = this.freq_x()
+        n2 : ℝ[k] = this.freq_y()
+        n3 : ℝ[k] = this.freq_z()
+        c : ℝ = this.recip_scale()
+        natoms : ℕ = this.Natoms
+        Sf : ℂ[k] = this.structure_factor(n1, n2, n3, c, this.px[0], this.py[0], this.pz[0]) * 0.0
+        for a : ℕ(natoms):
+            Sf = Sf + this.structure_factor(n1, n2, n3, c, this.px[a], this.py[a], this.pz[a])
+        return Sf
+
+#------------------------------------------------------------------
+# Example: H and He, single-atom systems in a cubic simulation cell.
+#------------------------------------------------------------------
+
+# Cubic cell: side a=16 Bohr, kinetic cutoff ecut=16 Hartree,
+# 60 grid points per axis.
+a : ℝ = 16.0
+ecut : ℝ = 16.0
+s : ℕ = 60
+
+# Hydrogen atom at the cell origin.
+Natoms : ℕ = 1
+Nstate : ℕ = 1
+
+px : ℝ[1] = [0.0]
+py : ℝ[1] = [0.0]
+pz : ℝ[1] = [0.0]
+
+Z_nuc : ℝ[1] = [1.0]      # Nuclear charge
+f : ℝ[1] = [1.0]          # Number of electrons
+
+H_atom : Atoms = Atoms(a, ecut, s, s, s, Natoms, px, py, pz, Nstate, Z_nuc, f)
+
+# Cell geometry
+H_atom.volume()          # 4096.0
+
+# Reciprocal-space frequencies
+fx : ℝ[k] = H_atom.freq_x()
+fy : ℝ[k] = H_atom.freq_y()
+fz : ℝ[k] = H_atom.freq_z()
+
+# Real-space sampling
+x : ℝ[k] = H_atom.coord_x()
+y : ℝ[k] = H_atom.coord_y()
+z : ℝ[k] = H_atom.coord_z()
+
+# Reciprocal vectors
+gx : ℝ[k] = H_atom.gx()
+gy : ℝ[k] = H_atom.gy()
+gz : ℝ[k] = H_atom.gz()
+
+# Plane-wave basis
+G2 : ℝ[k] = H_atom.g2()
+active : ℝ[k] = H_atom.active()
+G2c : ℝ[p] = H_atom.g2c()
+
+# Structure factor
+Sf : ℂ[k] = H_atom.sf()
+Sf[0]                    # (1+0j) for an atom at the origin
+
+# Helium: same cell and cutoff, but Z = 2 and two electrons.
+He_atom : Atoms = Atoms(16.0, 16.0, 60, 60, 60, 1, [0.0], [0.0], [0.0], 1, [2.0], [2.0])
