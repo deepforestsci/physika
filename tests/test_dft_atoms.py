@@ -11,7 +11,8 @@ def _close(actual, expected):
     """allclose after casting both sides to double (dtype-agnostic)."""
     return torch.allclose(actual.detach().double(),
                           torch.as_tensor(expected, dtype=torch.double),
-                          rtol=RTOL, atol=ATOL)
+                          rtol=RTOL,
+                          atol=ATOL)
 
 
 @pytest.fixture(scope="module")
@@ -22,9 +23,9 @@ def atoms_ns():
 
 def make_atoms(ns, a, ecut, s1, s2, s3, px, py, pz, Z, f):
     """Construct an Atoms instance from plain Python lists."""
-    return ns["Atoms"](a, ecut, s1, s2, s3, len(px),
-                       torch.tensor(px), torch.tensor(py), torch.tensor(pz),
-                       len(f), torch.tensor(Z), torch.tensor(f))
+    return ns["Atoms"](a, ecut, s1, s2, s3, len(px), torch.tensor(px),
+                       torch.tensor(py), torch.tensor(pz), len(f),
+                       torch.tensor(Z), torch.tensor(f))
 
 
 # --------------------------------------------------------------------------
@@ -32,10 +33,20 @@ def make_atoms(ns, a, ecut, s1, s2, s3, px, py, pz, Z, f):
 # Flattened index unravels C-order as flat = 4*m1 + 2*m2 + m3.
 # --------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def tiny(atoms_ns):
-    return make_atoms(atoms_ns, a=4.0, ecut=2.0, s1=2, s2=2, s3=2,
-                      px=[0.0], py=[0.0], pz=[0.0], Z=[1.0], f=[1.0])
+    return make_atoms(atoms_ns,
+                      a=4.0,
+                      ecut=2.0,
+                      s1=2,
+                      s2=2,
+                      s3=2,
+                      px=[0.0],
+                      py=[0.0],
+                      pz=[0.0],
+                      Z=[1.0],
+                      f=[1.0])
 
 
 class TestGridIndexing:
@@ -77,7 +88,7 @@ class TestReciprocalSpace:
         assert float(tiny.recip_scale()) == pytest.approx(2 * PI / 4)
 
     def test_g2_is_scaled_sum_of_squares(self, tiny):
-        c2 = (2 * PI / 4) ** 2
+        c2 = (2 * PI / 4)**2
         ss = [0, 1, 1, 2, 1, 2, 2, 3]  # per-point n1^2 + n2^2 + n3^2
         assert _close(tiny.g2(), [c2 * s for s in ss])
 
@@ -91,11 +102,12 @@ class TestReciprocalSpace:
     def test_active_mask_selects_within_cutoff(self, tiny):
         active = tiny.active()
         assert active.dtype == torch.bool
-        assert active.tolist() == [True, True, True, False,
-                                   True, False, False, False]
+        assert active.tolist() == [
+            True, True, True, False, True, False, False, False
+        ]
 
     def test_g2c_keeps_active_entries(self, tiny):
-        c2 = (2 * PI / 4) ** 2
+        c2 = (2 * PI / 4)**2
         assert _close(tiny.g2c(), [0.0, c2, c2, c2])
 
 
@@ -103,7 +115,7 @@ class TestStructureFactor:
 
     def test_atom_at_origin_gives_all_ones(self, tiny):
         Sf = tiny.sf()
-        assert Sf.shape == (8,)
+        assert Sf.shape == (8, )
         assert torch.allclose(Sf, torch.ones_like(Sf), rtol=RTOL, atol=ATOL)
 
     def test_phase_matches_reference(self, tiny):
@@ -128,15 +140,24 @@ H_N_ACTIVE = 12533
 
 @pytest.fixture(scope="module")
 def h_atom(atoms_ns):
-    return make_atoms(atoms_ns, a=H_A, ecut=H_ECUT, s1=H_S, s2=H_S, s3=H_S,
-                      px=[0.0], py=[0.0], pz=[0.0], Z=[1.0], f=[1.0])
+    return make_atoms(atoms_ns,
+                      a=H_A,
+                      ecut=H_ECUT,
+                      s1=H_S,
+                      s2=H_S,
+                      s3=H_S,
+                      px=[0.0],
+                      py=[0.0],
+                      pz=[0.0],
+                      Z=[1.0],
+                      f=[1.0])
 
 
 class TestHAtomReference:
     """Validate the full basis against SimpleDFT.jl's published numbers."""
 
     def test_grid_size(self, h_atom):
-        assert h_atom.g2().shape == (H_S ** 3,)
+        assert h_atom.g2().shape == (H_S**3, )
 
     def test_cell_volume(self, h_atom):
         assert float(h_atom.volume()) == pytest.approx(H_OMEGA)
@@ -145,7 +166,7 @@ class TestHAtomReference:
         assert int(h_atom.active().sum()) == H_N_ACTIVE
 
     def test_g2c_length_matches_active_count(self, h_atom):
-        assert h_atom.g2c().shape == (H_N_ACTIVE,)
+        assert h_atom.g2c().shape == (H_N_ACTIVE, )
 
     def test_dc_component_is_zero(self, h_atom):
         assert float(h_atom.g2()[0]) == pytest.approx(0.0)
@@ -155,19 +176,29 @@ class TestHAtomReference:
         assert torch.allclose(Sf, torch.ones_like(Sf), rtol=RTOL, atol=ATOL)
 
     def test_real_space_max_coord(self, h_atom):
-        assert float(h_atom.coord_x().max()) == pytest.approx(
-            H_A * (H_S - 1) / H_S, rel=1e-4)
+        assert float(h_atom.coord_x().max()) == pytest.approx(H_A * (H_S - 1) /
+                                                              H_S,
+                                                              rel=1e-4)
 
 
 # --------------------------------------------------------------------------
 # Two-atom cell: the structure factor must sum the per-atom phase kernel.
 # --------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def h2(atoms_ns):
-    return make_atoms(atoms_ns, a=16.0, ecut=H_ECUT, s1=4, s2=4, s3=4,
-                      px=[0.0, 1.4], py=[0.0, 0.0], pz=[0.0, 0.0],
-                      Z=[1.0, 1.0], f=[2.0])
+    return make_atoms(atoms_ns,
+                      a=16.0,
+                      ecut=H_ECUT,
+                      s1=4,
+                      s2=4,
+                      s3=4,
+                      px=[0.0, 1.4],
+                      py=[0.0, 0.0],
+                      pz=[0.0, 0.0],
+                      Z=[1.0, 1.0],
+                      f=[2.0])
 
 
 class TestMultiAtomStructureFactor:
@@ -176,9 +207,9 @@ class TestMultiAtomStructureFactor:
         n1, n2, n3 = h2.freq_x(), h2.freq_y(), h2.freq_z()
         c = torch.tensor(2 * PI / 16.0)
         z = torch.tensor(0.0)
-        expected = (h2.structure_factor(n1, n2, n3, c, z, z, z)
-                    + h2.structure_factor(n1, n2, n3, c,
-                                          torch.tensor(1.4), z, z))
+        expected = (
+            h2.structure_factor(n1, n2, n3, c, z, z, z) +
+            h2.structure_factor(n1, n2, n3, c, torch.tensor(1.4), z, z))
         assert torch.allclose(h2.sf(), expected, rtol=RTOL, atol=ATOL)
 
     def test_dc_equals_atom_count(self, h2):
