@@ -9,11 +9,8 @@
 # k   : total grid points (= s₁ × s₂ × s₃)
 #       where sᵢ is the number of grid points along axis i.
 # p   : number of active plane waves (|G|² ≤ 2Ecut)
-# ms  : flattened grid index (0, 1, ..., k−1)
-# m   : grid index along one axis
-# n   : signed FFT frequency index along one axis
-# axis_length : number of grid points along this axis.
-# axis_stride : spacing between consecutive indices of this axis in the flattened grid.
+# m1,m2,m3 : real-space grid indices along the x, y, z axes
+# n1,n2,n3 : signed FFT frequency indices after folding
 # c   : reciprocal-space scaling factor (= 2π/a)
 # G2  : squared reciprocal-vector magnitude on the full grid
 # G2c : squared reciprocal-vector magnitude on the active basis
