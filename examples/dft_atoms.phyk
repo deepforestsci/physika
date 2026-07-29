@@ -102,7 +102,7 @@ class Atoms:
         natoms : ℕ = this.Natoms
         Sf : ℂ[k] = this.structure_factor(n1, n2, n3, c, this.px[0], this.py[0], this.pz[0]) * 0.0
         for a : ℕ(natoms):
-            Sf = Sf + this.structure_factor(n1, n2, n3, c, this.px[a], this.py[a], this.pz[a])
+            Sf += this.structure_factor(n1, n2, n3, c, this.px[a], this.py[a], this.pz[a])
         return Sf
 
 #------------------------------------------------------------------

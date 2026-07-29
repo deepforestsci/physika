@@ -130,7 +130,7 @@ class Atoms(nn.Module):
         natoms = self.Natoms
         Sf = (self.structure_factor(n1, n2, n3, c, self.px[int(0)], self.py[int(0)], self.pz[int(0)]) * 0.0)
         for a in range(int(0), int(natoms)):
-            Sf = (Sf + self.structure_factor(n1, n2, n3, c, self.px[int(a)], self.py[int(a)], self.pz[int(a)]))
+            Sf = Sf + self.structure_factor(n1, n2, n3, c, self.px[int(a)], self.py[int(a)], self.pz[int(a)])
         return Sf
 
     @property
