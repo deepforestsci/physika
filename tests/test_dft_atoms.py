@@ -8,7 +8,7 @@ PI = 3.141592653589793
 
 
 def _close(actual, expected):
-    """True when actual and expected match within tolerance (real or complex)."""
+    """True when actual and expected match within tolerance (real/complex)."""
     a = actual.detach()
     e = torch.as_tensor(expected)
     if a.is_complex() or e.is_complex():
@@ -148,12 +148,12 @@ class TestStructureFactor:
         assert _close(out, expected)
 
 
-"""Folding cell (4x1x1, a=2*pi so recip scale = 1): upper-half frequencies fold negative."""
+"""Folding cell (4x1x1, a=2*pi): upper-half frequencies fold negative."""
 
 
 @pytest.fixture(scope="module")
 def folding(atoms_ns):
-    # one length-4 axis isolates folding; a=2*pi makes recip scale 1, so |G|^2 = n^2
+    # length-4 axis folds; a=2*pi makes recip scale 1, so |G|^2 = n^2
     return make_atoms(atoms_ns,
                       a=2 * PI,
                       ecut=1.0,
@@ -168,7 +168,7 @@ def folding(atoms_ns):
 
 
 class TestFolding:
-    """Frequencies fold on a real grid, and the fold feeds |G|^2 and the active mask."""
+    """Folding on a real grid feeds |G|^2 and the active mask."""
 
     def test_freq_folds_upper_half(self, folding):
         # the last grid point folds to -1, not 3
