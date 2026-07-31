@@ -83,8 +83,9 @@ class TestRealSpace:
 
     def test_sample_coord_spacing(self, tiny):
         # spacing a/s = 4/2 = 2 per grid step
-        assert numerically_equivalent(tiny.sample_coord(torch.tensor([0., 1., 2., 3.]), 2),
-                                     [0., 2., 4., 6.])
+        assert numerically_equivalent(
+            tiny.sample_coord(torch.tensor([0., 1., 2., 3.]), 2),
+            [0., 2., 4., 6.])
 
     def test_coord_max_is_last_grid_point(self, tiny):
         # last grid point at a*(s-1)/s
