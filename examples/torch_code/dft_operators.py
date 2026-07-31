@@ -112,14 +112,14 @@ class Atoms(nn.Module):
         super().__init__()
         self.a = torch.as_tensor(a).float()
         self.ecut = torch.as_tensor(ecut).float()
-        self.s1 = torch.as_tensor(s1).float() if isinstance(s1, (int, float, torch.Tensor)) else s1
-        self.s2 = torch.as_tensor(s2).float() if isinstance(s2, (int, float, torch.Tensor)) else s2
-        self.s3 = torch.as_tensor(s3).float() if isinstance(s3, (int, float, torch.Tensor)) else s3
-        self.Natoms = torch.as_tensor(Natoms).float() if isinstance(Natoms, (int, float, torch.Tensor)) else Natoms
+        self.s1 = int(s1)
+        self.s2 = int(s2)
+        self.s3 = int(s3)
+        self.Natoms = int(Natoms)
         self.px = torch.as_tensor(px).float()
         self.py = torch.as_tensor(py).float()
         self.pz = torch.as_tensor(pz).float()
-        self.Nstate = torch.as_tensor(Nstate).float() if isinstance(Nstate, (int, float, torch.Tensor)) else Nstate
+        self.Nstate = int(Nstate)
         self.Z_nuc = torch.as_tensor(Z_nuc).float()
         self.f = torch.as_tensor(f).float()
         self.learnable_params = [self.a, self.ecut, self.px, self.py, self.pz, self.Z_nuc, self.f]
@@ -231,7 +231,7 @@ class Atoms(nn.Module):
         natoms = self.Natoms
         Sf = (self.structure_factor(n1, n2, n3, c, self.px[int(0)], self.py[int(0)], self.pz[int(0)]) * 0.0)
         for a in range(int(0), int(natoms)):
-            Sf = (Sf + self.structure_factor(n1, n2, n3, c, self.px[int(a)], self.py[int(a)], self.pz[int(a)]))
+            Sf = Sf + self.structure_factor(n1, n2, n3, c, self.px[int(a)], self.py[int(a)], self.pz[int(a)])
         return Sf
 
     @property
