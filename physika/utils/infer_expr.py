@@ -876,7 +876,7 @@ def expr_call(node: Any,
 
     if func_name in ("mask_select", "arange"):
         return TTensor(((new_dim(), "invariant"), )), s
-    
+
     if func_name == "reshape":
         dims: list[tuple[Union[int, TDim], str]] = []
         for d in args[1:]:
@@ -885,7 +885,7 @@ def expr_call(node: Any,
             else:
                 dims.append((new_dim(), "invariant"))
         return TTensor(tuple(dims)), s
-    
+
     # User defined functions
     if func_name in ctx.func_env:
         param_types, ret_type = ctx.func_env[func_name]
