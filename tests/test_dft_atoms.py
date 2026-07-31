@@ -7,7 +7,7 @@ ATOL = 1e-6
 PI = 3.141592653589793
 
 
-def is_close(actual, expected):
+def numerically_equivalent(actual, expected):
     """True when actual and expected match within tolerance (real/complex)."""
     a = actual.detach()
     e = torch.as_tensor(expected)
@@ -83,8 +83,8 @@ class TestRealSpace:
 
     def test_sample_coord_spacing(self, tiny):
         # spacing a/s = 4/2 = 2 per grid step
-        assert is_close(tiny.sample_coord(torch.tensor([0., 1., 2., 3.]), 2),
-                      [0., 2., 4., 6.])
+        assert numerically_equivalent(tiny.sample_coord(torch.tensor([0., 1., 2., 3.]), 2),
+                                     [0., 2., 4., 6.])
 
     def test_coord_max_is_last_grid_point(self, tiny):
         # last grid point at a*(s-1)/s
@@ -102,7 +102,7 @@ class TestReciprocalSpace:
         # |G|^2 = c^2 * (n1^2 + n2^2 + n3^2), c = 2*pi/a
         c2 = (2 * PI / 4)**2
         ss = [0, 1, 1, 2, 1, 2, 2, 3]
-        assert is_close(tiny.g2(), [c2 * s for s in ss])
+        assert numerically_equivalent(tiny.g2(), [c2 * s for s in ss])
 
     def test_g2_dc_component_is_zero(self, tiny):
         # the G=0 term vanishes
@@ -111,7 +111,7 @@ class TestReciprocalSpace:
     def test_g_components_reproduce_g2(self, tiny):
         # gx^2 + gy^2 + gz^2 == g2
         gx, gy, gz = tiny.gx(), tiny.gy(), tiny.gz()
-        assert is_close(gx * gx + gy * gy + gz * gz, tiny.g2())
+        assert numerically_equivalent(gx * gx + gy * gy + gz * gz, tiny.g2())
 
     def test_active_mask_selects_within_cutoff(self, tiny):
         # active where |G|^2 <= 2*ecut
@@ -124,7 +124,7 @@ class TestReciprocalSpace:
     def test_g2c_keeps_active_entries(self, tiny):
         # g2c holds only the active |G|^2 values
         c2 = (2 * PI / 4)**2
-        assert is_close(tiny.g2c(), [0.0, c2, c2, c2])
+        assert numerically_equivalent(tiny.g2c(), [0.0, c2, c2, c2])
 
 
 class TestStructureFactor:
@@ -134,7 +134,7 @@ class TestStructureFactor:
         # atom at the origin -> Sf == 1 everywhere
         Sf = tiny.sf()
         assert Sf.shape == (8, )
-        assert is_close(Sf, torch.ones_like(Sf))
+        assert numerically_equivalent(Sf, torch.ones_like(Sf))
 
     def test_phase_matches_reference(self, tiny):
         # Sf == exp(-i * phase) for a shifted atom
@@ -145,7 +145,7 @@ class TestStructureFactor:
                                     torch.tensor(pz))
         phase = c * (1.0 * px + 2.0 * py + 0.0 * pz)
         expected = torch.exp(torch.tensor(-1j * phase, dtype=torch.complex64))
-        assert is_close(out, expected)
+        assert numerically_equivalent(out, expected)
 
 
 """Folding cell (4x1x1, a=2*pi): upper-half frequencies fold negative."""
@@ -176,12 +176,12 @@ class TestFolding:
 
     def test_folded_g2_uses_signed_frequency(self, folding):
         # |G|^2 squares the folded frequency: index 3 -> (-1)^2 = 1, not 3^2
-        assert is_close(folding.g2(), [0.0, 1.0, 4.0, 1.0])
+        assert numerically_equivalent(folding.g2(), [0.0, 1.0, 4.0, 1.0])
 
     def test_active_count_with_folding(self, folding):
         # cutoff keeps 0,1,3; index 2 (|G|^2 = 4) is excluded
         assert folding.active().tolist() == [True, True, False, True]
-        assert is_close(folding.g2c(), [0.0, 1.0, 1.0])
+        assert numerically_equivalent(folding.g2c(), [0.0, 1.0, 1.0])
 
 
 """Two-atom cell: the structure factor must sum the per-atom phase kernel."""
@@ -214,7 +214,7 @@ class TestMultiAtomStructureFactor:
         expected = (
             h2.structure_factor(n1, n2, n3, c, z, z, z) +
             h2.structure_factor(n1, n2, n3, c, torch.tensor(1.4), z, z))
-        assert is_close(h2.sf(), expected)
+        assert numerically_equivalent(h2.sf(), expected)
 
     def test_dc_equals_atom_count(self, h2):
         # every atom contributes exp(0)=1 at G=0, so Sf[0] == Natoms
