@@ -24,18 +24,17 @@ def pot_ns():
 @pytest.fixture(scope="module")
 def h_like_atoms(pot_ns):
     """Single H-like nucleus (Z=1) at the cell origin."""
-    return pot_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 1,
-                           torch.tensor([0.0]), torch.tensor([0.0]),
-                           torch.tensor([0.0]), 1,
+    return pot_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 1, torch.tensor([0.0]),
+                           torch.tensor([0.0]), torch.tensor([0.0]), 1,
                            torch.tensor([1.0]), torch.tensor([1.0]))
 
 
 def make_atoms(pot_ns, Z):
     """Create a single atom with the given nuclear charge."""
-    return pot_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 1,
-                           torch.tensor([0.0]), torch.tensor([0.0]),
-                           torch.tensor([0.0]), 1,
+    return pot_ns["Atoms"](A, ECUT, S[0], S[1], S[2], 1, torch.tensor([0.0]),
+                           torch.tensor([0.0]), torch.tensor([0.0]), 1,
                            torch.tensor([Z]), torch.tensor([1.0]))
+
 
 def ref_coulomb(Z, G2, Sf):
     """Reference implementation of the Coulomb potential."""
