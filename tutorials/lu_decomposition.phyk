@@ -1,0 +1,91 @@
+def get_2d_array_num_rows(x: ℝ[m, n]): ℕ:
+    total: ℕ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+
+def lu_decomposition(A: ℝ[n, n]): ℝ[3, n, n]:
+    n_size: ℝ = get_2d_array_num_rows(A)
+    
+    L: ℝ[n_size, n_size] = zeros(n_size, n_size)
+    U: ℝ[n_size, n_size] = zeros(n_size, n_size)
+    P: ℝ[n_size, n_size] = zeros(n_size, n_size)
+    # Create P as Identity matrix
+    for i:ℕ(n_size):
+        P[i, i] = 1.0
+    # Buffers for each matrix used in row swapping
+    buf_a: ℝ[n_size] = zeros(n_size)
+    buf_l: ℝ[n_size] = zeros(n_size)
+    buf_p: ℝ[n_size] = zeros(n_size)
+    
+    
+    for j:ℕ(n_size):
+        # Find pivot 
+        max_row = j
+        for i:ℕ(j+1, n_size):
+            if abs(A[i, j]) > abs(A[max_row, j]):
+                max_row = i
+        # swap row if max_row got changed
+        if max_row != j:
+            # swap A
+            for k:ℕ(n_size):
+                buf_a[k] = A[j, k]
+            for k:ℕ(n_size):
+                A[j, k] = A[max_row, k]
+            for k:ℕ(n_size):
+                A[max_row, k] = buf_a[k]
+            # swap L
+            for k:ℕ(j):
+                buf_l[k] = L[j, k]
+            for k:ℕ(j):
+                L[j, k] = L[max_row, k]
+            for k:ℕ(j):
+                L[max_row, k] = buf_l[k]
+            # swap P
+            for k:ℕ(n_size):
+                buf_p[k] = P[j, k]
+            for k:ℕ(n_size):
+                P[j, k] = P[max_row, k]
+            for k:ℕ(n_size):
+                P[max_row, k] = buf_p[k]
+        for i:ℕ(j + 1):
+            partial = 0.0
+            for k:ℕ(i):
+                partial = partial + U[k, j] * L[i, k]
+            U[i, j] = A[i, j] - partial
+        
+        for i:ℕ(j, n_size):
+            partial = 0.0
+            for k:ℕ(j):
+                partial = partial + U[k, j] * L[i, k]
+            L[i, j] = (A[i, j] - partial) / U[j, j]
+    
+    return [P, L, U]
+
+
+A: ℝ[3, 3] = [
+    [-1.0, 0.0, 3.0],
+    [2.0, 1.0, 3.0],
+    [1.0, 1.0, 2.0]
+]
+
+
+A_original: ℝ[3, 3] = for i:ℕ(3) -> for j:ℕ(3) -> A[i, j]
+
+results = lu_decomposition(A)
+P_matrix: ℝ[3, 3] = results[0]
+L_matrix: ℝ[3, 3] = results[1]
+U_matrix: ℝ[3, 3] = results[2]
+
+print(P_matrix)
+print(L_matrix)
+print(U_matrix)
+
+LU: ℝ[3, 3] = L_matrix @ U_matrix
+PA: ℝ[3, 3] = P_matrix @ A_original
+
+print(LU)
+print(PA)
