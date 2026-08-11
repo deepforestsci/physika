@@ -90,3 +90,9 @@ Tutorials
    cnn_tutorial
    fft_tutorial
    fourier_neural_operator
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Numerical solvers
+
+   lu_decomposition_method
