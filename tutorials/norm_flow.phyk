@@ -1,0 +1,226 @@
+# NICE (Nonlinear Independent Components Estimation) on MNIST
+
+
+# Helper functions
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def zero_2d_array(rows: ℝ, cols: ℝ): ℝ[m, n]:
+    results: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
+    return results
+
+def relu(x: ℝ): ℝ:
+    if x > 0:
+        return x
+    else:
+        return 0.0
+
+def relu1d(x: ℝ[m]): ℝ[m]:
+    len_x: ℝ = get_1d_array_length(x)
+    results: ℝ[len_x] = zero_1d_array(len_x)
+    for i:ℕ(len_x):
+        results[i] = relu(x[i])
+    return results
+
+def linear(x: ℝ[n], weight: ℝ[m, n], bias: ℝ[m]): ℝ[m]:
+    out: ℝ = get_1d_array_length(bias)
+    inp: ℝ = get_1d_array_length(x)
+    results: ℝ[out] = zero_1d_array(out)
+    for i:ℕ(out):
+        acc = 0
+        for j:ℕ(inp):
+            acc += weight[i, j] * x[j]
+        results[i] = acc + bias[i]
+    return results
+
+def flatten_image(img: ℝ[H, W]): ℝ[n]:
+    rows: ℝ = get_2d_array_num_rows(img)
+    cols: ℝ = get_1d_array_length(img[0])
+    n: ℝ = rows * cols
+    results: ℝ[n] = zero_1d_array(n)
+    for i:ℕ(rows):
+        for j:ℕ(cols):
+            results[i*cols + j] = img[i, j] / 256.0 + 0.5 / 256.0
+    return results
+
+def first_half(x: ℝ[m]): ℝ[n]:
+    half: ℝ = get_1d_array_length(x) / 2
+    results: ℝ[half] = zero_1d_array(half)
+    for i:ℕ(half):
+        results[i] = x[i]
+    return results
+
+def second_half(x: ℝ[m]): ℝ[n]:
+    len_x: ℝ = get_1d_array_length(x)
+    half: ℝ = len_x / 2
+    results: ℝ[half] = zero_1d_array(half)
+    for i:ℕ(half):
+        results[i] = x[i + half]
+    return results
+
+def concat_1d_array(x1: ℝ[m], x2: ℝ[n]): ℝ[p]:
+    len1: ℝ = get_1d_array_length(x1)
+    len2: ℝ = get_1d_array_length(x2)
+    total: ℝ = len1 + len2
+    results: ℝ[total] = zero_1d_array(total)
+    for i:ℕ(len1):
+        results[i] = x1[i]
+    for i:ℕ(len2):
+        results[i + len1] = x2[i]
+    return results
+
+def swap_halves(x: ℝ[m]): ℝ[m]:
+    x1: ℝ[n] = first_half(x)
+    x2: ℝ[n] = second_half(x)
+    return concat_1d_array(x2, x1)
+
+def gaussian_log_prob(x: ℝ[m]): ℝ:
+    len_x: ℝ = get_1d_array_length(x)
+    total: ℝ = 0
+    for i:ℕ(len_x):
+        total += -0.5 * x[i] * x[i] - 0.5 * log(2 * 3.14159265)
+    return total
+
+def neg_loglik(log_px: ℝ): ℝ:
+    return -log_px
+
+
+# NICE model: 2 coupling layers
+
+class NICE:
+    w1a: ℝ[H, n]
+    b1a: ℝ[H]
+    w2a: ℝ[n, H]
+    b2a: ℝ[n]
+    w1b: ℝ[H, n]
+    b1b: ℝ[H]
+    w2b: ℝ[n, H]
+    b2b: ℝ[n]
+    a: ℝ[m]
+    def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n]): ℝ[m]:
+        x1: ℝ[n] = first_half(x)
+        x2: ℝ[n] = second_half(x)
+        shift: ℝ[n] = linear(relu1d(linear(x1, w1, b1)), w2, b2)
+        y2: ℝ[n] = x2 + shift
+        return concat_1d_array(x1, y2)
+    def rescale(x: ℝ[m]): ℝ[m]:
+        s: ℝ[m] = exp(this.a)
+        return x * s
+    def rescale_log_det(): ℝ:
+        return sum(this.a)
+    def λ(x: ℝ[m]) -> ℝ:
+        h: ℝ[m] = x
+        h = this.coupling(h, this.w1a, this.b1a, this.w2a, this.b2a)
+        h = swap_halves(h)
+        h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b)
+        h = swap_halves(h)
+        z: ℝ[m] = this.rescale(h)
+        log_pz: ℝ = gaussian_log_prob(z)
+        log_px: ℝ = log_pz + this.rescale_log_det()
+        return log_px
+    def loss(pred: ℝ, target: ℝ): ℝ:
+        return -pred
+
+
+# Dataset
+# create_dataset is NOT a built-in Physika function.
+# Add the helper from runtime.py to physika/runtime.py
+# before running this script.
+
+dataset = create_dataset(80, 100)
+train_dataset = dataset[0]
+test_dataset = dataset[1]
+
+train_X = train_dataset[0]
+test_X = test_dataset[0]
+
+len_train_X: ℝ = get_1d_array_length(train_X)
+len_test_X: ℝ = get_1d_array_length(test_X)
+
+# Initialize model parameters
+
+ndim: ℝ = 784
+hidden: ℝ = 16
+half: ℝ = ndim / 2
+
+w1a: ℝ[hidden, half] = for i:ℕ(hidden) -> for j:ℕ(half) -> sin(3.14 * i / hidden) * cos(3.14 * j / half) * 0.01
+b1a: ℝ[hidden] = for i:ℕ(hidden) -> i*0
+w2a: ℝ[half, hidden] = for i:ℕ(half) -> for j:ℕ(hidden) -> cos(3.14 * i / half) * sin(3.14 * j / hidden) * 0.01
+b2a: ℝ[half] = for i:ℕ(half) -> i*0
+
+w1b: ℝ[hidden, half] = for i:ℕ(hidden) -> for j:ℕ(half) -> sin(3.14 * i / hidden) * cos(3.14 * j / half) * 0.01
+b1b: ℝ[hidden] = for i:ℕ(hidden) -> i*0
+w2b: ℝ[half, hidden] = for i:ℕ(half) -> for j:ℕ(hidden) -> cos(3.14 * i / half) * sin(3.14 * j / hidden) * 0.01
+b2b: ℝ[half] = for i:ℕ(half) -> i*0
+
+a_init: ℝ[ndim] = for i:ℕ(ndim) -> i*0
+
+nice_object: NICE = NICE(w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a_init)
+
+# Debug: sanity-check the forward pass on one sample
+
+debug_input = flatten_image(train_X[0])
+debug_log_px = nice_object(debug_input)
+print(debug_log_px)
+print(DEVICE)
+
+# Flatten + dequantize the dataset once, up front
+
+train_X_flat: ℝ[len_train_X, ndim] = zero_2d_array(len_train_X, ndim)
+for i:ℕ(len_train_X):
+    flat = flatten_image(train_X[i])
+    for j:ℕ(ndim):
+        train_X_flat[i, j] = flat[j]
+
+test_X_flat: ℝ[len_test_X, ndim] = zero_2d_array(len_test_X, ndim)
+for i:ℕ(len_test_X):
+    flat = flatten_image(test_X[i])
+    for j:ℕ(ndim):
+        test_X_flat[i, j] = flat[j]
+
+# NICE is unsupervised
+dummy_y: ℝ[len_train_X] = zero_1d_array(len_train_X) 
+
+
+# Training loop - via Physika's built-in train()
+
+epochs: ℕ = 10
+lr: ℝ = 0.005
+
+losses: ℝ[epochs] = zero_1d_array(epochs)
+
+for i:ℕ(epochs):
+    nice_object = train(nice_object, train_X_flat, dummy_y, 1, lr)
+    epoch_loss = 0
+    for j:ℕ(len_train_X):
+        log_px = nice_object(train_X_flat[j])
+        epoch_loss += neg_loglik(log_px)
+    epoch_loss = epoch_loss / len_train_X
+    losses[i] = epoch_loss
+    print(epoch_loss)
+
+# Testing the Model: average negative log-likelihood
+
+test_loss: ℝ = 0
+for i:ℕ(len_test_X):
+    log_px = nice_object(test_X_flat[i])
+    test_loss += neg_loglik(log_px)
+test_loss = test_loss / len_test_X
+print(test_loss)
