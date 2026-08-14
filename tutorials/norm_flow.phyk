@@ -1,4 +1,5 @@
 # NICE (Nonlinear Independent Components Estimation) on MNIST - vectorized
+physika.seed(0)
 
 
 # Helper functions
@@ -30,12 +31,14 @@ def linear(x: ℝ[li], weight: ℝ[lo, li], bias: ℝ[lo], in_dim: ℕ, out_dim:
     return res[:, 0] + bias
 
 # no reshape builtin, so one loop over rows instead of rows*cols
+# uniform dequantization noise: (img + u) / 256, u ~ U(0,1)
 def flatten_image(img: ℝ[H, W], rows: ℝ, cols: ℝ): ℝ[n]:
     n: ℝ = rows * cols
     results: ℝ[n] = zero_1d_array(n)
+    ε: ℝ[n] ~ 𝒰(0.0, 1.0, n)
     for i:ℕ(rows):
-        results[i * cols : (i + 1) * cols] = img[i, :] / 256.0 + 0.5 / 256.0
-    return results
+        results[i * cols : (i + 1) * cols] = img[i, :] / 256.0
+    return results + ε / 256.0
 
 def first_half(x: ℝ[m], half: ℕ): ℝ[n]:
     return x[:half]
@@ -115,17 +118,23 @@ len_test_X: ℝ = get_1d_array_length(test_X)
 # ℕ so they stay integers through field -> method param -> slice bound
 
 ndim: ℕ = 784
-hidden: ℕ = 16
+hidden: ℕ = 128
 half: ℕ = 392
 
-w1a: ℝ[hidden, half] = for i:ℕ(hidden) -> for j:ℕ(half) -> sin(3.14 * i / hidden) * cos(3.14 * j / half) * 0.01
+# He scale on the input layer, near-zero on the output layer so each
+# coupling starts as the identity map (y2 = x2 + shift, shift ~ 0)
+
+s1: ℝ = sqrt(2.0 / half)
+s2: ℝ = sqrt(2.0 / hidden) * 0.01
+
+w1a: ℝ[hidden, half] = for i:ℕ(hidden) -> ε: ℝ[half] ~ Normal(0.0, s1, half)
 b1a: ℝ[hidden] = for i:ℕ(hidden) -> i*0
-w2a: ℝ[half, hidden] = for i:ℕ(half) -> for j:ℕ(hidden) -> cos(3.14 * i / half) * sin(3.14 * j / hidden) * 0.01
+w2a: ℝ[half, hidden] = for i:ℕ(half) -> ε: ℝ[hidden] ~ Normal(0.0, s2, hidden)
 b2a: ℝ[half] = for i:ℕ(half) -> i*0
 
-w1b: ℝ[hidden, half] = for i:ℕ(hidden) -> for j:ℕ(half) -> sin(3.14 * i / hidden) * cos(3.14 * j / half) * 0.01
+w1b: ℝ[hidden, half] = for i:ℕ(hidden) -> ε: ℝ[half] ~ Normal(0.0, s1, half)
 b1b: ℝ[hidden] = for i:ℕ(hidden) -> i*0
-w2b: ℝ[half, hidden] = for i:ℕ(half) -> for j:ℕ(hidden) -> cos(3.14 * i / half) * sin(3.14 * j / hidden) * 0.01
+w2b: ℝ[half, hidden] = for i:ℕ(half) -> ε: ℝ[hidden] ~ Normal(0.0, s2, hidden)
 b2b: ℝ[half] = for i:ℕ(half) -> i*0
 
 a_init: ℝ[ndim] = for i:ℕ(ndim) -> i*0
@@ -157,8 +166,8 @@ dummy_y: ℝ[len_train_X] = zero_1d_array(len_train_X)
 # Training loop - via Physika's built-in train()
 # train() loops over samples internally, that loop cannot be vectorized here
 
-epochs: ℕ = 10
-lr: ℝ = 0.005
+epochs: ℕ = 20
+lr: ℝ = 0.001
 
 losses: ℝ[epochs] = zero_1d_array(epochs)
 
@@ -171,6 +180,8 @@ for i:ℕ(epochs):
     epoch_loss = epoch_loss / len_train_X
     losses[i] = epoch_loss
     print(epoch_loss)
+    epoch_bits_per_dim = epoch_loss / (ndim * log(2.0)) + 8.0
+    print(epoch_bits_per_dim)
 
 # Testing the Model: average negative log-likelihood
 
@@ -180,3 +191,5 @@ for i:ℕ(len_test_X):
     test_loss += neg_loglik(log_px)
 test_loss = test_loss / len_test_X
 print(test_loss)
+bits_per_dim: ℝ = test_loss / (ndim * log(2.0)) + 8.0
+print(bits_per_dim)

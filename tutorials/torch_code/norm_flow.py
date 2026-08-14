@@ -35,9 +35,10 @@ def linear(x, weight, bias, in_dim, out_dim):
 def flatten_image(img, rows, cols):
     n = (rows * cols)
     results = zero_1d_array(n)
+    ε = torch.distributions.Uniform(0.0, 1.0).rsample((int(n),)).to(DEVICE)
     for i in range(int(0), int(rows)):
-        results[(i * cols):((i + 1) * cols)] = ((img[int(i), :] / 256.0) + (0.5 / 256.0))
-    return results
+        results[(i * cols):((i + 1) * cols)] = (img[int(i), :] / 256.0)
+    return (results + (ε / 256.0))
 
 def first_half(x, half):
     return x[:half]
@@ -130,6 +131,7 @@ class NICE(nn.Module):
                     p -= lr * g
 
 # === Program ===
+torch.manual_seed(int(0))
 dataset = create_dataset(80, 100)
 train_dataset = dataset[int(0)]
 test_dataset = dataset[int(1)]
@@ -138,15 +140,17 @@ test_X = test_dataset[int(0)]
 len_train_X = get_1d_array_length(train_X)
 len_test_X = get_1d_array_length(test_X)
 ndim = 784
-hidden = 16
+hidden = 128
 half = 392
-w1a = torch.stack([torch.stack([((torch.sin(((3.14 * i) / hidden) if isinstance(((3.14 * i) / hidden), torch.Tensor) else torch.tensor(float(((3.14 * i) / hidden)))) * torch.cos(((3.14 * j) / half) if isinstance(((3.14 * j) / half), torch.Tensor) else torch.tensor(float(((3.14 * j) / half))))) * 0.01) for _fi_j in range(int(half)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(hidden)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+s1 = torch.sqrt((2.0 / half) if isinstance((2.0 / half), torch.Tensor) else torch.tensor(float((2.0 / half))))
+s2 = (torch.sqrt((2.0 / hidden) if isinstance((2.0 / hidden), torch.Tensor) else torch.tensor(float((2.0 / hidden)))) * 0.01)
+w1a = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(half),)).to(DEVICE) for _fi_i in range(int(hidden)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 b1a = torch.stack([(i * 0) for _fi_i in range(int(hidden)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-w2a = torch.stack([torch.stack([((torch.cos(((3.14 * i) / half) if isinstance(((3.14 * i) / half), torch.Tensor) else torch.tensor(float(((3.14 * i) / half)))) * torch.sin(((3.14 * j) / hidden) if isinstance(((3.14 * j) / hidden), torch.Tensor) else torch.tensor(float(((3.14 * j) / hidden))))) * 0.01) for _fi_j in range(int(hidden)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(half)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+w2a = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(hidden),)).to(DEVICE) for _fi_i in range(int(half)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 b2a = torch.stack([(i * 0) for _fi_i in range(int(half)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-w1b = torch.stack([torch.stack([((torch.sin(((3.14 * i) / hidden) if isinstance(((3.14 * i) / hidden), torch.Tensor) else torch.tensor(float(((3.14 * i) / hidden)))) * torch.cos(((3.14 * j) / half) if isinstance(((3.14 * j) / half), torch.Tensor) else torch.tensor(float(((3.14 * j) / half))))) * 0.01) for _fi_j in range(int(half)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(hidden)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+w1b = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(half),)).to(DEVICE) for _fi_i in range(int(hidden)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 b1b = torch.stack([(i * 0) for _fi_i in range(int(hidden)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-w2b = torch.stack([torch.stack([((torch.cos(((3.14 * i) / half) if isinstance(((3.14 * i) / half), torch.Tensor) else torch.tensor(float(((3.14 * i) / half)))) * torch.sin(((3.14 * j) / hidden) if isinstance(((3.14 * j) / hidden), torch.Tensor) else torch.tensor(float(((3.14 * j) / hidden))))) * 0.01) for _fi_j in range(int(hidden)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(half)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+w2b = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(hidden),)).to(DEVICE) for _fi_i in range(int(half)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 b2b = torch.stack([(i * 0) for _fi_i in range(int(half)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 a_init = torch.stack([(i * 0) for _fi_i in range(int(ndim)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 nice_object = NICE(w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a_init, half, hidden, ndim).to(DEVICE)
@@ -161,8 +165,8 @@ test_X_flat = zero_2d_array(len_test_X, ndim)
 for i in range(int(0), int(len_test_X)):
     test_X_flat[int(i), :] = flatten_image(test_X[int(i)], 28, 28)
 dummy_y = zero_1d_array(len_train_X)
-epochs = 10
-lr = 0.005
+epochs = 20
+lr = 0.001
 losses = zero_1d_array(epochs)
 for i in range(int(0), int(epochs)):
     nice_object = train(nice_object, train_X_flat, dummy_y, 1, lr)
@@ -173,9 +177,13 @@ for i in range(int(0), int(epochs)):
     epoch_loss = (epoch_loss / len_train_X)
     losses[int(i)] = epoch_loss
     print(epoch_loss)
+    epoch_bits_per_dim = ((epoch_loss / (ndim * torch.log(2.0 if isinstance(2.0, torch.Tensor) else torch.tensor(float(2.0))))) + 8.0)
+    print(epoch_bits_per_dim)
 test_loss = 0
 for i in range(int(0), int(len_test_X)):
     log_px = nice_object(test_X_flat[int(i)])
     test_loss = test_loss + neg_loglik(log_px)
 test_loss = (test_loss / len_test_X)
 print(print(test_loss))
+bits_per_dim = ((test_loss / (ndim * torch.log(2.0 if isinstance(2.0, torch.Tensor) else torch.tensor(float(2.0))))) + 8.0)
+print(print(bits_per_dim))

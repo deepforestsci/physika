@@ -163,24 +163,31 @@ Please refer to the next section for the complete standalone implementation for 
         w2b: ℝ[n, H]
         b2b: ℝ[n]
         a: ℝ[m]
-        def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n]): ℝ[m]:
+        n_half: ℕ
+        hid: ℕ
+        ndim: ℕ
+        def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ, hid: ℕ): ℝ[m]:
             # Forward additive coupling:
             #   y_1 = x_1
             #   y_2 = x_2 + m(x_1)
-            x1: ℝ[n] = first_half(x)
-            x2: ℝ[n] = second_half(x)
-            shift: ℝ[n] = linear(relu1d(linear(x1, w1, b1)), w2, b2)
+            x1: ℝ[n] = x[:half]
+            x2: ℝ[n] = x[half:]
+            hidden_pre: ℝ[n] = linear(x1, w1, b1, half, hid)
+            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2, hid, half)
             y2: ℝ[n] = x2 + shift
-            return concat_1d_array(x1, y2)
-        def coupling_inv(y: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n]): ℝ[m]:
+            return concat(x1, y2)
+        def coupling_inv(y: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ, hid: ℕ): ℝ[m]:
             # Inverse additive coupling (same network m, subtract instead of add):
             #   x_1 = y_1
             #   x_2 = y_2 - m(y_1)
-            y1: ℝ[n] = first_half(y)
-            y2: ℝ[n] = second_half(y)
-            shift: ℝ[n] = linear(relu1d(linear(y1, w1, b1)), w2, b2)
+            y1: ℝ[n] = y[:half]
+            y2: ℝ[n] = y[half:]
+            hidden_pre: ℝ[n] = linear(y1, w1, b1, half, hid)
+            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2, hid, half)
             x2: ℝ[n] = y2 - shift
-            return concat_1d_array(y1, x2)
+            return concat(y1, x2)
+        def swap(x: ℝ[m], half: ℕ): ℝ[m]:
+            return concat(x[half:], x[:half])
         def rescale(x: ℝ[m]): ℝ[m]:
             # z_i = S_ii * h_i,  S_ii = exp(a_i)
             s: ℝ[m] = exp(this.a)
@@ -193,35 +200,30 @@ Please refer to the next section for the complete standalone implementation for 
             # log |det dz/dh| = sum_i a_i
             return sum(this.a)
         def λ(x: ℝ[m]) -> ℝ:
-            h: ℝ[m] = x
-            h = this.coupling(h, this.w1a, this.b1a, this.w2a, this.b2a)
-            h = swap_halves(h)
-            h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b)
-            h = swap_halves(h)
+            h: ℝ[m] = this.coupling(x, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half, this.hid)
+            h = this.swap(h, this.n_half)
+            h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half, this.hid)
+            h = this.swap(h, this.n_half)
             z: ℝ[m] = this.rescale(h)
-            log_pz: ℝ = gaussian_log_prob(z)
+            log_pz: ℝ = gaussian_log_prob(z, this.ndim)
             log_px: ℝ = log_pz + this.rescale_log_det()
             return log_px
         def inverse(z: ℝ[m]): ℝ[m]:
             # f = rescale . swap . coupling_b . swap . coupling_a, so
-            # f^{-1} = coupling_a^{-1} . swap^{-1} . coupling_b^{-1} . swap^{-1} . rescale^{-1}
-            # (swap_halves is its own inverse)
+            # f^{-1} = coupling_a^{-1} . swap . coupling_b^{-1} . swap . rescale^{-1}
+            # (swap is its own inverse)
             h: ℝ[m] = this.rescale_inv(z)
-            h = swap_halves(h)
-            h = this.coupling_inv(h, this.w1b, this.b1b, this.w2b, this.b2b)
-            h = swap_halves(h)
-            h = this.coupling_inv(h, this.w1a, this.b1a, this.w2a, this.b2a)
+            h = this.swap(h, this.n_half)
+            h = this.coupling_inv(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half, this.hid)
+            h = this.swap(h, this.n_half)
+            h = this.coupling_inv(h, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half, this.hid)
             return h
         def loss(pred: ℝ, target: ℝ): ℝ:
             return -pred
 
 
-    def gaussian_log_prob(x: ℝ[m]): ℝ:
-        len_x: ℝ = get_1d_array_length(x)
-        total: ℝ = 0
-        for i:ℕ(len_x):
-            total += -0.5 * x[i] * x[i] - 0.5 * log(2 * 3.14159265)
-        return total
+    def gaussian_log_prob(x: ℝ[m], n: ℕ): ℝ:
+        return sum(-0.5 * x * x) - n * 0.5 * log(2.0 * 3.14159265)
 
 Putting it all together: Training a model with Normalizing Flow - Full code
 ---------------------------------------------------------------------------------
@@ -287,10 +289,12 @@ Code in the Physika (.phyk) file
 
 .. code-block:: python
 
-    # NICE (Nonlinear Independent Components Estimation) on MNIST
+    # NICE (Nonlinear Independent Components Estimation) on MNIST - vectorized
+    physika.seed(0)
+
 
     # Helper functions
-    def get_1d_array_length(x: ℝ[m]): ℝ:
+    def get_1d_array_length(x: ℝ[gm]): ℝ:
         total: ℝ = 0
         temp: ℝ = 0
         for i:
@@ -298,93 +302,47 @@ Code in the Physika (.phyk) file
             total += 1
         return total
 
-    def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
-        total: ℝ = 0
-        temp: ℝ = 0
-        for i:
-            temp = x[i]
-            total += 1
-        return total
-
-    def zero_1d_array(len: ℝ): ℝ[m]:
+    def zero_1d_array(len: ℝ): ℝ[z1]:
         results: ℝ[len] = for i: ℕ(len) -> i*0
         return results
 
-    def zero_2d_array(rows: ℝ, cols: ℝ): ℝ[m, n]:
+    def zero_2d_array(rows: ℝ, cols: ℝ): ℝ[z2r, z2c]:
         results: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
         return results
 
-    def relu(x: ℝ): ℝ:
-        if x > 0:
-            return x
-        else:
-            return 0.0
-
+    # relu(x) == (x + |x|) / 2 exactly, elementwise, no loop
     def relu1d(x: ℝ[m]): ℝ[m]:
-        len_x: ℝ = get_1d_array_length(x)
-        results: ℝ[len_x] = zero_1d_array(len_x)
-        for i:ℕ(len_x):
-            results[i] = relu(x[i])
-        return results
+        return (x + abs(x)) * 0.5
 
-    def linear(x: ℝ[n], weight: ℝ[m, n], bias: ℝ[m]): ℝ[m]:
-        out: ℝ = get_1d_array_length(bias)
-        inp: ℝ = get_1d_array_length(x)
-        results: ℝ[out] = zero_1d_array(out)
-        for i:ℕ(out):
-            acc = 0
-            for j:ℕ(inp):
-                acc += weight[i, j] * x[j]
-            results[i] = acc + bias[i]
-        return results
+    # matmul rejects mixed rank, so lift x to a column with a slice assign
+    def linear(x: ℝ[li], weight: ℝ[lo, li], bias: ℝ[lo], in_dim: ℕ, out_dim: ℕ): ℝ[lo]:
+        col: ℝ[li, 1] = zero_2d_array(in_dim, 1)
+        col[:, 0] = x
+        res: ℝ[lo, 1] = weight @ col
+        return res[:, 0] + bias
 
-    def flatten_image(img: ℝ[H, W]): ℝ[n]:
-        rows: ℝ = get_2d_array_num_rows(img)
-        cols: ℝ = get_1d_array_length(img[0])
+    # no reshape builtin, so one loop over rows instead of rows*cols
+    # uniform dequantization noise: (img + u) / 256, u ~ U(0,1)
+    def flatten_image(img: ℝ[H, W], rows: ℝ, cols: ℝ): ℝ[n]:
         n: ℝ = rows * cols
         results: ℝ[n] = zero_1d_array(n)
+        ε: ℝ[n] ~ 𝒰(0.0, 1.0, n)
         for i:ℕ(rows):
-            for j:ℕ(cols):
-                results[i*cols + j] = img[i, j] / 256.0 + 0.5 / 256.0
-        return results
+            results[i * cols : (i + 1) * cols] = img[i, :] / 256.0
+        return results + ε / 256.0
 
-    def first_half(x: ℝ[m]): ℝ[n]:
-        half: ℝ = get_1d_array_length(x) / 2
-        results: ℝ[half] = zero_1d_array(half)
-        for i:ℕ(half):
-            results[i] = x[i]
-        return results
+    def first_half(x: ℝ[m], half: ℕ): ℝ[n]:
+        return x[:half]
 
-    def second_half(x: ℝ[m]): ℝ[n]:
-        len_x: ℝ = get_1d_array_length(x)
-        half: ℝ = len_x / 2
-        results: ℝ[half] = zero_1d_array(half)
-        for i:ℕ(half):
-            results[i] = x[i + half]
-        return results
+    def second_half(x: ℝ[m], half: ℕ): ℝ[n]:
+        return x[half:]
 
-    def concat_1d_array(x1: ℝ[m], x2: ℝ[n]): ℝ[p]:
-        len1: ℝ = get_1d_array_length(x1)
-        len2: ℝ = get_1d_array_length(x2)
-        total: ℝ = len1 + len2
-        results: ℝ[total] = zero_1d_array(total)
-        for i:ℕ(len1):
-            results[i] = x1[i]
-        for i:ℕ(len2):
-            results[i + len1] = x2[i]
-        return results
+    def swap_halves(x: ℝ[m], half: ℕ): ℝ[m]:
+        return concat(x[half:], x[:half])
 
-    def swap_halves(x: ℝ[m]): ℝ[m]:
-        x1: ℝ[n] = first_half(x)
-        x2: ℝ[n] = second_half(x)
-        return concat_1d_array(x2, x1)
-
-    def gaussian_log_prob(x: ℝ[m]): ℝ:
-        len_x: ℝ = get_1d_array_length(x)
-        total: ℝ = 0
-        for i:ℕ(len_x):
-            total += -0.5 * x[i] * x[i] - 0.5 * log(2 * 3.14159265)
-        return total
+    # sum(-0.5 x^2) - n*0.5*log(2pi), one reduction
+    def gaussian_log_prob(x: ℝ[m], n: ℕ): ℝ:
+        return sum(-0.5 * x * x) - n * 0.5 * log(2.0 * 3.14159265)
 
     def neg_loglik(log_px: ℝ): ℝ:
         return -log_px
@@ -402,25 +360,30 @@ Code in the Physika (.phyk) file
         w2b: ℝ[n, H]
         b2b: ℝ[n]
         a: ℝ[m]
-        def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n]): ℝ[m]:
-            x1: ℝ[n] = first_half(x)
-            x2: ℝ[n] = second_half(x)
-            shift: ℝ[n] = linear(relu1d(linear(x1, w1, b1)), w2, b2)
+        n_half: ℕ
+        hid: ℕ
+        ndim: ℕ
+        def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ, hid: ℕ): ℝ[m]:
+            x1: ℝ[n] = x[:half]
+            x2: ℝ[n] = x[half:]
+            hidden_pre: ℝ[n] = linear(x1, w1, b1, half, hid)
+            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2, hid, half)
             y2: ℝ[n] = x2 + shift
-            return concat_1d_array(x1, y2)
+            return concat(x1, y2)
+        def swap(x: ℝ[m], half: ℕ): ℝ[m]:
+            return concat(x[half:], x[:half])
         def rescale(x: ℝ[m]): ℝ[m]:
             s: ℝ[m] = exp(this.a)
             return x * s
         def rescale_log_det(): ℝ:
             return sum(this.a)
         def λ(x: ℝ[m]) -> ℝ:
-            h: ℝ[m] = x
-            h = this.coupling(h, this.w1a, this.b1a, this.w2a, this.b2a)
-            h = swap_halves(h)
-            h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b)
-            h = swap_halves(h)
+            h: ℝ[m] = this.coupling(x, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half, this.hid)
+            h = this.swap(h, this.n_half)
+            h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half, this.hid)
+            h = this.swap(h, this.n_half)
             z: ℝ[m] = this.rescale(h)
-            log_pz: ℝ = gaussian_log_prob(z)
+            log_pz: ℝ = gaussian_log_prob(z, this.ndim)
             log_px: ℝ = log_pz + this.rescale_log_det()
             return log_px
         def loss(pred: ℝ, target: ℝ): ℝ:
@@ -443,54 +406,59 @@ Code in the Physika (.phyk) file
     len_test_X: ℝ = get_1d_array_length(test_X)
 
     # Initialize model parameters
+    # ℕ so they stay integers through field -> method param -> slice bound
 
-    ndim: ℝ = 784
-    hidden: ℝ = 16
-    half: ℝ = ndim / 2
+    ndim: ℕ = 784
+    hidden: ℕ = 128
+    half: ℕ = 392
 
-    w1a: ℝ[hidden, half] = for i:ℕ(hidden) -> for j:ℕ(half) -> sin(3.14 * i / hidden) * cos(3.14 * j / half) * 0.01
+    # He scale on the input layer, near-zero on the output layer so each
+    # coupling starts as the identity map (y2 = x2 + shift, shift ~ 0)
+
+    s1: ℝ = sqrt(2.0 / half)
+    s2: ℝ = sqrt(2.0 / hidden) * 0.01
+
+    w1a: ℝ[hidden, half] = for i:ℕ(hidden) -> ε: ℝ[half] ~ Normal(0.0, s1, half)
     b1a: ℝ[hidden] = for i:ℕ(hidden) -> i*0
-    w2a: ℝ[half, hidden] = for i:ℕ(half) -> for j:ℕ(hidden) -> cos(3.14 * i / half) * sin(3.14 * j / hidden) * 0.01
+    w2a: ℝ[half, hidden] = for i:ℕ(half) -> ε: ℝ[hidden] ~ Normal(0.0, s2, hidden)
     b2a: ℝ[half] = for i:ℕ(half) -> i*0
 
-    w1b: ℝ[hidden, half] = for i:ℕ(hidden) -> for j:ℕ(half) -> sin(3.14 * i / hidden) * cos(3.14 * j / half) * 0.01
+    w1b: ℝ[hidden, half] = for i:ℕ(hidden) -> ε: ℝ[half] ~ Normal(0.0, s1, half)
     b1b: ℝ[hidden] = for i:ℕ(hidden) -> i*0
-    w2b: ℝ[half, hidden] = for i:ℕ(half) -> for j:ℕ(hidden) -> cos(3.14 * i / half) * sin(3.14 * j / hidden) * 0.01
+    w2b: ℝ[half, hidden] = for i:ℕ(half) -> ε: ℝ[hidden] ~ Normal(0.0, s2, hidden)
     b2b: ℝ[half] = for i:ℕ(half) -> i*0
 
     a_init: ℝ[ndim] = for i:ℕ(ndim) -> i*0
 
-    nice_object: NICE = NICE(w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a_init)
+    nice_object: NICE = NICE(w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a_init, half, hidden, ndim)
 
     # Debug: sanity-check the forward pass on one sample
 
-    debug_input = flatten_image(train_X[0])
+    debug_input = flatten_image(train_X[0], 28, 28)
     debug_log_px = nice_object(debug_input)
     print(debug_log_px)
     print(DEVICE)
 
     # Flatten + dequantize the dataset once, up front
+    # inner element loop replaced by a row slice assignment
 
     train_X_flat: ℝ[len_train_X, ndim] = zero_2d_array(len_train_X, ndim)
     for i:ℕ(len_train_X):
-        flat = flatten_image(train_X[i])
-        for j:ℕ(ndim):
-            train_X_flat[i, j] = flat[j]
+        train_X_flat[i, :] = flatten_image(train_X[i], 28, 28)
 
     test_X_flat: ℝ[len_test_X, ndim] = zero_2d_array(len_test_X, ndim)
     for i:ℕ(len_test_X):
-        flat = flatten_image(test_X[i])
-        for j:ℕ(ndim):
-            test_X_flat[i, j] = flat[j]
+        test_X_flat[i, :] = flatten_image(test_X[i], 28, 28)
 
     # NICE is unsupervised
     dummy_y: ℝ[len_train_X] = zero_1d_array(len_train_X)
 
 
     # Training loop - via Physika's built-in train()
+    # train() loops over samples internally, that loop cannot be vectorized here
 
-    epochs: ℕ = 10
-    lr: ℝ = 0.005
+    epochs: ℕ = 20
+    lr: ℝ = 0.001
 
     losses: ℝ[epochs] = zero_1d_array(epochs)
 
@@ -503,6 +471,8 @@ Code in the Physika (.phyk) file
         epoch_loss = epoch_loss / len_train_X
         losses[i] = epoch_loss
         print(epoch_loss)
+        epoch_bits_per_dim = epoch_loss / (ndim * log(2.0)) + 8.0
+        print(epoch_bits_per_dim)
 
     # Testing the Model: average negative log-likelihood
 
@@ -512,7 +482,8 @@ Code in the Physika (.phyk) file
         test_loss += neg_loglik(log_px)
     test_loss = test_loss / len_test_X
     print(test_loss)
-
+    bits_per_dim: ℝ = test_loss / (ndim * log(2.0)) + 8.0
+    print(bits_per_dim)
 
 References
 ----------------
