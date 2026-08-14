@@ -485,6 +485,19 @@ Code in the Physika (.phyk) file
     bits_per_dim: ℝ = test_loss / (ndim * log(2.0)) + 8.0
     print(bits_per_dim)
 
+Training plots
+---------------
+
+After running the code below, you should see the training loss decrease over epochs, indicating that the model is learning to better fit the data distribution.
+Note that these plots are very linear due to the small scale of the data used (80 vs 60000) and the small number of epochs (20 vs 1500), in the original NICE paper.
+
+.. figure:: /_static/tutorial_files/norm_flow/nice_train_curve.png
+   :alt:
+   :align: center
+   :width: 750px
+
+
+
 References
 ----------------
 
