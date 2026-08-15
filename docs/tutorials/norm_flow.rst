@@ -235,8 +235,6 @@ Putting it all together: Training a model with Normalizing Flow - Full code
 
 
 This is the complete code for training a model on the MNIST dataset using the NICE Normalizing Flow.
-Note for simplicity the inverse transform is not included in this implementation, it is used for generative modelling, outside of the scope of this tutorial.
-The code is also unoptimized, batching and GPU acceleration is not included for simplicity.
 
 
 .. note::
