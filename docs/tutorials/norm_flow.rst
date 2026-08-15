@@ -144,7 +144,6 @@ Implementing the NICE Normalizing Flow in Physika
 The code block below contains the core components of the NICE model implemented in Physika.
 The coupling layer is implemented as a simple feedforward neural network with one hidden layer and ReLU activation function.
 The rescale layer is implemented as a diagonal scaling layer, where the scaling factors are learned parameters.
-The inverse of each layer, and the full inverse map :math:`f^{-1}: z \to x`, are also shown; they are what would be used for sampling from the model.
 In the next section, we will show how to train the NICE model on a simple image classification task.
 
 
@@ -198,12 +197,14 @@ Please refer to the next section for the complete standalone implementation for 
         def rescale_log_det(): ℝ:
             # log |det dz/dh| = sum_i a_i
             return sum(this.a)
-        def λ(x: ℝ[m]) -> ℝ:
+        def forward_z(x: ℝ[m]): ℝ[m]:
             h: ℝ[m] = this.coupling(x, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half)
             h = this.swap(h, this.n_half)
             h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half)
             h = this.swap(h, this.n_half)
-            z: ℝ[m] = this.rescale(h)
+            return this.rescale(h)
+        def λ(x: ℝ[m]) -> ℝ:
+            z: ℝ[m] = this.forward_z(x)
             log_pz: ℝ = gaussian_log_prob(z, this.ndim)
             log_px: ℝ = log_pz + this.rescale_log_det()
             return log_px
@@ -217,6 +218,11 @@ Please refer to the next section for the complete standalone implementation for 
             h = this.swap(h, this.n_half)
             h = this.coupling_inv(h, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half)
             return h
+        def sample(): ℝ[m]:
+            # draw z from the base distribution and push it through the
+            # inverse flow to get a generated (flattened, dequantized-scale) image
+            z: ℝ[m] ~ Normal(0.0, 1.0, this.ndim)
+            return this.inverse(z)
         def loss(pred: ℝ, target: ℝ): ℝ:
             return -pred
 
@@ -321,6 +327,14 @@ Code in the Physika (.phyk) file
             results[i * cols : (i + 1) * cols] = img[i, :]
         return results
 
+    # inverse of flatten: undo the row-major packing so a generated 1-D
+    # sample can be viewed as a 28x28 image
+    def unflatten(x: ℝ[n], rows: ℝ, cols: ℝ): ℝ[rows, cols]:
+        img: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
+        for i:ℕ(rows):
+            img[i, :] = x[i * cols : (i + 1) * cols]
+        return img
+
     # dequantize: x̃ = (x + u) / 256, u ~ U(0,1)
     def dequantize(x: ℝ[n], n: ℕ): ℝ[n]:
         ε: ℝ[n] ~ 𝒰(0.0, 1.0, n)
@@ -349,28 +363,64 @@ Code in the Physika (.phyk) file
         n_half: ℕ
         ndim: ℕ
         def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ): ℝ[m]:
+            # Forward additive coupling:
+            #   y_1 = x_1
+            #   y_2 = x_2 + m(x_1)
             x1: ℝ[n] = x[:half]
             x2: ℝ[n] = x[half:]
             hidden_pre: ℝ[n] = linear(x1, w1, b1)
             shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2)
             y2: ℝ[n] = x2 + shift
             return concat(x1, y2)
+        def coupling_inv(y: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ): ℝ[m]:
+            # Inverse additive coupling (same network m, subtract instead of add):
+            #   x_1 = y_1
+            #   x_2 = y_2 - m(y_1)
+            y1: ℝ[n] = y[:half]
+            y2: ℝ[n] = y[half:]
+            hidden_pre: ℝ[n] = linear(y1, w1, b1)
+            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2)
+            x2: ℝ[n] = y2 - shift
+            return concat(y1, x2)
         def swap(x: ℝ[m], half: ℕ): ℝ[m]:
             return concat(x[half:], x[:half])
         def rescale(x: ℝ[m]): ℝ[m]:
+            # z_i = S_ii * h_i,  S_ii = exp(a_i)
             s: ℝ[m] = exp(this.a)
             return x * s
+        def rescale_inv(z: ℝ[m]): ℝ[m]:
+            # h_i = z_i / S_ii = z_i * exp(-a_i)
+            s: ℝ[m] = exp(-this.a)
+            return z * s
         def rescale_log_det(): ℝ:
+            # log |det dz/dh| = sum_i a_i
             return sum(this.a)
-        def λ(x: ℝ[m]) -> ℝ:
+        def forward_z(x: ℝ[m]): ℝ[m]:
             h: ℝ[m] = this.coupling(x, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half)
             h = this.swap(h, this.n_half)
             h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half)
             h = this.swap(h, this.n_half)
-            z: ℝ[m] = this.rescale(h)
+            return this.rescale(h)
+        def λ(x: ℝ[m]) -> ℝ:
+            z: ℝ[m] = this.forward_z(x)
             log_pz: ℝ = gaussian_log_prob(z, this.ndim)
             log_px: ℝ = log_pz + this.rescale_log_det()
             return log_px
+        def inverse(z: ℝ[m]): ℝ[m]:
+            # f = rescale . swap . coupling_b . swap . coupling_a, so
+            # f^{-1} = coupling_a^{-1} . swap . coupling_b^{-1} . swap . rescale^{-1}
+            # (swap is its own inverse)
+            h: ℝ[m] = this.rescale_inv(z)
+            h = this.swap(h, this.n_half)
+            h = this.coupling_inv(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half)
+            h = this.swap(h, this.n_half)
+            h = this.coupling_inv(h, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half)
+            return h
+        def sample(): ℝ[m]:
+            # draw z from the base distribution and push it through the
+            # inverse flow to get a generated (flattened, dequantized-scale) image
+            z: ℝ[m] ~ Normal(0.0, 1.0, this.ndim)
+            return this.inverse(z)
         def loss(pred: ℝ, target: ℝ): ℝ:
             return -pred
 
@@ -468,6 +518,12 @@ Code in the Physika (.phyk) file
     print(test_loss)
     bits_per_dim: ℝ = test_loss / (ndim * log(2.0)) + 8.0
     print(bits_per_dim)
+
+    # draw z ~ N(0, I) via NICE.sample(), push through the inverse flow,result is a 28x28 image
+
+    gen_flat = nice_object.sample()
+    gen_img = unflatten(gen_flat, 28, 28)
+    print(gen_img)
 
 Training plots
 ---------------

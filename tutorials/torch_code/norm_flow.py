@@ -32,6 +32,12 @@ def flatten(img, rows, cols):
         results[(i * cols):((i + 1) * cols)] = img[int(i), :]
     return results
 
+def unflatten(x, rows, cols):
+    img = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    for i in range(int(0), int(rows)):
+        img[int(i), :] = x[(i * cols):((i + 1) * cols)]
+    return img
+
 def dequantize(x, n):
     ε = torch.distributions.Uniform(0.0, 1.0).rsample((int(n),)).to(DEVICE)
     return ((x + ε) / 256.0)
@@ -79,6 +85,20 @@ class NICE(nn.Module):
         y2 = (x2 + shift)
         return torch.cat([x1, y2])
 
+    def coupling_inv(self, y, w1, b1, w2, b2, half):
+        this = self
+        y = torch.as_tensor(y, device=DEVICE).float()
+        w1 = torch.as_tensor(w1, device=DEVICE).float()
+        b1 = torch.as_tensor(b1, device=DEVICE).float()
+        w2 = torch.as_tensor(w2, device=DEVICE).float()
+        b2 = torch.as_tensor(b2, device=DEVICE).float()
+        y1 = y[:half]
+        y2 = y[half:]
+        hidden_pre = linear(y1, w1, b1)
+        shift = linear(relu1d(hidden_pre), w2, b2)
+        x2 = (y2 - shift)
+        return torch.cat([y1, x2])
+
     def swap(self, x, half):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
@@ -90,21 +110,47 @@ class NICE(nn.Module):
         s = torch.exp(self.a if isinstance(self.a, torch.Tensor) else torch.tensor(float(self.a)))
         return (x * s)
 
+    def rescale_inv(self, z):
+        this = self
+        z = torch.as_tensor(z, device=DEVICE).float()
+        s = torch.exp((-self.a) if isinstance((-self.a), torch.Tensor) else torch.tensor(float((-self.a))))
+        return (z * s)
+
     def rescale_log_det(self):
         this = self
         return torch.sum(self.a if isinstance(self.a, torch.Tensor) else torch.tensor(float(self.a)))
 
-    def forward(self, x):
+    def forward_z(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
         h = self.coupling(x, self.w1a, self.b1a, self.w2a, self.b2a, self.n_half)
         h = self.swap(h, self.n_half)
         h = self.coupling(h, self.w1b, self.b1b, self.w2b, self.b2b, self.n_half)
         h = self.swap(h, self.n_half)
-        z = self.rescale(h)
+        return self.rescale(h)
+
+    def forward(self, x):
+        this = self
+        x = torch.as_tensor(x, device=DEVICE).float()
+        z = self.forward_z(x)
         log_pz = gaussian_log_prob(z, self.ndim)
         log_px = (log_pz + self.rescale_log_det())
         return log_px
+
+    def inverse(self, z):
+        this = self
+        z = torch.as_tensor(z, device=DEVICE).float()
+        h = self.rescale_inv(z)
+        h = self.swap(h, self.n_half)
+        h = self.coupling_inv(h, self.w1b, self.b1b, self.w2b, self.b2b, self.n_half)
+        h = self.swap(h, self.n_half)
+        h = self.coupling_inv(h, self.w1a, self.b1a, self.w2a, self.b2a, self.n_half)
+        return h
+
+    def sample(self):
+        this = self
+        z = torch.distributions.Normal(0.0, 1.0).rsample((int(self.ndim),)).to(DEVICE)
+        return self.inverse(z)
 
     def loss(self, pred, target):
         this = self
@@ -171,3 +217,6 @@ test_loss = nll(nice_object, test_X_flat, len_test_X)
 print(print(test_loss))
 bits_per_dim = ((test_loss / (ndim * torch.log(2.0 if isinstance(2.0, torch.Tensor) else torch.tensor(float(2.0))))) + 8.0)
 print(print(bits_per_dim))
+gen_flat = nice_object.sample()
+gen_img = unflatten(gen_flat, 28, 28)
+print(print(gen_img))
