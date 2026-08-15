@@ -15,39 +15,26 @@ def get_1d_array_length(x):
         total = total + 1
     return total
 
-def zero_1d_array(len):
-    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-    return results
-
-def zero_2d_array(rows, cols):
-    results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-    return results
-
 def relu1d(x):
     return ((x + torch.abs(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))) * 0.5)
 
-def linear(x, weight, bias, in_dim, out_dim):
-    col = zero_2d_array(in_dim, 1)
+def linear(x, weight, bias):
+    in_dim = get_1d_array_length(x)
+    col = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(1)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(in_dim)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     col[:, int(0)] = x
     res = (weight @ col)
     return (res[:, int(0)] + bias)
 
-def flatten_image(img, rows, cols):
+def flatten(img, rows, cols):
     n = (rows * cols)
-    results = zero_1d_array(n)
-    ε = torch.distributions.Uniform(0.0, 1.0).rsample((int(n),)).to(DEVICE)
+    results = torch.stack([(i * 0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     for i in range(int(0), int(rows)):
-        results[(i * cols):((i + 1) * cols)] = (img[int(i), :] / 256.0)
-    return (results + (ε / 256.0))
+        results[(i * cols):((i + 1) * cols)] = img[int(i), :]
+    return results
 
-def first_half(x, half):
-    return x[:half]
-
-def second_half(x, half):
-    return x[half:]
-
-def swap_halves(x, half):
-    return torch.cat([x[half:], x[:half]])
+def dequantize(x, n):
+    ε = torch.distributions.Uniform(0.0, 1.0).rsample((int(n),)).to(DEVICE)
+    return ((x + ε) / 256.0)
 
 def gaussian_log_prob(x, n):
     return (torch.sum((((-0.5) * x) * x) if isinstance((((-0.5) * x) * x), torch.Tensor) else torch.tensor(float((((-0.5) * x) * x)))) - ((n * 0.5) * torch.log((2.0 * 3.14159265) if isinstance((2.0 * 3.14159265), torch.Tensor) else torch.tensor(float((2.0 * 3.14159265))))))
@@ -55,9 +42,15 @@ def gaussian_log_prob(x, n):
 def neg_loglik(log_px):
     return (-log_px)
 
+def nll(model, X, count):
+    total = 0
+    for i in range(int(0), int(count)):
+        total = total + neg_loglik(model(X[int(i)]))
+    return (total / count)
+
 # === Classes ===
 class NICE(nn.Module):
-    def __init__(self, w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a, n_half, hid, ndim):
+    def __init__(self, w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a, n_half, ndim):
         super().__init__()
         self.w1a = nn.Parameter(torch.as_tensor(w1a))
         self.b1a = nn.Parameter(torch.as_tensor(b1a))
@@ -69,11 +62,10 @@ class NICE(nn.Module):
         self.b2b = nn.Parameter(torch.as_tensor(b2b))
         self.a = nn.Parameter(torch.as_tensor(a))
         self.n_half = int(n_half)
-        self.hid = int(hid)
         self.ndim = int(ndim)
         self.learnable_params = [self.w1a, self.b1a, self.w2a, self.b2a, self.w1b, self.b1b, self.w2b, self.b2b, self.a]
 
-    def coupling(self, x, w1, b1, w2, b2, half, hid):
+    def coupling(self, x, w1, b1, w2, b2, half):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
         w1 = torch.as_tensor(w1, device=DEVICE).float()
@@ -82,8 +74,8 @@ class NICE(nn.Module):
         b2 = torch.as_tensor(b2, device=DEVICE).float()
         x1 = x[:half]
         x2 = x[half:]
-        hidden_pre = linear(x1, w1, b1, half, hid)
-        shift = linear(relu1d(hidden_pre), w2, b2, hid, half)
+        hidden_pre = linear(x1, w1, b1)
+        shift = linear(relu1d(hidden_pre), w2, b2)
         y2 = (x2 + shift)
         return torch.cat([x1, y2])
 
@@ -105,9 +97,9 @@ class NICE(nn.Module):
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        h = self.coupling(x, self.w1a, self.b1a, self.w2a, self.b2a, self.n_half, self.hid)
+        h = self.coupling(x, self.w1a, self.b1a, self.w2a, self.b2a, self.n_half)
         h = self.swap(h, self.n_half)
-        h = self.coupling(h, self.w1b, self.b1b, self.w2b, self.b2b, self.n_half, self.hid)
+        h = self.coupling(h, self.w1b, self.b1b, self.w2b, self.b2b, self.n_half)
         h = self.swap(h, self.n_half)
         z = self.rescale(h)
         log_pz = gaussian_log_prob(z, self.ndim)
@@ -153,37 +145,29 @@ b1b = torch.stack([(i * 0) for _fi_i in range(int(hidden)) for i in [torch.tenso
 w2b = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(hidden),)).to(DEVICE) for _fi_i in range(int(half)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 b2b = torch.stack([(i * 0) for _fi_i in range(int(half)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 a_init = torch.stack([(i * 0) for _fi_i in range(int(ndim)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-nice_object = NICE(w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a_init, half, hidden, ndim).to(DEVICE)
-debug_input = flatten_image(train_X[int(0)], 28, 28)
+nice_object = NICE(w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a_init, half, ndim).to(DEVICE)
+debug_input = dequantize(flatten(train_X[int(0)], 28, 28), ndim)
 debug_log_px = nice_object(debug_input)
 print(print(debug_log_px))
 print(print(DEVICE))
-train_X_flat = zero_2d_array(len_train_X, ndim)
+train_X_flat = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(ndim)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(len_train_X)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 for i in range(int(0), int(len_train_X)):
-    train_X_flat[int(i), :] = flatten_image(train_X[int(i)], 28, 28)
-test_X_flat = zero_2d_array(len_test_X, ndim)
+    train_X_flat[int(i), :] = dequantize(flatten(train_X[int(i)], 28, 28), ndim)
+test_X_flat = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(ndim)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(len_test_X)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 for i in range(int(0), int(len_test_X)):
-    test_X_flat[int(i), :] = flatten_image(test_X[int(i)], 28, 28)
-dummy_y = zero_1d_array(len_train_X)
+    test_X_flat[int(i), :] = dequantize(flatten(test_X[int(i)], 28, 28), ndim)
+dummy_y = torch.stack([(i * 0) for _fi_i in range(int(len_train_X)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 epochs = 20
 lr = 0.001
-losses = zero_1d_array(epochs)
+losses = torch.stack([(i * 0) for _fi_i in range(int(epochs)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 for i in range(int(0), int(epochs)):
     nice_object = train(nice_object, train_X_flat, dummy_y, 1, lr)
-    epoch_loss = 0
-    for j in range(int(0), int(len_train_X)):
-        log_px = nice_object(train_X_flat[int(j)])
-        epoch_loss = epoch_loss + neg_loglik(log_px)
-    epoch_loss = (epoch_loss / len_train_X)
+    epoch_loss = nll(nice_object, train_X_flat, len_train_X)
     losses[int(i)] = epoch_loss
     print(epoch_loss)
     epoch_bits_per_dim = ((epoch_loss / (ndim * torch.log(2.0 if isinstance(2.0, torch.Tensor) else torch.tensor(float(2.0))))) + 8.0)
     print(epoch_bits_per_dim)
-test_loss = 0
-for i in range(int(0), int(len_test_X)):
-    log_px = nice_object(test_X_flat[int(i)])
-    test_loss = test_loss + neg_loglik(log_px)
-test_loss = (test_loss / len_test_X)
+test_loss = nll(nice_object, test_X_flat, len_test_X)
 print(print(test_loss))
 bits_per_dim = ((test_loss / (ndim * torch.log(2.0 if isinstance(2.0, torch.Tensor) else torch.tensor(float(2.0))))) + 8.0)
 print(print(bits_per_dim))

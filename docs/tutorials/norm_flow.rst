@@ -164,26 +164,25 @@ Please refer to the next section for the complete standalone implementation for 
         b2b: ℝ[n]
         a: ℝ[m]
         n_half: ℕ
-        hid: ℕ
         ndim: ℕ
-        def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ, hid: ℕ): ℝ[m]:
+        def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ): ℝ[m]:
             # Forward additive coupling:
             #   y_1 = x_1
             #   y_2 = x_2 + m(x_1)
             x1: ℝ[n] = x[:half]
             x2: ℝ[n] = x[half:]
-            hidden_pre: ℝ[n] = linear(x1, w1, b1, half, hid)
-            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2, hid, half)
+            hidden_pre: ℝ[n] = linear(x1, w1, b1)
+            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2)
             y2: ℝ[n] = x2 + shift
             return concat(x1, y2)
-        def coupling_inv(y: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ, hid: ℕ): ℝ[m]:
+        def coupling_inv(y: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ): ℝ[m]:
             # Inverse additive coupling (same network m, subtract instead of add):
             #   x_1 = y_1
             #   x_2 = y_2 - m(y_1)
             y1: ℝ[n] = y[:half]
             y2: ℝ[n] = y[half:]
-            hidden_pre: ℝ[n] = linear(y1, w1, b1, half, hid)
-            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2, hid, half)
+            hidden_pre: ℝ[n] = linear(y1, w1, b1)
+            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2)
             x2: ℝ[n] = y2 - shift
             return concat(y1, x2)
         def swap(x: ℝ[m], half: ℕ): ℝ[m]:
@@ -200,9 +199,9 @@ Please refer to the next section for the complete standalone implementation for 
             # log |det dz/dh| = sum_i a_i
             return sum(this.a)
         def λ(x: ℝ[m]) -> ℝ:
-            h: ℝ[m] = this.coupling(x, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half, this.hid)
+            h: ℝ[m] = this.coupling(x, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half)
             h = this.swap(h, this.n_half)
-            h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half, this.hid)
+            h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half)
             h = this.swap(h, this.n_half)
             z: ℝ[m] = this.rescale(h)
             log_pz: ℝ = gaussian_log_prob(z, this.ndim)
@@ -214,9 +213,9 @@ Please refer to the next section for the complete standalone implementation for 
             # (swap is its own inverse)
             h: ℝ[m] = this.rescale_inv(z)
             h = this.swap(h, this.n_half)
-            h = this.coupling_inv(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half, this.hid)
+            h = this.coupling_inv(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half)
             h = this.swap(h, this.n_half)
-            h = this.coupling_inv(h, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half, this.hid)
+            h = this.coupling_inv(h, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half)
             return h
         def loss(pred: ℝ, target: ℝ): ℝ:
             return -pred
@@ -302,43 +301,30 @@ Code in the Physika (.phyk) file
             total += 1
         return total
 
-    def zero_1d_array(len: ℝ): ℝ[z1]:
-        results: ℝ[len] = for i: ℕ(len) -> i*0
-        return results
-
-    def zero_2d_array(rows: ℝ, cols: ℝ): ℝ[z2r, z2c]:
-        results: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
-        return results
-
     # relu(x) == (x + |x|) / 2 exactly, elementwise, no loop
     def relu1d(x: ℝ[m]): ℝ[m]:
         return (x + abs(x)) * 0.5
 
     # matmul rejects mixed rank, so lift x to a column with a slice assign
-    def linear(x: ℝ[li], weight: ℝ[lo, li], bias: ℝ[lo], in_dim: ℕ, out_dim: ℕ): ℝ[lo]:
-        col: ℝ[li, 1] = zero_2d_array(in_dim, 1)
+    def linear(x: ℝ[li], weight: ℝ[lo, li], bias: ℝ[lo]): ℝ[lo]:
+        in_dim: ℝ = get_1d_array_length(x)
+        col: ℝ[li, 1] = for i:ℕ(in_dim) -> for j:ℕ(1) -> j*0
         col[:, 0] = x
         res: ℝ[lo, 1] = weight @ col
         return res[:, 0] + bias
 
     # no reshape builtin, so one loop over rows instead of rows*cols
-    # uniform dequantization noise: (img + u) / 256, u ~ U(0,1)
-    def flatten_image(img: ℝ[H, W], rows: ℝ, cols: ℝ): ℝ[n]:
+    def flatten(img: ℝ[H, W], rows: ℝ, cols: ℝ): ℝ[n]:
         n: ℝ = rows * cols
-        results: ℝ[n] = zero_1d_array(n)
-        ε: ℝ[n] ~ 𝒰(0.0, 1.0, n)
+        results: ℝ[n] = for i:ℕ(n) -> i*0
         for i:ℕ(rows):
-            results[i * cols : (i + 1) * cols] = img[i, :] / 256.0
-        return results + ε / 256.0
+            results[i * cols : (i + 1) * cols] = img[i, :]
+        return results
 
-    def first_half(x: ℝ[m], half: ℕ): ℝ[n]:
-        return x[:half]
-
-    def second_half(x: ℝ[m], half: ℕ): ℝ[n]:
-        return x[half:]
-
-    def swap_halves(x: ℝ[m], half: ℕ): ℝ[m]:
-        return concat(x[half:], x[:half])
+    # dequantize: x̃ = (x + u) / 256, u ~ U(0,1)
+    def dequantize(x: ℝ[n], n: ℕ): ℝ[n]:
+        ε: ℝ[n] ~ 𝒰(0.0, 1.0, n)
+        return (x + ε) / 256.0
 
     # sum(-0.5 x^2) - n*0.5*log(2pi), one reduction
     def gaussian_log_prob(x: ℝ[m], n: ℕ): ℝ:
@@ -361,13 +347,12 @@ Code in the Physika (.phyk) file
         b2b: ℝ[n]
         a: ℝ[m]
         n_half: ℕ
-        hid: ℕ
         ndim: ℕ
-        def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ, hid: ℕ): ℝ[m]:
+        def coupling(x: ℝ[m], w1: ℝ[H, n], b1: ℝ[H], w2: ℝ[n, H], b2: ℝ[n], half: ℕ): ℝ[m]:
             x1: ℝ[n] = x[:half]
             x2: ℝ[n] = x[half:]
-            hidden_pre: ℝ[n] = linear(x1, w1, b1, half, hid)
-            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2, hid, half)
+            hidden_pre: ℝ[n] = linear(x1, w1, b1)
+            shift: ℝ[n] = linear(relu1d(hidden_pre), w2, b2)
             y2: ℝ[n] = x2 + shift
             return concat(x1, y2)
         def swap(x: ℝ[m], half: ℕ): ℝ[m]:
@@ -378,9 +363,9 @@ Code in the Physika (.phyk) file
         def rescale_log_det(): ℝ:
             return sum(this.a)
         def λ(x: ℝ[m]) -> ℝ:
-            h: ℝ[m] = this.coupling(x, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half, this.hid)
+            h: ℝ[m] = this.coupling(x, this.w1a, this.b1a, this.w2a, this.b2a, this.n_half)
             h = this.swap(h, this.n_half)
-            h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half, this.hid)
+            h = this.coupling(h, this.w1b, this.b1b, this.w2b, this.b2b, this.n_half)
             h = this.swap(h, this.n_half)
             z: ℝ[m] = this.rescale(h)
             log_pz: ℝ = gaussian_log_prob(z, this.ndim)
@@ -388,6 +373,13 @@ Code in the Physika (.phyk) file
             return log_px
         def loss(pred: ℝ, target: ℝ): ℝ:
             return -pred
+
+    # average NLL over a dataset: (1/count) Σ -log p(x)
+    def nll(model: NICE, X: ℝ[k, d], count: ℝ): ℝ:
+        total: ℝ = 0
+        for i:ℕ(count):
+            total += neg_loglik(model(X[i]))
+        return total / count
 
 
     # Dataset
@@ -430,11 +422,11 @@ Code in the Physika (.phyk) file
 
     a_init: ℝ[ndim] = for i:ℕ(ndim) -> i*0
 
-    nice_object: NICE = NICE(w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a_init, half, hidden, ndim)
+    nice_object: NICE = NICE(w1a, b1a, w2a, b2a, w1b, b1b, w2b, b2b, a_init, half, ndim)
 
     # Debug: sanity-check the forward pass on one sample
 
-    debug_input = flatten_image(train_X[0], 28, 28)
+    debug_input = dequantize(flatten(train_X[0], 28, 28), ndim)
     debug_log_px = nice_object(debug_input)
     print(debug_log_px)
     print(DEVICE)
@@ -442,16 +434,16 @@ Code in the Physika (.phyk) file
     # Flatten + dequantize the dataset once, up front
     # inner element loop replaced by a row slice assignment
 
-    train_X_flat: ℝ[len_train_X, ndim] = zero_2d_array(len_train_X, ndim)
+    train_X_flat: ℝ[len_train_X, ndim] = for i:ℕ(len_train_X) -> for j:ℕ(ndim) -> j*0
     for i:ℕ(len_train_X):
-        train_X_flat[i, :] = flatten_image(train_X[i], 28, 28)
+        train_X_flat[i, :] = dequantize(flatten(train_X[i], 28, 28), ndim)
 
-    test_X_flat: ℝ[len_test_X, ndim] = zero_2d_array(len_test_X, ndim)
+    test_X_flat: ℝ[len_test_X, ndim] = for i:ℕ(len_test_X) -> for j:ℕ(ndim) -> j*0
     for i:ℕ(len_test_X):
-        test_X_flat[i, :] = flatten_image(test_X[i], 28, 28)
+        test_X_flat[i, :] = dequantize(flatten(test_X[i], 28, 28), ndim)
 
     # NICE is unsupervised
-    dummy_y: ℝ[len_train_X] = zero_1d_array(len_train_X)
+    dummy_y: ℝ[len_train_X] = for i:ℕ(len_train_X) -> i*0
 
 
     # Training loop - via Physika's built-in train()
@@ -460,15 +452,11 @@ Code in the Physika (.phyk) file
     epochs: ℕ = 20
     lr: ℝ = 0.001
 
-    losses: ℝ[epochs] = zero_1d_array(epochs)
+    losses: ℝ[epochs] = for i:ℕ(epochs) -> i*0
 
     for i:ℕ(epochs):
         nice_object = train(nice_object, train_X_flat, dummy_y, 1, lr)
-        epoch_loss = 0
-        for j:ℕ(len_train_X):
-            log_px = nice_object(train_X_flat[j])
-            epoch_loss += neg_loglik(log_px)
-        epoch_loss = epoch_loss / len_train_X
+        epoch_loss = nll(nice_object, train_X_flat, len_train_X)
         losses[i] = epoch_loss
         print(epoch_loss)
         epoch_bits_per_dim = epoch_loss / (ndim * log(2.0)) + 8.0
@@ -476,11 +464,7 @@ Code in the Physika (.phyk) file
 
     # Testing the Model: average negative log-likelihood
 
-    test_loss: ℝ = 0
-    for i:ℕ(len_test_X):
-        log_px = nice_object(test_X_flat[i])
-        test_loss += neg_loglik(log_px)
-    test_loss = test_loss / len_test_X
+    test_loss: ℝ = nll(nice_object, test_X_flat, len_test_X)
     print(test_loss)
     bits_per_dim: ℝ = test_loss / (ndim * log(2.0)) + 8.0
     print(bits_per_dim)
