@@ -8,14 +8,8 @@ Requires-Python: >=3.9
 License-File: LICENSE
 Requires-Dist: torch
 Requires-Dist: ply
-Requires-Dist: numpy
-Requires-Dist: matplotlib
 Provides-Extra: dev
 Requires-Dist: pytest>=7; extra == "dev"
-Requires-Dist: yapf; extra == "dev"
-Requires-Dist: toml; extra == "dev"
-Requires-Dist: mypy; extra == "dev"
-Requires-Dist: flake8; extra == "dev"
 Dynamic: home-page
 Dynamic: license
 Dynamic: license-file

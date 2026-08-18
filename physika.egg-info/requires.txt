@@ -1,11 +1,5 @@
 torch
 ply
-numpy
-matplotlib
 
 [dev]
 pytest>=7
-yapf
-toml
-mypy
-flake8
