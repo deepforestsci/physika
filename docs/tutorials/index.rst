@@ -29,6 +29,7 @@ Tutorials
    toggle_switch
    central_dogma
    selkov_glycolysis
+   goldbeter_koshland
 
 .. toctree::
    :maxdepth: 1
