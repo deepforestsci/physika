@@ -139,7 +139,7 @@ def sample(dist_expr: str, shape_args: List[Tuple], mode: str,
         shape = f"({dims},)"
     else:
         shape = None
-        
+
     if effective == "reparam":
         return f"{dist_expr}.rsample({shape or ''}).to(DEVICE)"
     elif effective == "score":
