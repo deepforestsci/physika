@@ -29,6 +29,7 @@ Tutorials
    toggle_switch
    central_dogma
    selkov_glycolysis
+   michaelis_menten
 
 .. toctree::
    :maxdepth: 1
