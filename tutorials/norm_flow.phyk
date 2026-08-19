@@ -115,8 +115,7 @@ test_dataset = dataset[1]
 train_X = train_dataset[0]
 test_X = test_dataset[0]
 
-len_train: ℝ = len1d(train_X)
-len_test: ℝ = len1d(test_X)
+len_train: ℝ, len_test: ℝ = len1d(train_X), len1d(test_X)
 
 # Dimensions
 
@@ -125,9 +124,7 @@ h: ℕ = 128
 n: ℕ = 392
 
 # He init, near-zero output so coupling starts near identity
-
-s1: ℝ = sqrt(2.0 / n)
-s2: ℝ = sqrt(2.0 / h) * 0.01
+s1: ℝ, s2: ℝ = sqrt(2.0 / n), sqrt(2.0 / h) * 0.01
 
 W1a: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
 b1a: ℝ[h] = for i:ℕ(h) -> i*0
