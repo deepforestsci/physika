@@ -1,9 +1,14 @@
 Normalizing Flows
 =======================
 
-This tutorial is to introduce the concept of Normalizing Flows and how to implement them in Physika.
-Normalizing Flows are a powerful class of generative models that allow for flexible density estimation and sampling by transforming a simple base distribution into a more complex target distribution.
-By the end of this tutorial you will learn how to use the NICE Normalizing Flow to train a simple image classifier.
+This tutorial is to introduce Normalizing Flow models and how to implement them in Physika.
+Normalizing Flows are a class of generative models that allow for density estimation and sampling by transforming a simple base distribution into a more complex target distribution.
+NICE (Non-linear Independent Components Estimation) is a Normalizing Flow model. 
+It works by splitting the input into two halves: one half stays fixed, while the other is transformed using a neural network conditioned on the fixed half. 
+Stacking several of these layers produces a transformation that is easy to invert and whose likelihood is easy to compute,
+the two properties that make Normalizing Flows useful for both generating data and estimating density.
+
+By the end of this tutorial, you will learn how to train a NICE Normalizing Flow model for density estimation and image generation.
 This tutorial is based on the Deep Generative Models (CS236) course notes `[1] <https://deepgenerativemodels.github.io/notes/flow/>`__.
 
 
@@ -11,45 +16,124 @@ What are Normalizing Flows?
 ---------------------------
 
 Normalizing Flows are a class of generative models that transform a simple base distribution (e.g., Gaussian) into a more complex target distribution which can model a real world data distribution through a series of invertible transformations.
-The key idea is to model the probability density function of the target distribution by applying a sequence of bijective mappings to the base distribution. Figure below (taken from `[2] <https://lilianweng.github.io/posts/2018-10-13-flow-models/>`__) depicts a normalizing flow.
+The key idea is to model the probability density function of the target distribution by applying a sequence of **bijective mappings** to the base distribution.
+
+A bijective mapping is a function :math:`f: \mathbb{R}^N \to \mathbb{R}^N` that is both *injective* (distinct inputs always produce distinct outputs, i.e. :math:`f(a) = f(b) \implies a = b`) and *surjective* (every point in the output space is the image of some input).
+Equivalently, a bijective function establishes a one-to-one correspondence between input and output spaces, so it is guaranteed to have a well-defined inverse :math:`f^{-1}` satisfying :math:`f^{-1}(f(z)) = z`.
+This invertibility is essential for normalizing flows: it lets us map freely between the simple base distribution and the complex target, and crucially it allows us to compute exact probability densities via the change-of-variables formula.
 
 .. figure:: /_static/tutorial_files/norm_flow/norm_flow_basic.png
-   :alt:
+   :alt: Illustration of a normalizing flow transforming a simple Gaussian distribution into a complex multi-modal distribution through a sequence of invertible mappings.
    :align: center
    :width: 500px
 
+   **Figure 1.** A normalizing flow transforms a simple base density :math:`p_z(z)` (left) into a complex target density :math:`p(x)` (right) through a chain of invertible transformations :math:`f_1, f_2, \ldots, f_K`. Figure from `[2] <https://lilianweng.github.io/posts/2018-10-13-flow-models/>`__.
+
+Setup and Notation
+^^^^^^^^^^^^^^^^^^
+
 Let's consider a probability distribution :math:`\mathcal{P}` over :math:`\mathbb{R}^N`.
-For now, we can represent this probability distribution by a probability density function :math:`p: \mathbb{R}^n \to \mathbb{R}`.
-and consider the transformation function to be :math:`g`. Suppose that
+We represent this distribution by its **probability density function** :math:`p: \mathbb{R}^N \to \mathbb{R}`, a function that takes a point :math:`x \in \mathbb{R}^N` (a vector of shape :math:`(N,)`) and returns a non-negative real number such that the integral over any region gives the probability of landing in that region.
+
+We begin by sampling from a base distribution:
 
 .. math::
-    z &\sim \mathcal{N}(\mu, \Sigma) \\
-    x &= f(z)
+    z \sim \mathcal{N}(\mu, \Sigma)
 
-Then the probability density of :math:`x` is given by (also known as the change in variables formula)
+Here, :math:`\mu \in \mathbb{R}^N` is the **mean vector** (the center of the distribution) and :math:`\Sigma \in \mathbb{R}^{N \times N}` is the **covariance matrix** (encoding variance along each axis and correlations between dimensions).
+The notation :math:`z \sim \mathcal{N}(\mu, \Sigma)` means that :math:`z` is a random variable drawn from this :math:`N`-dimensional Gaussian.
+
+In Physika, this sampling can be expressed as:
+
+.. code-block:: text
+
+    μ : ℝ[N] = ...    # mean vector
+    z : ℝ[N] ~ for i : ℕ(N) → ε : ℝ ~ Normal(μ, σ)
+
+We then define an invertible transformation :math:`f: \mathbb{R}^N \to \mathbb{R}^N` that maps latent samples to the data space:
 
 .. math::
-    P(x) = P_z(f(x))\left | \det \mathcal{J}(f) \right |
+    x = f(z)
 
-We constrain the function :math:`g` to be one-to-one and onto, which makes :math:`g` bijective and invertible.
-A core idea of using a deep network to train a normalizing flow is that we can consider a chain of such transformations
+where :math:`f` is a bijective function (and therefore invertible), taking a latent vector :math:`z` of shape :math:`(N,)` and producing a data-space vector :math:`x` of the same shape :math:`(N,)`.
+
+Change of Variables
+^^^^^^^^^^^^^^^^^^^
+
+Because :math:`f` is invertible, we can express the **probability density of** :math:`x` using the **change-of-variables formula**.
+The density :math:`p(x)` tells us how likely a particular point :math:`x \in \mathbb{R}^N` is under the transformed distribution its input is a vector of shape :math:`(N,)` and its output is a non-negative scalar:
+
+.. math::
+    p(x) = p_z\!\left(f^{-1}(x)\right) \left| \det \mathcal{J}\!\left(f^{-1}\right) \right|
+
+The term :math:`p_z(f^{-1}(x))` appears because we are evaluating how likely the *pre-image* of :math:`x` is under the base distribution.
+Since :math:`f` is bijective, every :math:`x` has a unique pre-image :math:`z = f^{-1}(x)` in the base space, and we look up its density under the known distribution :math:`p_z`.
+
+The factor :math:`\left| \det \mathcal{J}(f^{-1}) \right|` is the **absolute value of the determinant of the Jacobian matrix** of :math:`f^{-1}`.
+The **Jacobian matrix** :math:`\mathcal{J}(f^{-1}) \in \mathbb{R}^{N \times N}` contains all first-order partial derivatives of the mapping:
+
+.. math::
+    \mathcal{J}(f^{-1})_{ij} = \frac{\partial [f^{-1}]_i}{\partial x_j}
+
+Its **determinant** is a single scalar that measures how the transformation locally scales volumes.
+If :math:`|\det \mathcal{J}| > 1` the mapping stretches a region of space, spreading probability over a larger volume (decreasing density); if :math:`|\det \mathcal{J}| < 1` it compresses a region (increasing density).
+Taking the absolute value ensures the density remains non-negative regardless of whether the transformation reverses orientation.
+
+Composing Transformations
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A single bijective function may not be expressive enough to model complex distributions.
+The power of normalizing flows comes from *composing* multiple simple bijective transformations into a chain, where each individual transformation is easy to invert and has a tractable Jacobian determinant, but the overall composition can represent highly flexible mappings:
 
 .. math::
     z &\sim \mathcal{N}(\mu, \Sigma) \\
     x_1 &= f_1(z) \\
     x_2 &= f_2(x_1) \\
+    &\;\vdots \\
+    x_K &= f_K(x_{K-1})
 
-Then the final distribution is given by
+In Physika, a single step of this chain could be written as:
+
+.. code-block:: text
+
+    # Sample z from N-dimensional Gaussian
+    z : ℝ[N] ~ for i : ℕ(N) → ε : ℝ ~ Normal(μ, σ)
+
+    # Compose transformations
+    x1 : ℝ[N] = f1(z)
+    x2 : ℝ[N] = f2(x1)
+
+Applying the change-of-variables formula repeatedly, the density of the final output is:
 
 .. math::
-    P(x_2) = P_z(f(x))\left | \det \mathcal{J}(f_2) \right | \left | \det \mathcal{J}(f_1) \right |
+    p(x_K) = p_z(z) \prod_{i=1}^{K} \left| \det \mathcal{J}(f_i) \right|^{-1}
 
-The loss for the normalizing flow is simply given by the log-likelihood
+or equivalently, using the inverse form:
 
 .. math::
-    \mathcal{L} = -\log P_z[f_n(\dotsc (f_1(x))] - \sum_i \log \left | \det \mathcal{J}(f_i) \right |
+    p(x_K) = p_z\!\left(f_1^{-1} \circ \cdots \circ f_K^{-1}(x_K)\right) \prod_{i=1}^{K} \left| \det \mathcal{J}\!\left(f_i^{-1}\right) \right|
 
-For deep networks, it is also important that the Jacobian determinant, :math:`\mathcal{J}(f)` is easy to compute.
+Each Jacobian determinant in the product accounts for the local volume change introduced by the corresponding transformation.
+
+Training via Log-Likelihood
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We train a normalizing flow by **maximum likelihood estimation**: we adjust the parameters of the transformations :math:`f_1, \ldots, f_K` so that the model assigns high probability to observed data.
+
+The **log-likelihood** is the logarithm of the probability the model assigns to a data point :math:`x`.
+Working with log-probabilities instead of raw probabilities is standard practice for two reasons: it converts products into sums (which are numerically stabler and cheaper to compute), and it avoids the underflow that occurs when multiplying many small probabilities together.
+
+Applying the logarithm to the change-of-variables formula gives the loss (negative log-likelihood):
+
+.. math::
+    \mathcal{L} = -\log p_z\!\left[f_K^{-1}(\cdots(f_1^{-1}(x)))\right] - \sum_{i=1}^{K} \log \left| \det \mathcal{J}(f_i^{-1}) \right|
+
+The first term, :math:`-\log p_z[\cdot]`, penalizes mappings that send data points to low-density regions of the base distribution.
+The second term, :math:`-\sum_i \log |\det \mathcal{J}(f_i^{-1})|`, penalizes transformations that excessively compress volume (which would artificially inflate density).
+We use the negative sign because we *minimize* a loss function during training, which is equivalent to *maximizing* the log-likelihood.
+
+For deep-network-based flows, it is also important that the Jacobian determinant of each :math:`f_i` is efficient to compute ideally :math:`O(N)` rather than the :math:`O(N^3)` cost of a general determinant which motivates architectural choices such as coupling layers and autoregressive transforms.
+
 A more detailed treatment of the change of variables formula and of flow-based models in general can be found in `[1] <https://deepgenerativemodels.github.io/notes/flow/>`__ and `[2] <https://lilianweng.github.io/posts/2018-10-13-flow-models/>`__.
 
 
@@ -74,6 +158,7 @@ This is not an exhaustive list, but below are some popular methods.
 
         - The learned parameters :math:`u,w,b` and :math:`h`, need to be restricted to be invertible.
         - Computing :math:`f^{-1}(z)` could be difficult analytically.
+          Because :math:`h` is typically a nonlinear activation (e.g. :math:`\tanh`), inverting :math:`f(z) = z + u\,h(w^\top z + b)` for :math:`z` requires solving an implicit nonlinear equation there is generally no closed-form expression, and iterative numerical methods (e.g. fixed-point iteration) must be used instead.
 
     The below two methods address this by ensuring that the forward and inverse is easy to compute.
 
@@ -91,43 +176,102 @@ This is not an exhaustive list, but below are some popular methods.
             z_1 &= x_1 \\
             z_2 &= x_2 - m(x_1)
 
-    Therefore, the Jacobian of the forward mapping is lower triangular, whose determinant is simply the product of the elements on the diagonal, which is 1.
-    Therefore, this defines a volume preserving transformation.
+    The Jacobian of the forward mapping is lower triangular, which means its determinant is simply the product of its diagonal entries.
+    To see this, consider :math:`z = (a, b, c, d) \in \mathbb{R}^4` split into a pass-through half :math:`(a, b)` and a shifted half :math:`(c, d)`.
+    The forward mapping gives:
 
+    .. math::
+        x_a &= a, \quad x_b = b \qquad &\text{(copied unchanged)} \\
+        x_c &= c + m_1, \quad x_d = d + m_2 \qquad &\text{(shifted by the network)}
+
+    where :math:`m(a, b) = (m_1,\, m_2)^\top` is a neural network outputting one shift per component of the shifted half.
+
+    The Jacobian is (rows = outputs, columns = inputs):
+
+    .. math::
+        \mathcal{J} =
+        \begin{array}{c|cccc}
+          & \partial a & \partial b & \partial c & \partial d \\ \hline
+        x_a & 1 & 0 & 0 & 0 \\
+        x_b & 0 & 1 & 0 & 0 \\
+        x_c & \frac{\partial m_1}{\partial a} & \frac{\partial m_1}{\partial b} & 1 & 0 \\
+        x_d & \frac{\partial m_2}{\partial a} & \frac{\partial m_2}{\partial b} & 0 & 1
+        \end{array}
+
+    The first two rows are identity because :math:`x_a, x_b` depend only on :math:`a, b` directly.
+    The bottom-left entries (:math:`\partial m / \partial a`, :math:`\partial m / \partial b`) are nonzero, the network depends on the pass-through inputs but :math:`c` and :math:`d` each appear only in their own output row with coefficient 1 (since the coupling just *adds* :math:`m` to them), giving the 1s on the diagonal and 0s to their right.
+    The diagonal is all 1s, so :math:`|\det \mathcal{J}| = 1`.
+    The property :math:`|\det \mathcal{J}| = 1` makes the coupling layer **volume preserving**, it reshapes the density without stretching or compressing any region of space.
+
+    The inverse is equally straightforward: since :math:`x_1 = z_1` is already known, we can evaluate :math:`m(x_1)` and recover :math:`z_2 = x_2 - m(x_1)` in a single forward pass of the network, making it easy to compute unlike the planar flow above.
+
+    **Diagonal scaling layer:**
     Since a stack of additive coupling layers alone is always volume preserving, the full NICE model adds one final diagonal scaling layer
-    after all the coupling layers, so the model can rescale the overall distribution to match real data
-    In the NICE paper `[4] <https://arxiv.org/abs/1410.8516>`__, the scaling layer applies a diagonal matrix :math:`S`,
-    multiplying each dimension by :math:`S_{ii}`:
+    after all the coupling layers, so the model can rescale the overall distribution to match real data.
+
+    In the NICE paper `[4] <https://arxiv.org/abs/1410.8516>`__, the scaling layer applies a diagonal matrix :math:`S \in \mathbb{R}^{N \times N}`,
+    multiplying each dimension :math:`i` of the intermediate vector :math:`h \in \mathbb{R}^N` by the corresponding diagonal entry :math:`S_{ii}`:
 
     .. math::
-        x_i = S_{ii} \, h_i
+        x_i = S_{ii} \, h_i \qquad \text{for } i = 1, \ldots, N
 
-    The Jacobian of this layer is diagonal, so its determinant is :math:`\prod_i S_{ii}`, giving:
+    Written as a matrix operation, this is simply :math:`x = S\,h`, where :math:`S = \text{diag}(S_{11}, \ldots, S_{NN})`.
+
+    In Physika, the matrix and the operation can be expressed as:
+
+    .. code-block:: text
+
+        S : ℝ[N, N] = ...          # diagonal scaling matrix
+        h : ℝ[N]    = ...          # output of final coupling layer
+        x : ℝ[N]    = S @ h        # scaled output: x_i = S_ii * h_i
+
+    **Jacobian of the scaling layer:**
+    Because :math:`S` is diagonal, the Jacobian :math:`\partial x / \partial h` is itself the diagonal matrix :math:`S`.
+    The determinant of a diagonal matrix is the product of its diagonal entries:
 
     .. math::
-        \log \left| \det \frac{\partial x}{\partial h} \right| = \sum_i \log |S_{ii}|
+        \det \frac{\partial x}{\partial h} = \det S = \prod_{i=1}^{N} S_{ii}
 
+    Taking the log of the absolute value (as required by the change-of-variables formula):
+
+    .. math::
+        \log \left| \det \frac{\partial x}{\partial h} \right| = \sum_{i=1}^{N} \log |S_{ii}|
+
+    This decomposition from a product into a sum is the key computational advantage: it reduces an :math:`O(N^3)` determinant to an :math:`O(N)` sum.
+
+    **Parameterization:**
     In practice, :math:`S_{ii}` is parameterized as :math:`S_{ii} = e^{a_i}`, where :math:`a_i`
-    (rather than :math:`S_{ii}` directly) is the learned parameter as is done in RealNVP `[5] <https://arxiv.org/abs/1605.08803>`__, and the normflows `[6] <https://github.com/VincentStimper/normalizing-flows>`__; a popular library for normalizing flows implemented in PyTorch.
-    This guarantees :math:`S_{ii} > 0` during optimization and simplifies the log-determinant to a plain sum:
+    (rather than :math:`S_{ii}` directly) is the learned parameter, as is done in RealNVP `[5] <https://arxiv.org/abs/1605.08803>`__ and the normflows library `[6] <https://github.com/VincentStimper/normalizing-flows>`__.
+    The exponential guarantees :math:`S_{ii} > 0` for all values of :math:`a_i` (since :math:`e^{a_i} > 0\;\forall\, a_i \in \mathbb{R}`), avoiding sign flips during optimization.
+    Substituting into the log-determinant:
 
     .. math::
-        \log \left| \det \frac{\partial x}{\partial h} \right| = \sum_i a_i
+        \log \left| \det \frac{\partial x}{\partial h} \right| = \sum_{i=1}^{N} \log\, e^{a_i} = \sum_{i=1}^{N} a_i
 
-    - Loss:
-        The model is trained by maximum likelihood. Using the change of variables formula, the log-density
-        of a data point :math:`x` under the model is:
+    The absolute value is no longer needed because :math:`e^{a_i}` is always positive, and the log-exp pair cancels to give a simple sum of the learned parameters.
 
-        .. math::
-            \log p_X(x) = \log p_Z(z) + \sum_i a_i
+    **Loss:**
+    The model is trained by maximum likelihood. Applying the change-of-variables formula and taking the logarithm, the log-density
+    of a data point :math:`x` under the full model is:
 
-        where :math:`\log p_Z(z)` is the log-density of the base distribution (e.g. a standard Gaussian)
-        evaluated at :math:`z = f(x)`, and :math:`\sum_i a_i` is the log-determinant contributed by the
-        final scaling layer (all coupling layers contribute :math:`0`, as shown above). The training
-        objective is the negative log-likelihood, averaged over the dataset:
+    .. math::
+        \log p_X(x) = \log p_Z(z) + \log |\det \mathcal{J}_{\text{total}}|
 
-        .. math::
-            \mathcal{L}(\theta) = -\mathbb{E}_{x \sim p_{\text{data}}}\left[\log p_X(x)\right]
+    The total Jacobian determinant decomposes across layers. Each additive coupling layer contributes :math:`\log|\det \mathcal{J}| = 0`
+    (since its determinant is 1), and the scaling layer contributes :math:`\sum_i a_i`. Therefore:
+
+    .. math::
+        \log p_X(x) = \log p_Z(z) + \sum_{i=1}^{N} a_i
+
+    where :math:`\log p_Z(z)` is the log-density of the base distribution (e.g. a standard Gaussian)
+    evaluated at :math:`z = f^{-1}(x)` (the result of passing :math:`x` backward through all layers).
+    The training objective is the negative log-likelihood, averaged over the dataset:
+
+    .. math::
+        \mathcal{L}(\theta) = -\mathbb{E}_{x \sim p_{\text{data}}}\!\left[\log p_X(x)\right]
+        = -\mathbb{E}_{x \sim p_{\text{data}}}\!\left[\log p_Z(f^{-1}(x)) + \sum_{i=1}^{N} a_i\right]
+
+    Minimizing :math:`\mathcal{L}` pushes the model to (a) map data points to high-density regions of the base distribution (via the :math:`\log p_Z` term) and (b) learn appropriate per-dimension scaling (via the :math:`\sum_i a_i` term).
 
 3. RealNVP (Real Non-Volume Preserving) model
     RealNVP `[5] <https://arxiv.org/abs/1605.08803>`__ adds scaling factors to the transformation, which makes it non volume preserving.
@@ -137,6 +281,10 @@ This is not an exhaustive list, but below are some popular methods.
         x_2 = \exp(s(z_1)) \odot z_2 + m(z_1)
 
 
+.. note::
+
+    In Physika, sampling operations in flows are differentiable via the `SCG framework <https://physika.readthedocs.io/en/latest/elf.html#id2>`__: continuous distributions use the reparameterization trick, discrete ones use score function estimators.
+    Gradients propagate through the full chain of transformations automatically.
 
 Implementing the NICE Normalizing Flow in Physika
 ------------------------------------------------------
