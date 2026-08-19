@@ -27,6 +27,7 @@ Tutorials
 
    repressilator
    toggle_switch
+   michaelis_menten
 
 .. toctree::
    :maxdepth: 1
