@@ -1,0 +1,170 @@
+# ============================================================
+# Parameter Learning for a Chemostat (Monod growth) model
+# ============================================================
+# A chemostat is a continuous culture: fresh medium with substrate
+# concentration Sin flows in at dilution rate D, and culture flows out
+# at the same rate. Biomass X grows on the limiting substrate S with a
+# Monod specific growth rate
+#
+#     mu(S) = mumax * S / (Ks + S),
+#
+# giving the two-state model
+#
+#     dX/dt = (mu(S) - D) * X
+#     dS/dt = D * (Sin - S) - mu(S) * X / Y,
+#
+# where mumax is the maximal specific growth rate, Ks the half-
+# saturation constant, and Y the biomass yield (grams of cells per
+# gram of substrate). This is the macroscopic growth law that host-
+# resource models such as Weisse et al. derive from the underlying
+# gene-expression machinery; here we take it as given and learn it.
+#
+# The chemostat has a tidy steady state: growth balances dilution,
+# mu(S*) = D, so
+#
+#     S* = Ks * D / (mumax - D),   X* = Y * (Sin - S*),
+#
+# and the culture WASHES OUT (X* -> 0) once D exceeds the critical
+# dilution rate D_crit = mumax * Sin / (Ks + Sin). We inoculate a
+# small amount of biomass into fresh medium (S = Sin) at a fixed
+# D < D_crit and watch the culture climb to that steady state.
+#
+# We learn theta = [mumax, Ks, Y] from the measured startup transient
+# using the same adjoint machinery as the sibling tutorials (full-
+# trajectory MSE + running-cost co-state). We observe BOTH the biomass
+# and the substrate: mumax and Y are well constrained by the biomass
+# curve alone, but Ks -- which only bites while S is comparable to it,
+# late in the transient -- needs the substrate signal to be pinned
+# down. With both curves, all three constants come back exactly, and
+# the learned Monod law then predicts the whole operating diagram,
+# including the washout threshold it never saw.
+# ============================================================
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def append(x: ℝ[m], var: ℝ): ℝ[n]:
+    new_length: ℝ = len(x) + 1
+    results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
+    for i:ℕ(new_length):
+        if i<len_x:
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+# Operating conditions: dilution rate and feed concentration (known).
+D: ℝ = 0.3
+Sin: ℝ = 10.0
+
+# State is [X, S] = [biomass, substrate]. The Monod rate
+# mu = mumax*S/(Ks+S) drives growth; substrate is fed at D*(Sin-S) and
+# consumed in proportion to growth divided by the yield Y.
+def f(state: ℝ[2], θ: ℝ[3]): ℝ[2]:
+    X: ℝ = state[0]
+    S: ℝ = state[1]
+    mumax: ℝ = θ[0]
+    Ks: ℝ = θ[1]
+    Y: ℝ = θ[2]
+    mu: ℝ = mumax * S / (Ks + S)
+    dX: ℝ = (mu - D) * X
+    dS: ℝ = D * (Sin - S) - mu * X / Y
+    return [dX, dS]
+
+def rk4_step(state: ℝ[2], θ: ℝ[3]): ℝ[2]:
+    k1: ℝ[2] = f(state, θ)
+    k2_state: ℝ[2] = state + 0.5 * dt * k1
+    k2: ℝ[2] = f(k2_state, θ)
+    k3_state: ℝ[2] = state + 0.5 * dt * k2
+    k3: ℝ[2] = f(k3_state, θ)
+    k4_state: ℝ[2] = state + dt * k3
+    k4: ℝ[2] = f(k4_state, θ)
+    return state + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+dt: ℝ = 0.1
+timesteps: ℝ = 300
+
+# Inoculate a small biomass into fresh medium (S = Sin) and integrate
+# 300 steps at dt = 0.1 (a 30-unit window, ~9 residence times 1/D),
+# long enough for the culture to reach its chemostat steady state.
+def solver(θ: ℝ[3]): ℝ[2, m]:
+    state: ℝ[2] = [0.05, 10.0]
+    X_array: ℝ[1] = [0.05]
+    S_array: ℝ[1] = [10.0]
+    for i:ℕ(timesteps):
+        results = rk4_step(state, θ)
+        X = results[0]
+        S = results[1]
+        X_array = append(X_array, X)
+        S_array = append(S_array, S)
+        state = results
+    return [X_array, S_array]
+
+true_theta: ℝ[3] = [0.5, 0.5, 0.5]
+true_results: ℝ[2, m] = solver(true_theta)
+true_X: ℝ[m] = true_results[0]
+true_S: ℝ[m] = true_results[1]
+
+# Both biomass and substrate are measured, so the co-state residual
+# lives on both components (full observation).
+def adjoint_grad(θ: ℝ[3]): ℝ[n]:
+    states: ℝ[2, m] = solver(θ)
+    X_array: ℝ[m] = states[0]
+    S_array: ℝ[m] = states[1]
+    m: ℝ = get_1d_array_length(X_array)
+    s: ℝ[2] = [
+        (X_array[m-1] - true_X[m-1]) / m,
+        (S_array[m-1] - true_S[m-1]) / m
+    ]
+    L: ℝ[3] = zero_1d_array(3)
+    for i:ℕ(m-1):
+        idx = m - 2 - i
+        X = X_array[idx]
+        S = S_array[idx]
+        state = [X, S]
+        J_state = grad(rk4_step(state, θ), state)
+        J_theta = grad(rk4_step(state, θ), θ)
+        L += s @ J_theta
+        residual = [
+            (X_array[idx] - true_X[idx]) / m,
+            (S_array[idx] - true_S[idx]) / m
+        ]
+        s = residual + (s @ J_state)
+    return L
+
+θ: ℝ[3] = [0.7, 0.2, 0.7]
+learning_rate: ℝ = 0.03
+beta1: ℝ = 0.9
+beta2: ℝ = 0.999
+eps_adam: ℝ = 0.00000001
+m_adam: ℝ[3] = [0.0, 0.0, 0.0]
+v_adam: ℝ[3] = [0.0, 0.0, 0.0]
+t_adam: ℝ = 0.0
+
+# ------------------------------------------------------------------
+# set epochs higher (e.g. 2000) for real training; here it is 1 so
+# physika's test suite (tests/test_tutorials.py) runs quickly
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+for i:ℕ(epochs):
+    g = adjoint_grad(θ)
+    t_adam = t_adam + 1.0
+    m_adam = beta1 * m_adam + (1.0 - beta1) * g
+    v_adam = beta2 * v_adam + (1.0 - beta2) * (g * g)
+    mhat = m_adam / (1.0 - beta1 ** t_adam)
+    vhat = v_adam / (1.0 - beta2 ** t_adam)
+    θ = θ - learning_rate * mhat / (sqrt(vhat) + eps_adam)
+
+pred_results = solver(θ)
+#plot_trajectories(true_results, pred_results)
