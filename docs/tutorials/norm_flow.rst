@@ -66,10 +66,13 @@ The density :math:`p(x)` tells us how likely a particular point :math:`x \in \ma
 .. math::
     p(x) = p_z\!\left(f^{-1}(x)\right) \left| \det \mathcal{J}\!\left(f^{-1}\right) \right|
 
-The term :math:`p_z(f^{-1}(x))` appears because we are evaluating how likely the *pre-image* of :math:`x` is under the base distribution.
-Since :math:`f` is bijective, every :math:`x` has a unique pre-image :math:`z = f^{-1}(x)` in the base space, and we look up its density under the known distribution :math:`p_z`.
+The term :math:`p_z(f^{-1}(x))` appears because we first map :math:`x` back to the latent space to get :math:`z = f^{-1}(x)`, then look up the density of that :math:`z` in the known distribution :math:`p_z` (e.g. a standard Gaussian).
+Since :math:`f` is bijective, every :math:`x` maps to exactly one such :math:`z`, so the density is always well-defined.
 
 The factor :math:`\left| \det \mathcal{J}(f^{-1}) \right|` is the **absolute value of the determinant of the Jacobian matrix** of :math:`f^{-1}`.
+The Jacobian describes how a function changes the region around its input, in our case how :math:`f` changes the input space :math:`x`. 
+In normalizing flows, we need this because transforming one distribution into another changes the shape of the space the probability lives in, and the Jacobian lets us account for that.
+Also, since :math:`f` is invertible, the determinant of the Jacobian is guaranteed to be non-zero, and therefore it is always well-defined.
 The **Jacobian matrix** :math:`\mathcal{J}(f^{-1}) \in \mathbb{R}^{N \times N}` contains all first-order partial derivatives of the mapping:
 
 .. math::
@@ -96,6 +99,14 @@ In Physika, a single step of this chain could be written as:
 
 .. code-block:: text
 
+    # scale
+    def f1(x: ℝ[N]): ℝ[N]:
+        return x * 2.0
+
+    # shift
+    def f2(x: ℝ[N]): ℝ[N]:
+        return x + 1.0
+
     # Sample z from N-dimensional Gaussian
     z : ℝ[N] ~ for i : ℕ(N) → ε : ℝ ~ Normal(μ, σ)
 
@@ -118,6 +129,15 @@ Each Jacobian determinant in the product accounts for the local volume change in
 Training via Log-Likelihood
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+An **unbiased estimator** is a quantity whose expected value equals the true value it is estimating: if :math:`\hat{m}_\theta` is our estimate of the true model parameters :math:`m_\theta`, then :math:`\mathbb{E}[\hat{m}_\theta] = m_\theta`, where :math:`\mathbb{E}` denotes the expected value and :math:`\hat{\cdot}` (hat) marks an estimated quantity. **Maximum likelihood estimation (MLE)** finds the model parameters :math:`\theta` that maximize the probability the model assigns to the observed data.
+By pushing the model to assign high probability to data it has seen, the learned parameters generalize to accurately capture the underlying distribution.
+The MLE is an unbiased estimator of the true parameters as the dataset grows large.
+For a dataset :math:`\{x_1, \ldots, x_M\}`, this amounts to maximizing: :math:`\prod_{j=1}^{M} p_\theta(x_j)`, where :math:`p_\theta(x_j)` is the probability the model with parameters :math:`\theta` assigns to the :math:`j`-th data point, and :math:`\prod` denotes the product over all :math:`M` samples.
+Taking the logarithm turns the product into a sum, and negating it gives us a loss to minimize: 
+
+.. math::
+    \mathcal{L}(\theta) = -\sum_{j=1}^{M} \log p_\theta(x_j)
+
 We train a normalizing flow by **maximum likelihood estimation**: we adjust the parameters of the transformations :math:`f_1, \ldots, f_K` so that the model assigns high probability to observed data.
 
 The **log-likelihood** is the logarithm of the probability the model assigns to a data point :math:`x`.
@@ -133,6 +153,14 @@ The second term, :math:`-\sum_i \log |\det \mathcal{J}(f_i^{-1})|`, penalizes tr
 We use the negative sign because we *minimize* a loss function during training, which is equivalent to *maximizing* the log-likelihood.
 
 For deep-network-based flows, it is also important that the Jacobian determinant of each :math:`f_i` is efficient to compute ideally :math:`O(N)` rather than the :math:`O(N^3)` cost of a general determinant which motivates architectural choices such as coupling layers and autoregressive transforms.
+
+In Physika, this entire pipeline is differentiable end-to-end.
+Gradients flow through all transformations :math:`f_1, \ldots, f_K` and the log-density computation automatically, so ``grad()`` can backpropagate from the loss to every learnable parameter.
+Sampling operations such as ``z: ℝ[N] ~ 𝒩(μ, Σ)`` are also differentiable.
+Physika follows the `Stochastic Computation Graphs (SCG) framework <https://physika.readthedocs.io/en/latest/elf.html#id2>`__, using the reparameterization trick for continuous distributions (Normal, Uniform, Beta, Gamma) by default.
+Normally, sampling is a non-differentiable operation because the random draw has no gradient with respect to the distribution's parameters.
+The reparameterization trick sidesteps this by expressing the sample as a deterministic function of the parameters plus independent noise: :math:`z = \mu + \sigma \cdot \varepsilon` where :math:`\varepsilon \sim \mathcal{N}(0, I)` is fixed random noise.
+Since :math:`z` is now a smooth function of :math:`\mu` and :math:`\sigma`, gradients flow through :math:`z` to these parameters as with any other computation, without special handling by the user.
 
 A more detailed treatment of the change of variables formula and of flow-based models in general can be found in `[1] <https://deepgenerativemodels.github.io/notes/flow/>`__ and `[2] <https://lilianweng.github.io/posts/2018-10-13-flow-models/>`__.
 
