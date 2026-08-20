@@ -89,6 +89,7 @@ Tutorials
 
    learn_parameter_ode
    cnn_tutorial
+   gcn_tutorial
    fft_tutorial
    fourier_neural_operator
    2d_pde_parameter_estimation

@@ -996,3 +996,4 @@ def compl_mul1d(x_ft, weights1):
     torch.Size([8, 16])
     """
     return torch.einsum("ix,iox->ox", x_ft, weights1)
+    

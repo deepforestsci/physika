@@ -1080,7 +1080,7 @@ class ClassFeature(ELF):
                     if field_name in all_fields:
                         return from_typespec(all_fields[field_name]), s
                     # params and update are defined nn.Module methods
-                    if field_name in ("params", "update"):
+                    if field_name in ("params", "update", "learnable_params"):
                         return None, s
                     add_error(
                         f"Class '{obj_type.class_name}' has no field '{field_name}'"
