@@ -660,6 +660,32 @@ def ast_to_torch_expr(node: ASTNode,
                     wrapped = [f"torch.as_tensor({s})" for s in elem_strs]
                     return f"torch.stack([{', '.join(wrapped)}])"
 
+    elif op == "list":
+        elements = node[1]
+
+        # Check if any element in list contains complex number
+        contains_complex = any(_has_complex(e) for e in elements)
+
+        all_numeric = all(
+            isinstance(e, tuple) and
+            (e[0] == "num" or e[0] == "complex" or
+             (e[0] == "neg" and isinstance(e[1], tuple) and e[1][0] == "num"))
+            for e in elements)
+
+        # convert each element to Pytorch expression
+        elem_strs = [
+            ast_to_torch_expr(e, indent, current_loop_var) for e in elements
+        ]
+
+        if all_numeric:
+            if contains_complex:
+                return (f"torch.tensor([{', '.join(elem_strs)}], "
+                        f"dtype=torch.complex64)")
+            return (f"torch.tensor([{', '.join(elem_strs)}], "
+                    f"device=DEVICE)")
+
+        return f"[{', '.join(elem_strs)}]"
+
     elif op == "slice":
         var_name = node[1]
         start = ast_to_torch_expr(node[2], indent, current_loop_var)

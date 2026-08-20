@@ -74,3 +74,42 @@ def find_indexed_arrays(ast: ASTNode, loop_var: str) -> list[str]:
 
     visit(ast)
     return arrays
+
+
+def _convert_list_ast(node):
+    """
+    Convert an array literal AST node to list literal AST node
+    of ``list`` data type.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST expression node to convert. Array nodes are converted recursively;
+        all other nodes are returned unchanged.
+
+    Returns
+    -------
+    ASTNode
+        A ``("list", elements)`` node when *node* is an array literal,
+        nested array literals converted recursively.
+
+    Examples
+    --------
+    >>> from physika.utils.parser_utils import _convert_list_ast
+    >>> simple_list = (("array", [("num", 1.0), ("num", 2.0)]))
+    >>> _convert_list_ast(simple_list)
+    ('list', [('num', 1.0), ('num', 2.0)])
+    >>> nested = (
+    ...     "array",
+    ...     [
+    ...         ("num", 1.0),
+    ...         ("array", [("num", 2.0), ("num", 3.0)]),
+    ...     ],
+    ... )
+    >>> _convert_list_ast(nested)
+    ('list', [('num', 1.0), ('list', [('num', 2.0), ('num', 3.0)])])
+    """
+    if isinstance(node, tuple) and node[0] == "array":
+        return ("list", [_convert_list_ast(e) for e in node[1]])
+
+    return node

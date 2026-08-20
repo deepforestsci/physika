@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Tuple
-from physika.utils.types import Substitution, Type, T_NAT, new_var, new_dim  # noqa: E501
+from physika.utils.types import Substitution, Type, T_NAT, TList, new_var, new_dim  # noqa: E501
 from physika.elf import REGISTRY
 
 
@@ -673,7 +673,9 @@ def stmt_decl(stmt: Any, ctx: StmtContext) -> None:
         else:
             ctx.env[name] = new_var()
     else:
-        if declared is not None:
+        if isinstance(declared, TList) and inferred is not None:
+            ctx.env[name] = ctx.s.apply(inferred)
+        elif declared is not None:
             ctx.env[name] = ctx.s.apply(declared)
         elif inferred is not None:
             ctx.env[name] = ctx.s.apply(inferred)

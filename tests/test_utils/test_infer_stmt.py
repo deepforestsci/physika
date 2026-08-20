@@ -3,6 +3,7 @@ from physika.utils.types import (
     T_REAL,
     T_NAT,
     T_COMPLEX,
+    TList,
     TVar,
     TDim,
     Substitution,
@@ -1006,6 +1007,32 @@ class TestStmtDecl:
 
         # on a type mismatch the variable is still added to env
         assert 't' in ctx.env
+
+    def test_list(self):
+        """Declared list matched infer list type"""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+        stmt_decl(
+            (
+                "decl",
+                "x",
+                "list",
+                ("list", [
+                    ("num", 1.0),
+                    ("num", 2.0),
+                    ("num", 3.0),
+                ]),
+            ),
+            ctx,
+        )
+
+        assert isinstance(ctx.env["x"], TList)
+        assert ctx.env["x"].elements == (
+            T_REAL,
+            T_REAL,
+            T_REAL,
+        )
+        assert errors == []
 
 
 class TestStmtAssign:

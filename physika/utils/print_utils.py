@@ -237,6 +237,8 @@ def _from_torch(v: Any) -> Any:
             if abs(v.imag) < 1e-10:
                 return v.real
             return v
+        if isinstance(v, list):
+            return [_from_torch(item) for item in v]
         return v
     if v.numel() == 1:
         val = v.item()

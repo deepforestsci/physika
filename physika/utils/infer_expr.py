@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Tuple, Union, cast
-from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, new_dim  # noqa: E501
+from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, TList, new_dim  # noqa: E501
 from physika.utils.ast_utils import ASTNode
 from physika.elf import REGISTRY
 
@@ -259,6 +259,73 @@ def expr_array(node: Any,
     if isinstance(base, TTensor):
         return TTensor(((n, "invariant"), ) + base.dims), cur
     return make_tensor([n]), cur
+
+
+def expr_list(node: Any,
+              ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the type of a list literal ``[e0, e1, ..., en]``.
+
+    Each element is inferred independently and its type is preserved in the
+    resulting ``TList``.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("list", elements)`` where *elements* is a
+        list of AST expression nodes, one for each list element.
+
+    ctx : ExprContext
+        Current inference context. ``ctx.s`` is threaded through each
+        element inference so later elements see bindings from earlier ones.
+        Type errors are registered via ``ctx.add_error``.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(TList(element_types), updated_s)`` where each entry in
+        ``element_types`` is the inferred type of the corresponding list
+        element. Nested list expressions are represented recursively as
+        ``TList`` values
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_list
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({}, Substitution(), {}, {}, [].append)
+
+    >>> t, _ = expr_list(
+    ...     ("list", [("num", 1.0), ("num", 2.0), ("num", 3.0)]),
+    ...     ctx
+    ... )
+    >>> t
+    list
+
+    >>> t, _ = expr_list(
+    ...     ("list", [("num", 1.0), ("complex", 3)]),
+    ...     ctx
+    ... )
+    >>> t
+    list
+
+    >>> nested = (
+    ...     ("num", 1.0),
+    ...     ("list", [("num", 2.0), ("num", 3.0)])
+    ... )
+    >>> t, _ = expr_list(("list", list(nested)), ctx)
+    >>> t
+    list
+    """
+    elements = node[1]
+
+    elem_types = []
+    cur = ctx.s
+    for e in elements:
+        et, cur = infer_expr(e, ctx.env, cur, ctx.func_env, ctx.class_env,
+                             ctx.add_error)
+        elem_types.append(et)
+
+    return TList(tuple(elem_types)), cur
 
 
 def expr_chain_index(node: Any,
@@ -1147,6 +1214,7 @@ EXPR_DISPATCH: dict = {
     "complex": expr_complex,
     "imaginary": expr_imaginary,
     "array": expr_array,
+    "list": expr_list,
     "chain_index": expr_chain_index,
     "slice": expr_slice,
     "add": expr_add_sub,

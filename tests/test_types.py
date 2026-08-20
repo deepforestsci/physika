@@ -4,8 +4,8 @@ import dataclasses
 
 from physika.utils.types import (TScalar, TTensor, TVar, TDim, TFunc,
                                  TInstance, T_REAL, T_NAT, T_COMPLEX, T_STRING,
-                                 VarCounter, Substitution, check_function,
-                                 check_statement, check_class)
+                                 TList, VarCounter, Substitution,
+                                 check_function, check_statement, check_class)
 
 
 def make_fdef(params=None, stmts=None, body=None, return_type=None):
@@ -163,6 +163,38 @@ class TestHMTypes:
 
         t = TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
         assert repr(t) == "ℝ[2,3,4]"
+
+    def test_TList(self):
+        """
+        TLists are identified by the types of their elements. The current
+        representation displays simply as "list".
+        """
+        assert repr(TList(())) == "list"
+
+        t1 = TList((T_REAL, T_COMPLEX))
+        t2 = TList((T_REAL, T_COMPLEX))
+        t3 = TList((T_REAL, ))
+        assert repr(t1) == "list"
+        assert repr(t3) == "list"
+
+        assert t1 == t2
+        assert t1 != t3
+
+        nested = TList((
+            T_REAL,
+            TList((
+                T_REAL,
+                T_COMPLEX,
+            )),
+        ))
+
+        assert nested.elements == (
+            T_REAL,
+            TList((
+                T_REAL,
+                T_COMPLEX,
+            )),
+        )
 
     def test_TFunc(self):
         """
