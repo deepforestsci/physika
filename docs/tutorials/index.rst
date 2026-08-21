@@ -27,6 +27,7 @@ Tutorials
 
    repressilator
    toggle_switch
+   goldbeter_koshland
 
 .. toctree::
    :maxdepth: 1
