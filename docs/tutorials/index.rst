@@ -27,6 +27,7 @@ Tutorials
 
    repressilator
    toggle_switch
+   selkov_glycolysis
 
 .. toctree::
    :maxdepth: 1
