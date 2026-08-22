@@ -3,12 +3,12 @@ Normalizing Flows
 
 This tutorial is to introduce Normalizing Flow models and how to implement them in Physika.
 Normalizing Flows are a class of generative models that allow for density estimation and sampling by transforming a simple base distribution into a more complex target distribution.
-NICE (Non-linear Independent Components Estimation) is a Normalizing Flow model. 
-It works by splitting the input into two halves: one half stays fixed, while the other is transformed using a neural network conditioned on the fixed half. 
+RealNVP (Real-valued Non-Volume Preserving transformations) is a Normalizing Flow model.
+It works by splitting the input into two halves: one half stays fixed, while the other is scaled and shifted using neural networks conditioned on the fixed half.
 Stacking several of these layers produces a transformation that is easy to invert and whose likelihood is easy to compute,
 the two properties that make Normalizing Flows useful for both generating data and estimating density.
 
-By the end of this tutorial, you will learn how to train a NICE Normalizing Flow model for density estimation and image generation.
+By the end of this tutorial, you will learn how to train a RealNVP Normalizing Flow model for density estimation and image generation.
 This tutorial is based on the Deep Generative Models (CS236) course notes `[1] <https://deepgenerativemodels.github.io/notes/flow/>`__.
 
 
@@ -204,15 +204,37 @@ This is not an exhaustive list, but below are some popular methods.
             z_1 &= x_1 \\
             z_2 &= x_2 - m(x_1)
 
+    The Jacobian of the forward mapping is lower triangular with all 1s on the diagonal, so :math:`|\det \mathcal{J}| = 1`.
+    This makes the NICE coupling layer **volume preserving**: it reshapes the density without stretching or compressing any region of space.
+    Because a stack of additive coupling layers alone is always volume preserving, the full NICE model adds a final diagonal scaling layer
+    after all the coupling layers so the model can rescale the overall distribution to match real data.
+
+3. RealNVP (Real Non-Volume Preserving) model
+    RealNVP `[5] <https://arxiv.org/abs/1605.08803>`__ extends the NICE coupling layer by adding learned scaling factors to the transformation.
+    The coupling layer partitions :math:`z` into 2 disjoint subsets :math:`z_1, z_2`.
+    :math:`s,m` are both neural networks that have been conditioned on :math:`z_1`, acting as scale and shift factors respectively.
+
+    - Forward Mapping (:math:`x \to z`):
+        .. math::
+            x_1 &= z_1 \\
+            x_2 &= \exp(s(z_1)) \odot z_2 + m(z_1)
+
+    - Inverse Mapping (:math:`z \to x`):
+        .. math::
+            z_1 &= x_1 \\
+            z_2 &= (x_2 - m(x_1)) \odot \exp(-s(x_1))
+
+    The inverse is straightforward: since :math:`x_1 = z_1` is already known, we can evaluate :math:`s(x_1)` and :math:`m(x_1)` and recover :math:`z_2 = (x_2 - m(x_1)) \odot \exp(-s(x_1))` in a single forward pass of the networks, making it easy to compute unlike the planar flow above.
+
     The Jacobian of the forward mapping is lower triangular, which means its determinant is simply the product of its diagonal entries.
-    To see this, consider :math:`z = (a, b, c, d) \in \mathbb{R}^4` split into a pass-through half :math:`(a, b)` and a shifted half :math:`(c, d)`.
+    To see this, consider :math:`z = (a, b, c, d) \in \mathbb{R}^4` split into a pass-through half :math:`(a, b)` and an affine-transformed half :math:`(c, d)`.
     The forward mapping gives:
 
     .. math::
         x_a &= a, \quad x_b = b \qquad &\text{(copied unchanged)} \\
-        x_c &= c + m_1, \quad x_d = d + m_2 \qquad &\text{(shifted by the network)}
+        x_c &= e^{s_1}\,c + m_1, \quad x_d = e^{s_2}\,d + m_2 \qquad &\text{(scaled and shifted by the networks)}
 
-    where :math:`m(a, b) = (m_1,\, m_2)^\top` is a neural network outputting one shift per component of the shifted half.
+    where :math:`s(a, b) = (s_1,\, s_2)^\top` and :math:`m(a, b) = (m_1,\, m_2)^\top` are neural networks, each outputting one value per component of the transformed half.
 
     The Jacobian is (rows = outputs, columns = inputs):
 
@@ -222,61 +244,34 @@ This is not an exhaustive list, but below are some popular methods.
           & \partial a & \partial b & \partial c & \partial d \\ \hline
         x_a & 1 & 0 & 0 & 0 \\
         x_b & 0 & 1 & 0 & 0 \\
-        x_c & \frac{\partial m_1}{\partial a} & \frac{\partial m_1}{\partial b} & 1 & 0 \\
-        x_d & \frac{\partial m_2}{\partial a} & \frac{\partial m_2}{\partial b} & 0 & 1
+        x_c & \frac{\partial (e^{s_1}c + m_1)}{\partial a} & \frac{\partial (e^{s_1}c + m_1)}{\partial b} & e^{s_1} & 0 \\
+        x_d & \frac{\partial (e^{s_2}d + m_2)}{\partial a} & \frac{\partial (e^{s_2}d + m_2)}{\partial b} & 0 & e^{s_2}
         \end{array}
 
     The first two rows are identity because :math:`x_a, x_b` depend only on :math:`a, b` directly.
-    The bottom-left entries (:math:`\partial m / \partial a`, :math:`\partial m / \partial b`) are nonzero, the network depends on the pass-through inputs but :math:`c` and :math:`d` each appear only in their own output row with coefficient 1 (since the coupling just *adds* :math:`m` to them), giving the 1s on the diagonal and 0s to their right.
-    The diagonal is all 1s, so :math:`|\det \mathcal{J}| = 1`.
-    The property :math:`|\det \mathcal{J}| = 1` makes the coupling layer **volume preserving**, it reshapes the density without stretching or compressing any region of space.
-
-    The inverse is equally straightforward: since :math:`x_1 = z_1` is already known, we can evaluate :math:`m(x_1)` and recover :math:`z_2 = x_2 - m(x_1)` in a single forward pass of the network, making it easy to compute unlike the planar flow above.
-
-    **Diagonal scaling layer:**
-    Since a stack of additive coupling layers alone is always volume preserving, the full NICE model adds one final diagonal scaling layer
-    after all the coupling layers, so the model can rescale the overall distribution to match real data.
-
-    In the NICE paper `[4] <https://arxiv.org/abs/1410.8516>`__, the scaling layer applies a diagonal matrix :math:`S \in \mathbb{R}^{N \times N}`,
-    multiplying each dimension :math:`i` of the intermediate vector :math:`h \in \mathbb{R}^N` by the corresponding diagonal entry :math:`S_{ii}`:
+    The bottom-left entries are nonzero because both :math:`s` and :math:`m` depend on the pass-through inputs, but :math:`c` and :math:`d` each appear only in their own output row with coefficient :math:`e^{s_1}` and :math:`e^{s_2}` respectively (since the coupling *scales* them by :math:`e^{s_i}` and then *adds* :math:`m_i`), giving the exponentials on the diagonal and 0s to their right.
+    The diagonal is :math:`(1, 1, e^{s_1}, e^{s_2})`, so:
 
     .. math::
-        x_i = S_{ii} \, h_i \qquad \text{for } i = 1, \ldots, N
+        |\det \mathcal{J}| = 1 \cdot 1 \cdot e^{s_1} \cdot e^{s_2} = \exp(s_1 + s_2)
 
-    Written as a matrix operation, this is simply :math:`x = S\,h`, where :math:`S = \text{diag}(S_{11}, \ldots, S_{NN})`.
+    **Non-volume preserving property:**
+    Unlike NICE, where the diagonal is all 1s and :math:`|\det \mathcal{J}| = 1`, the RealNVP coupling layer has :math:`|\det \mathcal{J}| = \exp(\sum_i s_i)` which is in general not equal to 1.
+    When :math:`s_i > 0` the transformation stretches along dimension :math:`i`; when :math:`s_i < 0` it compresses.
+    This makes the coupling layer **non-volume preserving**, it can both reshape *and* rescale the density, which is where the model's name comes from.
+    Because scaling is built into the coupling layers themselves, RealNVP does not need a separate diagonal scaling layer (unlike NICE).
 
-    In Physika, the matrix and the operation can be expressed as:
-
-    .. code-block:: text
-
-        S : ℝ[N, N] = ...          # diagonal scaling matrix
-        h : ℝ[N]    = ...          # output of final coupling layer
-        x : ℝ[N]    = S @ h        # scaled output: x_i = S_ii * h_i
-
-    **Jacobian of the scaling layer:**
-    Because :math:`S` is diagonal, the Jacobian :math:`\partial x / \partial h` is itself the diagonal matrix :math:`S`.
-    The determinant of a diagonal matrix is the product of its diagonal entries:
-
-    .. math::
-        \det \frac{\partial x}{\partial h} = \det S = \prod_{i=1}^{N} S_{ii}
-
+    **Log-determinant:**
     Taking the log of the absolute value (as required by the change-of-variables formula):
 
     .. math::
-        \log \left| \det \frac{\partial x}{\partial h} \right| = \sum_{i=1}^{N} \log |S_{ii}|
+        \log \left| \det \mathcal{J} \right| = \log \exp\!\left(\sum_{i=1}^{n} s_i\right) = \sum_{i=1}^{n} s_i
 
-    This decomposition from a product into a sum is the key computational advantage: it reduces an :math:`O(N^3)` determinant to an :math:`O(N)` sum.
+    where the sum runs over the :math:`n` components of the transformed half.
+    The log-exp pair cancels, reducing the computation to a simple sum of the scale network outputs.
+    This is :math:`O(n)` rather than the :math:`O(N^3)` cost of a general determinant, the same computational advantage enjoyed by NICE.
 
-    **Parameterization:**
-    In practice, :math:`S_{ii}` is parameterized as :math:`S_{ii} = e^{a_i}`, where :math:`a_i`
-    (rather than :math:`S_{ii}` directly) is the learned parameter, as is done in RealNVP `[5] <https://arxiv.org/abs/1605.08803>`__ and the normflows library `[6] <https://github.com/VincentStimper/normalizing-flows>`__.
-    The exponential guarantees :math:`S_{ii} > 0` for all values of :math:`a_i` (since :math:`e^{a_i} > 0\;\forall\, a_i \in \mathbb{R}`), avoiding sign flips during optimization.
-    Substituting into the log-determinant:
-
-    .. math::
-        \log \left| \det \frac{\partial x}{\partial h} \right| = \sum_{i=1}^{N} \log\, e^{a_i} = \sum_{i=1}^{N} a_i
-
-    The absolute value is no longer needed because :math:`e^{a_i}` is always positive, and the log-exp pair cancels to give a simple sum of the learned parameters.
+    Note that since :math:`s_i` can be any real number (positive or negative), the absolute value is accounted for by the exponential: :math:`e^{s_i} > 0\;\forall\, s_i \in \mathbb{R}`, so the determinant is always positive and the absolute value is no longer needed.
 
     **Loss:**
     The model is trained by maximum likelihood. Applying the change-of-variables formula and taking the logarithm, the log-density
@@ -285,11 +280,11 @@ This is not an exhaustive list, but below are some popular methods.
     .. math::
         \log p_X(x) = \log p_Z(z) + \log |\det \mathcal{J}_{\text{total}}|
 
-    The total Jacobian determinant decomposes across layers. Each additive coupling layer contributes :math:`\log|\det \mathcal{J}| = 0`
-    (since its determinant is 1), and the scaling layer contributes :math:`\sum_i a_i`. Therefore:
+    The total Jacobian determinant decomposes across layers. Each affine coupling layer :math:`k` contributes :math:`\log|\det \mathcal{J}_k| = \sum_i s_i^{(k)}`,
+    where :math:`s_i^{(k)}` is the :math:`i`-th output of the scale network in the :math:`k`-th coupling layer. Therefore:
 
     .. math::
-        \log p_X(x) = \log p_Z(z) + \sum_{i=1}^{N} a_i
+        \log p_X(x) = \log p_Z(z) + \sum_{k=1}^{K} \sum_{i=1}^{n} s_i^{(k)}
 
     where :math:`\log p_Z(z)` is the log-density of the base distribution (e.g. a standard Gaussian)
     evaluated at :math:`z = f^{-1}(x)` (the result of passing :math:`x` backward through all layers).
@@ -297,16 +292,9 @@ This is not an exhaustive list, but below are some popular methods.
 
     .. math::
         \mathcal{L}(\theta) = -\mathbb{E}_{x \sim p_{\text{data}}}\!\left[\log p_X(x)\right]
-        = -\mathbb{E}_{x \sim p_{\text{data}}}\!\left[\log p_Z(f^{-1}(x)) + \sum_{i=1}^{N} a_i\right]
+        = -\mathbb{E}_{x \sim p_{\text{data}}}\!\left[\log p_Z(f^{-1}(x)) + \sum_{k=1}^{K} \sum_{i=1}^{n} s_i^{(k)}\right]
 
-    Minimizing :math:`\mathcal{L}` pushes the model to (a) map data points to high-density regions of the base distribution (via the :math:`\log p_Z` term) and (b) learn appropriate per-dimension scaling (via the :math:`\sum_i a_i` term).
-
-3. RealNVP (Real Non-Volume Preserving) model
-    RealNVP `[5] <https://arxiv.org/abs/1605.08803>`__ adds scaling factors to the transformation, which makes it non volume preserving.
-    :math:`s,m` are both neural networks that have been conditioned on :math:`x_1`, acting as scale and shift factors respectively.
-
-    .. math::
-        x_2 = \exp(s(z_1)) \odot z_2 + m(z_1)
+    Minimizing :math:`\mathcal{L}` pushes the model to (a) map data points to high-density regions of the base distribution (via the :math:`\log p_Z` term) and (b) learn appropriate per-dimension scaling and shifting (via the :math:`\sum_k \sum_i s_i^{(k)}` term).
 
 
 .. note::
@@ -314,13 +302,13 @@ This is not an exhaustive list, but below are some popular methods.
     In Physika, sampling operations in flows are differentiable via the `SCG framework <https://physika.readthedocs.io/en/latest/elf.html#id2>`__: continuous distributions use the reparameterization trick, discrete ones use score function estimators.
     Gradients propagate through the full chain of transformations automatically.
 
-Implementing the NICE Normalizing Flow in Physika
+Implementing the RealNVP Normalizing Flow in Physika
 ------------------------------------------------------
 
-The code block below contains the core components of the NICE model implemented in Physika.
-The coupling layer is implemented as a simple feedforward neural network with one hidden layer and ReLU activation function.
-The rescale layer is implemented as a diagonal scaling layer, where the scaling factors are learned parameters.
-In the next section, we will show how to train the NICE model on a simple image classification task.
+The code block below contains the core components of the RealNVP model implemented in Physika.
+The coupling layer is implemented using two simple feedforward neural networks with one hidden layer and ReLU activation function: one for the scale :math:`s` and one for the shift :math:`m`.
+Unlike NICE, no separate rescale layer is needed because scaling is built into the affine coupling layers.
+In the next section, we will show how to train the RealNVP model on a simple image classification task.
 
 
 Note: the code below is for pedagogical purposes.
@@ -328,61 +316,73 @@ Please refer to the next section for the complete standalone implementation for 
 
 .. code-block:: text
 
-    class NICE:
-        W1a: ℝ[h, n]
-        b1a: ℝ[h]
-        W2a: ℝ[n, h]
-        b2a: ℝ[n]
-        W1b: ℝ[h, n]
-        b1b: ℝ[h]
-        W2b: ℝ[n, h]
-        b2b: ℝ[n]
-        a: ℝ[d]
+    class RealNVP:
+        W1a_s: ℝ[h, n]
+        b1a_s: ℝ[h]
+        W2a_s: ℝ[n, h]
+        b2a_s: ℝ[n]
+        W1a_m: ℝ[h, n]
+        b1a_m: ℝ[h]
+        W2a_m: ℝ[n, h]
+        b2a_m: ℝ[n]
+        W1b_s: ℝ[h, n]
+        b1b_s: ℝ[h]
+        W2b_s: ℝ[n, h]
+        b2b_s: ℝ[n]
+        W1b_m: ℝ[h, n]
+        b1b_m: ℝ[h]
+        W2b_m: ℝ[n, h]
+        b2b_m: ℝ[n]
         n: ℕ
         d: ℕ
-        # couple(x) = (x₁, x₂ + m(x₁))
-        # m(x₁) = W₂ ReLU(W₁ x₁ + b₁) + b₂
-        def coupling(x: ℝ[d], W1: ℝ[h, n], b1: ℝ[h], W2: ℝ[n, h], b2: ℝ[n]): ℝ[d]:
+        # couple(x) = (x₁, exp(s(x₁)) ⊙ x₂ + m(x₁))
+        # s(x₁) = W₂ₛ ReLU(W₁ₛ x₁ + b₁ₛ) + b₂ₛ
+        # m(x₁) = W₂ₘ ReLU(W₁ₘ x₁ + b₁ₘ) + b₂ₘ
+        def coupling(x: ℝ[d], W1s: ℝ[h, n], b1s: ℝ[h], W2s: ℝ[n, h], b2s: ℝ[n], W1m: ℝ[h, n], b1m: ℝ[h], W2m: ℝ[n, h], b2m: ℝ[n]): ℝ[d]:
             x1: ℝ[n] = x[:this.n]
             x2: ℝ[n] = x[this.n:]
-            m: ℝ[n] = linear(relu(linear(x1, W1, b1)), W2, b2)
-            return concat(x1, x2 + m)
-        # couple⁻¹(y) = (y₁, y₂ − m(y₁))
-        def coupling_inv(y: ℝ[d], W1: ℝ[h, n], b1: ℝ[h], W2: ℝ[n, h], b2: ℝ[n]): ℝ[d]:
+            s: ℝ[n] = linear(relu(linear(x1, W1s, b1s)), W2s, b2s)
+            m: ℝ[n] = linear(relu(linear(x1, W1m, b1m)), W2m, b2m)
+            return concat(x1, exp(s) * x2 + m)
+        # couple⁻¹(y) = (y₁, (y₂ − m(y₁)) ⊙ exp(−s(y₁)))
+        def coupling_inv(y: ℝ[d], W1s: ℝ[h, n], b1s: ℝ[h], W2s: ℝ[n, h], b2s: ℝ[n], W1m: ℝ[h, n], b1m: ℝ[h], W2m: ℝ[n, h], b2m: ℝ[n]): ℝ[d]:
             y1: ℝ[n] = y[:this.n]
             y2: ℝ[n] = y[this.n:]
-            m: ℝ[n] = linear(relu(linear(y1, W1, b1)), W2, b2)
-            return concat(y1, y2 - m)
+            s: ℝ[n] = linear(relu(linear(y1, W1s, b1s)), W2s, b2s)
+            m: ℝ[n] = linear(relu(linear(y1, W1m, b1m)), W2m, b2m)
+            return concat(y1, (y2 - m) * exp(-s))
+        # log|det ∂couple/∂x| = Σᵢ sᵢ(x₁)
+        def coupling_log_det(x: ℝ[d], W1s: ℝ[h, n], b1s: ℝ[h], W2s: ℝ[n, h], b2s: ℝ[n]): ℝ:
+            x1: ℝ[n] = x[:this.n]
+            s: ℝ[n] = linear(relu(linear(x1, W1s, b1s)), W2s, b2s)
+            return sum(s)
         # swap(x₁, x₂) = (x₂, x₁)
         def swap(x: ℝ[d]): ℝ[d]:
             return concat(x[this.n:], x[:this.n])
-        # zᵢ = eᵃⁱ hᵢ
-        def rescale(h: ℝ[d]): ℝ[d]:
-            return h * exp(this.a)
-        # hᵢ = e⁻ᵃⁱ zᵢ
-        def rescale_inv(z: ℝ[d]): ℝ[d]:
-            return z * exp(-this.a)
-        # log|det ∂z/∂h| = Σᵢ aᵢ
-        def log_det(): ℝ:
-            return sum(this.a)
-        # z = rescale ∘ swap ∘ coupleB ∘ swap ∘ coupleA(x)
+        # z = swap ∘ coupleB ∘ swap ∘ coupleA(x)
         def forward_z(x: ℝ[d]): ℝ[d]:
-            h: ℝ[d] = this.coupling(x, this.W1a, this.b1a, this.W2a, this.b2a)
+            h: ℝ[d] = this.coupling(x, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s, this.W1a_m, this.b1a_m, this.W2a_m, this.b2a_m)
             h = this.swap(h)
-            h = this.coupling(h, this.W1b, this.b1b, this.W2b, this.b2b)
+            h = this.coupling(h, this.W1b_s, this.b1b_s, this.W2b_s, this.b2b_s, this.W1b_m, this.b1b_m, this.W2b_m, this.b2b_m)
             h = this.swap(h)
-            return this.rescale(h)
-        # log p(x) = log pZ(z) + Σᵢ aᵢ
+            return h
+        # log|det J_total| = Σₖ Σᵢ sᵢ⁽ᵏ⁾
+        def log_det(x: ℝ[d]): ℝ:
+            ld_a: ℝ = this.coupling_log_det(x, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s)
+            h: ℝ[d] = this.coupling(x, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s, this.W1a_m, this.b1a_m, this.W2a_m, this.b2a_m)
+            h = this.swap(h)
+            ld_b: ℝ = this.coupling_log_det(h, this.W1b_s, this.b1b_s, this.W2b_s, this.b2b_s)
+            return ld_a + ld_b
+        # log p(x) = log pZ(z) + log|det J_total|
         def λ(x: ℝ[d]) -> ℝ:
             z: ℝ[d] = this.forward_z(x)
-            return log_pz(z, this.d) + this.log_det()
-        # f⁻¹ = coupleA⁻¹ ∘ swap ∘ coupleB⁻¹ ∘ swap ∘ rescale⁻¹
+            return log_pz(z, this.d) + this.log_det(x)
+        # f⁻¹ = coupleA⁻¹ ∘ swap ∘ coupleB⁻¹ ∘ swap
         def inverse(z: ℝ[d]): ℝ[d]:
-            h: ℝ[d] = this.rescale_inv(z)
+            h: ℝ[d] = this.swap(z)
+            h = this.coupling_inv(h, this.W1b_s, this.b1b_s, this.W2b_s, this.b2b_s, this.W1b_m, this.b1b_m, this.W2b_m, this.b2b_m)
             h = this.swap(h)
-            h = this.coupling_inv(h, this.W1b, this.b1b, this.W2b, this.b2b)
-            h = this.swap(h)
-            return this.coupling_inv(h, this.W1a, this.b1a, this.W2a, this.b2a)
+            return this.coupling_inv(h, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s, this.W1a_m, this.b1a_m, this.W2a_m, this.b2a_m)
         # z ~ 𝒩(0, I),  x = f⁻¹(z)
         def sample(): ℝ[d]:
             z: ℝ[d] ~ Normal(0.0, 1.0, this.d)
@@ -392,7 +392,7 @@ Putting it all together: Training a model with Normalizing Flow - Full code
 ---------------------------------------------------------------------------------
 
 
-This is the complete code for training a model on the MNIST dataset using the NICE Normalizing Flow.
+This is the complete code for training a model on the MNIST dataset using the RealNVP Normalizing Flow.
 
 
 .. note::
@@ -450,9 +450,7 @@ Code in the Physika (.phyk) file
 
 .. code-block:: python
 
-    # NICE on MNIST
     physika.seed(0)
-
 
     # Helpers
 
@@ -467,7 +465,6 @@ Code in the Physika (.phyk) file
     def relu(x: ℝ[n]): ℝ[n]:
         return (x + abs(x)) * 0.5
 
-    # y = Wx + b
     def linear(x: ℝ[li], W: ℝ[lo, li], b: ℝ[lo]): ℝ[lo]:
         in_dim: ℝ = len1d(x)
         col: ℝ[li, 1] = for i:ℕ(in_dim) -> for j:ℕ(1) -> j*0
@@ -495,54 +492,64 @@ Code in the Physika (.phyk) file
     def log_pz(x: ℝ[d], d: ℕ): ℝ:
         return sum(-0.5 * x * x) - d * 0.5 * log(2.0 * 3.14159265)
 
-
-    # NICE model
-
-    class NICE:
-        W1a: ℝ[h, n]
-        b1a: ℝ[h]
-        W2a: ℝ[n, h]
-        b2a: ℝ[n]
-        W1b: ℝ[h, n]
-        b1b: ℝ[h]
-        W2b: ℝ[n, h]
-        b2b: ℝ[n]
-        a: ℝ[d]
+    # two networks scale (s) and shift (m)
+    class RealNVP:
+        W1a_s: ℝ[h, n]
+        b1a_s: ℝ[h]
+        W2a_s: ℝ[n, h]
+        b2a_s: ℝ[n]
+        W1a_m: ℝ[h, n]
+        b1a_m: ℝ[h]
+        W2a_m: ℝ[n, h]
+        b2a_m: ℝ[n]
+        W1b_s: ℝ[h, n]
+        b1b_s: ℝ[h]
+        W2b_s: ℝ[n, h]
+        b2b_s: ℝ[n]
+        W1b_m: ℝ[h, n]
+        b1b_m: ℝ[h]
+        W2b_m: ℝ[n, h]
+        b2b_m: ℝ[n]
         n: ℕ
         d: ℕ
-        def coupling(x: ℝ[d], W1: ℝ[h, n], b1: ℝ[h], W2: ℝ[n, h], b2: ℝ[n]): ℝ[d]:
+        def coupling(x: ℝ[d], W1s: ℝ[h, n], b1s: ℝ[h], W2s: ℝ[n, h], b2s: ℝ[n], W1m: ℝ[h, n], b1m: ℝ[h], W2m: ℝ[n, h], b2m: ℝ[n]): ℝ[d]:
             x1: ℝ[n] = x[:this.n]
             x2: ℝ[n] = x[this.n:]
-            m: ℝ[n] = linear(relu(linear(x1, W1, b1)), W2, b2)
-            return concat(x1, x2 + m)
-        def coupling_inv(y: ℝ[d], W1: ℝ[h, n], b1: ℝ[h], W2: ℝ[n, h], b2: ℝ[n]): ℝ[d]:
+            s: ℝ[n] = linear(relu(linear(x1, W1s, b1s)), W2s, b2s)
+            m: ℝ[n] = linear(relu(linear(x1, W1m, b1m)), W2m, b2m)
+            return concat(x1, exp(s) * x2 + m)
+        def coupling_inv(y: ℝ[d], W1s: ℝ[h, n], b1s: ℝ[h], W2s: ℝ[n, h], b2s: ℝ[n], W1m: ℝ[h, n], b1m: ℝ[h], W2m: ℝ[n, h], b2m: ℝ[n]): ℝ[d]:
             y1: ℝ[n] = y[:this.n]
             y2: ℝ[n] = y[this.n:]
-            m: ℝ[n] = linear(relu(linear(y1, W1, b1)), W2, b2)
-            return concat(y1, y2 - m)
+            s: ℝ[n] = linear(relu(linear(y1, W1s, b1s)), W2s, b2s)
+            m: ℝ[n] = linear(relu(linear(y1, W1m, b1m)), W2m, b2m)
+            return concat(y1, (y2 - m) * exp(-s))
+        def coupling_log_det(x: ℝ[d], W1s: ℝ[h, n], b1s: ℝ[h], W2s: ℝ[n, h], b2s: ℝ[n]): ℝ:
+            x1: ℝ[n] = x[:this.n]
+            s: ℝ[n] = linear(relu(linear(x1, W1s, b1s)), W2s, b2s)
+            return sum(s)
         def swap(x: ℝ[d]): ℝ[d]:
             return concat(x[this.n:], x[:this.n])
-        def rescale(h: ℝ[d]): ℝ[d]:
-            return h * exp(this.a)
-        def rescale_inv(z: ℝ[d]): ℝ[d]:
-            return z * exp(-this.a)
-        def log_det(): ℝ:
-            return sum(this.a)
         def forward_z(x: ℝ[d]): ℝ[d]:
-            h: ℝ[d] = this.coupling(x, this.W1a, this.b1a, this.W2a, this.b2a)
+            h: ℝ[d] = this.coupling(x, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s, this.W1a_m, this.b1a_m, this.W2a_m, this.b2a_m)
             h = this.swap(h)
-            h = this.coupling(h, this.W1b, this.b1b, this.W2b, this.b2b)
+            h = this.coupling(h, this.W1b_s, this.b1b_s, this.W2b_s, this.b2b_s, this.W1b_m, this.b1b_m, this.W2b_m, this.b2b_m)
             h = this.swap(h)
-            return this.rescale(h)
+            return h
+        def log_det(x: ℝ[d]): ℝ:
+            ld_a: ℝ = this.coupling_log_det(x, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s)
+            h: ℝ[d] = this.coupling(x, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s, this.W1a_m, this.b1a_m, this.W2a_m, this.b2a_m)
+            h = this.swap(h)
+            ld_b: ℝ = this.coupling_log_det(h, this.W1b_s, this.b1b_s, this.W2b_s, this.b2b_s)
+            return ld_a + ld_b
         def λ(x: ℝ[d]) -> ℝ:
             z: ℝ[d] = this.forward_z(x)
-            return log_pz(z, this.d) + this.log_det()
+            return log_pz(z, this.d) + this.log_det(x)
         def inverse(z: ℝ[d]): ℝ[d]:
-            h: ℝ[d] = this.rescale_inv(z)
+            h: ℝ[d] = this.swap(z)
+            h = this.coupling_inv(h, this.W1b_s, this.b1b_s, this.W2b_s, this.b2b_s, this.W1b_m, this.b1b_m, this.W2b_m, this.b2b_m)
             h = this.swap(h)
-            h = this.coupling_inv(h, this.W1b, this.b1b, this.W2b, this.b2b)
-            h = this.swap(h)
-            return this.coupling_inv(h, this.W1a, this.b1a, this.W2a, this.b2a)
+            return this.coupling_inv(h, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s, this.W1a_m, this.b1a_m, this.W2a_m, this.b2a_m)
         def sample(): ℝ[d]:
             z: ℝ[d] ~ Normal(0.0, 1.0, this.d)
             return this.inverse(z)
@@ -551,7 +558,7 @@ Code in the Physika (.phyk) file
     def neg_loglik(log_px: ℝ): ℝ:
         return -log_px
 
-    def nll(model: NICE, X: ℝ[k, d], count: ℝ): ℝ:
+    def nll(model: RealNVP, X: ℝ[k, d], count: ℝ): ℝ:
         total: ℝ = 0
         for i:ℕ(count):
             total += neg_loglik(model(X[i]))
@@ -560,7 +567,7 @@ Code in the Physika (.phyk) file
 
     # Dataset
 
-    dataset = create_dataset(80, 100)
+    dataset = create_dataset(80, 200)
     train_dataset = dataset[0]
     test_dataset = dataset[1]
 
@@ -578,21 +585,27 @@ Code in the Physika (.phyk) file
     # He init, near-zero output so coupling starts near identity
     s1: ℝ, s2: ℝ = sqrt(2.0 / n), sqrt(2.0 / h) * 0.01
 
-    W1a: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-    b1a: ℝ[h] = for i:ℕ(h) -> i*0
-    W2a: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-    b2a: ℝ[n] = for i:ℕ(n) -> i*0
+    W1a_s: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+    b1a_s: ℝ[h] = for i:ℕ(h) -> i*0
+    W2a_s: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+    b2a_s: ℝ[n] = for i:ℕ(n) -> i*0
 
-    W1b: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-    b1b: ℝ[h] = for i:ℕ(h) -> i*0
-    W2b: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-    b2b: ℝ[n] = for i:ℕ(n) -> i*0
+    W1a_m: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+    b1a_m: ℝ[h] = for i:ℕ(h) -> i*0
+    W2a_m: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+    b2a_m: ℝ[n] = for i:ℕ(n) -> i*0
 
-    a0: ℝ[d] = for i:ℕ(d) -> i*0
+    W1b_s: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+    b1b_s: ℝ[h] = for i:ℕ(h) -> i*0
+    W2b_s: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+    b2b_s: ℝ[n] = for i:ℕ(n) -> i*0
 
-    model: NICE = NICE(W1a, b1a, W2a, b2a, W1b, b1b, W2b, b2b, a0, n, d)
+    W1b_m: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+    b1b_m: ℝ[h] = for i:ℕ(h) -> i*0
+    W2b_m: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+    b2b_m: ℝ[n] = for i:ℕ(n) -> i*0
 
-    # Sanity check
+    model: RealNVP = RealNVP(W1a_s, b1a_s, W2a_s, b2a_s, W1a_m, b1a_m, W2a_m, b2a_m, W1b_s, b1b_s, W2b_s, b2b_s, W1b_m, b1b_m, W2b_m, b2b_m, n, d)
 
     x0: ℝ[d] = dequantize(flatten(train_X[0], 28, 28), d)
     print(model(x0))
@@ -611,23 +624,30 @@ Code in the Physika (.phyk) file
     # Training SGD
 
     epochs: ℕ = 20
-    lr: ℝ = 0.001
+    lr: ℝ = 0.0001
 
     losses: ℝ[epochs] = for i:ℕ(epochs) -> i*0
 
     for i:ℕ(epochs):
         for j:ℕ(len_train):
             L = neg_loglik(model(train_flat[j]))
-            nW1a = model.W1a - lr * grad(L, model.W1a)
-            nb1a = model.b1a - lr * grad(L, model.b1a)
-            nW2a = model.W2a - lr * grad(L, model.W2a)
-            nb2a = model.b2a - lr * grad(L, model.b2a)
-            nW1b = model.W1b - lr * grad(L, model.W1b)
-            nb1b = model.b1b - lr * grad(L, model.b1b)
-            nW2b = model.W2b - lr * grad(L, model.W2b)
-            nb2b = model.b2b - lr * grad(L, model.b2b)
-            na = model.a - lr * grad(L, model.a)
-            model = NICE(nW1a, nb1a, nW2a, nb2a, nW1b, nb1b, nW2b, nb2b, na, model.n, model.d)
+            nW1a_s = model.W1a_s - lr * grad(L, model.W1a_s)
+            nb1a_s = model.b1a_s - lr * grad(L, model.b1a_s)
+            nW2a_s = model.W2a_s - lr * grad(L, model.W2a_s)
+            nb2a_s = model.b2a_s - lr * grad(L, model.b2a_s)
+            nW1a_m = model.W1a_m - lr * grad(L, model.W1a_m)
+            nb1a_m = model.b1a_m - lr * grad(L, model.b1a_m)
+            nW2a_m = model.W2a_m - lr * grad(L, model.W2a_m)
+            nb2a_m = model.b2a_m - lr * grad(L, model.b2a_m)
+            nW1b_s = model.W1b_s - lr * grad(L, model.W1b_s)
+            nb1b_s = model.b1b_s - lr * grad(L, model.b1b_s)
+            nW2b_s = model.W2b_s - lr * grad(L, model.W2b_s)
+            nb2b_s = model.b2b_s - lr * grad(L, model.b2b_s)
+            nW1b_m = model.W1b_m - lr * grad(L, model.W1b_m)
+            nb1b_m = model.b1b_m - lr * grad(L, model.b1b_m)
+            nW2b_m = model.W2b_m - lr * grad(L, model.W2b_m)
+            nb2b_m = model.b2b_m - lr * grad(L, model.b2b_m)
+            model = RealNVP(nW1a_s, nb1a_s, nW2a_s, nb2a_s, nW1a_m, nb1a_m, nW2a_m, nb2a_m, nW1b_s, nb1b_s, nW2b_s, nb2b_s, nW1b_m, nb1b_m, nW2b_m, nb2b_m, model.n, model.d)
         epoch_loss = nll(model, train_flat, len_train)
         losses[i] = epoch_loss
         print(epoch_loss)
@@ -651,9 +671,8 @@ Training plots
 ---------------
 
 After running the code below, you should see the training loss decrease over epochs, indicating that the model is learning to better fit the data distribution.
-Note that these plots are very linear due to the small scale of the data used (80 vs 60000) and the small number of epochs (20 vs 1500), in the original NICE paper.
 
-.. figure:: /_static/tutorial_files/norm_flow/nice_train_curve.png
+.. figure:: /_static/tutorial_files/norm_flow/realnvp_train_curve.png
    :alt:
    :align: center
    :width: 750px
