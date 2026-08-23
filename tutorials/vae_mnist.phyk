@@ -1,0 +1,104 @@
+physika.seed(42)
+
+def tanh(z: ℝ[k,h]): ℝ[k,h]:
+    num: ℝ[k,h] = exp(z) - exp(-z)
+    denom: ℝ[k,h] = exp(z) + exp(-z)
+    res: ℝ[k,h] = num / denom
+    return res
+
+def sigmoid(z: ℝ[k,h]): ℝ[k,h]:
+    res: ℝ[k,h] = 1.0 / (1.0 + exp(-z))
+    return res
+
+class Encoder(We: ℝ[m,n], be: ℝ[1,n], Wu: ℝ[n,h], bu: ℝ[1,h], Wl: ℝ[n,h], bl: ℝ[1,h]):
+    def λ(x: ℝ[1,m]) → ℝ[1,h], ℝ[1,h]:
+        he: ℝ[1,n] = tanh(x @ We + be)
+        mu: ℝ[1,h] = he @ Wu + bu
+        lv: ℝ[1,h] = he @ Wl + bl
+        return mu, lv
+
+class Decoder(Wa: ℝ[h,n], ba: ℝ[1,n], Wo: ℝ[n,m], bo: ℝ[1,m]):
+    def λ(z: ℝ[1,h]) → ℝ[1,m]:
+        hid: ℝ[1,n] = tanh(z @ Wa + ba)
+        return sigmoid(hid @ Wo + bo)
+
+class VariationalAutoEncoder(enc: Encoder, dec: Decoder, lat: ℝ):
+    mu: ℝ[1,lat]
+    lv: ℝ[1,lat]
+    def λ(x: ℝ[1,n]) → ℝ[1,n]:
+        this.mu, this.lv = enc(x)
+        eps: ℝ[1,lat] ~ 𝒩(0.0, 1.0, 1, lat)
+        sigma: ℝ[1,lat] = exp(this.lv * 0.5)
+        z: ℝ[1,lat] = this.mu + sigma * eps
+        x_hat: ℝ[1,n] = dec(z)
+        return x_hat
+    def loss(target: ℝ[1,784], x_hat: ℝ[1,784]) → ℝ:
+        kl: ℝ = - 0.5 * sum(1.0 + this.lv - this.mu ** 2 - exp(this.lv))
+        recon: ℝ =  - sum(target * log(x_hat + 1e-7) + (1.0 - target) * log(1.0 - x_hat + 1e-7))
+        return kl + recon
+    def train(X: ℝ[1000,784], epochs: ℕ, lr: ℝ, images: ℝ):
+        for epoch: ℕ(epochs):
+            for i: ℕ(images):
+                x: ℝ[1,n] = [X[i]]
+                preds = this(x)
+                elbo = this.loss(x, preds)
+                grads = grad(elbo, this.params)
+                this.update(lr, grads)
+
+
+# helpers for weights and bias initialisation
+def rand_array(n:ℝ, m:ℝ, μ:ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def zeros(n:ℝ, m:ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → j * 0.0
+
+We: ℝ[784,256] = rand_array(784, 256, 0.05)
+be: ℝ[1,256] = zeros(1, 256)
+
+Wu: ℝ[256,20] = rand_array(256, 20, 0.01)
+bu: ℝ[1,20] = zeros(1, 20)
+
+Wl: ℝ[256,20] = rand_array(256, 20, 0.01)
+bl: ℝ[1,20] = zeros(1, 20)
+
+Wa: ℝ[20,256] = rand_array(20, 256, 0.2)
+ba: ℝ[1,256] = zeros(1, 256)
+
+Wo: ℝ[256,784] = rand_array(256, 784, 0.05)
+bo: ℝ[1,784] = zeros(1, 784)
+
+
+# Phsyika VAE
+enc = Encoder(We, be, Wu, bu, Wl, bl)
+dec = Decoder(Wa, ba, Wo, bo)
+lat : ℝ = 20.0
+vae = VariationalAutoEncoder(enc, dec, lat)
+
+# Load MNIST dataset (1000 images, each a flat 784-pixel row — see
+# runtime.py's load_mnist docstring for the [N, 784] shape it returns)
+images : ℝ = 1000
+X: ℝ[1000, 784] = rand_array(images, 784, 0.1)
+# X: ℝ[1000, 784] = load_mnist(images)
+
+x0: ℝ[1,784] = [X[0]]
+recon_before: ℝ[1,784] = vae(x0)
+elbo_before: ℝ = vae.loss(x0, recon_before)
+elbo_before
+
+# training VAE on MNIST
+epochs : ℕ = 10
+lr : ℝ = 2e-4
+vae.train(X, epochs, lr, images)
+
+# physika VAE evaluation
+recon_after: ℝ[1,784] = vae(x0)
+elbo_after: ℝ = vae.loss(x0, recon_after)
+elbo_after
+
+# Visualization (image reconstruvtion)
+# show_mnist_reconstruction(X[0], recon_after[0])
+# recon10: ℝ[1,784] = vae([X[10]])
+# show_mnist_reconstruction(X[10], recon10[0])
+# recon45: ℝ[1,784] = vae([X[45]])
+# show_mnist_reconstruction(X[45], recon45[0])

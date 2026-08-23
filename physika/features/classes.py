@@ -227,6 +227,8 @@ def emit_method(method: dict, all_params: list, constructor_params: list,
         for line in stmt_method_lines:
             line_sub = re.sub(r'\bthis\b', 'self', line)
 
+            line_sub = replace_class_params(line_sub, all_params)
+
             # check if this is a field assignment on a learnable param
             field_assign = re.match(r'^(\s+)(self\.[\w]+)\s*=\s*(.+)$',
                                     line_sub)
