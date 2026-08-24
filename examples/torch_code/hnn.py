@@ -24,7 +24,7 @@ class HamiltonianNet(nn.Module):
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        h = ((w2 @ tanh(((W1 @ x) + b1))) + b2)
+        h = ((self.w2 @ tanh(((self.W1 @ x) + self.b1))) + self.b2)
         dh_grad = compute_grad(h, x)
         dh_dp = dh_grad[int(1), int(0)]
         dh_dq = (-dh_grad[int(0), int(0)])

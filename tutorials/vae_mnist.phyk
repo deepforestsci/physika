@@ -45,7 +45,6 @@ class VariationalAutoEncoder(enc: Encoder, dec: Decoder, lat: ℝ):
                 grads = grad(elbo, this.params)
                 this.update(lr, grads)
 
-
 # helpers for weights and bias initialisation
 def rand_array(n:ℝ, m:ℝ, μ:ℝ): ℝ[n, m]:
     return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
@@ -75,8 +74,8 @@ dec = Decoder(Wa, ba, Wo, bo)
 lat : ℝ = 20.0
 vae = VariationalAutoEncoder(enc, dec, lat)
 
-# Load MNIST dataset (1000 images, each a flat 784-pixel row — see
-# runtime.py's load_mnist docstring for the [N, 784] shape it returns)
+# Load MNIST dataset (1000 images, each 784-pixel row — see
+# runtime.py's load_mnist docstring for [N, 784] shape it returns)
 images : ℝ = 1000
 X: ℝ[1000, 784] = rand_array(images, 784, 0.1)
 # X: ℝ[1000, 784] = load_mnist(images)
@@ -87,7 +86,7 @@ elbo_before: ℝ = vae.loss(x0, recon_before)
 elbo_before
 
 # training VAE on MNIST
-epochs : ℕ = 10
+epochs : ℕ = 2
 lr : ℝ = 2e-4
 vae.train(X, epochs, lr, images)
 

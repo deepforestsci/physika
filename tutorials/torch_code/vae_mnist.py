@@ -4,7 +4,6 @@ import torch.optim as optim
 from physika.runtime import DEVICE
 
 from physika.runtime import print
-from physika.runtime import physika_vec_add
 
 # === Functions ===
 def tanh(z):
@@ -151,7 +150,7 @@ x0 = torch.stack([torch.as_tensor(X[int(0)])])
 recon_before = vae(x0)
 elbo_before = vae.loss(x0, recon_before)
 print(elbo_before)
-epochs = 10
+epochs = 2
 lr = 0.0002
 print(vae.train(X, epochs, lr, images))
 recon_after = vae(x0)
