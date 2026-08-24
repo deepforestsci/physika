@@ -149,8 +149,8 @@ class TupleUnpackFeature(ELF):
         def p_id_list_field(p):
             """id_list : ID DOT ID
                        | id_list COMMA ID DOT ID"""
-            # Extends the core id_list (parser.py) with field-access
-            # targets (`this.mu`), so a tuple unpack can reassign into an
+            # Extends core id_list with field-access
+            # targets, so a tuple unpack can reassign into an
             # existing instance field: `this.mu, this.lv = enc(x)`.
             if len(p) == 4:
                 p[0] = [f"{p[1]}.{p[3]}"]
@@ -345,10 +345,10 @@ class TupleUnpackFeature(ELF):
                             "ℝ")
             else:
                 # when rhs is a single expression: `a, b = f()` (function or
-                # method call). If the call's own inferred type is a of the form:
-                # ("tuple_type", [t1, t2, ...]), like a class returning `ℝ[n], ℝ[n]`, use the
-                # element types for each pooisition instead of assuming every
-                # unpacked name is scalar ℝ.
+                # method call). If the call's own inferred type is a of the
+                # form: ("tuple_type", [t1, t2, ...]), like a class returning
+                # `ℝ[n], ℝ[n]`, use the element types for each pooisition
+                # instead of assuming every unpacked name is scalar ℝ.
                 call_type, s = infer_expr(expr, env, s, func_env, class_env,
                                           add_error)
                 if (isinstance(call_type, tuple) and len(call_type) == 2

@@ -762,6 +762,15 @@ def make_parser_rules():
         #   p[5] - argument list
         p[0] = ("body_expr", ("method_call", p[1], p[3], p[5] or []))
 
+    def p_func_body_stmt_method_call_flat(p):
+        """func_body_stmt : ID DOT ID LPAREN func_args RPAREN NEWLINE"""
+        # Allows method calls with no return inside a function/method
+        # body (no loop).
+        # Example:
+        #   def run(p: P) : ℝ:
+        #       p.step()
+        p[0] = ("body_expr", ("method_call", ("var", p[1]), p[3], p[5] or []))
+
     def p_func_loop_stmt_method_call_flat(p):
         """func_loop_stmt : ID DOT ID LPAREN func_args RPAREN NEWLINE"""
         # Allows method calls with no retuen inside for loops.
@@ -775,8 +784,8 @@ def make_parser_rules():
         # Allows method calls with no return at top level programs
         #   a = A(1.0)
         #   a.step(0.1)
-        p[0] = ("expr", ("method_call", ("var", p[1]), p[3], p[5] or []),
-                p.lineno(1))
+        p[0] = ("expr", ("method_call", ("var", p[1]), p[3], p[5]
+                         or []), p.lineno(1))
 
     def p_statement_field_access_flat(p):
         """statement : ID DOT ID NEWLINE"""
@@ -847,6 +856,7 @@ def make_parser_rules():
         p_member_expr_method,
         p_func_loop_stmt_field_assign,
         p_func_loop_stmt_method_call,
+        p_func_body_stmt_method_call_flat,
         p_func_loop_stmt_method_call_flat,
         p_statement_method_call_flat,
         p_dotted_chain_base,
@@ -986,7 +996,7 @@ class ClassFeature(ELF):
         >>> from physika.features import ClassFeature
         >>> rules = ClassFeature().parser_rules()
         >>> len(rules)
-        31
+        32
         >>> rules[0].__name__
         'p_statement_class_no_params'
         """
