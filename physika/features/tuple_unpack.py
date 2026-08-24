@@ -359,8 +359,8 @@ class TupleUnpackFeature(ELF):
                 default_type = TScalar("ℝ")
                 for i, entry in enumerate(names):
                     element_type = (
-                        element_types[i]
-                        if element_types is not None and i < len(element_types)  # noqa: E501
+                        element_types[i] if element_types is not None
+                        and i < len(element_types)  # noqa: E501
                         else default_type)
                     if isinstance(entry, tuple):
                         # flag a mismatch if declared type isn't the
