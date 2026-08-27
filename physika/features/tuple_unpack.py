@@ -28,9 +28,9 @@ class TupleUnpackFeature(ELF):
     >>> sorted(f.type_rules().keys())
     ['body_tuple_unpack', 'expr_list', 'loop_tuple_unpack', 'stmt_tuple_unpack', 'tuple_return']
     >>> len(f.parser_rules())
-    9
-    >>> [r.__name__ for r in f.parser_rules()]
-    ['p_return_type_single', 'p_return_type_tuple', 'p_typed_id_list', 'p_return_expr_list', 'p_top_level_expr_list', 'p_func_body_stmt_tuple_unpack', 'p_func_loop_stmt_tuple_unpack', 'p_statement_tuple_unpack', 'p_for_statement_tuple_unpack']  # noqa: E501
+    10
+    >>> [r.__name__ for r in f.parser_rules()]  # noqa: E501
+    ['p_return_type_single', 'p_return_type_tuple', 'p_typed_id_list', 'p_return_expr_list', 'p_top_level_expr_list', 'p_func_body_stmt_tuple_unpack', 'p_func_loop_stmt_tuple_unpack', 'p_statement_tuple_unpack', 'p_for_statement_tuple_unpack', 'p_id_list_field']
     """
 
     name = "tuple_unpack"
@@ -146,6 +146,17 @@ class TupleUnpackFeature(ELF):
             rhs = ("expr_list", p[3]) if isinstance(p[3], list) else p[3]
             p[0] = ("stmt_tuple_unpack", p[1], rhs)
 
+        def p_id_list_field(p):
+            """id_list : ID DOT ID
+                       | id_list COMMA ID DOT ID"""
+            # Extends core id_list with field-access
+            # targets, so a tuple unpack can reassign into an
+            # existing instance field: `this.mu, this.lv = enc(x)`.
+            if len(p) == 4:
+                p[0] = [f"{p[1]}.{p[3]}"]
+            else:
+                p[0] = p[1] + [f"{p[3]}.{p[5]}"]
+
         return [
             p_return_type_single,
             p_return_type_tuple,
@@ -156,6 +167,7 @@ class TupleUnpackFeature(ELF):
             p_func_loop_stmt_tuple_unpack,
             p_statement_tuple_unpack,
             p_for_statement_tuple_unpack,
+            p_id_list_field,
         ]
 
     def forward_rules(self) -> dict:
@@ -333,12 +345,26 @@ class TupleUnpackFeature(ELF):
                             "ℝ")
             else:
                 # when rhs is a single expression: `a, b = f()` (function or
-                # method call).
-                _, s = infer_expr(expr, env, s, func_env, class_env, add_error)
-                element_type = TScalar("ℝ")
-                for entry in names:
+                # method call). If the call's own inferred type is a of the
+                # form: ("tuple_type", [t1, t2, ...]), like a class returning
+                # `ℝ[n], ℝ[n]`, use the element types for each pooisition
+                # instead of assuming every unpacked name is scalar ℝ.
+                call_type, s = infer_expr(expr, env, s, func_env, class_env,
+                                          add_error)
+                if (isinstance(call_type, tuple) and len(call_type) == 2
+                        and call_type[0] == "tuple_type"):
+                    element_types = call_type[1]
+                else:
+                    element_types = None
+                default_type = TScalar("ℝ")
+                for i, entry in enumerate(names):
+                    element_type = (
+                        element_types[i] if element_types is not None
+                        and i < len(element_types)  # noqa: E501
+                        else default_type)
                     if isinstance(entry, tuple):
-                        # flag a mismatch if declared type isn't ℝ.
+                        # flag a mismatch if declared type isn't the
+                        # inferred element type.
                         name, type_spec = entry
                         declared = from_typespec(type_spec)
                         if declared != element_type:
@@ -350,7 +376,7 @@ class TupleUnpackFeature(ELF):
                         else:
                             env[name] = declared
                     else:
-                        # Untyped LHS register as ℝ.
+                        # Untyped LHS register the inferred element type.
                         env[entry] = element_type
             return None, s
 

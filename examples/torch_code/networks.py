@@ -48,8 +48,8 @@ class OneLayerNet(nn.Module):
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        z = sigma(((W0 @ x) + c0))
-        results = ((w1 @ z) + b1)
+        z = sigma(((self.W0 @ x) + self.c0))
+        results = ((self.w1 @ z) + self.b1)
         return results[int(0), int(0)]
 
     def loss(self, y, target):
@@ -81,8 +81,8 @@ class FullyConnectedNetwork(nn.Module):
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        for k in range(len(W)):
-            x = sigma(((W[int(k)] @ x) + B[int(k)]))
+        for k in range(len(self.W)):
+            x = sigma(((self.W[int(k)] @ x) + self.B[int(k)]))
         return ((self.w @ x) + self.b)
 
     def loss(self, y, target):

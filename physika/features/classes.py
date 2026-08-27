@@ -227,6 +227,8 @@ def emit_method(method: dict, all_params: list, constructor_params: list,
         for line in stmt_method_lines:
             line_sub = re.sub(r'\bthis\b', 'self', line)
 
+            line_sub = replace_class_params(line_sub, all_params)
+
             # check if this is a field assignment on a learnable param
             field_assign = re.match(r'^(\s+)(self\.[\w]+)\s*=\s*(.+)$',
                                     line_sub)
@@ -760,6 +762,76 @@ def make_parser_rules():
         #   p[5] - argument list
         p[0] = ("body_expr", ("method_call", p[1], p[3], p[5] or []))
 
+    def p_func_body_stmt_method_call_flat(p):
+        """func_body_stmt : ID DOT ID LPAREN func_args RPAREN NEWLINE"""
+        # Allows method calls with no return inside a function/method
+        # body (no loop).
+        # Example:
+        #   def run(p: P) : ℝ:
+        #       p.step()
+        p[0] = ("body_expr", ("method_call", ("var", p[1]), p[3], p[5] or []))
+
+    def p_func_loop_stmt_method_call_flat(p):
+        """func_loop_stmt : ID DOT ID LPAREN func_args RPAREN NEWLINE"""
+        # Allows method calls with no retuen inside for loops.
+        # Example:
+        #   for i: ℕ(images):
+        #       this.update(lr, grads)
+        p[0] = ("body_expr", ("method_call", ("var", p[1]), p[3], p[5] or []))
+
+    def p_statement_method_call_flat(p):
+        """statement : ID DOT ID LPAREN args RPAREN NEWLINE"""
+        # Allows method calls with no return at top level programs
+        #   a = A(1.0)
+        #   a.step(0.1)
+        p[0] = ("expr", ("method_call", ("var", p[1]), p[3], p[5]
+                         or []), p.lineno(1))
+
+    def p_statement_field_access_flat(p):
+        """statement : ID DOT ID NEWLINE"""
+        # Field access used as a top-level statement, with
+        # no call and no assignment.
+        # Example:
+        #   a = Vec(3.0, 4.0)
+        #   a.x
+        p[0] = ("expr", ("field_access", ("var", p[1]), p[3]), p.lineno(1))
+
+    def p_dotted_chain_base(p):
+        """dotted_chain : ID DOT ID"""
+        # Support for field acces (this.p)
+        p[0] = ("field_access", ("var", p[1]), p[3])
+
+    def p_dotted_chain_extend(p):
+        """dotted_chain : dotted_chain DOT ID"""
+        # Recursive extension for chains deeper than one field hop
+        # (`this.a.b`, `this.a.b.c`, ...).
+        p[0] = ("field_access", p[1], p[3])
+
+    def p_func_body_stmt_field_assign_chain(p):
+        """func_body_stmt : dotted_chain DOT ID EQUALS func_expr NEWLINE"""
+        # Field assignment through a multi-hop receiver, inside a method
+        # body.
+        # Example:
+        #   this.objA.x = 2.0
+        p[0] = ("body_field_assign", p[1], p[3], p[5])
+
+    def p_func_loop_stmt_field_assign_chain(p):
+        """func_loop_stmt : dotted_chain DOT ID EQUALS func_expr NEWLINE"""
+        # Same as above, inside a for-loop body.
+        # Example:
+        #   for i: ℕ(0, 1):
+        #       this.objA.x = 3.0
+        p[0] = ("body_field_assign", p[1], p[3], p[5])
+
+    def p_func_loop_stmt_method_call_chain(p):
+        """func_loop_stmt : dotted_chain DOT ID LPAREN func_args RPAREN NEWLINE"""  # noqa: E501
+        # Method call on a multi-hop receiver used as a statement inside
+        # a for-loop body.
+        # Example:
+        #   for i: ℕ(images):
+        #       this.p.update_params(lr, dp)
+        p[0] = ("body_expr", ("method_call", p[1], p[3], p[5] or []))
+
     return [
         p_statement_class_no_params,
         p_statement_class_with_params,
@@ -784,6 +856,15 @@ def make_parser_rules():
         p_member_expr_method,
         p_func_loop_stmt_field_assign,
         p_func_loop_stmt_method_call,
+        p_func_body_stmt_method_call_flat,
+        p_func_loop_stmt_method_call_flat,
+        p_statement_method_call_flat,
+        p_dotted_chain_base,
+        p_dotted_chain_extend,
+        p_func_loop_stmt_method_call_chain,
+        p_statement_field_access_flat,
+        p_func_body_stmt_field_assign_chain,
+        p_func_loop_stmt_field_assign_chain,
     ]
 
 
@@ -915,7 +996,7 @@ class ClassFeature(ELF):
         >>> from physika.features import ClassFeature
         >>> rules = ClassFeature().parser_rules()
         >>> len(rules)
-        20
+        32
         >>> rules[0].__name__
         'p_statement_class_no_params'
         """

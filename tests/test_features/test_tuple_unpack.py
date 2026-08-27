@@ -57,7 +57,7 @@ class TestTupleUnpack:
         parser_rules should return nine handlers.
         """
         rules = TupleUnpackFeature().parser_rules()
-        assert len(rules) == 9
+        assert len(rules) == 10
         names = [r.__name__ for r in rules]
         assert "p_return_type_single" in names
         assert "p_return_type_tuple" in names
