@@ -39,64 +39,50 @@ def dequantize(x: ℝ[d], d: ℕ): ℝ[d]:
 def log_pz(x: ℝ[d], d: ℕ): ℝ:
     return sum(-0.5 * x * x) - d * 0.5 * log(2.0 * 3.14159265)
 
+def concat(a: ℝ[na], b: ℝ[nb]): ℝ[d]:
+    la: ℝ = len1d(a)
+    lb: ℝ = len1d(b)
+    d: ℝ = la + lb
+    out: ℝ[d] = for i:ℕ(d) -> i*0
+    out[:la] = a
+    out[la:] = b
+    return out
+
 # RealNVP, two networks scale (s) and shift (m)
 class RealNVP:
-    W1a_s: ℝ[h, n]
-    b1a_s: ℝ[h]
-    W2a_s: ℝ[n, h]
-    b2a_s: ℝ[n]
-    W1a_m: ℝ[h, n]
-    b1a_m: ℝ[h]
-    W2a_m: ℝ[n, h]
-    b2a_m: ℝ[n]
-    W1b_s: ℝ[h, n]
-    b1b_s: ℝ[h]
-    W2b_s: ℝ[n, h]
-    b2b_s: ℝ[n]
-    W1b_m: ℝ[h, n]
-    b1b_m: ℝ[h]
-    W2b_m: ℝ[n, h]
-    b2b_m: ℝ[n]
+    W1_s: ℝ[h, n]
+    b1_s: ℝ[h]
+    W2_s: ℝ[n, h]
+    b2_s: ℝ[n]
+    W1_m: ℝ[h, n]
+    b1_m: ℝ[h]
+    W2_m: ℝ[n, h]
+    b2_m: ℝ[n]
     n: ℕ
     d: ℕ
-    def coupling(x: ℝ[d], W1s: ℝ[h, n], b1s: ℝ[h], W2s: ℝ[n, h], b2s: ℝ[n], W1m: ℝ[h, n], b1m: ℝ[h], W2m: ℝ[n, h], b2m: ℝ[n]): ℝ[d]:
+    def coupling(x: ℝ[d]): ℝ[d]:
         x1: ℝ[n] = x[:this.n]
         x2: ℝ[n] = x[this.n:]
-        s: ℝ[n] = linear(relu(linear(x1, W1s, b1s)), W2s, b2s)
-        m: ℝ[n] = linear(relu(linear(x1, W1m, b1m)), W2m, b2m)
+        s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+        m: ℝ[n] = linear(relu(linear(x1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
         return concat(x1, exp(s) * x2 + m)
-    def coupling_inv(y: ℝ[d], W1s: ℝ[h, n], b1s: ℝ[h], W2s: ℝ[n, h], b2s: ℝ[n], W1m: ℝ[h, n], b1m: ℝ[h], W2m: ℝ[n, h], b2m: ℝ[n]): ℝ[d]:
+    def coupling_inv(y: ℝ[d]): ℝ[d]:
         y1: ℝ[n] = y[:this.n]
         y2: ℝ[n] = y[this.n:]
-        s: ℝ[n] = linear(relu(linear(y1, W1s, b1s)), W2s, b2s)
-        m: ℝ[n] = linear(relu(linear(y1, W1m, b1m)), W2m, b2m)
+        s: ℝ[n] = linear(relu(linear(y1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+        m: ℝ[n] = linear(relu(linear(y1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
         return concat(y1, (y2 - m) * exp(-s))
-    def coupling_log_det(x: ℝ[d], W1s: ℝ[h, n], b1s: ℝ[h], W2s: ℝ[n, h], b2s: ℝ[n]): ℝ:
-        x1: ℝ[n] = x[:this.n]
-        s: ℝ[n] = linear(relu(linear(x1, W1s, b1s)), W2s, b2s)
-        return sum(s)
-    def swap(x: ℝ[d]): ℝ[d]:
-        return concat(x[this.n:], x[:this.n])
-    def forward_z(x: ℝ[d]): ℝ[d]:
-        h: ℝ[d] = this.coupling(x, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s, this.W1a_m, this.b1a_m, this.W2a_m, this.b2a_m)
-        h = this.swap(h)
-        h = this.coupling(h, this.W1b_s, this.b1b_s, this.W2b_s, this.b2b_s, this.W1b_m, this.b1b_m, this.W2b_m, this.b2b_m)
-        h = this.swap(h)
-        return h
     def log_det(x: ℝ[d]): ℝ:
-        ld_a: ℝ = this.coupling_log_det(x, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s)
-        h: ℝ[d] = this.coupling(x, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s, this.W1a_m, this.b1a_m, this.W2a_m, this.b2a_m)
-        h = this.swap(h)
-        ld_b: ℝ = this.coupling_log_det(h, this.W1b_s, this.b1b_s, this.W2b_s, this.b2b_s)
-        return ld_a + ld_b
+        x1: ℝ[n] = x[:this.n]
+        s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+        return sum(s)
+    def forward_z(x: ℝ[d]): ℝ[d]:
+        return this.coupling(x)
     def λ(x: ℝ[d]) -> ℝ:
         z: ℝ[d] = this.forward_z(x)
         return log_pz(z, this.d) + this.log_det(x)
     def inverse(z: ℝ[d]): ℝ[d]:
-        h: ℝ[d] = this.swap(z)
-        h = this.coupling_inv(h, this.W1b_s, this.b1b_s, this.W2b_s, this.b2b_s, this.W1b_m, this.b1b_m, this.W2b_m, this.b2b_m)
-        h = this.swap(h)
-        return this.coupling_inv(h, this.W1a_s, this.b1a_s, this.W2a_s, this.b2a_s, this.W1a_m, this.b1a_m, this.W2a_m, this.b2a_m)
+        return this.coupling_inv(z)
     def sample(): ℝ[d]:
         z: ℝ[d] ~ Normal(0.0, 1.0, this.d)
         return this.inverse(z)
@@ -118,27 +104,19 @@ class RealNVP:
     def test(Y: ℝ[40, 784], len_test: ℝ): ℝ:
         total: ℝ = 0
         for i:ℕ(len_test):
-            total += this.loss(X[i])
+            total += this.loss(Y[i])
         return total / len_test
     def evaluate(num: ℝ, len: ℝ): ℝ:
         return num / (this.d * log(2.0)) + 8.0
     def update_params(lr: ℝ, learnable_grads: ℝ[m]):
-        this.W1a_s = this.W1a_s - lr * learnable_grads[0]
-        this.b1a_s = this.b1a_s - lr * learnable_grads[1]
-        this.W2a_s = this.W2a_s - lr * learnable_grads[2]
-        this.b2a_s = this.b2a_s - lr * learnable_grads[3]
-        this.W1a_m = this.W1a_m - lr * learnable_grads[4]
-        this.b1a_m = this.b1a_m - lr * learnable_grads[5]
-        this.W2a_m = this.W2a_m - lr * learnable_grads[6]
-        this.b2a_m = this.b2a_m - lr * learnable_grads[7]
-        this.W1b_s = this.W1b_s - lr * learnable_grads[8]
-        this.b1b_s = this.b1b_s - lr * learnable_grads[9]
-        this.W2b_s = this.W2b_s - lr * learnable_grads[10]
-        this.b2b_s = this.b2b_s - lr * learnable_grads[11]
-        this.W1b_m = this.W1b_m - lr * learnable_grads[12]
-        this.b1b_m = this.b1b_m - lr * learnable_grads[13]
-        this.W2b_m = this.W2b_m - lr * learnable_grads[14]
-        this.b2b_m = this.b2b_m - lr * learnable_grads[15]
+        this.W1_s = this.W1_s - lr * learnable_grads[0]
+        this.b1_s = this.b1_s - lr * learnable_grads[1]
+        this.W2_s = this.W2_s - lr * learnable_grads[2]
+        this.b2_s = this.b2_s - lr * learnable_grads[3]
+        this.W1_m = this.W1_m - lr * learnable_grads[4]
+        this.b1_m = this.b1_m - lr * learnable_grads[5]
+        this.W2_m = this.W2_m - lr * learnable_grads[6]
+        this.b2_m = this.b2_m - lr * learnable_grads[7]
 
 
 # Dataset
@@ -161,27 +139,17 @@ n: ℕ = 392
 # He init, near-zero output so coupling starts near identity
 s1: ℝ, s2: ℝ = sqrt(2.0 / n), sqrt(2.0 / h) * 0.01
 
-W1a_s: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-b1a_s: ℝ[h] = for i:ℕ(h) -> i*0
-W2a_s: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-b2a_s: ℝ[n] = for i:ℕ(n) -> i*0
+W1_s: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+b1_s: ℝ[h] = for i:ℕ(h) -> i*0
+W2_s: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+b2_s: ℝ[n] = for i:ℕ(n) -> i*0
 
-W1a_m: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-b1a_m: ℝ[h] = for i:ℕ(h) -> i*0
-W2a_m: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-b2a_m: ℝ[n] = for i:ℕ(n) -> i*0
+W1_m: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+b1_m: ℝ[h] = for i:ℕ(h) -> i*0
+W2_m: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+b2_m: ℝ[n] = for i:ℕ(n) -> i*0
 
-W1b_s: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-b1b_s: ℝ[h] = for i:ℕ(h) -> i*0
-W2b_s: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-b2b_s: ℝ[n] = for i:ℕ(n) -> i*0
-
-W1b_m: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-b1b_m: ℝ[h] = for i:ℕ(h) -> i*0
-W2b_m: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-b2b_m: ℝ[n] = for i:ℕ(n) -> i*0
-
-realnvp: RealNVP = RealNVP(W1a_s, b1a_s, W2a_s, b2a_s, W1a_m, b1a_m, W2a_m, b2a_m, W1b_s, b1b_s, W2b_s, b2b_s, W1b_m, b1b_m, W2b_m, b2b_m, n, d)
+realnvp: RealNVP = RealNVP(W1_s, b1_s, W2_s, b2_s, W1_m, b1_m, W2_m, b2_m, n, d)
 print(DEVICE)
 
 # Preprocess
@@ -194,8 +162,8 @@ for i:ℕ(len_test):
     test_flat[i, :] = dequantize(flatten(test_X[i], 28, 28), d)
 
 # Training
-epochs: ℕ = 1
-lr: ℝ = 0.0001
+epochs: ℕ = 20
+lr: ℝ = 0.00015
 X: ℝ[160,784] = train_flat
 Y: ℝ[40,784] = test_flat
 realnvp.train(X, epochs, lr, len_train)

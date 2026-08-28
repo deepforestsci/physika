@@ -44,97 +44,60 @@ def dequantize(x, d):
 def log_pz(x, d):
     return (torch.sum((((-0.5) * x) * x) if isinstance((((-0.5) * x) * x), torch.Tensor) else torch.tensor(float((((-0.5) * x) * x)))) - ((d * 0.5) * torch.log((2.0 * 3.14159265) if isinstance((2.0 * 3.14159265), torch.Tensor) else torch.tensor(float((2.0 * 3.14159265))))))
 
+def concat(a, b):
+    la = len1d(a)
+    lb = len1d(b)
+    d = (la + lb)
+    out = torch.stack([(i * 0) for _fi_i in range(int(d)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    out[:la] = a
+    out[la:] = b
+    return out
+
 # === Classes ===
 class RealNVP(nn.Module):
-    def __init__(self, W1a_s, b1a_s, W2a_s, b2a_s, W1a_m, b1a_m, W2a_m, b2a_m, W1b_s, b1b_s, W2b_s, b2b_s, W1b_m, b1b_m, W2b_m, b2b_m, n, d):
+    def __init__(self, W1_s, b1_s, W2_s, b2_s, W1_m, b1_m, W2_m, b2_m, n, d):
         super().__init__()
-        self.W1a_s = nn.Parameter(torch.as_tensor(W1a_s))
-        self.b1a_s = nn.Parameter(torch.as_tensor(b1a_s))
-        self.W2a_s = nn.Parameter(torch.as_tensor(W2a_s))
-        self.b2a_s = nn.Parameter(torch.as_tensor(b2a_s))
-        self.W1a_m = nn.Parameter(torch.as_tensor(W1a_m))
-        self.b1a_m = nn.Parameter(torch.as_tensor(b1a_m))
-        self.W2a_m = nn.Parameter(torch.as_tensor(W2a_m))
-        self.b2a_m = nn.Parameter(torch.as_tensor(b2a_m))
-        self.W1b_s = nn.Parameter(torch.as_tensor(W1b_s))
-        self.b1b_s = nn.Parameter(torch.as_tensor(b1b_s))
-        self.W2b_s = nn.Parameter(torch.as_tensor(W2b_s))
-        self.b2b_s = nn.Parameter(torch.as_tensor(b2b_s))
-        self.W1b_m = nn.Parameter(torch.as_tensor(W1b_m))
-        self.b1b_m = nn.Parameter(torch.as_tensor(b1b_m))
-        self.W2b_m = nn.Parameter(torch.as_tensor(W2b_m))
-        self.b2b_m = nn.Parameter(torch.as_tensor(b2b_m))
+        self.W1_s = nn.Parameter(torch.as_tensor(W1_s))
+        self.b1_s = nn.Parameter(torch.as_tensor(b1_s))
+        self.W2_s = nn.Parameter(torch.as_tensor(W2_s))
+        self.b2_s = nn.Parameter(torch.as_tensor(b2_s))
+        self.W1_m = nn.Parameter(torch.as_tensor(W1_m))
+        self.b1_m = nn.Parameter(torch.as_tensor(b1_m))
+        self.W2_m = nn.Parameter(torch.as_tensor(W2_m))
+        self.b2_m = nn.Parameter(torch.as_tensor(b2_m))
         self.n = int(n)
         self.d = int(d)
-        self.learnable_params = [self.W1a_s, self.b1a_s, self.W2a_s, self.b2a_s, self.W1a_m, self.b1a_m, self.W2a_m, self.b2a_m, self.W1b_s, self.b1b_s, self.W2b_s, self.b2b_s, self.W1b_m, self.b1b_m, self.W2b_m, self.b2b_m]
+        self.learnable_params = [self.W1_s, self.b1_s, self.W2_s, self.b2_s, self.W1_m, self.b1_m, self.W2_m, self.b2_m]
 
-    def coupling(self, x, W1s, b1s, W2s, b2s, W1m, b1m, W2m, b2m):
+    def coupling(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        W1s = torch.as_tensor(W1s, device=DEVICE).float()
-        b1s = torch.as_tensor(b1s, device=DEVICE).float()
-        W2s = torch.as_tensor(W2s, device=DEVICE).float()
-        b2s = torch.as_tensor(b2s, device=DEVICE).float()
-        W1m = torch.as_tensor(W1m, device=DEVICE).float()
-        b1m = torch.as_tensor(b1m, device=DEVICE).float()
-        W2m = torch.as_tensor(W2m, device=DEVICE).float()
-        b2m = torch.as_tensor(b2m, device=DEVICE).float()
         x1 = x[:self.n]
         x2 = x[self.n:]
-        s = linear(relu(linear(x1, W1s, b1s)), W2s, b2s)
-        m = linear(relu(linear(x1, W1m, b1m)), W2m, b2m)
+        s = linear(relu(linear(x1, self.W1_s, self.b1_s)), self.W2_s, self.b2_s)
+        m = linear(relu(linear(x1, self.W1_m, self.b1_m)), self.W2_m, self.b2_m)
         return torch.cat([x1, ((torch.exp(s if isinstance(s, torch.Tensor) else torch.tensor(float(s))) * x2) + m)])
 
-    def coupling_inv(self, y, W1s, b1s, W2s, b2s, W1m, b1m, W2m, b2m):
+    def coupling_inv(self, y):
         this = self
         y = torch.as_tensor(y, device=DEVICE).float()
-        W1s = torch.as_tensor(W1s, device=DEVICE).float()
-        b1s = torch.as_tensor(b1s, device=DEVICE).float()
-        W2s = torch.as_tensor(W2s, device=DEVICE).float()
-        b2s = torch.as_tensor(b2s, device=DEVICE).float()
-        W1m = torch.as_tensor(W1m, device=DEVICE).float()
-        b1m = torch.as_tensor(b1m, device=DEVICE).float()
-        W2m = torch.as_tensor(W2m, device=DEVICE).float()
-        b2m = torch.as_tensor(b2m, device=DEVICE).float()
         y1 = y[:self.n]
         y2 = y[self.n:]
-        s = linear(relu(linear(y1, W1s, b1s)), W2s, b2s)
-        m = linear(relu(linear(y1, W1m, b1m)), W2m, b2m)
+        s = linear(relu(linear(y1, self.W1_s, self.b1_s)), self.W2_s, self.b2_s)
+        m = linear(relu(linear(y1, self.W1_m, self.b1_m)), self.W2_m, self.b2_m)
         return torch.cat([y1, ((y2 - m) * torch.exp((-s) if isinstance((-s), torch.Tensor) else torch.tensor(float((-s)))))])
-
-    def coupling_log_det(self, x, W1s, b1s, W2s, b2s):
-        this = self
-        x = torch.as_tensor(x, device=DEVICE).float()
-        W1s = torch.as_tensor(W1s, device=DEVICE).float()
-        b1s = torch.as_tensor(b1s, device=DEVICE).float()
-        W2s = torch.as_tensor(W2s, device=DEVICE).float()
-        b2s = torch.as_tensor(b2s, device=DEVICE).float()
-        x1 = x[:self.n]
-        s = linear(relu(linear(x1, W1s, b1s)), W2s, b2s)
-        return torch.sum(s if isinstance(s, torch.Tensor) else torch.tensor(float(s)))
-
-    def swap(self, x):
-        this = self
-        x = torch.as_tensor(x, device=DEVICE).float()
-        return torch.cat([x[self.n:], x[:self.n]])
-
-    def forward_z(self, x):
-        this = self
-        x = torch.as_tensor(x, device=DEVICE).float()
-        h = self.coupling(x, self.W1a_s, self.b1a_s, self.W2a_s, self.b2a_s, self.W1a_m, self.b1a_m, self.W2a_m, self.b2a_m)
-        h = self.swap(h)
-        h = self.coupling(h, self.W1b_s, self.b1b_s, self.W2b_s, self.b2b_s, self.W1b_m, self.b1b_m, self.W2b_m, self.b2b_m)
-        h = self.swap(h)
-        return h
 
     def log_det(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        ld_a = self.coupling_log_det(x, self.W1a_s, self.b1a_s, self.W2a_s, self.b2a_s)
-        h = self.coupling(x, self.W1a_s, self.b1a_s, self.W2a_s, self.b2a_s, self.W1a_m, self.b1a_m, self.W2a_m, self.b2a_m)
-        h = self.swap(h)
-        ld_b = self.coupling_log_det(h, self.W1b_s, self.b1b_s, self.W2b_s, self.b2b_s)
-        return (ld_a + ld_b)
+        x1 = x[:self.n]
+        s = linear(relu(linear(x1, self.W1_s, self.b1_s)), self.W2_s, self.b2_s)
+        return torch.sum(s if isinstance(s, torch.Tensor) else torch.tensor(float(s)))
+
+    def forward_z(self, x):
+        this = self
+        x = torch.as_tensor(x, device=DEVICE).float()
+        return self.coupling(x)
 
     def forward(self, x):
         this = self
@@ -145,10 +108,7 @@ class RealNVP(nn.Module):
     def inverse(self, z):
         this = self
         z = torch.as_tensor(z, device=DEVICE).float()
-        h = self.swap(z)
-        h = self.coupling_inv(h, self.W1b_s, self.b1b_s, self.W2b_s, self.b2b_s, self.W1b_m, self.b1b_m, self.W2b_m, self.b2b_m)
-        h = self.swap(h)
-        return self.coupling_inv(h, self.W1a_s, self.b1a_s, self.W2a_s, self.b2a_s, self.W1a_m, self.b1a_m, self.W2a_m, self.b2a_m)
+        return self.coupling_inv(z)
 
     def sample(self):
         this = self
@@ -184,7 +144,7 @@ class RealNVP(nn.Module):
         len_test = torch.as_tensor(len_test, device=DEVICE).float()
         total = 0
         for i in range(int(0), int(len_test)):
-            total = total + self.loss(X[int(i)])
+            total = total + self.loss(Y[int(i)])
         return (total / len_test)
 
     def evaluate(self, num, len):
@@ -197,37 +157,21 @@ class RealNVP(nn.Module):
         this = self
         lr = torch.as_tensor(lr, device=DEVICE).float()
         with torch.no_grad():
-            self.W1a_s.copy_((self.W1a_s - (lr * learnable_grads[int(0)])))
+            self.W1_s.copy_((self.W1_s - (lr * learnable_grads[int(0)])))
         with torch.no_grad():
-            self.b1a_s.copy_((self.b1a_s - (lr * learnable_grads[int(1)])))
+            self.b1_s.copy_((self.b1_s - (lr * learnable_grads[int(1)])))
         with torch.no_grad():
-            self.W2a_s.copy_((self.W2a_s - (lr * learnable_grads[int(2)])))
+            self.W2_s.copy_((self.W2_s - (lr * learnable_grads[int(2)])))
         with torch.no_grad():
-            self.b2a_s.copy_((self.b2a_s - (lr * learnable_grads[int(3)])))
+            self.b2_s.copy_((self.b2_s - (lr * learnable_grads[int(3)])))
         with torch.no_grad():
-            self.W1a_m.copy_((self.W1a_m - (lr * learnable_grads[int(4)])))
+            self.W1_m.copy_((self.W1_m - (lr * learnable_grads[int(4)])))
         with torch.no_grad():
-            self.b1a_m.copy_((self.b1a_m - (lr * learnable_grads[int(5)])))
+            self.b1_m.copy_((self.b1_m - (lr * learnable_grads[int(5)])))
         with torch.no_grad():
-            self.W2a_m.copy_((self.W2a_m - (lr * learnable_grads[int(6)])))
+            self.W2_m.copy_((self.W2_m - (lr * learnable_grads[int(6)])))
         with torch.no_grad():
-            self.b2a_m.copy_((self.b2a_m - (lr * learnable_grads[int(7)])))
-        with torch.no_grad():
-            self.W1b_s.copy_((self.W1b_s - (lr * learnable_grads[int(8)])))
-        with torch.no_grad():
-            self.b1b_s.copy_((self.b1b_s - (lr * learnable_grads[int(9)])))
-        with torch.no_grad():
-            self.W2b_s.copy_((self.W2b_s - (lr * learnable_grads[int(10)])))
-        with torch.no_grad():
-            self.b2b_s.copy_((self.b2b_s - (lr * learnable_grads[int(11)])))
-        with torch.no_grad():
-            self.W1b_m.copy_((self.W1b_m - (lr * learnable_grads[int(12)])))
-        with torch.no_grad():
-            self.b1b_m.copy_((self.b1b_m - (lr * learnable_grads[int(13)])))
-        with torch.no_grad():
-            self.W2b_m.copy_((self.W2b_m - (lr * learnable_grads[int(14)])))
-        with torch.no_grad():
-            self.b2b_m.copy_((self.b2b_m - (lr * learnable_grads[int(15)])))
+            self.b2_m.copy_((self.b2_m - (lr * learnable_grads[int(7)])))
 
     @property
     def params(self):
@@ -251,23 +195,15 @@ d = 784
 h = 128
 n = 392
 s1, s2 = torch.sqrt((2.0 / n) if isinstance((2.0 / n), torch.Tensor) else torch.tensor(float((2.0 / n)))), (torch.sqrt((2.0 / h) if isinstance((2.0 / h), torch.Tensor) else torch.tensor(float((2.0 / h)))) * 0.01)
-W1a_s = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)).to(DEVICE) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-b1a_s = torch.stack([(i * 0) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W2a_s = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)).to(DEVICE) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-b2a_s = torch.stack([(i * 0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W1a_m = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)).to(DEVICE) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-b1a_m = torch.stack([(i * 0) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W2a_m = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)).to(DEVICE) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-b2a_m = torch.stack([(i * 0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W1b_s = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)).to(DEVICE) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-b1b_s = torch.stack([(i * 0) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W2b_s = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)).to(DEVICE) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-b2b_s = torch.stack([(i * 0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W1b_m = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)).to(DEVICE) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-b1b_m = torch.stack([(i * 0) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W2b_m = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)).to(DEVICE) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-b2b_m = torch.stack([(i * 0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-realnvp = RealNVP(W1a_s, b1a_s, W2a_s, b2a_s, W1a_m, b1a_m, W2a_m, b2a_m, W1b_s, b1b_s, W2b_s, b2b_s, W1b_m, b1b_m, W2b_m, b2b_m, n, d).to(DEVICE)
+W1_s = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)).to(DEVICE) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+b1_s = torch.stack([(i * 0) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W2_s = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)).to(DEVICE) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+b2_s = torch.stack([(i * 0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W1_m = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)).to(DEVICE) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+b1_m = torch.stack([(i * 0) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W2_m = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)).to(DEVICE) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+b2_m = torch.stack([(i * 0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+realnvp = RealNVP(W1_s, b1_s, W2_s, b2_s, W1_m, b1_m, W2_m, b2_m, n, d).to(DEVICE)
 print(print(DEVICE))
 train_flat = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(d)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(len_train)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 for i in range(int(0), int(len_train)):
@@ -275,8 +211,8 @@ for i in range(int(0), int(len_train)):
 test_flat = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(d)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(len_test)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 for i in range(int(0), int(len_test)):
     test_flat[int(i), :] = dequantize(flatten(test_X[int(i)], 28, 28), d)
-epochs = 1
-lr = 0.0001
+epochs = 20
+lr = 0.00015
 X = train_flat
 Y = test_flat
 print(realnvp.train(X, epochs, lr, len_train))
