@@ -1,0 +1,99 @@
+# ============================================================
+# 1D DFT: self-consistent field driver
+# ============================================================
+#
+# Assembles the Kohn-Sham Hamiltonian and runs the self-consistency
+# loop from the reference notebook: diagonalize H, form the density
+# from the occupied eigenstates, rebuild H from the new density, and
+# repeat until the lowest eigenvalue stops changing.
+# ------------------------------------------------------------------
+
+from dft1d_grid import Grid1D
+from dft1d_potentials import diag_embed, harmonic_potential, hartree_potential
+from dft1d_xc import lda_x_1d
+from dft1d_density import occupations, normalize_states, get_density
+
+π: ℝ = 3.141592653589793   # needed here because lda_x_1d references it internally
+
+#----------------------------------------------------------------
+#   grid         : Grid1D instance (box half-width and grid points)
+#   num_electron : total number of electrons
+#   n            : electron density on the grid
+#   eps          : soft-Coulomb regularization constant
+#   Nit          : maximum number of SCF iterations
+#   etol         : convergence tolerance on the lowest eigenvalue
+#----------------------------------------------------------------
+
+#------------------------------------------------------------------
+# Kohn-Sham Hamiltonian: H = T + diag(v_ext + v_Ha + v_xc).
+#------------------------------------------------------------------
+
+def hamiltonian(grid: Grid1D, n: ℝ[k], eps: ℝ): ℝ[k, k]:
+    x : ℝ[k] = grid.x()
+    T : ℝ[k, k] = grid.kinetic()
+    mask : ℝ[k, k] = grid.identity()
+    n_c : ℝ[k] = n + 1e-10                      # floor density for lda_x_1d's fractional powers
+    Vext : ℝ[k] = harmonic_potential(x)
+    v_Ha : ℝ[k] = hartree_potential(n, x, eps)
+    ex_vx : ℝ[2, k] = lda_x_1d(n_c)
+    vxc : ℝ[k] = ex_vx[1]
+    Vtotal : ℝ[k] = Vext + v_Ha + vxc
+    return T + diag_embed(Vtotal, mask)
+
+#------------------------------------------------------------------
+# Self-consistency loop.
+#
+# Each iteration diagonalizes the current Hamiltonian and checks
+# whether the lowest eigenvalue has converged. Once converged,
+# further density updates are disabled (the "active" flag freezes
+# the state) while the remaining iterations run out, mirroring the
+# freeze-on-convergence idiom used by the 3D SCF driver (dft_scf.phyk).
+#
+# Returns the converged electron density.
+# ------------------------------------------------------------------
+
+def runSCF1D(grid: Grid1D, num_electron: ℝ, eps: ℝ, Nit: ℕ, etol: ℝ): ℝ[k]:
+    ngrid : ℕ = grid.n
+    f : ℝ[k] = occupations(num_electron, ngrid)
+    n : ℝ[k] = arange(ngrid) * 0.0            # initial guess: zero density
+    # Pre-declare the per-iteration quantities; the loop body below may
+    # only use plain (untyped) assignment, not fresh declarations.
+    H : ℝ[k, k] = hamiltonian(grid, n, eps)
+    eigvals : ℝ[k] = eigvalsh(H)
+    Psi : ℝ[k, k] = eigvecsh(H)
+    Psi_normed : ℝ[k, k] = normalize_states(Psi, grid.h())
+    n_new : ℝ[k] = get_density(Psi_normed, f)
+    eps0_prev : ℝ = 0.0
+    eps0_cur : ℝ = 0.0
+    has_stepped : ℝ = 0.0
+    converged : ℝ = 0.0
+    active : ℝ = 1.0
+    for i : ℕ(Nit):
+        H = hamiltonian(grid, n, eps)
+        eigvals = eigvalsh(H)
+        Psi = eigvecsh(H)
+        eps0_cur = eigvals[0]
+        converged = converged + (1.0 - converged) * has_stepped * (le(abs(eps0_cur - eps0_prev), etol) * 1.0)
+        active = 1.0 - converged
+        Psi_normed = normalize_states(Psi, grid.h())
+        n_new = get_density(Psi_normed, f)
+        n = n + active * (n_new - n)
+        eps0_prev = eps0_cur
+        has_stepped = 1.0
+    return n
+
+#------------------------------------------------------------------
+# Example: two electrons in a harmonic well, on an 8-point grid.
+#------------------------------------------------------------------
+
+grid : Grid1D = Grid1D(3.0, 8)
+eps : ℝ = 0.1
+Nit : ℕ = 300
+etol : ℝ = 1.0e-8
+
+n_final : ℝ[8] = runSCF1D(grid, 2.0, eps, Nit, etol)
+n_final
+
+H_final : ℝ[8, 8] = hamiltonian(grid, n_final, eps)
+eigvals_final : ℝ[8] = eigvalsh(H_final)
+eigvals_final[0]      # lowest Kohn-Sham eigenvalue at self-consistency

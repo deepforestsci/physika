@@ -1028,6 +1028,19 @@ def p_func_factor_group(p):
     p[0] = p[2]
 
 
+def p_func_factor_tuple(p):
+    """func_factor : LPAREN func_expr COMMA func_args RPAREN"""
+    # Tuple literal in function body: ("Si", "X") or (a, b, c). Physika has
+    # no tuple type of its own -- like dict/array literals of foreign
+    # values, this only exists to build a plain Python tuple (e.g. a
+    # species-combination dict key). Requires a leading comma to
+    # disambiguate from func_factor : LPAREN func_expr RPAREN (plain
+    # grouping); func_args already allows zero-or-more further comma
+    # separated func_expr, including none, so a trailing comma with no
+    # further elements builds the 1-element tuple (a,).
+    p[0] = ("tuple", [p[2]] + p[4])
+
+
 def p_func_factor_call(p):
     """func_factor : ID LPAREN func_args RPAREN"""
     p[0] = ("call", p[1], p[3])
@@ -1049,6 +1062,36 @@ def p_func_factor_array(p):
     """func_factor : LBRACKET func_elements RBRACKET"""
     # Array literal in function body: [1.0, 2.0, 3.0]
     p[0] = ("array", p[2])
+
+
+def p_func_factor_dict(p):
+    """func_factor : LBRACE dict_entries RBRACE"""
+    # Dict literal in function body: {"a": x, "b": y}. Physika has no dict
+    # type of its own -- this only exists to build a plain Python dict to
+    # pass into a foreign function call (process_models={...} for LatticeKMC,
+    # e.g.); values are typically opaque objects/arrays, not physika-native
+    # numeric expressions.
+    p[0] = ("dict", p[2])
+
+
+def p_func_factor_dict_empty(p):
+    """func_factor : LBRACE RBRACE"""
+    p[0] = ("dict", [])
+
+
+def p_dict_entries_single(p):
+    """dict_entries : dict_entry"""
+    p[0] = [p[1]]
+
+
+def p_dict_entries_multi(p):
+    """dict_entries : dict_entry COMMA dict_entries"""
+    p[0] = [p[1]] + p[3]
+
+
+def p_dict_entry(p):
+    """dict_entry : func_expr COLON func_expr"""
+    p[0] = (p[1], p[3])
 
 
 def p_func_factor_string(p):

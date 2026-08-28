@@ -13,6 +13,45 @@ import builtins
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
+def physika_array(elements: Sequence[Any]) -> Union[torch.Tensor, list]:
+    """Build an array-literal value, stacking into a tensor when possible.
+
+    Every Physika array literal ``[e0, e1, ...]`` whose elements aren't all
+    literal numeric constants compiles through this helper. Most of the time
+    the elements are real numbers, complex numbers, or tensors, in which case
+    this returns a stacked tensor exactly as a direct ``torch.stack`` call
+    would. When an element is something Physika's type system has no
+    representation for -- a foreign Python object or string returned by a
+    call into an injected sibling module, for example -- stacking isn't
+    possible, since ``torch.as_tensor`` has no dtype for it. Rather than
+    raise, this falls back to returning the elements as a plain Python list,
+    so a list of non-numeric values can still flow through Physika code that
+    calls out to Python for the parts its own type system can't express.
+
+    Parameters
+    ----------
+    elements : Sequence[Any]
+        The evaluated array-literal elements.
+
+    Returns
+    -------
+    torch.Tensor or list
+        A stacked tensor if every element converts cleanly via
+        ``torch.as_tensor``, otherwise the elements unchanged as a list.
+
+    Examples
+    --------
+    >>> physika_array([1.0, 2.0, 3.0])
+    tensor([1., 2., 3.])
+    >>> physika_array(["packed", "median"])
+    ['packed', 'median']
+    """
+    try:
+        return torch.stack([torch.as_tensor(e) for e in elements])
+    except (TypeError, ValueError, RuntimeError):
+        return list(elements)
+
+
 def print(value: Any) -> None:
     """Pretty-print a Physika value with its inferred type annotation.
 

@@ -503,6 +503,18 @@ def make_parser_rules():
         # Wraps a parsed class_method dict as a method_def item.
         p[0] = ("method_def", p[1])
 
+    def p_class_item_blank(p):
+        """class_item : NEWLINE"""
+        # Blank or comment-only line inside a class body (mirrors
+        # func_body_stmt : NEWLINE for function bodies -- see parser.py's
+        # p_func_body_stmt_empty). Without this, a comment line before or
+        # between fields/methods crashes the parser: comment text is
+        # stripped before parsing, so a comment-only line collapses to a
+        # bare NEWLINE token that class_item otherwise has no rule for.
+        # build_class ignores any item whose tag isn't "field_decl" or
+        # "method_def", so this is silently dropped.
+        p[0] = ("blank",)
+
     def p_class_method_params_body(p):
         """class_method : DEF LAMBDA LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
                         | DEF ID    LPAREN params RPAREN ARROW return_type COLON NEWLINE INDENT func_body_stmts class_method_return DEDENT
@@ -767,6 +779,7 @@ def make_parser_rules():
         p_class_items_single,
         p_class_item_field,
         p_class_item_method,
+        p_class_item_blank,
         p_class_method_params_body,
         p_class_method_params_simple,
         p_class_method_no_params_body,

@@ -162,7 +162,8 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     code_lines.append("")
 
     # Import helpers from runtime.py
-    imports = ["from physika.runtime import print"]
+    imports = ["from physika.runtime import print",
+               "from physika.runtime import physika_array"]
     if needs_solve:
         imports.append("from physika.runtime import solve")
     if needs_train:

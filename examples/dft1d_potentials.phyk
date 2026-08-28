@@ -1,0 +1,90 @@
+# ============================================================
+# 1D DFT: external and Hartree potentials
+# ============================================================
+#
+# External confining potential and the soft-Coulomb electron-electron
+# (Hartree) interaction used by the 1D DFT notebook reference. The bare
+# 1/|x| Coulomb kernel is not integrable in 1D, so the Hartree energy
+# and potential are regularized with a small softening constant eps:
+#
+#     E_Ha = 1/2 integral integral n(x) n(x') / sqrt((x-x')^2 + eps) dx dx'
+#     v_Ha(x) = integral n(x') / sqrt((x-x')^2 + eps) dx'
+# ------------------------------------------------------------------
+
+from dft1d_grid import Grid1D
+
+#----------------------------------------------------------------
+#   x    : real-space grid coordinates
+#   n    : electron density on the grid
+#   h    : grid spacing
+#   eps  : soft-Coulomb regularization constant
+#   mask : identity matrix (Grid1D.identity()), reused to place a
+#          vector on the diagonal of a matrix
+#----------------------------------------------------------------
+
+#------------------------------------------------------------------
+# Embed a vector onto the diagonal of an n x n matrix.
+#------------------------------------------------------------------
+
+def diag_embed(v: ℝ[k], mask: ℝ[k, k]): ℝ[k, k]:
+    m : ℕ = len(v)
+    Vi : ℝ[k, k] = for i : ℕ(m) → for j : ℕ(m) → v[i]
+    return Vi * mask
+
+#------------------------------------------------------------------
+# Harmonic external potential: v_ext(x) = x^2.
+#------------------------------------------------------------------
+
+def harmonic_potential(x: ℝ[k]): ℝ[k]:
+    return x * x
+
+#------------------------------------------------------------------
+# Soft-Coulomb Hartree potential.
+#
+# M[i,j] = 1 / sqrt((x_i - x_j)^2 + eps) is the pairwise soft-Coulomb
+# kernel; v_Ha = M @ (n * h) integrates it against the density with
+# the rectangle rule.
+#------------------------------------------------------------------
+
+def hartree_potential(n: ℝ[k], x: ℝ[k], eps: ℝ): ℝ[k]:
+    m : ℕ = len(x)
+    Xi : ℝ[k, k] = for i : ℕ(m) → for j : ℕ(m) → x[i]
+    Xj : ℝ[k, k] = for i : ℕ(m) → for j : ℕ(m) → x[j]
+    M : ℝ[k, k] = 1.0 / sqrt((Xi - Xj) ** 2.0 + eps)
+    h : ℝ = x[1] - x[0]
+    weighted : ℝ[k, 1] = reshape(n * h, m, 1)
+    result : ℝ[k, 1] = M @ weighted
+    return reshape(result, m)
+
+#------------------------------------------------------------------
+# Soft-Coulomb Hartree energy: E_Ha = 1/2 h * sum(n * v_Ha).
+#------------------------------------------------------------------
+
+def hartree_energy(n: ℝ[k], v_Ha: ℝ[k], h: ℝ): ℝ:
+    return 0.5 * h * sum(n * v_Ha)
+
+#------------------------------------------------------------------
+# Example: harmonic potential and soft-Coulomb Hartree terms for a
+# Gaussian test density on a 5-point grid.
+#------------------------------------------------------------------
+
+grid : Grid1D = Grid1D(2.0, 5)
+x : ℝ[5] = grid.x()
+h : ℝ = grid.h()
+eps : ℝ = 0.1
+
+Vext : ℝ[5] = harmonic_potential(x)
+Vext                  # [4, 1, 0, 1, 4]
+
+n_test : ℝ[5] = [0.05, 0.15, 0.6, 0.15, 0.05]
+
+v_Ha : ℝ[5] = hartree_potential(n_test, x, eps)
+v_Ha[2]               # potential at the center of the grid
+
+E_Ha : ℝ = hartree_energy(n_test, v_Ha, h)
+E_Ha
+
+mask : ℝ[5, 5] = grid.identity()
+Vext_mat : ℝ[5, 5] = diag_embed(Vext, mask)
+Vext_mat[0]           # [4, 0, 0, 0, 0]
+Vext_mat[2]           # [0, 0, 0, 0, 0]

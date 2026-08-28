@@ -1,0 +1,80 @@
+# ============================================================
+# 1D DFT: total energy
+# ============================================================
+#
+# The reference notebook tracks only the lowest Kohn-Sham eigenvalue
+# as its SCF convergence criterion, which double-counts the electron-
+# electron interaction. This file adds the standard Kohn-Sham
+# band-energy correction to recover the physical total energy:
+#
+#     E_total = sum_n f_n eps_n - E_Ha - integral(n * v_xc) dx + E_x[n]
+#
+# where sum_n f_n eps_n is the sum of occupied Kohn-Sham eigenvalues
+# (the "band energy"), which double-counts the Hartree and exchange
+# potential energy already folded into each eps_n.
+# ------------------------------------------------------------------
+
+from dft1d_grid import Grid1D
+from dft1d_potentials import diag_embed, harmonic_potential, hartree_potential, hartree_energy
+from dft1d_xc import lda_x_1d
+from dft1d_density import occupations
+
+π: ℝ = 3.141592653589793   # needed here because lda_x_1d references it internally
+
+#----------------------------------------------------------------
+#   eigvals : occupied-and-virtual Kohn-Sham eigenvalues
+#   f       : occupation number per state
+#   n       : electron density
+#   vxc     : exchange-correlation potential
+#   exc     : exchange-correlation energy density
+#   E_Ha    : Hartree energy
+#   h       : grid spacing
+#----------------------------------------------------------------
+
+#------------------------------------------------------------------
+# Rectangle-rule integral: integral f(x) dx ~= h * sum(f).
+#------------------------------------------------------------------
+
+def integral(f: ℝ[k], h: ℝ): ℝ:
+    return h * sum(f)
+
+#------------------------------------------------------------------
+# Total Kohn-Sham energy with the band-energy double-counting
+# correction for the Hartree and exchange-correlation potentials.
+#------------------------------------------------------------------
+
+def get_Etotal(eigvals: ℝ[k], f: ℝ[k], n: ℝ[k], vxc: ℝ[k], exc: ℝ[k], E_Ha: ℝ, h: ℝ): ℝ:
+    band_energy : ℝ = sum(f * eigvals)
+    return band_energy - E_Ha - integral(n * vxc, h) + integral(exc, h)
+
+#------------------------------------------------------------------
+# Example: one Hamiltonian diagonalization for a harmonic well with
+# a fixed test density (not self-consistent), on a 5-point grid.
+#------------------------------------------------------------------
+
+grid : Grid1D = Grid1D(2.0, 5)
+x : ℝ[5] = grid.x()
+h : ℝ = grid.h()
+T : ℝ[5, 5] = grid.kinetic()
+mask : ℝ[5, 5] = grid.identity()
+
+n_test : ℝ[5] = [0.05, 0.15, 0.6, 0.15, 0.05]     # integrates to 1 electron
+eps : ℝ = 0.1
+
+Vext : ℝ[5] = harmonic_potential(x)
+v_Ha : ℝ[5] = hartree_potential(n_test, x, eps)
+E_Ha : ℝ = hartree_energy(n_test, v_Ha, h)
+
+ex_vx : ℝ[2, 5] = lda_x_1d(n_test)
+exc : ℝ[5] = ex_vx[0]
+vxc : ℝ[5] = ex_vx[1]
+
+Vtotal : ℝ[5] = Vext + v_Ha + vxc
+Vtotal_mat : ℝ[5, 5] = diag_embed(Vtotal, mask)
+H : ℝ[5, 5] = T + Vtotal_mat
+
+eigvals : ℝ[5] = eigvalsh(H)
+f1 : ℝ[5] = occupations(1.0, 5)
+
+Etotal : ℝ = get_Etotal(eigvals, f1, n_test, vxc, exc, E_Ha, h)
+Etotal

@@ -1,0 +1,82 @@
+# ============================================================
+# 1D DFT: occupations, orbital normalization, and density
+# ============================================================
+#
+# Builds the occupation-number vector for a given electron count,
+# normalizes the eigenvector matrix returned by the Hamiltonian
+# diagonalization under the rectangle-rule inner product, and
+# assembles the total electron density from the occupied orbitals.
+# ------------------------------------------------------------------
+
+#----------------------------------------------------------------
+#   num_electron : total number of electrons
+#   k            : number of grid points (== number of KS states)
+#   f            : occupation number per state (2, 2, ..., 2, [1], 0, ...)
+#   Psi          : eigenvector matrix, states as columns, Euclidean-
+#                  normalized (sum_i Psi[i,s]^2 == 1) as returned by eigvecsh
+#   h            : grid spacing
+#----------------------------------------------------------------
+
+#------------------------------------------------------------------
+# Occupation numbers: each state holds up to 2 electrons (spin up and
+# spin down), filled from the lowest state up. remaining[s] is the
+# electron count still to place before state s; clamping it to [0, 2]
+# gives that state's occupation.
+#------------------------------------------------------------------
+
+def occupations(num_electron: ℝ, k: ℕ): ℝ[k]:
+    s : ℝ[k] = arange(k)
+    remaining : ℝ[k] = num_electron - 2.0 * s
+    upper_mask : ℝ[k] = le(remaining, 2.0) * 1.0
+    capped : ℝ[k] = remaining * upper_mask + 2.0 * (1.0 - upper_mask)
+    lower_mask : ℝ[k] = le(0.0 - capped, 0.0) * 1.0
+    return capped * lower_mask
+
+#------------------------------------------------------------------
+# Rectangle-rule normalization of the eigenvector matrix.
+#
+# eigvecsh returns states with unit Euclidean norm (sum_i psi_i^2 = 1),
+# so normalizing under the rectangle-rule inner product
+# (h * sum_i psi_i^2 = 1) is a single uniform rescaling by 1/sqrt(h),
+# the same for every state.
+#------------------------------------------------------------------
+
+def normalize_states(Psi: ℝ[k, k], h: ℝ): ℝ[k, k]:
+    return Psi / sqrt(h)
+
+#------------------------------------------------------------------
+# Total electron density: n_i = sum_s f_s * Psi_normed[i,s]^2.
+#------------------------------------------------------------------
+
+def get_density(Psi_normed: ℝ[k, k], f: ℝ[k]): ℝ[k]:
+    m : ℕ = len(f)
+    weighted : ℝ[k, 1] = reshape(f, m, 1)
+    result : ℝ[k, 1] = (Psi_normed * Psi_normed) @ weighted
+    return reshape(result, m)
+
+#------------------------------------------------------------------
+# Example: occupations for 3 electrons, and the density built from
+# the eigenstates of a free-particle (kinetic-only) Hamiltonian on a
+# tiny 5-point grid.
+#------------------------------------------------------------------
+
+from dft1d_grid import Grid1D
+
+f3 : ℝ[5] = occupations(3.0, 5)
+f3                      # [2, 1, 0, 0, 0]
+
+grid : Grid1D = Grid1D(2.0, 5)
+h : ℝ = grid.h()
+T : ℝ[5, 5] = grid.kinetic()
+
+eigvals : ℝ[5] = eigvalsh(T)
+Psi : ℝ[5, 5] = eigvecsh(T)
+
+Psi_normed : ℝ[5, 5] = normalize_states(Psi, h)
+norm_check : ℝ = h * sum(Psi_normed[:, 0] ** 2.0)
+norm_check              # should return 1
+
+n3 : ℝ[5] = get_density(Psi_normed, f3)
+n3
+electron_count : ℝ = h * sum(n3)
+electron_count           # should return 3

@@ -1,0 +1,74 @@
+# ============================================================
+# 1D DFT: real-space grid and finite-difference operators
+# ============================================================
+#
+# Port of the differential-operator section of the reference 1D DFT
+# notebook (numpy_1ddft.ipynb): a uniform real-space grid on [-L, L]
+# and the finite-difference kinetic-energy operator built on it.
+#
+# Reference construction (first-order forward difference D, then
+# D2 = D * (-D^T) with the last diagonal entry patched to match the
+# first, D2[-1,-1] = D2[0,0]) produces exactly the standard 3-point
+# central second-derivative stencil: -2/h^2 on the diagonal, 1/h^2 on
+# the first off-diagonals, and zero elsewhere. This file builds that
+# stencil directly instead of replaying the two-matrix construction.
+# ------------------------------------------------------------------
+
+#----------------------------------------------------------------
+#   L   : half-width of the simulation box (grid spans [-L, L])
+#   n   : number of grid points
+#   h   : grid spacing = 2L / (n - 1)
+#   x   : real-space grid coordinates
+#----------------------------------------------------------------
+
+class Grid1D:
+    L : ℝ    # half-width of the box
+    n : ℕ    # number of grid points
+    def h() : ℝ:
+        # Grid spacing.
+        return (2.0 * this.L) / (this.n - 1.0)
+    def x() : ℝ[n]:
+        # Real-space grid coordinates, uniformly spaced over [-L, L].
+        idx : ℝ[n] = arange(this.n)
+        return (0.0 - this.L) + idx * this.h()
+    def index_diff() : ℝ[n, n]:
+        # |row index - column index| for every entry of an n x n grid.
+        m : ℕ = this.n
+        I : ℝ[n, n] = for a : ℕ(m) → for b : ℕ(m) → a
+        J : ℝ[n, n] = for a : ℕ(m) → for b : ℕ(m) → b
+        return abs(I - J)
+    def identity() : ℝ[n, n]:
+        # Identity matrix: 1.0 on the diagonal, 0.0 elsewhere.
+        return le(this.index_diff(), 0.5) * 1.0
+    def laplacian() : ℝ[n, n]:
+        # Tridiagonal 3-point finite-difference second-derivative operator D2.
+        diff : ℝ[n, n] = this.index_diff()
+        diag_mask : ℝ[n, n] = le(diff, 0.5) * 1.0
+        adjacent_mask : ℝ[n, n] = (le(diff, 1.5) * 1.0) - diag_mask
+        h2 : ℝ = this.h() * this.h()
+        return diag_mask * ((-2.0) / h2) + adjacent_mask * (1.0 / h2)
+    def kinetic() : ℝ[n, n]:
+        # Kinetic-energy operator T = -D2 / 2.
+        return (-0.5) * this.laplacian()
+
+#------------------------------------------------------------------
+# Example: a tiny 5-point grid on [-2, 2] (h = 1), small enough to
+# check the finite-difference stencil by hand.
+#------------------------------------------------------------------
+
+grid : Grid1D = Grid1D(2.0, 5)
+
+grid.h()             # 1.0
+grid.x()              # [-2, -1, 0, 1, 2]
+
+I5 : ℝ[5, 5] = grid.identity()
+I5[0]                 # [1, 0, 0, 0, 0]
+I5[2]                 # [0, 0, 1, 0, 0]
+
+D2 : ℝ[5, 5] = grid.laplacian()
+D2[0]                 # [-2, 1, 0, 0, 0]
+D2[2]                 # [1, -2, 1, 0, 0]
+D2[4]                 # [0, 0, 0, 1, -2]
+
+T : ℝ[5, 5] = grid.kinetic()
+T[2]                  # [-0.5, 1, -0.5, 0, 0]

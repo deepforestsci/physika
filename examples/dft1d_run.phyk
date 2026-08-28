@@ -1,0 +1,63 @@
+# ============================================================
+# 1D DFT: end-to-end run
+# ============================================================
+#
+# Reproduces the reference notebook's headline result: 17 electrons
+# in a 1D harmonic well (soft-Coulomb electron-electron repulsion,
+# LDA exchange, no correlation), converged self-consistently on a
+# 200-point real-space grid spanning [-5, 5].
+#
+# Reference (numpy_1ddft.ipynb): the SCF loop converges the lowest
+# Kohn-Sham eigenvalue to eps_0 ~= 14.7461 after 27 iterations.
+# ============================================================
+
+from dft1d_grid import Grid1D
+from dft1d_potentials import diag_embed, harmonic_potential, hartree_potential, hartree_energy
+from dft1d_xc import lda_x_1d
+from dft1d_density import occupations, normalize_states, get_density
+from dft1d_energies import integral, get_Etotal
+from dft1d_scf import hamiltonian, runSCF1D
+
+π: ℝ = 3.141592653589793   # needed because lda_x_1d references it internally
+
+# ------------------------------------------------------------------
+# System: 17 electrons in a 1D harmonic well v_ext(x) = x^2.
+# ------------------------------------------------------------------
+
+L : ℝ = 5.0
+ngrid : ℕ = 200
+num_electron : ℝ = 17.0
+eps : ℝ = 0.1          # soft-Coulomb regularization constant
+Nit : ℕ = 50            # the loop converges well before this
+etol : ℝ = 1.0e-5
+
+grid : Grid1D = Grid1D(L, ngrid)
+n_final : ℝ[k] = runSCF1D(grid, num_electron, eps, Nit, etol)
+
+# ------------------------------------------------------------------
+# Recompute the converged quantities: the lowest Kohn-Sham eigenvalue
+# (the notebook's own convergence target) and the physical total
+# energy (band-energy correction, see dft1d_energies.phyk).
+# ------------------------------------------------------------------
+
+H_final : ℝ[k, k] = hamiltonian(grid, n_final, eps)
+eigvals_final : ℝ[k] = eigvalsh(H_final)
+eps0 : ℝ = eigvals_final[0]
+eps0                    # ~14.746, matches the notebook's converged value
+
+x : ℝ[k] = grid.x()
+h : ℝ = grid.h()
+v_Ha : ℝ[k] = hartree_potential(n_final, x, eps)
+E_Ha : ℝ = hartree_energy(n_final, v_Ha, h)
+
+n_final_c : ℝ[k] = n_final + 1e-10
+ex_vx : ℝ[2, k] = lda_x_1d(n_final_c)
+exc : ℝ[k] = ex_vx[0]
+vxc : ℝ[k] = ex_vx[1]
+
+f : ℝ[k] = occupations(num_electron, ngrid)
+E_total : ℝ = get_Etotal(eigvals_final, f, n_final, vxc, exc, E_Ha, h)
+E_total
+
+electron_count : ℝ = h * sum(n_final)
+electron_count           # should return 17

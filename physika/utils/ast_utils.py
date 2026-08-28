@@ -655,10 +655,14 @@ def ast_to_torch_expr(node: ASTNode,
                     ]
                     return f"torch.stack([{', '.join(wrapped)}])"
                 else:
-                    # Elements may be tensors (e.g., x[1], sin(x[0]))
-                    # use torch.stack
-                    wrapped = [f"torch.as_tensor({s})" for s in elem_strs]
-                    return f"torch.stack([{', '.join(wrapped)}])"
+                    # Elements may be numeric/tensors (e.g., x[1], sin(x[0])),
+                    # or foreign Python objects/strings (e.g. from a call into
+                    # an injected sibling module) that can't be stacked into a
+                    # tensor at all. physika_array tries torch.stack and falls
+                    # back to a plain list when that fails, instead of always
+                    # forcing torch.as_tensor and crashing on non-numeric
+                    # elements.
+                    return f"physika_array([{', '.join(elem_strs)}])"
 
     elif op == "slice":
         var_name = node[1]
@@ -864,6 +868,24 @@ def ast_to_torch_expr(node: ASTNode,
     elif op == "string":
         # Equation string literal
         return repr(node[1])
+
+    elif op == "dict":
+        entries = node[1]
+        parts = [
+            f"{ast_to_torch_expr(k, indent, current_loop_var)}: "
+            f"{ast_to_torch_expr(v, indent, current_loop_var)}"
+            for k, v in entries
+        ]
+        return f"{{{', '.join(parts)}}}"
+
+    elif op == "tuple":
+        elements = node[1]
+        parts = [
+            ast_to_torch_expr(e, indent, current_loop_var) for e in elements
+        ]
+        # trailing comma needed for the 1-element case: "(x)" is just a
+        # parenthesized expr in Python, "(x,)" is a 1-tuple
+        return f"({', '.join(parts)}{',' if len(parts) == 1 else ''})"
 
     # Adds expression tags from ELF features
     elf_result = REGISTRY.dispatch_forward(

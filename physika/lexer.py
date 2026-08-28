@@ -6,7 +6,7 @@ tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
           "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE", "INDENT",
           "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS", "LAMBDA",
           "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION", "WALRUS",
-          "FROM", "IMPORT")
+          "FROM", "IMPORT", "DOT", "LBRACE", "RBRACE")
 
 reserved = {
     "def": "DEF",
@@ -43,6 +43,21 @@ t_EQUALS = r"="
 t_WALRUS = r':='
 t_COLON = r":"
 t_COMMA = r","
+# Referenced by module_path (from x.y import z) since that grammar rule was
+# written, but DOT was never actually declared as a token or given a lexer
+# rule -- dotted import paths have been silently unparseable. Also now used
+# for dotted attribute access/method calls (func_factor DOT ID / DOT ID
+# LPAREN ... RPAREN in parser.py). t_NUMBER is a function rule, so it's
+# always tried before this string rule regardless of file order, and its
+# leading-digit requirement means it never contests a bare "." like the one
+# in "os.path" -- only "3.14"-style digits-before-and-after decimals, which
+# t_NUMBER consumes whole before this rule is ever reached.
+t_DOT = r"\."
+# Dict literals: { key: value, ... }. Distinct from LBRACKET/RBRACKET (array
+# literals, indexing) -- no ambiguity to resolve since the bracket kind alone
+# picks the grammar path.
+t_LBRACE = r"\{"
+t_RBRACE = r"\}"
 
 
 def t_LAMBDA(t):
@@ -171,9 +186,9 @@ class IndentLexer:
             self.after_for = False
 
         # Track bracket/parenthesis nesting
-        if tok and tok.type in ("LPAREN", "LBRACKET"):
+        if tok and tok.type in ("LPAREN", "LBRACKET", "LBRACE"):
             self.bracket_depth += 1
-        elif tok and tok.type in ("RPAREN", "RBRACKET"):
+        elif tok and tok.type in ("RPAREN", "RBRACKET", "RBRACE"):
             self.bracket_depth -= 1
 
         if tok is None:

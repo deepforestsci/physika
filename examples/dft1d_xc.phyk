@@ -1,0 +1,43 @@
+# ============================================================
+# 1D DFT: exchange functional
+# ============================================================
+#
+# Local-density-approximation exchange for the 1D soft-Coulomb model,
+# following the reference notebook. Correlation is ignored, matching
+# the notebook's simplification.
+#
+#   E_x[n] = -3/4 (3/pi)^(1/3) integral n^(4/3) dx
+#   v_x[n] = dE_x/dn = -(3/pi)^(1/3) n^(1/3)
+# ------------------------------------------------------------------
+
+π: ℝ = 3.141592653589793
+
+#----------------------------------------------------------------
+#   n   : electron density on the grid (assumed > 0; the caller
+#         floors the density before calling lda_x_1d)
+#   ex  : exchange energy density (integrate with h * sum(ex) for
+#         the total exchange energy)
+#   vx  : exchange potential
+#----------------------------------------------------------------
+
+def lda_x_1d(n: ℝ[k]): ℝ[2, k]:
+    cx : ℝ = (-3.0 / 4.0) * (3.0 / π) ** (1.0 / 3.0)   # 1D Slater exchange constant
+    ex : ℝ[k] = cx * n ** (4.0 / 3.0)                   # exchange energy density
+    vx : ℝ[k] = (-1.0) * (3.0 / π) ** (1.0 / 3.0) * n ** (1.0 / 3.0)  # exchange potential
+    return [ex, vx]
+
+#------------------------------------------------------------------
+# Example: LDA exchange energy density and potential for a small
+# test density on a 5-point grid.
+#------------------------------------------------------------------
+
+n_test : ℝ[5] = [0.05, 0.15, 0.6, 0.15, 0.05]
+
+ex_vx : ℝ[2, 5] = lda_x_1d(n_test)
+ex : ℝ[5] = ex_vx[0]
+vx : ℝ[5] = ex_vx[1]
+
+ex[2]                  # exchange energy density at the peak of the density
+vx[2]                  # exchange potential at the peak of the density
+ex[0]
+vx[0]

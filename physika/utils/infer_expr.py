@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Tuple, Union, cast
-from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, new_dim  # noqa: E501
+from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, T_STRING, new_dim  # noqa: E501
 from physika.utils.ast_utils import ASTNode
 from physika.elf import REGISTRY
 
@@ -106,6 +106,138 @@ def expr_complex(node: Any,
     ℂ
     """
     return T_COMPLEX, ctx.s
+
+
+def expr_string(node: Any,
+                ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    The type of a string literal is always ``T_STRING``.
+
+    Only wired up for the ``"string"`` tag (string literals written inside a
+    function body, via the ``func_factor : STRING`` grammar rule) --
+    ``"equation_string"`` (the top-level ``factor : STRING`` rule, used for
+    sympy equation text in ``solve``/``subs``/``diff``/``lambdify`` contexts)
+    is handled by its own dedicated statement-level machinery and
+    deliberately left alone here, to avoid changing behavior for code that
+    already works.
+
+    Codegen for both tags already existed before this (``ast_to_torch_expr``
+    emits ``repr(node[1])`` for either) -- this was the only missing piece;
+    without it, any string literal used as a plain value (a function
+    argument, an array element, an untyped assignment) failed type-checking
+    with "Unknown expression type: string" before ever reaching codegen.
+
+    Parameters
+    ----------
+    node : tuple
+        AST node of the form ``("string", value)`` where *value* is a
+        ``str``.
+    ctx : ExprContext
+        Current inference context.
+
+    Returns
+    -------
+    tuple[Type, Substitution]
+        Always ``(T_STRING, ctx.s)``.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_string
+    >>> from physika.utils.types import Substitution, T_STRING
+    >>> ctx = ExprContext({}, Substitution(), {}, {}, [].append)
+    >>> t, _ = expr_string(("string", "packed"), ctx)
+    >>> t is T_STRING
+    True
+    """
+    return T_STRING, ctx.s
+
+
+def expr_dict(node: Any,
+             ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the type of a dict literal ``{k0: v0, k1: v1, ...}``.
+
+    Physika has no dict type of its own -- a dict literal only exists to
+    build a plain Python dict for a foreign function call (e.g.
+    ``process_models={"cluster_adsorption": [...], ...}`` passed into
+    ``LatticeKMC(...)``), the same role ``expr_array``'s non-numeric branch
+    (now ``physika_array``) plays for lists of foreign objects. Always
+    returns ``None`` (unknown/opaque); every key and value expression is
+    still inferred so their substitution bindings thread through, matching
+    ``expr_call``'s handling of an unregistered function's arguments.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("dict", entries)`` where *entries* is a list
+        of ``(key_expr, value_expr)`` pairs.
+    ctx : ExprContext
+        Current inference context.
+
+    Returns
+    -------
+    tuple[None, Substitution]
+        Always ``(None, s)``.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_dict
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({}, Substitution(), {}, {}, [].append)
+    >>> node = ("dict", [(("string", "a"), ("num", 1.0))])
+    >>> t, _ = expr_dict(node, ctx)
+    >>> t is None
+    True
+    """
+    s = ctx.s
+    for key_expr, value_expr in node[1]:
+        _, s = infer_expr(key_expr, ctx.env, s, ctx.func_env, ctx.class_env,
+                          ctx.add_error)
+        _, s = infer_expr(value_expr, ctx.env, s, ctx.func_env, ctx.class_env,
+                          ctx.add_error)
+    return None, s
+
+
+def expr_tuple(node: Any,
+              ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the type of a tuple literal ``(e0, e1, ...)``.
+
+    Physika has no tuple type of its own -- a tuple literal only exists to
+    build a plain Python tuple for a foreign call/dict key (e.g. a dict
+    literal keyed by species combinations, ``{("Si", "X"): (...), ...}``),
+    the same opaque-passthrough role ``expr_dict`` plays for dict literals.
+    Always returns ``None`` (unknown/opaque); every element expression is
+    still inferred so its substitution bindings thread through.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("tuple", elements)`` where *elements* is a
+        list of element expressions.
+    ctx : ExprContext
+        Current inference context.
+
+    Returns
+    -------
+    tuple[None, Substitution]
+        Always ``(None, s)``.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_tuple
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({}, Substitution(), {}, {}, [].append)
+    >>> node = ("tuple", [("string", "a"), ("string", "b")])
+    >>> t, _ = expr_tuple(node, ctx)
+    >>> t is None
+    True
+    """
+    s = ctx.s
+    for element_expr in node[1]:
+        _, s = infer_expr(element_expr, ctx.env, s, ctx.func_env,
+                          ctx.class_env, ctx.add_error)
+    return None, s
 
 
 def expr_imaginary(node: Any,
@@ -1145,6 +1277,9 @@ EXPR_DISPATCH: dict = {
     "num": expr_num,
     "var": expr_var,
     "complex": expr_complex,
+    "string": expr_string,
+    "dict": expr_dict,
+    "tuple": expr_tuple,
     "imaginary": expr_imaginary,
     "array": expr_array,
     "chain_index": expr_chain_index,
