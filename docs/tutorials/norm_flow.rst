@@ -316,56 +316,37 @@ Please refer to the next section for the complete standalone implementation for 
 
 .. code-block:: python
 
-    class RealNVP:
-        W1_s: ℝ[h, n]
-        b1_s: ℝ[h]
-        W2_s: ℝ[n, h]
-        b2_s: ℝ[n]
-        W1_m: ℝ[h, n]
-        b1_m: ℝ[h]
-        W2_m: ℝ[n, h]
-        b2_m: ℝ[n]
-        n: ℕ
-        d: ℕ
-        # couple(x) = (x₁, exp(s(x₁)) ⊙ x₂ + m(x₁))
-        # s(x₁) = W₂ₛ ReLU(W₁ₛ x₁ + b₁ₛ) + b₂ₛ
-        # m(x₁) = W₂ₘ ReLU(W₁ₘ x₁ + b₁ₘ) + b₂ₘ
+    class RealNVP(W1_s: ℝ[h, n], b1_s: ℝ[h], W2_s: ℝ[n, h], b2_s: ℝ[n], W1_m: ℝ[h, n], b1_m: ℝ[h], W2_m: ℝ[n, h], b2_m: ℝ[n], n: ℕ, d: ℕ):
         def coupling(x: ℝ[d]): ℝ[d]:
             x1: ℝ[n] = x[:this.n]
             x2: ℝ[n] = x[this.n:]
             s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
             m: ℝ[n] = linear(relu(linear(x1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
             return concat(x1, exp(s) * x2 + m)
-        # couple⁻¹(y) = (y₁, (y₂ − m(y₁)) ⊙ exp(−s(y₁)))
         def coupling_inv(y: ℝ[d]): ℝ[d]:
             y1: ℝ[n] = y[:this.n]
             y2: ℝ[n] = y[this.n:]
             s: ℝ[n] = linear(relu(linear(y1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
             m: ℝ[n] = linear(relu(linear(y1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
             return concat(y1, (y2 - m) * exp(-s))
-        # log|det ∂couple/∂x| = Σᵢ sᵢ(x₁)
         def log_det(x: ℝ[d]): ℝ:
             x1: ℝ[n] = x[:this.n]
             s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
             return sum(s)
-        # z = couple(x)
         def forward_z(x: ℝ[d]): ℝ[d]:
             return this.coupling(x)
-        # log p(x) = log pZ(z) + log|det J|
         def λ(x: ℝ[d]) -> ℝ:
             z: ℝ[d] = this.forward_z(x)
             return log_pz(z, this.d) + this.log_det(x)
-        # f⁻¹ = couple⁻¹
         def inverse(z: ℝ[d]): ℝ[d]:
             return this.coupling_inv(z)
-        # z ~ 𝒩(0, I),  x = f⁻¹(z)
         def sample(): ℝ[d]:
             z: ℝ[d] ~ Normal(0.0, 1.0, this.d)
             return this.inverse(z)
         def loss(x: ℝ[784]): ℝ:
             return -this(x)
 
-Putting it all together: Training a model with Normalizing Flow - Full code
+Full Code
 ---------------------------------------------------------------------------------
 
 
@@ -478,17 +459,7 @@ Code in the Physika (.phyk) file
         return out
 
     # RealNVP, two networks scale (s) and shift (m)
-    class RealNVP:
-        W1_s: ℝ[h, n]
-        b1_s: ℝ[h]
-        W2_s: ℝ[n, h]
-        b2_s: ℝ[n]
-        W1_m: ℝ[h, n]
-        b1_m: ℝ[h]
-        W2_m: ℝ[n, h]
-        b2_m: ℝ[n]
-        n: ℕ
-        d: ℕ
+    class RealNVP(W1_s: ℝ[h, n], b1_s: ℝ[h], W2_s: ℝ[n, h], b2_s: ℝ[n], W1_m: ℝ[h, n], b1_m: ℝ[h], W2_m: ℝ[n, h], b2_m: ℝ[n], n: ℕ, d: ℕ):
         def coupling(x: ℝ[d]): ℝ[d]:
             x1: ℝ[n] = x[:this.n]
             x2: ℝ[n] = x[this.n:]
@@ -548,35 +519,22 @@ Code in the Physika (.phyk) file
             this.b2_m = this.b2_m - lr * learnable_grads[7]
 
 
-    # Dataset
-
+    # Dataset -- add in runtime.py to run with real data
     dataset = create_dataset(80, 200)
     train_dataset = dataset[0]
     test_dataset = dataset[1]
-
     train_X = train_dataset[0]
     test_X = test_dataset[0]
-
     len_train: ℝ, len_test: ℝ = len1d(train_X), len1d(test_X)
 
     # Dimensions
-
-    d: ℕ = 784
-    h: ℕ = 128
-    n: ℕ = 392
-
+    d, h, n = 784, 128, 392
     # He init, near-zero output so coupling starts near identity
     s1: ℝ, s2: ℝ = sqrt(2.0 / n), sqrt(2.0 / h) * 0.01
-
-    W1_s: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-    b1_s: ℝ[h] = for i:ℕ(h) -> i*0
-    W2_s: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-    b2_s: ℝ[n] = for i:ℕ(n) -> i*0
-
-    W1_m: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-    b1_m: ℝ[h] = for i:ℕ(h) -> i*0
-    W2_m: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-    b2_m: ℝ[n] = for i:ℕ(n) -> i*0
+    W1_s, W1_m = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n), for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+    b1_s, b1_m = for i:ℕ(h) -> i*0, for i:ℕ(h) -> i*0
+    W2_s, W2_m = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h), for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+    b2_s, b2_m = for i:ℕ(n) -> i*0, for i:ℕ(n) -> i*0
 
     realnvp: RealNVP = RealNVP(W1_s, b1_s, W2_s, b2_s, W1_m, b1_m, W2_m, b2_m, n, d)
     print(DEVICE)

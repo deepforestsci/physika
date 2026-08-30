@@ -49,17 +49,7 @@ def concat(a: ℝ[na], b: ℝ[nb]): ℝ[d]:
     return out
 
 # RealNVP, two networks scale (s) and shift (m)
-class RealNVP:
-    W1_s: ℝ[h, n]
-    b1_s: ℝ[h]
-    W2_s: ℝ[n, h]
-    b2_s: ℝ[n]
-    W1_m: ℝ[h, n]
-    b1_m: ℝ[h]
-    W2_m: ℝ[n, h]
-    b2_m: ℝ[n]
-    n: ℕ
-    d: ℕ
+class RealNVP(W1_s: ℝ[h, n], b1_s: ℝ[h], W2_s: ℝ[n, h], b2_s: ℝ[n], W1_m: ℝ[h, n], b1_m: ℝ[h], W2_m: ℝ[n, h], b2_m: ℝ[n], n: ℕ, d: ℕ):
     def coupling(x: ℝ[d]): ℝ[d]:
         x1: ℝ[n] = x[:this.n]
         x2: ℝ[n] = x[this.n:]
@@ -119,35 +109,27 @@ class RealNVP:
         this.b2_m = this.b2_m - lr * learnable_grads[7]
 
 
-# Dataset
+# Dataset -- commented, add in runtime.py to run with real data
+# dataset = create_dataset(80, 200)
+# train_dataset = dataset[0]
+# test_dataset = dataset[1]
+# train_X = train_dataset[0]
+# test_X = test_dataset[0]
+# len_train: ℝ, len_test: ℝ = len1d(train_X), len1d(test_X)
 
-dataset = create_dataset(80, 200)
-train_dataset = dataset[0]
-test_dataset = dataset[1]
-
-train_X = train_dataset[0]
-test_X = test_dataset[0]
-
-len_train: ℝ, len_test: ℝ = len1d(train_X), len1d(test_X)
+# dummy data all zeros
+train_X = for i:ℕ(160) -> for j:ℕ(28) -> for k:ℕ(28) -> k*0
+test_X = for i:ℕ(40) -> for j:ℕ(28) -> for k:ℕ(28) -> k*0
+len_train: ℝ, len_test: ℝ = 160, 40
 
 # Dimensions
-
-d: ℕ = 784
-h: ℕ = 128
-n: ℕ = 392
-
+d, h, n = 784, 128, 392
 # He init, near-zero output so coupling starts near identity
 s1: ℝ, s2: ℝ = sqrt(2.0 / n), sqrt(2.0 / h) * 0.01
-
-W1_s: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-b1_s: ℝ[h] = for i:ℕ(h) -> i*0
-W2_s: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-b2_s: ℝ[n] = for i:ℕ(n) -> i*0
-
-W1_m: ℝ[h, n] = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
-b1_m: ℝ[h] = for i:ℕ(h) -> i*0
-W2_m: ℝ[n, h] = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
-b2_m: ℝ[n] = for i:ℕ(n) -> i*0
+W1_s, W1_m = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n), for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+b1_s, b1_m = for i:ℕ(h) -> i*0, for i:ℕ(h) -> i*0
+W2_s, W2_m = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h), for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+b2_s, b2_m = for i:ℕ(n) -> i*0, for i:ℕ(n) -> i*0
 
 realnvp: RealNVP = RealNVP(W1_s, b1_s, W2_s, b2_s, W1_m, b1_m, W2_m, b2_m, n, d)
 print(DEVICE)
