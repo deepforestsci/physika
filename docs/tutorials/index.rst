@@ -99,3 +99,4 @@ Tutorials
    :caption: Numerical solvers
 
    linear_solve_gaussian_elimination
+   lu_decomposition_method
