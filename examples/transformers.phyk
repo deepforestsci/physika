@@ -1,0 +1,251 @@
+# --------------------------------------------------------------
+# Helper functions
+# --------------------------------------------------------------
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i:ℕ(len) -> i*0
+    return results
+
+
+def zero_2d_array(rows: ℝ, cols: ℝ): R[m, n]:
+    results: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
+    return results
+
+
+def get_sum_of_1d_array(x: ℝ[m]): ℝ:
+    total = 0
+    for i:
+        total += x[i]
+    return total
+
+
+def append(x: R[m], var: R): R[n]:
+    new_length = len(x) + 1
+    results = zero_1d_array(new_length)
+    for i:N(new_length):
+        if i<len(x):
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+def relu(x: ℝ): ℝ:
+    if x>0:
+        return x
+    else: 
+        return 0.0
+
+
+def relu2d(x: ℝ[H, W]): ℝ[H, W]:
+    rows: ℝ = get_1d_array_length(x)
+    cols: ℝ = get_1d_array_length(x[0])
+    results: ℝ[rows, cols] = zero_2d_array(rows, cols)
+    for i:N(rows):
+        for j:N(cols):
+            results[i, j] = relu(x[i, j])
+    return results
+
+
+def softmax(x: ℝ[m]): ℝ[m]:
+    len_x: ℝ = get_1d_array_length(x)
+    exps_array: ℝ[m] = for i:ℕ(len_x) -> exp(x[i])
+    total: ℝ = get_sum_of_1d_array(exps_array)
+    results: ℝ[len_x] = for i:ℕ(len_x) -> exps_array[i] / total
+    return results
+
+
+def argmax(iterable: R[m]): R:
+        idx: ℝ = 0
+        max_val: ℝ = iterable[0]
+        len_iterable: ℝ = get_1d_array_length(iterable)
+        for i:ℕ(1, len_iterable):
+            if iterable[i] > max_val:
+                max_val = iterable[i]
+                idx = i
+        return idx
+
+def cross_entropy(probs: ℝ[m], label: ℝ): ℝ:
+    p: ℝ = probs[label]
+    return -log(p)
+
+
+# --------------------------------------------------------------
+
+
+
+
+class SelfAttention:
+    embedding_dim: R[m]
+    W_q: R[m, n]
+    W_k: R[m, n]
+    W_v: R[m, n]
+    def calculate_attention_score(query: R[m, n], key: R[m, n]): R[m, n]:
+        d_k = get_1d_array_length(key[0])
+        dot = query @ transpose(key)
+        results = dot / sqrt(d_k)
+        return results
+    def values_weighted_sum(weights: R[m, n], values: R[m, n]): R[m, n]:
+        results = weights @ values
+        return results
+    def λ(embeddings: R[m, n]) -> R:
+        query = embeddings @ self.W_q
+        key = embeddings @ self.W_k
+        values = embeddings @ self.W_v
+        attention_scores = self.calculate_attention_score(query, key)
+        attention_weights = softmax(attention_scores)
+        output = self.values_weighted_sum(attention_weights, values)
+        return output
+
+
+class Embedding:
+    vocab_size: R[m]
+    embedding_dim: R
+    embedding_matrix: R[m, n]
+    def λ(token_ids: R[m]) -> R:
+        len_token_ids = get_1d_array_length(token_ids)
+        embeddings = zero_2d_array(len_token_ids, this.embedding_dim)
+        for i:N(0, len_token_ids):
+            token_idx = token_ids[i]
+            embeddings[i] = this.embedding_matrix[token_idx]
+        return embeddings
+
+
+class FeedForward:
+    embedding_dim: R 
+    W1: R[m, n]
+    b1: R[n]
+    W2: R[m, n]
+    b2: R[n]
+    def λ(x: R[m, n]) -> R[m, n]:
+        hidden = x @ this.W1 + this.b1
+        hidden = relu2d(hidden)
+        output = hidden @ this.W2 + this.b2
+        return output
+
+
+
+class Transfomer:
+    vocab_size: R
+    embedding_dim: R 
+    output_projection: R[m, n]
+    embedding: Embedding
+    attention: SelfAttention
+    feed_forward: FeedForward
+    def λ(token_ids: R[m]) -> R[m]:
+        embeddings = self.embedding(token_ids)
+        embeddings = add_positional_encoding(embeddings)
+        attention_output = self.attention(embeddings)
+        ff_output = self.feed_forward(attention_output)
+        logits = ff_output @ self.output_projection
+        return logits
+    def predict_next_index(token_ids: R[m]): R:
+        logits = this(token_ids)
+        last_index = get_1d_array_length(logits) - 1
+        last_logits = logits[last_index]
+        probs = softmax(last_logits)
+        next_idx = argmax(probs)
+        return next_idx
+
+
+
+embedding_dim = 32
+W_q = randn(embedding_dim, embedding_dim) * sqrt(1 / embedding_dim)
+W_k = randn(embedding_dim, embedding_dim) * sqrt(1 / embedding_dim)
+W_v = randn(embedding_dim, embedding_dim) * sqrt(1 / embedding_dim)
+obj_attention = SelfAttention(embedding_dim, W_q, W_k, W_v)
+
+
+text = substring(load_text("input.txt"), 0, 200)
+chars = load_chars(text)
+vocab_size = len(chars)
+embedding_matrix = randn(vocab_size, embedding_dim) * sqrt(1.0 / embedding_dim)
+obj_embedding = Embedding(vocab_size, embedding_dim, embedding_matrix)
+
+
+W1 = randn(embedding_dim,embedding_dim) * sqrt(1 / embedding_dim)
+b1 = randn(embedding_dim) * sqrt(1 / embedding_dim)
+W2 = randn(embedding_dim,embedding_dim) * sqrt(1 / embedding_dim)
+b2 = randn(embedding_dim) * sqrt(1 / embedding_dim)
+obj_feed_forward = FeedForward(embedding_dim,W1,b1,W2,b2)
+
+
+output_projection = randn(embedding_dim, vocab_size) * sqrt(1.0 / embedding_dim)
+obj_transformer = Transfomer(vocab_size, embedding_dim, output_projection, obj_embedding, obj_attention, obj_feed_forward)
+
+# -----------------------------------
+# forward pass
+# -----------------------------------
+
+token_ids = get_token_ids(chars, "You ")
+next_idx = obj_transformer.predict_next_index(token_ids)
+next_char = chars[next_idx]
+generate(obj_transformer, "You ", chars, 20)
+
+
+
+# -----------------------------------
+# training loop
+# -----------------------------------
+
+
+epochs: N = 30
+learning_rate = 0.1
+sequence_len = 8    
+
+
+
+for epoch:N(epochs):
+    total_loss = 0.0
+    num_sequences = len(text) - sequence_len - 1
+    for i:N(0, num_sequences):
+        input_text = substring(text, i, i+sequence_len)
+        target_text = substring(text, i+1, i+sequence_len+1)
+        input_tokens = get_token_ids(chars, input_text)
+        target_tokens = get_token_ids(chars, target_text)
+        logits = obj_transformer(input_tokens)
+        sequence_loss = 0.0
+        for t:N(0, sequence_len):
+            probs = softmax(logits[t])
+            current_loss = cross_entropy(probs, target_tokens[t])
+            sequence_loss += current_loss
+        sequence_loss = sequence_loss / sequence_len
+        total_loss += sequence_loss
+        dW_q = grad(sequence_loss, obj_transformer.attention.W_q)
+        dW_k = grad(sequence_loss, obj_transformer.attention.W_k)
+        dW_v = grad(sequence_loss, obj_transformer.attention.W_v)
+        dEmbedding = grad(sequence_loss, obj_transformer.embedding.embedding_matrix)
+        dOutput = grad(sequence_loss, obj_transformer.output_projection)
+        dW1 = grad(sequence_loss,obj_transformer.feed_forward.W1)
+        db1 = grad(sequence_loss,obj_transformer.feed_forward.b1)
+        dW2 = grad(sequence_loss,obj_transformer.feed_forward.W2)
+        db2 = grad(sequence_loss,obj_transformer.feed_forward.b2)
+        new_W_q = obj_transformer.attention.W_q - learning_rate * dW_q
+        new_W_k = obj_transformer.attention.W_k - learning_rate * dW_k
+        new_W_v = obj_transformer.attention.W_v - learning_rate * dW_v
+        new_embedding_matrix = obj_transformer.embedding.embedding_matrix - learning_rate * dEmbedding
+        new_output_projection = obj_transformer.output_projection - learning_rate * dOutput
+        new_W1 = obj_transformer.feed_forward.W1 - learning_rate * dW1
+        new_b1 = obj_transformer.feed_forward.b1 - learning_rate * db1
+        new_W2 = obj_transformer.feed_forward.W2 - learning_rate * dW2
+        new_b2 = obj_transformer.feed_forward.b2 - learning_rate * db2
+        new_attention = SelfAttention(embedding_dim, new_W_q, new_W_k, new_W_v)
+        new_embedding = Embedding(vocab_size, embedding_dim, new_embedding_matrix)
+        new_feed_forward = FeedForward(embedding_dim,new_W1,new_b1,new_W2,new_b2)
+        obj_transformer = Transfomer(vocab_size, embedding_dim, new_output_projection, new_embedding, new_attention, new_feed_forward)
+    avg_loss = total_loss / num_sequences
+    physika_print(avg_loss)
+
+
+token_ids = get_token_ids(chars, "You ")
+next_idx = obj_transformer.predict_next_index(token_ids)
+next_char = chars[next_idx]
+generate(obj_transformer, "You ", chars, 20)
