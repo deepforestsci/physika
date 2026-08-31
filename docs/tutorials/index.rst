@@ -19,6 +19,7 @@ Tutorials
    :caption: Population Dynamics
 
    learn_parameter_lotka_volterra_ode
+   chemostat_monod
 
 
 .. toctree::
