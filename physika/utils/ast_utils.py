@@ -748,11 +748,17 @@ def ast_to_torch_expr(node: ASTNode,
             "zeros": "torch.zeros",
             "rfft": "torch.fft.rfft",
             "irfft": "torch.fft.irfft",
-            "gelu": "torch.nn.functional.gelu"
+            "gelu": "torch.nn.functional.gelu",
+            "masked_scatter": "torch.masked_scatter",
         }
         list_arg_funcs = {
             "concat": "torch.cat",
         }
+
+        shape_arg_funcs = {
+            "reshape": "torch.reshape",
+        }
+
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
 
@@ -761,6 +767,10 @@ def ast_to_torch_expr(node: ASTNode,
 
         elif func_name in list_arg_funcs:
             return f"{list_arg_funcs[func_name]}([{', '.join(arg_strs)}])"
+
+        elif func_name in shape_arg_funcs:
+            dims = ", ".join(f"int({a})" for a in arg_strs[1:])
+            return f"{shape_arg_funcs[func_name]}({arg_strs[0]}, ({dims},))"
 
         elif func_name == "grad":
             # grad(output, input) -> compute_grad(output, input)
