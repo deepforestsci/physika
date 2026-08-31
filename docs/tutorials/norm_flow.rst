@@ -148,7 +148,7 @@ Applying the logarithm to the change-of-variables formula gives the loss (negati
     \mathcal{L} = -\log p_z\!\left[f_K^{-1}(\cdots(f_1^{-1}(x)))\right] - \sum_{i=1}^{K} \log \left| \det \mathcal{J}(f_i^{-1}) \right|
 
 In Physika, the loss mirrors the two terms of the equation directly. The Jacobian :math:`\mathcal{J}(f_i^{-1})` is obtained with ``grad``, which returns the full Jacobian matrix for a vector-to-vector map (see `Jacobian of vector output functions <https://physika.readthedocs.io/en/latest/language.html#jacobian-of-vector-output-functions>`__). We walk :math:`x` back through the ``K`` inverse layers, accumulating each layer's log-determinant:
-Forming J here just shows the correspondence with :math:`\mathcal{J}`, because these Jacobians are triangular, :math:`\log|\det \mathcal{J}|` is the sum of the log-diagonals, which the RealNVP code in the next section reads straight off the scale network as sum(s) (the :math:`O(N)`` version of the same quantity).
+Forming J here just shows the correspondence with :math:`\mathcal{J}`, because these Jacobians are triangular, :math:`\log|\det \mathcal{J}|` is the sum of the log-diagonals, which the RealNVP code in the next section reads straight off the scale network as sum(s) (the :math:`O(N)` version of the same quantity).
 
 .. code-block:: python
 
