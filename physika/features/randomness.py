@@ -141,11 +141,11 @@ def sample(dist_expr: str, shape_args: List[Tuple], mode: str,
         shape = None
 
     if effective == "reparam":
-        return f"{dist_expr}.rsample({shape or ''}).to(DEVICE)"
+        return f"{dist_expr}.rsample({shape or ''})"
     elif effective == "score":
-        return f"{dist_expr}.sample({shape or ''}).detach().to(DEVICE)"
+        return f"{dist_expr}.sample({shape or ''}).detach()"
     else:
-        return f"{dist_expr}.sample({shape or ''}).to(DEVICE)"
+        return f"{dist_expr}.sample({shape or ''})"
 
 
 def normal_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:

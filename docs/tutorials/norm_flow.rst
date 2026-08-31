@@ -456,7 +456,9 @@ Code in the Physika (.phyk) file
         return img
 
     def dequantize(x: ℝ[d], d: ℕ): ℝ[d]:
-        u: ℝ[d] ~ 𝒰(0.0, 1.0, d)
+        a: ℝ[1] = [0.0]
+        b: ℝ[1] = [1.0]
+        u: ℝ[d] ~ 𝒰(a[0], b[0], d)
         return (x + u) / 256.0
 
     def log_pz(x: ℝ[d], d: ℕ): ℝ:
