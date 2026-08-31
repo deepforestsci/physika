@@ -2,6 +2,7 @@ Normalizing Flows
 =======================
 
 This tutorial is to introduce Normalizing Flow models and how to implement them in Physika.
+Suppose we are given samples from an unknown data distribution (e.g. images of handwritten digits) and we want to both estimate how likely any given point is under that distribution and generate new samples that resemble the data. This is the problem of generative modeling with exact density estimation, and it is the problem a normalizing flow like RealNVP is designed to solve.
 Normalizing Flows are a class of generative models that allow for density estimation and sampling by transforming a simple base distribution into a more complex target distribution.
 RealNVP (Real-valued Non-Volume Preserving transformations) is a Normalizing Flow model.
 It works by splitting the input into two halves: one half stays fixed, while the other is scaled and shifted using neural networks conditioned on the fixed half.
@@ -9,25 +10,25 @@ Stacking several of these layers produces a transformation that is easy to inver
 the two properties that make Normalizing Flows useful for both generating data and estimating density.
 
 By the end of this tutorial, you will learn how to train a RealNVP Normalizing Flow model for density estimation and image generation.
-This tutorial is based on the Deep Generative Models (CS236) course notes `[1] <https://deepgenerativemodels.github.io/notes/flow/>`__.
+This tutorial is based on the Deep Generative Models (CS236) course notes [DeepGenModels]_.
 
 
 What are Normalizing Flows?
 ---------------------------
 
-Normalizing Flows are a class of generative models that transform a simple base distribution (e.g., Gaussian) into a more complex target distribution which can model a real world data distribution through a series of invertible transformations.
+Normalizing Flows are a class of generative models that transform a simple base distribution (e.g., Gaussian) into a more complex target distribution which can model a real world data distribution through a series of invertible transformations [DeepGenModels]_.
 The key idea is to model the probability density function of the target distribution by applying a sequence of **bijective mappings** to the base distribution.
 
-A bijective mapping is a function :math:`f: \mathbb{R}^N \to \mathbb{R}^N` that is both *injective* (distinct inputs always produce distinct outputs, i.e. :math:`f(a) = f(b) \implies a = b`) and *surjective* (every point in the output space is the image of some input).
+A bijective mapping is a function :math:`f: \mathbb{R}^N \to \mathbb{R}^N` that is both *injective* (distinct inputs always produce distinct outputs, i.e. :math:`f(a) = f(b) \implies a = b`) and *surjective* (every point in the output space is the image of some input) [Wikipedia_Bijection]_.
 Equivalently, a bijective function establishes a one-to-one correspondence between input and output spaces, so it is guaranteed to have a well-defined inverse :math:`f^{-1}` satisfying :math:`f^{-1}(f(z)) = z`.
-This invertibility is essential for normalizing flows: it lets us map freely between the simple base distribution and the complex target, and crucially it allows us to compute exact probability densities via the change-of-variables formula.
+This invertibility is essential for normalizing flows: it lets us map freely between the simple base distribution and the complex target, and crucially it allows us to compute exact probability densities via the change-of-variables formula [DeepGenModels]_.
 
 .. figure:: /_static/tutorial_files/norm_flow/norm_flow_basic.png
    :alt: Illustration of a normalizing flow transforming a simple Gaussian distribution into a complex multi-modal distribution through a sequence of invertible mappings.
    :align: center
    :width: 500px
 
-   **Figure 1.** A normalizing flow transforms a simple base density :math:`p_z(z)` (left) into a complex target density :math:`p(x)` (right) through a chain of invertible transformations :math:`f_1, f_2, \ldots, f_K`. Figure from `[2] <https://lilianweng.github.io/posts/2018-10-13-flow-models/>`__.
+   **Figure 1.** A normalizing flow transforms a simple base density :math:`p_z(z)` (left) into a complex target density :math:`p(x)` (right) through a chain of invertible transformations :math:`f_1, f_2, \ldots, f_K`. Figure from [Weng2018]_.
 
 Setup and Notation
 ^^^^^^^^^^^^^^^^^^
@@ -129,11 +130,9 @@ Each Jacobian determinant in the product accounts for the local volume change in
 Training via Log-Likelihood
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-An **unbiased estimator** is a quantity whose expected value equals the true value it is estimating: if :math:`\hat{m}_\theta` is our estimate of the true model parameters :math:`m_\theta`, then :math:`\mathbb{E}[\hat{m}_\theta] = m_\theta`, where :math:`\mathbb{E}` denotes the expected value and :math:`\hat{\cdot}` (hat) marks an estimated quantity. **Maximum likelihood estimation (MLE)** finds the model parameters :math:`\theta` that maximize the probability the model assigns to the observed data.
-By pushing the model to assign high probability to data it has seen, the learned parameters generalize to accurately capture the underlying distribution.
-The MLE is an unbiased estimator of the true parameters as the dataset grows large.
-For a dataset :math:`\{x_1, \ldots, x_M\}`, this amounts to maximizing: :math:`\prod_{j=1}^{M} p_\theta(x_j)`, where :math:`p_\theta(x_j)` is the probability the model with parameters :math:`\theta` assigns to the :math:`j`-th data point, and :math:`\prod` denotes the product over all :math:`M` samples.
-Taking the logarithm turns the product into a sum, and negating it gives us a loss to minimize: 
+**Maximum likelihood estimation (MLE)** [Wikipedia_MLE]_ finds the model parameters :math:`\theta` that make the observed data as likely as possible under the model.
+For a dataset :math:`\{x_1, \ldots, x_M\}`, this means choosing :math:`\theta` to maximize the **likelihood** :math:`\prod_{j=1}^{M} p_\theta(x_j)`, where :math:`p_\theta(x_j)` is the probability the model assigns to the :math:`j`-th data point and :math:`\prod` denotes the product over all :math:`M` samples.
+Multiplying many probabilities together is numerically awkward, so we take the logarithm, which turns the product into a sum. Maximizing this **log-likelihood** is the same as minimizing its negative, which gives us a loss to minimize: 
 
 .. math::
     \mathcal{L}(\theta) = -\sum_{j=1}^{M} \log p_\theta(x_j)
@@ -147,6 +146,20 @@ Applying the logarithm to the change-of-variables formula gives the loss (negati
 
 .. math::
     \mathcal{L} = -\log p_z\!\left[f_K^{-1}(\cdots(f_1^{-1}(x)))\right] - \sum_{i=1}^{K} \log \left| \det \mathcal{J}(f_i^{-1}) \right|
+
+In Physika, the loss mirrors the two terms of the equation directly. The Jacobian :math:`\mathcal{J}(f_i^{-1})` is obtained with ``grad``, which returns the full Jacobian matrix for a vector-to-vector map (see `Jacobian of vector output functions <https://physika.readthedocs.io/en/latest/language.html#jacobian-of-vector-output-functions>`__). We walk :math:`x` back through the ``K`` inverse layers, accumulating each layer's log-determinant:
+Forming J here just shows the correspondence with :math:`\mathcal{J}`, because these Jacobians are triangular, :math:`\log|\det \mathcal{J}|` is the sum of the log-diagonals, which the RealNVP code in the next section reads straight off the scale network as sum(s) (the :math:`O(N)`` version of the same quantity).
+
+.. code-block:: python
+
+    def loss(x: ℝ[d], d: ℕ, K: ℕ): ℝ:
+        z: ℝ[d] = x
+        log_det: ℝ = 0.0
+        for i : ℕ(K):
+            J = grad(f_inv(z, i), z)          
+            log_det += log(abs(det(J)))       
+            z = f_inv(z, i)                   
+        return -log_pz(z, d) - log_det
 
 The first term, :math:`-\log p_z[\cdot]`, penalizes mappings that send data points to low-density regions of the base distribution.
 The second term, :math:`-\sum_i \log |\det \mathcal{J}(f_i^{-1})|`, penalizes transformations that excessively compress volume (which would artificially inflate density).
@@ -162,7 +175,7 @@ Normally, sampling is a non-differentiable operation because the random draw has
 The reparameterization trick sidesteps this by expressing the sample as a deterministic function of the parameters plus independent noise: :math:`z = \mu + \sigma \cdot \varepsilon` where :math:`\varepsilon \sim \mathcal{N}(0, I)` is fixed random noise.
 Since :math:`z` is now a smooth function of :math:`\mu` and :math:`\sigma`, gradients flow through :math:`z` to these parameters as with any other computation, without special handling by the user.
 
-A more detailed treatment of the change of variables formula and of flow-based models in general can be found in `[1] <https://deepgenerativemodels.github.io/notes/flow/>`__ and `[2] <https://lilianweng.github.io/posts/2018-10-13-flow-models/>`__.
+A more detailed treatment of the change of variables formula and of flow-based models in general can be found in [DeepGenModels]_ and [Weng2018]_.
 
 
 Types of Normalizing Flows
@@ -172,7 +185,7 @@ There are various methods to implement normalizing flows, some more complex than
 This is not an exhaustive list, but below are some popular methods.
 
 1. Planar Flow
-    The Planar Flow `[3] <https://arxiv.org/abs/1505.05770>`__ introduces the following invertible transformation
+    The Planar Flow [RezendeMohamed2015]_ introduces the following invertible transformation
 
         .. math::
             x = f(z) = z + u\, h(w^\top z + b)
@@ -191,7 +204,7 @@ This is not an exhaustive list, but below are some popular methods.
     The below two methods address this by ensuring that the forward and inverse is easy to compute.
 
 2. NICE (Nonlinear Independent Components Estimation) model
-    The NICE `[4] <https://arxiv.org/abs/1410.8516>`__ coupling layer partitions :math:`z` into 2 disjoint subsets :math:`z_1, z_2`.
+    The NICE [DinhNICE2014]_ coupling layer partitions :math:`z` into 2 disjoint subsets :math:`z_1, z_2`.
     :math:`m` denotes a neural network.
 
     - Forward Mapping (:math:`x \to z`):
@@ -210,7 +223,7 @@ This is not an exhaustive list, but below are some popular methods.
     after all the coupling layers so the model can rescale the overall distribution to match real data.
 
 3. RealNVP (Real Non-Volume Preserving) model
-    RealNVP `[5] <https://arxiv.org/abs/1605.08803>`__ extends the NICE coupling layer by adding learned scaling factors to the transformation.
+    RealNVP [DinhRealNVP2016]_ extends the NICE coupling layer by adding learned scaling factors to the transformation.
     The coupling layer partitions :math:`z` into 2 disjoint subsets :math:`z_1, z_2`.
     :math:`s,m` are both neural networks that have been conditioned on :math:`z_1`, acting as scale and shift factors respectively.
 
@@ -578,13 +591,33 @@ After running the code below, you should see the training loss decrease over epo
    :width: 750px
 
 
-
 References
-----------------
+-----------------
 
-1. `Deep Generative Models: Normalizing Flow Models <https://deepgenerativemodels.github.io/notes/flow/>`_
-2. `Flow-based Deep Generative Models <https://lilianweng.github.io/posts/2018-10-13-flow-models/>`_
-3. `Variational Inference with Normalizing Flows <https://arxiv.org/abs/1505.05770>`_
-4. `NICE: Non-linear Independent Components Estimation <https://arxiv.org/abs/1410.8516>`_
-5. `Density estimation using Real NVP <https://arxiv.org/abs/1605.08803>`_
-6. `normflows: A PyTorch Package for Normalizing Flows <https://github.com/VincentStimper/normalizing-flows>`_
+.. [DeepGenModels] A. Grover and S. Ermon,
+    *Deep Generative Models: Normalizing Flow Models*.
+    https://deepgenerativemodels.github.io/notes/flow/
+
+.. [Weng2018] L. Weng,
+    *Flow-based Deep Generative Models*.
+    https://lilianweng.github.io/posts/2018-10-13-flow-models/
+
+.. [RezendeMohamed2015] D. Rezende and S. Mohamed,
+    *Variational Inference with Normalizing Flows*.
+    https://arxiv.org/abs/1505.05770
+
+.. [DinhNICE2014] L. Dinh, D. Krueger, and Y. Bengio,
+    *NICE: Non-linear Independent Components Estimation*.
+    https://arxiv.org/abs/1410.8516
+
+.. [DinhRealNVP2016] L. Dinh, J. Sohl-Dickstein, and S. Bengio,
+    *Density Estimation using Real NVP*.
+    https://arxiv.org/abs/1605.08803
+
+.. [Wikipedia_Bijection] Wikipedia,
+    *Bijection*.
+    https://en.wikipedia.org/wiki/Bijection
+
+.. [Wikipedia_MLE] Wikipedia,
+    *Maximum Likelihood Estimation*.
+    https://en.wikipedia.org/wiki/Maximum_likelihood_estimation
