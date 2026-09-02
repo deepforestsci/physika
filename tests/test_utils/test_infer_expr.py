@@ -6,6 +6,7 @@ from physika.utils.types import (
     T_REAL,
     T_NAT,
     T_COMPLEX,
+    TList,
     Substitution,
 )
 from physika.utils.infer_expr import (
@@ -15,6 +16,7 @@ from physika.utils.infer_expr import (
     expr_imaginary,
     expr_var,
     expr_array,
+    expr_list,
     expr_chain_index,
     expr_slice,
     expr_add_sub,
@@ -53,6 +55,7 @@ class TestExprContext:
         assert ctx.func_env is func_env
         assert ctx.class_env is class_env
         assert ctx.add_error is cb
+        assert ctx.type_info is None
 
     def test_empty_dicts(self):
         """
@@ -110,6 +113,23 @@ class TestExprContext:
                           add_error=[].append)
         env["y"] = T_NAT
         assert ctx.env["y"] == T_NAT
+
+    def test_type_info(self):
+        """
+        ``type_info`` is stored when provided.
+        """
+        type_info = TList(())
+
+        ctx = ExprContext(
+            env={},
+            s=Substitution(),
+            func_env={},
+            class_env={},
+            add_error=[].append,
+            type_info=type_info,
+        )
+
+        assert ctx.type_info is type_info
 
 
 def make_ctx(env=None, s=None, func_env=None, class_env=None, errors=None):
@@ -449,6 +469,159 @@ class TestExprArray:
                                 errors=errors)
         expr_array(("array", [("var", "a"), ("var", "b")]), ctx_no_error)
         assert errors == []
+
+
+class TestExprList:
+    """Tests for ``expr_list``."""
+
+    def test_scalar_elements(self):
+        """Test list declaration with scalar elements."""
+        ctx = make_ctx()
+
+        elems = [
+            ("num", 1.0),
+            ("num", 2.0),
+            ("num", 3.0),
+        ]
+        t, _ = expr_list(("list", elems), ctx)
+
+        assert t == TList((T_REAL, T_REAL, T_REAL))
+
+    def test_heterogeneous_elements(self):
+        """Test heterogeneous list declaration."""
+        ctx = make_ctx(env={"x": T_REAL, "y": T_COMPLEX})
+        elems = [("var", "x"), ("var", "y")]
+        t, _ = expr_list(("list", elems), ctx)
+        assert t == TList((T_REAL, T_COMPLEX))
+
+    def test_tensor_elements(self):
+        """Test list with tensor values."""
+        x_tensor = TTensor(((3, "invariant"), ))
+        y_tensor = TTensor(((5, "invariant"), ))
+
+        ctx = make_ctx(env={
+            "x": x_tensor,
+            "y": y_tensor,
+        })
+
+        elems = [
+            ("var", "x"),
+            ("var", "y"),
+        ]
+
+        t, _ = expr_list(("list", elems), ctx)
+
+        assert t == TList((
+            x_tensor,
+            y_tensor,
+        ))
+
+    def test_nested_list(self):
+        """Test nested lists."""
+        ctx = make_ctx()
+
+        inner = (
+            "list",
+            [
+                ("num", 1.0),
+                ("num", 2.0),
+            ],
+        )
+
+        t, _ = expr_list(
+            (
+                "list",
+                [
+                    ("num", 0.0),
+                    inner,
+                ],
+            ),
+            ctx,
+        )
+
+        assert t == TList((
+            T_REAL,
+            TList((
+                T_REAL,
+                T_REAL,
+            )),
+        ))
+
+    def test_nested_tensor_list(self):
+        """Test nested tensor list."""
+        x_type = TTensor(((3, "invariant"), ))
+        y_type = TTensor(((5, "invariant"), ))
+
+        ctx = make_ctx(env={
+            "x": x_type,
+            "y": y_type,
+        })
+
+        inner = (
+            "list",
+            [
+                ("var", "x"),
+                ("var", "y"),
+            ],
+        )
+
+        t, _ = expr_list(
+            (
+                "list",
+                [
+                    ("num", 1.0),
+                    ("num", 2.0),
+                    inner,
+                ],
+            ),
+            ctx,
+        )
+
+        assert t == TList((
+            T_REAL,
+            T_REAL,
+            TList((
+                x_type,
+                y_type,
+            )),
+        ))
+
+    def test_heterogeneous_nested_list(self):
+        """Test heterogeneous nested list"""
+        x_type = TTensor(((3, "invariant"), ))
+        y_type = TTensor(((5, "invariant"), ))
+
+        ctx = make_ctx(env={
+            "x": x_type,
+            "y": y_type,
+        })
+
+        nested = (
+            "list",
+            [
+                ("var", "x"),
+                ("var", "y"),
+            ],
+        )
+
+        elems = [
+            ("num", 1.0),
+            ("num", 2.0),
+            ("complex", 3),
+            nested,
+        ]
+
+        t, _ = expr_list(("list", elems), ctx)
+
+        assert t == TList((
+            T_REAL,
+            T_REAL,
+            T_COMPLEX,
+            TList((
+                x_type,
+                y_type,
+            )),
+        ))
 
 
 class TestExprChainIndex:
@@ -1193,6 +1366,16 @@ class TestExprCall:
         ctx = make_ctx(env={"x": T_REAL}, func_env=func_env)
         t, _ = expr_call(("call", "g", [("var", "x")]), ctx)
         assert t == T_REAL
+
+        # f -> list
+        vec4 = TTensor(((4, "invariant"), ))
+        vec5 = TTensor(((5, "invariant"), ))
+        list_type = TList((vec4, vec5))
+        func_env = {"f": ([], list_type)}
+        ctx = make_ctx(func_env=func_env)
+        t, _ = expr_call(("call", "f", []), ctx)
+        assert t == list_type
+        assert t.elements == (vec4, vec5)
 
     def test_user_function_wrong_parameters_error(self):
         """Wrong number of arguments reports an error."""

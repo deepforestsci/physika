@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, List, Tuple, Union, Optional
 from physika.utils.types import (Type, TTensor, TScalar, TFunc, TInstance,
                                  TVar, TDim, T_REAL, T_NAT, T_COMPLEX,
-                                 T_STRING, Substitution)
+                                 T_STRING, TList, Substitution)
 
 # Type aliases used throughout this module.
 TypeSpec = Any  # "ℝ", "ℕ", ("tensor", [...]), ("func_type", ...), None
@@ -778,6 +778,8 @@ def from_typespec(ts: Any) -> Optional[Type]:
         return T_COMPLEX
     if ts == "string":
         return T_STRING
+    if ts == "list":
+        return TList(())
     if isinstance(ts, tuple):
         if ts[0] == "tensor":
             # Converts dimensions to TDim
@@ -966,6 +968,9 @@ def unify(t1: Type, t2: Type, s: Substitution) -> Substitution:
     if isinstance(t1, TInstance) and isinstance(t2, TInstance):
         if t1.class_name != t2.class_name:
             raise TypeError(f"Instance mismatch: {t1} vs {t2}")
+        return s
+
+    if isinstance(t1, TList) and isinstance(t2, TList):
         return s
 
     raise TypeError(f"Cannot unify {type_to_str(t1)} with {type_to_str(t2)}")

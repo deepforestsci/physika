@@ -221,7 +221,8 @@ class TestMetaVarContext:
         ok, reason = mctx.is_valid_assignment(mv.id, mv)
         # rejects self reference occurs
         assert ok is False
-        assert reason == "occurs check: ?m.14 appears in its own solution"
+
+        assert reason == f"occurs check: ?{mv.id.id} appears in its own solution"  # noqa: E501
 
         _, x_fv = LocalContext().push_local("x", NAT)
         # mvar created before x existed in the context
@@ -230,7 +231,7 @@ class TestMetaVarContext:
         ok, reason = mctx.is_valid_assignment(mv.id, x_fv)
 
         assert ok is False
-        assert reason == "solution mentions FVars outside ?m.15's creation scope"  # noqa: E501
+        assert reason == f"solution mentions FVars outside ?{mv.id.id}'s creation scope"  # noqa: E501
 
         # accepts_fvar_inside_creation_scope
         lctx_with_x, x_fv = LocalContext().push_local("x", NAT)

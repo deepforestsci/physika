@@ -4,8 +4,8 @@ import dataclasses
 
 from physika.utils.types import (TScalar, TTensor, TVar, TDim, TFunc,
                                  TInstance, T_REAL, T_NAT, T_COMPLEX, T_STRING,
-                                 VarCounter, Substitution, check_function,
-                                 check_statement, check_class)
+                                 TList, VarCounter, Substitution,
+                                 check_function, check_statement, check_class)
 
 
 def make_fdef(params=None, stmts=None, body=None, return_type=None):
@@ -163,6 +163,38 @@ class TestHMTypes:
 
         t = TTensor(((2, "invariant"), (3, "invariant"), (4, "invariant")))
         assert repr(t) == "ℝ[2,3,4]"
+
+    def test_TList(self):
+        """
+        TLists are identified by the types of their elements. The current
+        representation displays simply as "list".
+        """
+        assert repr(TList(())) == "list"
+
+        t1 = TList((T_REAL, T_COMPLEX))
+        t2 = TList((T_REAL, T_COMPLEX))
+        t3 = TList((T_REAL, ))
+        assert repr(t1) == "list"
+        assert repr(t3) == "list"
+
+        assert t1 == t2
+        assert t1 != t3
+
+        nested = TList((
+            T_REAL,
+            TList((
+                T_REAL,
+                T_COMPLEX,
+            )),
+        ))
+
+        assert nested.elements == (
+            T_REAL,
+            TList((
+                T_REAL,
+                T_COMPLEX,
+            )),
+        )
 
     def test_TFunc(self):
         """
@@ -484,6 +516,50 @@ class TestCheckFunction:
         )
         check_function("f", fdef, {}, {}, errors.append)
         assert errors == []
+
+        # list case, which should preserve the element types.
+        errors = []
+        vec2 = TTensor(((2, "invariant"), ))
+        vec3 = TTensor(((3, "invariant"), ))
+
+        fdef = make_fdef(
+            params=[],
+            stmts=[
+                (
+                    "body_decl",
+                    "A",
+                    ("tensor", [(2, "invariant")]),
+                    ("array", [
+                        ("num", 1.0),
+                        ("num", 2.0),
+                    ]),
+                ),
+                (
+                    "body_decl",
+                    "b",
+                    ("tensor", [(3, "invariant")]),
+                    ("array", [
+                        ("num", 1.0),
+                        ("num", 2.0),
+                        ("num", 3.0),
+                    ]),
+                ),
+            ],
+            body=(
+                "list",
+                [
+                    ("var", "A"),
+                    ("var", "b"),
+                ],
+            ),
+            return_type="list",
+        )
+
+        func_env = {}
+
+        check_function("f", fdef, func_env, {}, errors.append)
+        assert errors == []
+        assert func_env["f"][1] == TList((vec2, vec3))
 
         # A function without a declared return type does not report an error,
         # instead type is inferred so the type checker can proceed to check the

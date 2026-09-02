@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Tuple
-from physika.utils.types import Substitution, Type, T_NAT, new_var, new_dim  # noqa: E501
+from physika.utils.types import Substitution, Type, T_NAT, TList, new_var, new_dim  # noqa: E501
 from physika.elf import REGISTRY
 
 
@@ -67,7 +67,9 @@ class StmtContext:
         self.func_name: str = func_name
         self.return_type: Optional[Type] = return_type
 
-    def infer_type(self, expr: Any) -> Optional[Type]:
+    def infer_type(self,
+                   expr: Any,
+                   type_info: Optional[Type] = None) -> Optional[Type]:
         """Infer the type of a Physika expression.
 
         Calls ``infer_expr`` using the current context environments and
@@ -80,6 +82,12 @@ class StmtContext:
             ``("add", left, right)``, ``("call", name, args)``,
             ``("index", arr, idx)``, ``("for_expr", var, size, body)``,
             or a numeric literal (``int`` / ``float``).
+
+        type_info : Optional[Type], optional
+            Optional contextual type information used to guide expression
+            inference. For example, passing ``TList(())`` for an array
+            literal causes it to be inferred as a ``TList`` rather than
+            a tensor.
 
         Returns
         -------
@@ -103,11 +111,18 @@ class StmtContext:
         ℝ[3]
         >>> errors
         []
+        >>> ctx.infer_type(
+        ...     ("array", [("num", 1.0), ("num", 2.0)]),
+        ...     type_info=TList(()),
+        ... )
+        list
+        >>> errors
+        []
         """
         from physika.utils.infer_expr import infer_expr
 
         t, self.s = infer_expr(expr, self.env, self.s, self.func_env,
-                               self.class_env, self.add_error)
+                               self.class_env, self.add_error, type_info)
         return t
 
 
@@ -164,10 +179,12 @@ def stmt_body_decl(stmt: Tuple, ctx: StmtContext) -> None:
     ["In 'f': 'v' declared ℝ[3], inferred ℝ: Cannot unify tensor ℝ[3] with scalar ℝ"]
     """
     from physika.utils.type_checker_utils import from_typespec, unify, type_to_str  # noqa: E501
-
     # example stmt node: ('body_decl', var, var_type, expr)
     _, var_name, var_type_spec, expr = stmt
-    inferred = ctx.infer_type(expr)
+    if var_type_spec == "list":
+        inferred = ctx.infer_type(expr, type_info=TList(()))
+    else:
+        inferred = ctx.infer_type(expr)
     declared = from_typespec(var_type_spec)
     mismatch = False
     if declared is not None and inferred is not None:
@@ -178,7 +195,6 @@ def stmt_body_decl(stmt: Tuple, ctx: StmtContext) -> None:
             ctx.add_error(
                 f"In '{ctx.func_name}': '{var_name}' declared {type_to_str(declared)}, "  # noqa: E501
                 f"inferred {type_to_str(ctx.s.apply(inferred))}: {e}")
-
     # Update env dictionary
     if mismatch:
         if inferred is not None:
@@ -186,8 +202,11 @@ def stmt_body_decl(stmt: Tuple, ctx: StmtContext) -> None:
         else:
             ctx.env[var_name] = new_var()
     else:
+        # Preserve inferred element types for list declarations.
+        if (isinstance(declared, TList) and isinstance(inferred, TList)):
+            ctx.env[var_name] = inferred
         # No mismatch and declared exists
-        if declared is not None:
+        elif declared is not None:
             ctx.env[var_name] = declared
         else:
             # Add inferred value at env, or create a new variable
@@ -656,7 +675,10 @@ def stmt_decl(stmt: Any, ctx: StmtContext) -> None:
     """
     from physika.utils.type_checker_utils import from_typespec, unify, type_to_str  # noqa: E501
     _, name, ts, expr, *_ = stmt
-    inferred = ctx.infer_type(expr)
+    if ts == "list":
+        inferred = ctx.infer_type(expr, type_info=TList(()))
+    else:
+        inferred = ctx.infer_type(expr)
     declared = from_typespec(ts)
     mismatch = False
     if declared is not None and inferred is not None:
@@ -673,7 +695,9 @@ def stmt_decl(stmt: Any, ctx: StmtContext) -> None:
         else:
             ctx.env[name] = new_var()
     else:
-        if declared is not None:
+        if isinstance(declared, TList) and inferred is not None:
+            ctx.env[name] = ctx.s.apply(inferred)
+        elif declared is not None:
             ctx.env[name] = ctx.s.apply(declared)
         elif inferred is not None:
             ctx.env[name] = ctx.s.apply(inferred)

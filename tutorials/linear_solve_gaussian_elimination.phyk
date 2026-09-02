@@ -1,0 +1,92 @@
+# ---------------------
+# Helper functions
+# ---------------------
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+
+def get_2d_array_num_cols(x: ℝ[m, n]): ℝ:
+    return get_1d_array_length(x[0])
+
+def arange(n: ℕ): ℝ[n]:
+    arr: ℝ[n] = for i: ℕ(n) → i
+    return arr
+
+
+
+def gaussian_solve(A: ℝ[m, n], b: ℝ[n]): ℝ[m]:
+    a_row: ℝ = get_2d_array_num_rows(A)
+    a_col: ℝ = get_2d_array_num_cols(A)
+    # -------------------------
+    # Create augmented matrix
+    # -------------------------
+    new_col: ℝ = a_col + 1
+    aug: ℝ[a_row, new_col] = zeros(a_row, new_col)
+    for i:ℕ(a_row):
+        aug[i, :a_col] = A[i, :]
+        aug[i, a_col] = b[i]
+    # -------------------------
+    # Forward elimination
+    # -------------------------
+    row_buffer: ℝ[new_col] = zeros(new_col)
+    for i:ℕ(a_row):
+        # -------------------------
+        # Partial pivoting
+        # -------------------------
+        max_row = i
+        for k:ℕ(i + 1, a_row):
+            if abs(aug[k, i]) > abs(aug[max_row, i]):
+                max_row = k
+        # -------------------------
+        # Swap rows using buffer
+        # -------------------------
+        if max_row != i:
+            for k:ℕ(new_col):
+                row_buffer[k] = aug[i, k]
+            for k:ℕ(new_col):
+                aug[i, k] = aug[max_row, k]
+            for k:ℕ(new_col):
+                aug[max_row, k] = row_buffer[k]
+        # -------------------------
+        # Elimination
+        # -------------------------
+        for j:ℕ(i + 1, a_row):
+            factor = aug[j, i] / aug[i, i]
+            for k:ℕ(i, new_col):
+                aug[j, k] = aug[j, k] - factor * aug[i, k]
+    # -------------------------
+    # Back substitution
+    # -------------------------
+    x: ℝ[a_col] = zeros(a_col)
+    for i:ℕ(a_col):
+        idx = a_col - 1 - i
+        total = aug[idx, a_col]
+        for j:ℕ(idx + 1, a_row):
+            total = total - aug[idx, j] * x[j]
+        x[idx] = total / aug[idx, idx]
+    return x
+
+
+
+A: ℝ[3,3] = [
+    [1, 2, 1],
+    [3, 1, -1],
+    [2, -1, 1]
+]
+b: ℝ[3] = [8, 2, 3]
+
+gaussian_solve(A, b)

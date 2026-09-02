@@ -57,7 +57,7 @@ class TestTupleUnpack:
         parser_rules should return nine handlers.
         """
         rules = TupleUnpackFeature().parser_rules()
-        assert len(rules) == 9
+        assert len(rules) == 10
         names = [r.__name__ for r in rules]
         assert "p_return_type_single" in names
         assert "p_return_type_tuple" in names
@@ -68,6 +68,7 @@ class TestTupleUnpack:
         assert "p_func_loop_stmt_tuple_unpack" in names
         assert "p_statement_tuple_unpack" in names
         assert "p_for_statement_tuple_unpack" in names
+        assert "p_class_item_field_tuple_unpack" in names
 
         # each rule doc must mention both alternatives
         combined = " ".join(r.__doc__ for r in rules)
@@ -280,6 +281,17 @@ class TestTypeRules:
                "            a: ℝ, b: ℝ, c: ℝ = arr\n"
                "            total = total + a + b + c\n"
                "        return total\n")
+        assert type_errors(src) == []
+
+    def test_class_field_tuple_unpack_no_errors(p):
+        """
+        Test Tuple unpack works in Physika classes
+        without any type checker errors.
+        """
+        src = ("class A:\n"
+               "    x: ℝ, y: ℝ\n"
+               "    p, q: ℕ\n"
+               "    z: ℝ\n")
         assert type_errors(src) == []
 
     def test_body_tuple_unpack_wrong_type_errors(self):
@@ -505,6 +517,20 @@ class TestParserRules:
         rhs = unpack[2]
         assert rhs[0] == "expr_list"
         assert len(rhs[1]) == 3
+
+    def test_class_field_tuple_unpack(self):
+        """
+        Test ``field_decl`` parser rule for tuple unpack
+        of class fields.
+        """
+        src = ("class A:\n"
+               "    x, y, z: ℝ\n")
+        ast = parse_physika(src)
+        assert ast["classes"]["A"]["class_params"] == [
+            ("x", "ℝ"),
+            ("y", "ℝ"),
+            ("z", "ℝ"),
+        ]
 
 
 class TestTypeRulesLiteralComma:
@@ -889,3 +915,24 @@ result : ℝ = m.run(3)
         assert ns["a"] == pytest.approx(10.0)
         assert ns["b"] == pytest.approx(20.0)
         assert ns["c"] == pytest.approx(30.0)
+
+    def test_class_with_tuple_class_fields(self):
+        """
+        Tuple unpack inside Physika classes in
+        field declarations.
+        """
+        src = ("class A:\n"
+               "    x, y, z: ℝ\n"
+               "    arr1, arr2: ℝ[3]\n"
+               "    def return_scalar() -> ℝ:\n"
+               "        return this.x\n"
+               "    def return_array() -> ℝ[3]:\n"
+               "        return this.arr1\n"
+               "x, y, z: ℝ = 1.0, 2.0, 3.0\n"
+               "arr1, arr2: ℝ[3] = [1, 2, 3], [4, 5, 6]\n"
+               "obj: A = A(x, y, z, arr1, arr2)\n"
+               "result_scalar: ℝ = obj.return_scalar()\n"
+               "result_array: ℝ[3] = obj.return_array()\n")
+        ns = run_phyk(src)
+        assert ns["result_scalar"] == pytest.approx(1.0)
+        assert ns["result_array"] == pytest.approx([1, 2, 3])

@@ -218,6 +218,58 @@ class TTensor:
 
 
 @dataclass(frozen=True)
+class TList:
+    """
+    A list type whose elements retain their individually inferred types.
+
+    Unlike ``TTensor``, a ``TList`` does not require all elements to have the
+    same type. Lists may therefore contain heterogeneous and nested values.
+
+    Each entry in ``elements`` is the inferred ``Type`` of the corresponding
+    list element. Nested lists are represented recursively using ``TList``.
+
+    Parameters
+    ----------
+    elements : tuple
+        Tuple containing the inferred type of each list element. The tuple may
+        contain scalar types, tensor types, function or instance types, and
+        nested ``TList`` values.
+
+    Examples
+    --------
+    >>> from physika.utils.types import TList, TTensor, T_REAL, T_COMPLEX
+    >>> # Homogeneous list:
+    >>> t = TList((T_REAL, T_REAL, T_REAL))
+    >>> repr(t)
+    'list'
+    >>> t.elements
+    (ℝ, ℝ, ℝ)
+    >>> # Heterogeneous list:
+    >>> t = TList((T_REAL, T_COMPLEX))
+    >>> repr(t)
+    'list'
+    >>> t.elements
+    (ℝ, ℂ)
+    >>> # List containing tensors of different shapes:
+    >>> t = TList((
+    ...     TTensor(((3, "invariant"),)),
+    ...     TTensor(((5, "invariant"),)),
+    ... ))
+    >>> t.elements
+    (ℝ[3], ℝ[5])
+    >>> # Nested list:
+    >>> inner = TList((T_REAL, T_COMPLEX))
+    >>> t = TList((T_REAL, inner))
+    >>> t.elements
+    (ℝ, list)
+    """
+    elements: tuple
+
+    def __repr__(self) -> str:
+        return "list"
+
+
+@dataclass(frozen=True)
 class TFunc:
     """
     A function type ``(p0, p1, ...): return_type``.
@@ -304,7 +356,7 @@ class TInstance:
         return f"instance({self.class_name})"
 
 
-Type = Union[TVar, TDim, TScalar, TTensor, TFunc, TInstance]
+Type = Union[TVar, TDim, TScalar, TTensor, TFunc, TInstance, TList]
 
 # Ground scalar types
 T_REAL = TScalar("ℝ")
@@ -469,6 +521,11 @@ class Substitution(dict):
                          self.apply(t.ret))
         if isinstance(t, TInstance):
             return t
+        if isinstance(t, TList):
+            return TList(
+                tuple(
+                    self.apply(element) if element is not None else None
+                    for element in t.elements))
         return t
 
     def apply_dim(self, d: Any) -> Any:
@@ -662,10 +719,22 @@ def check_function(
             if return_type is not None and body_t is not None:
                 try:
                     s = unify(return_type, body_t, s)
+                    # if its a list, add actual contents from body types into
+                    #  return type.
+                    if (isinstance(return_type, TList)
+                            and not return_type.elements
+                            and isinstance(body_t, TList)):
+                        return_type = body_t
                 except TypeError as e:
                     _add(f"return type mismatch: "
                          f"declared {type_to_str(return_type)}, "
                          f"got {type_to_str(body_t)}: {e}")
+
+    # update func_env with return type
+    func_env[name] = (
+        [from_typespec(pt) or new_var() for _, pt in params],
+        return_type,
+    )
 
 
 def check_class(

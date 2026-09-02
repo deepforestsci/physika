@@ -12,8 +12,10 @@ from physika.core.expr import (
     MVar,
     MVarId,
     Proj,
+    Sort,
     BinderInfo,
 )
+from physika.core.level import LParam, LSucc, LZero
 from physika.utils.cic_utils.expr_utils import (
     abstract,
     abstract_fvars,
@@ -21,7 +23,13 @@ from physika.utils.cic_utils.expr_utils import (
     get_app_fn,
     get_app_fn_args,
     has_mvar,
+    instantiate,
+    instantiate1,
+    instantiate_level_params_in_expr,
+    lift,
     loose_bvar_range,
+    mk_arrow,
+    substitute,
 )
 
 
@@ -114,6 +122,36 @@ class TestGetAppFnArgs:
         assert args == get_app_args(call)
         assert head == add
         assert args == [Lit(2), Lit(3)]
+
+
+class TestMkArrow:
+    """
+    Tests for ``mk_arrow``
+    """
+
+    def test_builds_non_dependent_forall(self):
+        """
+        ``mk_arrow(A, B)`` is a ``ForallE`` with a ``"_"`` binder
+        and its body shoudb be unchanged (no dependent types in the argument).
+        """
+        nat = Const("Nat", ())
+        arrow = mk_arrow(nat, nat)  # Nat -> Nat
+
+        assert isinstance(arrow, ForallE)
+        assert arrow.binder_name == "_"
+        assert arrow.binder_type == nat
+        assert arrow.body == nat
+        assert arrow.binder_info == BinderInfo.DEFAULT
+
+    def test_nests_to_the_right(self):
+        """
+        ``mk_arrow(A, mk_arrow(B, C))`` produce ``A -> (B -> C)``.
+        """
+        a, b, c = Const("A", ()), Const("B", ()), Const("C", ())
+        arrow = mk_arrow(a, mk_arrow(b, c))
+
+        assert arrow.binder_type == a
+        assert arrow.body == mk_arrow(b, c)
 
 
 class TestAbstract:
@@ -435,3 +473,195 @@ class TestHasMvar:
 
         assert has_mvar(MData((), m)) is True
         assert has_mvar(Proj("Ray", 0, m)) is True
+
+
+class TestLift:
+    """
+    Tests for ``lift``
+    """
+
+    def test_lift_bvar(self):
+        """
+        Checks a BVar is being shifting (up and down) properly.
+        """
+        # ``BVar`` at or above ``depth`` is shifted up by n.
+        n = 2
+        assert lift(BVar(0), 0, n) == BVar(n)
+
+        # below depth unchanged
+        assert lift(BVar(0), n - 1, n) == BVar(0)
+
+        # app recurses both_sides
+        term = App(BVar(0), BVar(1))
+        assert lift(term, 0, 1) == App(BVar(1), BVar(2))
+
+        # lam increments depth only in body
+        lam = Lam("x", BVar(0), BVar(0), BinderInfo.DEFAULT)
+
+        result = lift(lam, 0, 1)
+
+        assert result.binder_type == BVar(1)
+        assert result.body == BVar(0)
+
+        # forallE increments depth only in body
+        forall = ForallE("x", BVar(0), BVar(0), BinderInfo.DEFAULT)
+
+        result = lift(forall, 0, 1)
+
+        assert result.binder_type == BVar(1)
+        assert result.body == BVar(0)
+
+        # letE increments depth in body
+        let = LetE("n", BVar(0), BVar(0), BVar(0), False)
+
+        result = lift(let, 0, 1)
+
+        assert result.type == BVar(1)
+        assert result.value == BVar(1)
+        assert result.body == BVar(0)
+
+        # lift mdata and proj
+        assert lift(MData((("line", 1), ), BVar(0)), 0, 1) == MData(
+            (("line", 1), ), BVar(1))
+        assert lift(Proj("Ray", 0, BVar(0)), 0, 1) == Proj("Ray", 0, BVar(1))
+
+
+class TestSubstitute:
+    """
+    Tests for ``substitute``
+    """
+
+    def test_substitute(self):
+        """
+        Verifies that substitution is being applied correctly dependending
+        on bound variables.
+
+        """
+        # bvar bound inside untouched
+        assert substitute(BVar(0), [Lit(5)], 1) == BVar(0)
+
+        # Checks a ``BVar`` is replaced by the matching entry in ``subst``
+        assert substitute(BVar(0), [Lit(5)], 0) == Lit(5)
+
+        # bvar beyond range should shifts down
+        assert substitute(BVar(2), [Lit(1), Lit(2)], 0) == BVar(0)
+
+        # crossing Lam's own binder brings depth to 1 by the time
+        # the substitution reaches BVar(1) inside its body.
+        lam = Lam("x", Const("T", ()), BVar(1), BinderInfo.DEFAULT)
+        result = substitute(lam, [BVar(5)], 0)
+        assert result.body == BVar(6)
+
+        # app recurses both side
+        term = App(BVar(0), BVar(1))
+
+        assert substitute(term, [Lit(1), Lit(2)], 0) == App(Lit(1), Lit(2))
+
+        # forallE increments depth only in body
+        forall = ForallE("x", BVar(0), BVar(0), BinderInfo.DEFAULT)
+        result = substitute(forall, [Lit(3)], 0)
+
+        assert result.binder_type == Lit(3)
+        assert result.body == BVar(0)  # bound by the ForallE's own binder
+
+        # letE increments depth only in body
+        let = LetE("n", BVar(0), BVar(0), BVar(0), False)
+
+        result = substitute(let, [Lit(3)], 0)
+
+        assert result.type == Lit(3)
+        assert result.value == Lit(3)
+        assert result.body == BVar(0)  # bound by the LetE's own binder
+
+        # MData and Proj substitution
+        assert substitute(MData((("line", 1), ), BVar(0)), [Lit(9)],
+                          0) == MData((("line", 1), ), Lit(9))
+        assert substitute(Proj("Ray", 0, BVar(0)), [Lit(9)],
+                          0) == Proj("Ray", 0, Lit(9))
+
+
+class TestInstantiate:
+    """
+    Tests for ``instantiate``
+    """
+
+    def test_instantiate_(self):
+        """
+        Tests ``instatiate`` replaces BVars with correct values.
+        """
+        # e innermost binder.
+        assert instantiate(BVar(0), [Lit(1), Lit(2)]) == Lit(1)
+
+        # ``BVar`` beyond ``len(subst)`` range shifts index by one
+        assert instantiate(BVar(2), [Lit(1), Lit(2)]) == BVar(0)
+
+        # implicit depth should begin at 0
+        term = App(BVar(0), BVar(1))
+        subst = [Lit(1), Lit(2)]
+
+        assert instantiate(term, subst) == substitute(term, subst, 0)
+
+
+class TestInstantiate1:
+    """
+    Tests for ``instantiate1``
+    """
+
+    def test_instantiate1_replaces_bvar0(self):
+        """
+        Checks ``BVar(0)`` is replaced by ``s``.
+        """
+        assert instantiate1(BVar(0), Lit(7)) == Lit(7)
+
+        # checks beta reduction
+        body = App(Const("f", ()), BVar(0))
+        assert instantiate1(body, Lit(9)) == App(Const("f", ()), Lit(9))
+
+        # shifts bvars beyond 0
+        assert instantiate1(BVar(1), Lit(9)) == BVar(0)
+
+
+class TestInstantiateLevelParamsInExpr:
+    """
+    Tests for ``instantiate_level_params_in_expr``
+    """
+
+    def test_instantiate_level_params_in_expr(self):
+        """
+        Tests LParam instantiation in different expression contexts.
+        """
+        # replaces LParam inside Sort
+        result = instantiate_level_params_in_expr(Sort(LParam("u")), ["u"],
+                                                  [LSucc(LZero())])
+
+        assert result == Sort(LSucc(LZero()))
+
+        # LParams in Const
+        const = Const("Vec", (LParam("u"), LParam("v")))
+
+        result = instantiate_level_params_in_expr(
+            const, ["u", "v"], [LZero(), LSucc(LZero())])
+
+        assert result == Const("Vec", (LZero(), LSucc(LZero())))
+
+        # LParam instantiation in App, Lam, and Forall should recurse to their
+        # children
+        sort = Sort(LParam("u"))
+        app = App(Const("f", (LParam("u"), )), sort)
+        lam = Lam("x", sort, sort, BinderInfo.DEFAULT)
+        forall = ForallE("x", sort, sort, BinderInfo.DEFAULT)
+
+        params, levels = ["u"], [LZero()]
+        expected_sort = Sort(LZero())
+
+        result_app = instantiate_level_params_in_expr(app, params, levels)
+        assert result_app == App(Const("f", (LZero(), )), expected_sort)
+
+        result_lam = instantiate_level_params_in_expr(lam, params, levels)
+        assert result_lam.binder_type == expected_sort
+        assert result_lam.body == expected_sort
+
+        result_forall = instantiate_level_params_in_expr(
+            forall, params, levels)
+        assert result_forall.binder_type == expected_sort
+        assert result_forall.body == expected_sort

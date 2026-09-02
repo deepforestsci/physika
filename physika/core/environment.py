@@ -169,7 +169,9 @@ class Environment:
 
         Every constructor and recursor in ``i`` are registered as
         ``ConstantInfo``. Strict positivity checks ``i.decl``
-        constructors are well defined.
+        constructors are well defined. If ``i.rec_info`` is given, its
+        ``RecursorRule``\\ s is re-verified
+        with the trusted kernel.
 
         Parameters
         ----------
@@ -201,17 +203,35 @@ class Environment:
         >>> "Nat.zero" in env.constants, "Nat.rec" in env.constants
         (True, True)
         """
-        from physika.utils.cic_utils.inductive_utils import check_positivity_for_inductive  # noqa: E501
+        from physika.utils.cic_utils.inductive_utils import (
+            check_positivity_for_inductive,
+            verify_recursor_rules,
+        )
         type_name = i.decl.name
         if type_name in self.inductives:
             raise ValueError(
                 f"Environment: inductive '{type_name}' already registered")
 
-        is_inductive_former = (
-            lambda name, _t=type_name: name == _t or name in self.inductives)
+        is_inductive_former = lambda name, _t=type_name: name == _t  # noqa: E731,E501
         err = check_positivity_for_inductive(i.decl, is_inductive_former)
         if err is not None:
             raise ValueError(f"Environment: inductive '{type_name}': {err}")
+
+        if i.rec_info is not None:
+
+            scratch = Environment()
+            scratch.constants = dict(self.constants)
+            scratch.inductives = dict(self.inductives)
+            for ctor_ci in i.ctors.values():
+                scratch.add_constant(ctor_ci)
+            scratch.add_constant(i.recursor)
+            scratch.inductives[type_name] = i
+            rec_err = verify_recursor_rules(i.decl, i.ctors, i.recursor,
+                                            i.rec_info, scratch)
+            if rec_err is not None:
+                raise ValueError(
+                    f"Environment: inductive '{type_name}': {rec_err}")
+
         self.inductives[type_name] = i
         for ctor_ci in i.ctors.values():
             self.add_constant(ctor_ci)

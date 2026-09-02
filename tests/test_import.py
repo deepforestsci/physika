@@ -4,7 +4,7 @@ from physika.parser import symbol_table
 from physika.lexer import lexer
 
 import pytest
-from tests.conftest import exec_phyk
+from tests.conftest import exec_phyk, run_phyk, type_errors
 
 r_tol = 1e-02
 
@@ -36,6 +36,50 @@ class TestExampleImportFile:
         assert len(torch_results) == 6
 
         assert abs(numeric_ns["f_results"].item() - 0.5403) < r_tol
+
+    def test_import_class(self, numeric_ns):
+        """Test import class from another file"""
+        class_value = numeric_ns["class_value"]
+        assert class_value == 1
+
+    def test_import_array(self, numeric_ns):
+        """Test import array and perform operations"""
+        v = numeric_ns["v"]
+        grad_f_x = numeric_ns["grad_f_x"]
+        assert v.tolist() == [1.0, 2.0, 6.0]
+        assert grad_f_x == 12
+
+    def test_import_from_different_directory(self, numeric_ns):
+        """Test import from another directory"""
+        assert "superbee" in numeric_ns
+
+        phi = numeric_ns["φ"]
+        assert len(phi) == 5
+        assert phi.tolist() == [0.0, 0.0, 1.0, 1.0, 2.0]
+
+    def test_imported_statement_runtime_error(self):
+        """Test runtime error in import statement"""
+        src = ("from examples.example_tensors import v\n"
+               "v[3]")
+        with pytest.raises(
+                IndexError,
+                match="index 3 is out of bounds for dimension 0 with size 3",
+        ):
+            run_phyk(src, "examples/example_tensors.phyk")
+
+    def test_imported_statement_type_error(self):
+        """Test type error in import statement"""
+        src = ("from examples.physika_class import ExampleClass\n"
+               "obj = ExampleClass()\n"
+               "obj.another_method()")
+
+        errors = type_errors(
+            src,
+            "examples/physika_class.phyk",
+        )
+        assert len(errors) == 1
+        assert "Class 'ExampleClass' has no method 'another_method'" in errors[
+            0]
 
 
 class TestImportManager:

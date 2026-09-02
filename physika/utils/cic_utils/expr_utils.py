@@ -1,6 +1,22 @@
-from physika.core.expr import (Expr, BVar, MVar, App, FVar, Lam, ForallE, LetE,
-                               MData, Proj, MVarId)
+from physika.core.expr import (
+    Expr,
+    BVar,
+    FVar,
+    MVar,
+    Sort,
+    Const,
+    App,
+    Lam,
+    ForallE,
+    LetE,
+    MData,
+    Proj,
+    MVarId,
+)
 from typing import Tuple, Optional, List
+from physika.core.level import Level
+from physika.utils.cic_utils.level_utils import instantiate_level_params
+from physika.core.expr import BinderInfo
 
 
 def get_app_fn(e: Expr) -> Expr:
@@ -290,3 +306,290 @@ def has_mvar(e: Expr, mvar_id: Optional[MVarId] = None) -> bool:
     elif isinstance(e, Proj):
         return has_mvar(e.expr, mvar_id)
     return False
+
+
+def lift(e: Expr, depth: int, n: int) -> Expr:
+    """
+    Increments ``BVar(k)`` to ``BVar(k+n)`` for every ``k >= depth`` in
+    ``e``, recursing through binders with ``depth`` incremented by one
+    each time is accesed.
+
+    Used in ``substitute`` to push a substituted term (written in a
+    outer scope) under the binders it's being placed inside,
+    so its own loose ``BVar``s keep pointing at the same outer bindings.
+
+    Parameters
+    ----------
+    e : Expr
+        Expression to lift.
+    depth : int
+        ``BVar`` indices at or above this value are lifted.
+    n : int
+        Amount to shift ``BVar`` indices.
+
+    Examples
+    --------
+    >>> from physika.utils.cic_utils.expr_utils import lift  # noqa: E501
+    >>> from physika.core.expr import BVar, Lam, Sort, BinderInfo
+    >>> from physika.core.level import LZero
+    >>> lift(BVar(0), 0, 2)
+    BVar(idx=2)
+    >>> lift(BVar(0), 1, 2)
+    BVar(idx=0)
+    >>> lam = Lam("x", Sort(LZero()), BVar(1), BinderInfo.DEFAULT)
+    >>> lift(lam, 0, 1)
+    Lam(binder_name='x', binder_type=Sort(level=LZero()), body=BVar(idx=2), binder_info=<BinderInfo.DEFAULT: 1>)
+    """
+    if n == 0:
+        return e
+    if isinstance(e, BVar):
+        return BVar(e.idx + n) if e.idx >= depth else e
+    elif isinstance(e, App):
+        nf = lift(e.func, depth, n)
+        na = lift(e.arg, depth, n)
+        return App(nf, na) if (nf is not e.func or na is not e.arg) else e
+    elif isinstance(e, Lam):
+        nt = lift(e.binder_type, depth, n)
+        nb = lift(e.body, depth + 1, n)
+        return Lam(e.binder_name, nt, nb, e.binder_info) if (
+            nt is not e.binder_type or nb is not e.body) else e
+    elif isinstance(e, ForallE):
+        nt = lift(e.binder_type, depth, n)
+        nb = lift(e.body, depth + 1, n)
+        return ForallE(e.binder_name, nt, nb, e.binder_info) if (
+            nt is not e.binder_type or nb is not e.body) else e
+    elif isinstance(e, LetE):
+        nt = lift(e.type, depth, n)
+        nv = lift(e.value, depth, n)
+        nb = lift(e.body, depth + 1, n)
+        return LetE(e.binder_name, nt, nv, nb, e.non_dep) if (
+            nt is not e.type or nv is not e.value or nb is not e.body) else e
+    elif isinstance(e, MData):
+        ne = lift(e.expr, depth, n)
+        return MData(e.kvs, ne) if ne is not e.expr else e
+    elif isinstance(e, Proj):
+        ne = lift(e.expr, depth, n)
+        return Proj(e.type_name, e.idx, ne) if ne is not e.expr else e
+    else:  # FVar, MVar, Sort, Const, Lit
+        return e
+
+
+def substitute(e: Expr, subst: List[Expr], depth: int) -> Expr:
+    """
+    Core substitution: replaces ``BVar(depth+i)`` with
+    ``lift(subst[i], 0, depth)`` throughout ``e``.
+
+    ``depth`` tracks how many binders have been entered during the
+    recursion. ``depth`` increases by 1 each time a binder is crossed,
+    so that ``BVar`` indices that were "loose" at the original call site stay
+    correctly identified relative to the binders now surrounding them.
+    Any ``BVar`` beyond the substitution range has its index shifted
+    down by ``len(subst)`` to account for the binders being removed.
+
+    Parameters
+    ----------
+    e : Expr
+        Expression to substitute into.
+    subst : List[Expr]
+        Replacement terms. ``subst[i]`` replaces ``BVar(depth+i)``.
+    depth : int
+        Number of binders already crossed in the recursion so far
+
+    Examples
+    --------
+    >>> from physika.utils.cic_utils.expr_utils import substitute
+    >>> from physika.core.expr import BVar, Lit
+    >>> substitute(BVar(0), [Lit(5)], 0)
+    Lit(val=5)
+    >>> substitute(BVar(1), [Lit(5)], 0)
+    BVar(idx=0)
+    """
+    if isinstance(e, BVar):
+        k = e.idx
+        if k < depth:
+            return e  # bound by an inner binder
+        elif k - depth < len(subst):
+            # Replace with the substituted term, lifted into the current depth.
+            return lift(subst[k - depth], 0, depth)
+        else:
+            # BVar refers beyond the substitution range.
+            # After removing len(subst) binders, indices shift down.
+            return BVar(k - len(subst))
+    elif isinstance(e, App):
+        nf = substitute(e.func, subst, depth)
+        na = substitute(e.arg, subst, depth)
+        return App(nf, na) if (nf is not e.func or na is not e.arg) else e
+    elif isinstance(e, Lam):
+        nt = substitute(e.binder_type, subst, depth)
+        nb = substitute(e.body, subst, depth + 1)
+        return Lam(e.binder_name, nt, nb, e.binder_info) if (
+            nt is not e.binder_type or nb is not e.body) else e
+    elif isinstance(e, ForallE):
+        nt = substitute(e.binder_type, subst, depth)
+        nb = substitute(e.body, subst, depth + 1)
+        return ForallE(e.binder_name, nt, nb, e.binder_info) if (
+            nt is not e.binder_type or nb is not e.body) else e
+    elif isinstance(e, LetE):
+        nt = substitute(e.type, subst, depth)
+        nv = substitute(e.value, subst, depth)
+        nb = substitute(e.body, subst, depth + 1)
+        return LetE(e.binder_name, nt, nv, nb, e.non_dep) if (
+            nt is not e.type or nv is not e.value or nb is not e.body) else e
+    elif isinstance(e, MData):
+        ne = substitute(e.expr, subst, depth)
+        return MData(e.kvs, ne) if ne is not e.expr else e
+    elif isinstance(e, Proj):
+        ne = substitute(e.expr, subst, depth)
+        return Proj(e.type_name, e.idx, ne) if ne is not e.expr else e
+    else:  # FVar, MVar, Sort, Const, Lit
+        return e
+
+
+def instantiate(body: Expr, subst: List[Expr]) -> Expr:
+    """
+    Replaces ``BVar(i)`` with ``subst[i]`` throughout ``body``.
+
+    ``subst[0]`` replaces ``BVar(0)`` and ``BVar(k)``
+    for ``k >= len(subst)`` is replaced by ``BVar(k - len(subst))``.
+    Its index shifts down once the substituted binders are removed and is
+    used when applying a function to its arguments or opening a let-binding.
+
+    Parameters
+    ----------
+    body : Expr
+        Expression to substitute into.
+    subst : List[Expr]
+        Replacement terms, innermost binder first.
+
+    Examples
+    --------
+    >>> from physika.utils.cic_utils.expr_utils import instantiate
+    >>> from physika.core.expr import BVar, Lit
+    >>> instantiate(BVar(0), [Lit(1), Lit(2)])
+    Lit(val=1)
+    >>> instantiate(BVar(2), [Lit(1), Lit(2)])
+    BVar(idx=0)
+    """
+    if not subst:
+        return body
+    return substitute(body, subst, 0)
+
+
+def instantiate1(body: Expr, s: Expr) -> Expr:
+    """
+    Replaces ``BVar(0)`` with ``s`` in ``body``. Standard
+    beta-reduction step. ``(Lam x A body)`` applied to ``arg`` reduces
+    to ``instantiate1(body, arg)``.
+
+    Parameters
+    ----------
+    body : Expr
+        Lambda/Forall/LetE body to substitute into.
+    s : Expr
+        Term to substitute for ``BVar(0)``.
+
+    Examples
+    --------
+    >>> from physika.utils.cic_utils.expr_utils import instantiate1
+    >>> from physika.core.expr import BVar, Lit
+    >>> instantiate1(BVar(0), Lit(7))
+    Lit(val=7)
+    """
+    return substitute(body, [s], 0)
+
+
+def instantiate_level_params_in_expr(e: Expr, params: List[str],
+                                     levels: List[Level]) -> Expr:
+    """
+    Recursively replaces universe ``LParam`` nodes throughout ``e`` via
+    ``instantiate_level_params`` on every ``Sort``/``Const`` level found.
+
+    ``instantiate_level_params_in_expr`` is employ when instantiating a
+    universe-polymorphic constant with concrete levels.
+
+    Parameters
+    ----------
+    e : Expr
+        Expression tree to walk and rewrite.
+    params : List[str]
+        Universe parameter names to replace.
+    levels : List[Level]
+        Levels where universe constants where instantiated.
+
+    Examples
+    --------
+    >>> from physika.utils.cic_utils.expr_utils import instantiate_level_params_in_expr  # noqa: E501
+    >>> from physika.core.expr import Sort
+    >>> from physika.core.level import LParam, LSucc, LZero
+    >>> instantiate_level_params_in_expr(Sort(LParam("u")), ["u"], [LSucc(LZero())])
+    Sort(level=LSucc(pred=LZero()))
+    """
+    if not params:
+        return e
+    if isinstance(e, Sort):
+        return Sort(instantiate_level_params(e.level, params, levels))
+    elif isinstance(e, Const):
+        return Const(e.name,
+                     tuple(
+                         instantiate_level_params(lvl, params, levels)
+                         for lvl in e.levels))  # noqa: E501
+    elif isinstance(e, App):
+        nf = instantiate_level_params_in_expr(e.func, params, levels)
+        na = instantiate_level_params_in_expr(e.arg, params, levels)
+        return App(nf, na) if (nf is not e.func or na is not e.arg) else e
+    elif isinstance(e, Lam):
+        nt = instantiate_level_params_in_expr(e.binder_type, params, levels)
+        nb = instantiate_level_params_in_expr(e.body, params, levels)
+        return Lam(e.binder_name, nt, nb, e.binder_info) if (
+            nt is not e.binder_type or nb is not e.body) else e
+    elif isinstance(e, ForallE):
+        nt = instantiate_level_params_in_expr(e.binder_type, params, levels)
+        nb = instantiate_level_params_in_expr(e.body, params, levels)
+        return ForallE(e.binder_name, nt, nb, e.binder_info) if (
+            nt is not e.binder_type or nb is not e.body) else e
+    elif isinstance(e, LetE):
+        nt = instantiate_level_params_in_expr(e.type, params, levels)
+        nv = instantiate_level_params_in_expr(e.value, params, levels)
+        nb = instantiate_level_params_in_expr(e.body, params, levels)
+        return LetE(e.binder_name, nt, nv, nb, e.non_dep) if (
+            nt is not e.type or nv is not e.value or nb is not e.body) else e
+    elif isinstance(e, MData):
+        ne = instantiate_level_params_in_expr(e.expr, params, levels)
+        return MData(e.kvs, ne) if ne is not e.expr else e
+    elif isinstance(e, Proj):
+        ne = instantiate_level_params_in_expr(e.expr, params, levels)
+        return Proj(e.type_name, e.idx, ne) if ne is not e.expr else e
+    else:  # BVar, FVar, MVar, Lit
+        return e
+
+
+def mk_arrow(domain: Expr, codomain: Expr) -> ForallE:
+    """
+    Build non-dependent function type ``domain -> codomain``.
+
+    A ``ForallE`` with binder name (``"_"``) whose body does
+    not mention the bound variable.
+
+    ``codomain`` has no loose ``BVar`` (it is a closed term
+    or contains only ``FVar``s). Since elaborator operates with FVar,
+    mk_arrow holds during elaboration.
+
+    Parameters
+    ----------
+    domain : Expr
+        Argument type.
+    codomain : Expr
+        Result type, must not contain loose ``BVar``s.
+
+    Examples
+    --------
+    >>> from physika.core.expr import Const
+    >>> from physika.utils.cic_utils.expr_utils import mk_arrow
+    >>> nat = Const("Nat", ())
+    >>> mk_arrow(nat, nat)  # Nat -> Nat  (e.g. Nat.succ)  # noqa: E501
+    ForallE(binder_name='_', binder_type=Const(name='Nat', levels=()), body=Const(name='Nat', levels=()), binder_info=<BinderInfo.DEFAULT: 1>)
+    >>> # nests right: Nat -> Nat -> Nat
+    >>> mk_arrow(nat, mk_arrow(nat, nat)).body.binder_name
+    '_'
+    """
+    return ForallE("_", domain, codomain, BinderInfo.DEFAULT)

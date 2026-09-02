@@ -1,0 +1,136 @@
+# ===========================================================
+# Example file to showcase ``list`` data type in Physika
+# 
+# * Basic declarations
+# * Indexing
+# * differentiation
+# * Functions
+# * classes
+# ===========================================================
+
+
+
+# ---------------------------------
+# Basic declarations
+# ---------------------------------
+
+x: list = [1.0, 2.0, 3.0]
+y: list = [9.0, 3.0, 5.0, 1.0, 4.0]
+complex_list: list = [1j, 2j, 3j]
+
+# nested list
+simple_nested_list: list = [x, y]
+nested_list: list = [1, 2, x, [x, y]]
+mixed_list: list = [1, x, complex_list, [y, complex_list]]
+
+x
+y
+complex_list
+simple_nested_list
+nested_list
+mixed_list
+
+
+# ---------------------------------
+# Indexing
+# ---------------------------------
+
+simple_index_x: ℝ = x[0]
+simple_complex_index: ℂ = complex_list[1]
+
+index_simple_nested_list: list = simple_nested_list[0]
+index_nested_list: list = nested_list[3]
+index_mixed_list: list = mixed_list[3]
+
+simple_index_x
+simple_complex_index
+index_simple_nested_list
+index_nested_list
+index_mixed_list
+
+
+# return list from a function which contains different elements and use indexing.
+# since we are returning only list, the inner elements here should preserve the types.
+def return_diff_list(x: ℝ): list:
+    A: ℝ[2, 2] = [[1, 2], [3, 4]]
+    b: ℝ[2] = [5, 6]
+    results: list = [A, b]
+    return results
+
+diff_list_results: list = return_diff_list(1.0)
+diff_list_first_index: ℝ[2, 2] = diff_list_results[0]
+diff_list_second_index: ℝ[2] = diff_list_results[1]
+
+diff_list_first_index
+diff_list_second_index
+
+
+# ---------------------------------
+# differentiation
+# ---------------------------------
+
+def f_scalar(x: ℝ): ℝ:
+   return x**2
+
+def f_tensor(x: ℝ[m]): ℝ:
+    return sum(x**2)
+
+
+scalar_grad: ℝ = grad(f_scalar, x[0])
+tensor_grad: list = grad(f_tensor, y)
+nested_grad: list = grad(f_tensor, mixed_list[1])
+
+scalar_grad
+tensor_grad
+nested_grad
+
+
+# ---------------------------------
+# Functions
+# --------------------------------- 
+
+# helper function
+def get_1d_list_length(x: list): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def square_list(values: list): R[3]:
+    len_list: ℝ = get_1d_list_length(values)
+    results: ℝ[3] = for i:N(len_list) -> values[i]**2
+    return results
+
+squared_tensor: ℝ[3] = square_list(x)
+squared_tensor
+
+
+def f_return_list(x: ℝ, y: ℝ, z: ℝ): list:
+    results: list = [x, y, z]
+    return results
+
+
+f_results: list = f_return_list(1, 2, 3)
+f_results
+
+# --------------------------------- 
+# Classes
+# --------------------------------- 
+
+class A:
+    x: list
+    def get_list(): list:
+        return this.x
+    def get_value_list(value1: ℝ, value2: ℝ): list:
+        results: list = [value1, value2]
+        return results
+
+
+obj: A = A(nested_list)
+obj_list: list = obj.get_list()
+obj_list
+
+obj_value_results: list = obj.get_value_list(1, 2)
+obj_value_results

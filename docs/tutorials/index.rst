@@ -27,6 +27,8 @@ Tutorials
 
    repressilator
    toggle_switch
+   central_dogma
+   selkov_glycolysis
 
 .. toctree::
    :maxdepth: 1
@@ -57,6 +59,7 @@ Tutorials
    learn_parameter_schrodinger_equation
    quantum_SHO
    HCl_morse_oscillator
+   simpledft
 
 .. toctree::
    :maxdepth: 1
@@ -88,7 +91,14 @@ Tutorials
 
    learn_parameter_ode
    cnn_tutorial
+   gcn_tutorial
    fft_tutorial
    fourier_neural_operator
    2d_pde_parameter_estimation
    norm_flow
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Numerical solvers
+
+   linear_solve_gaussian_elimination

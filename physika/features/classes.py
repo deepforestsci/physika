@@ -479,19 +479,25 @@ def make_parser_rules():
         # Accumulates multiple field/method items into a list.
         # p[1] - existing item list
         # p[2]  (next item appended)
-        p[0] = p[1] + [p[2]]
+        if isinstance(p[2], list):
+            p[0] = p[1] + p[2]
+        else:
+            p[0] = p[1] + [p[2]]
 
     def p_class_items_single(p):
         """class_items : class_item"""
         # Base case:
         # A single field or method item starts the list.
-        p[0] = [p[1]]
+        if isinstance(p[1], list):
+            p[0] = p[1]
+        else:
+            p[0] = [p[1]]
 
     def p_class_item_field(p):
         """class_item : ID COLON type_spec NEWLINE"""
         # Field declaration inside a class body.
         # Example:
-        # clas Particle:
+        # class Particle:
         #   mass : ℝ
         # Parameters:
         #    p[1] - field name
@@ -1080,7 +1086,7 @@ class ClassFeature(ELF):
                     if field_name in all_fields:
                         return from_typespec(all_fields[field_name]), s
                     # params and update are defined nn.Module methods
-                    if field_name in ("params", "update"):
+                    if field_name in ("params", "update", "learnable_params"):
                         return None, s
                     add_error(
                         f"Class '{obj_type.class_name}' has no field '{field_name}'"

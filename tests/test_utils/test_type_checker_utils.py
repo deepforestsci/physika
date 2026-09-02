@@ -9,6 +9,7 @@ from physika.utils.types import (
     T_NAT,
     T_COMPLEX,
     T_STRING,
+    TList,
 )
 from physika.utils.type_checker_utils import (
     from_typespec,
@@ -50,6 +51,8 @@ class TestFromTypespec:
         assert from_typespec("ℂ") == T_COMPLEX
 
         assert from_typespec("string") == T_STRING
+
+        assert from_typespec("list") == TList(())
 
         result = from_typespec(("tensor", [(3, "invariant")]))
         assert result == TTensor(((3, "invariant"), ))
@@ -377,6 +380,24 @@ class TestUnify:
         with pytest.raises(TypeError, match="Instance mismatch"):
             unify(TInstance("OneLayerNet"), TInstance("FullyConnectedNet"),
                   self.s())
+
+    def test_equal_lists_returns_equal_substitution(self):
+        """
+        Verify that unifying two identical list types succeeds.
+        """
+        s = self.s()
+
+        list_a = TList((
+            T_REAL,
+            T_REAL,
+        ))
+        list_b = TList((
+            T_REAL,
+            T_REAL,
+        ))
+
+        assert unify(list_a, list_b, s) is s
+        assert s == {}
 
 
 class TestUnifyDim:

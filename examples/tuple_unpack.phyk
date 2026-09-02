@@ -1,3 +1,85 @@
+# =====================================================================
+# Example file for Tuple unpack feature in Physika.
+#
+# * Basic declarations
+# * Inside functions
+# * Inside loops
+# * Inside classes
+# =====================================================================
+
+
+# -----------------------------------------
+# Basic declarations
+# -----------------------------------------
+
+
+a: ℝ, b: ℝ, c: ℝ, d: ℝ = 1, 2, 3, 4
+a
+b
+c
+d
+
+a, b: ℝ = 7, 8
+a
+b
+
+
+x_complex, y_complex: ℂ = 1j, 2j
+x_complex
+y_complex
+
+
+x_arr, y_arr: ℝ[2, 2] = [[1, 1], [1, 1]], [[1, 1], [1, 1]]
+x_arr
+y_arr
+
+
+# -----------------------------------------
+# Inside functions
+# -----------------------------------------
+
+def unpack_simple_array(arr: ℝ[3]): ℝ:
+    a, b, c: ℝ = arr
+    return a
+
+unpack_simple_array([1, 2, 3])
+
+
+# Helper function
+def return_array(n: ℝ): R[n]:
+    results: ℝ[n] = for i:ℕ(n) -> i*1
+    return results
+
+
+def unpack_array_in_function_call(n: ℝ): ℝ:
+    a, b, c: ℝ = return_array(n)
+    return c
+
+unpack_array_in_function_call(3)
+
+
+# -----------------------------------------
+# Inside loops
+# -----------------------------------------
+
+sample_arr: ℝ[3, 3] = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+for i:ℕ(3):
+    a, b, c: ℝ = sample_arr[i]
+    print(a)
+    print(b)
+    print(c)
+
+
+# -----------------------------------------
+# Inside classes
+# -----------------------------------------
+
+
 class Simple(v: ℝ):
     def get() → ℝ, ℝ:
         return this.v, this.v
@@ -71,22 +153,23 @@ a: ℝ, b: ℝ = v.f()
 a
 b
 
-a: ℝ, b: ℝ, c: ℝ, d: ℝ = 1, 2, 3, 4
-a
-b
-c
-d
 
-a, b: ℝ = 7, 8
-a
-b
+# Declare class fields through tuple unpack
+
+class A:
+    x, y: ℝ
+    z: ℝ
+    c1, c2: ℂ
+    total1, total2: ℕ
+    def return_Real_type() -> ℝ:
+        return this.x
+    def return_Complex_type() -> ℂ:
+        return this.c1
+    def return_Natural_type() -> ℕ:
+        return this.total1
 
 
-x_complex, y_complex: ℂ = 1j, 2j
-x_complex
-y_complex
-
-
-x_arr, y_arr: ℝ[2, 2] = [[1, 1], [1, 1]], [[1, 1], [1, 1]] 
-x_arr
-y_arr
+obj_A: A = A(1.0, 2.0, 3.0, 1j, 2j, 10, 20)
+obj_A.return_Real_type()
+obj_A.return_Complex_type()
+obj_A.return_Natural_type()

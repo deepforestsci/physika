@@ -187,4 +187,4 @@ print(z)
 
 The type checker verifies that all objects defined in a Physika file (.phyk), including classes, functions, and variables, perform operations with compatible dimensions and data types. For example, matrix multiplication must follow the convention (M×N)@(N×P), and operations between types must be valid (e.g., ℝ + ℝ is valid, whereas ℝ[2] + ℝ is not).
 
-If inconsistencies are detected, Physika type checker reports error messages describing the dimension or type mismatch and indicates the line this occurs, after executing the program.
+If inconsistencies are detected, Physika type checker reports error messages describing the dimension or type mismatch and indicates the line this occurs, after executing the program.    

@@ -1,6 +1,7 @@
 from physika.elf import ELF
 from typing import Callable, Optional, Tuple
-from physika.utils.types import Substitution, Type, TVar, TDim, T_REAL, TTensor
+from physika.utils.types import (Substitution, Type, TVar, TDim, T_REAL,
+                                 TTensor, TList)
 from physika.utils.type_checker_utils import get_tensor_shape, unify_dim, make_tensor  # noqa
 
 
@@ -481,6 +482,49 @@ class IndexingandSlicing(ELF):
             # of arr_name
             arr_t = s.apply(env[arr_name])
             shape = get_tensor_shape(arr_t)
+
+            # Indexing for ``list`` dtype
+            # Example code:
+            # x: list = [1, 2, 3, 4, 5]
+            # x[0]
+            # AST node -> ('index', 'x', ('num', 0))
+            if isinstance(arr_t, TList):
+                idx_node = node[2]
+
+                # Constant integer index : x[2]
+                if (isinstance(idx_node, tuple) and idx_node[0] == "num"
+                        and isinstance(idx_node[1], (int, float))):
+                    idx = int(idx_node[1])
+
+                    if 0 <= idx < len(arr_t.elements):
+                        elem_t = arr_t.elements[idx]
+
+                        if elem_t is None:
+                            return None, s
+
+                        return s.apply(elem_t), s
+
+                    add_error(
+                        f"List index out of range for '{arr_name}' : {idx}")
+                    return None, s
+
+                # Dynamic index : x[idx]
+                elem_types = [
+                    s.apply(t) for t in arr_t.elements if t is not None
+                ]
+
+                if not elem_types:
+                    return None, s
+
+                # If the list is homogeneous, which means all the
+                # types are same, in this case we know the index type
+                first_type = elem_types[0]
+                if all(t == first_type for t in elem_types[1:]):
+                    return first_type, s
+
+                # If the list is heterogeneous, which means it can have
+                # multiple types, e.g - z: list = [1j, 2, x, [x, y]]
+                return None, s
 
             if shape is None:
                 # Only report an error when arr_t is a non-tensor type.

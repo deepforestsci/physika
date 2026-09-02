@@ -1,5 +1,8 @@
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple, Dict
 from physika.core.expr import Expr
+
+if TYPE_CHECKING:
+    from physika.core.environment import Environment
 
 
 class Constructor:
@@ -265,3 +268,116 @@ class InductiveDecl:
         self.type = type
         self.constructors = constructors
         self.is_recursive = is_recursive
+
+
+def mk_builtin_env() -> "Environment":
+    """
+    Return an Environment populated with current supported built-in inductive
+    types.
+
+    Built-ins registered are:
+
+    Inductive types (recursor derived by ``derive_recursor``):
+      Nat, Int, Bool, Fin, Vec, Prod, OfNat
+
+    Reducible definitions:
+      Nat.add, Nat.mul, Nat.sub, Nat.pred — Nat arithmetic
+      instOfNatNat — numeral elaboration for Nat
+
+    Axiom constants:
+      Real — scalar real number type
+      Real.add, Real.mul, Real.sub, Real.div, Real.neg, Real.pow,
+      Real.lt, Real.le, Real.*b — Real arithmetic / decidable compares
+      Nat.*b, Nat.ite, Real.ite, Vec.ite — branch/condition elaboration
+      Vec.vadd, Vec.vmul, Vec.dot, Vec.scale, Vec.sum, Vec.norm_sq,
+      Vec.zeros, Vec.concat, Vec.get, Vec.tabulate, Vec.foldl — vector ops
+      Mat.matmul, Mat.madd, Mat.add_scalar, Mat.concat_rows — matrix ops
+      Fin.ofNat — dynamic (non-literal) index coercion
+      Nat.toReal — Nat→Real coercion
+      grad, Vec.grad — autodiff (differentiable programming)
+      log, exp, sin, cos, sqrt, abs — transcendental functions
+      OfNat.mk, instOfNatReal — numeral elaboration for Real
+
+    Examples
+    --------
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> from physika.core.expr import Const, App, Proj, Lit
+    >>> from physika.core.reduction import whnf
+    >>> from physika.core.local_context import LocalContext
+    >>> from physika.core.metavar import MetaVarContext
+    >>> env = mk_builtin_env()
+    >>> lctx, mctx = LocalContext(), MetaVarContext()
+    >>> term = Proj("OfNat", 0, App(Const("instOfNatNat", ()), Lit(3)))
+    >>> whnf(term, env, lctx, mctx)
+    Lit(val=3)
+    >>> from physika.core.elab.elab import Elab
+    >>> elab = Elab(mk_builtin_env())
+    >>> term2 = Proj("OfNat", 0, App(Const("instOfNatReal", ()), Lit(3)))
+    >>> elab.infer_type(term2)
+    Const(name='Real', levels=())
+    >>> whnf(term2, elab.state.env, lctx, mctx) == term2
+    True
+    """
+    from physika.core.environment import ConstantInfo, Environment, InductiveInfo  # noqa: E501
+    from physika.utils.cic_utils.inductive_utils import (
+        derive_recursor,
+        mk_nat_decl,
+        mk_bool_decl,
+        mk_fin_decl,
+        mk_int_decl,
+        mk_vec_decl,
+        mk_prod_decl,
+        reg_nat_ops,
+        reg_real_ops,
+        reg_autodiff,
+        reg_ofnat,
+        reg_vec_ops,
+        reg_mat_ops,
+    )
+    env = Environment()
+
+    # Core inductives, each with a recursor derived by derive_recursor
+    for (decl_fn, rec_fn) in [
+        (mk_nat_decl, lambda: derive_recursor(mk_nat_decl())),
+        (mk_int_decl, lambda: derive_recursor(mk_int_decl())),
+        (mk_bool_decl, lambda: derive_recursor(mk_bool_decl())),
+        (mk_fin_decl, lambda: derive_recursor(mk_fin_decl())),
+        (mk_vec_decl, lambda: derive_recursor(mk_vec_decl())),
+        (mk_prod_decl, lambda: derive_recursor(mk_prod_decl())),
+    ]:
+        decl = decl_fn()
+        rec = rec_fn()
+
+        env.add_constant(
+            ConstantInfo(name=decl.name,
+                         level_params=decl.level_params,
+                         type=decl.type,
+                         value=None))
+
+        ctors: Dict[str, ConstantInfo] = {}
+        for ctor in decl.constructors:
+            ctors[ctor.name] = ConstantInfo(name=ctor.name,
+                                            level_params=decl.level_params,
+                                            type=ctor.type,
+                                            value=None)
+
+        rec_ci = ConstantInfo(name=rec.name,
+                              level_params=rec.level_params,
+                              type=rec.type,
+                              value=None)
+
+        env.add_inductive(
+            InductiveInfo(decl=decl,
+                          ctors=ctors,
+                          recursor=rec_ci,
+                          rec_info=rec))
+
+    # Inductive types operators
+    reg_nat_ops(env)
+    reg_real_ops(env)
+    reg_autodiff(env)
+    reg_ofnat(env)
+    reg_vec_ops(env)
+    reg_mat_ops(env)
+
+    return env

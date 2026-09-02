@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Tuple, Union, cast
-from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, new_dim  # noqa: E501
+from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, TList, new_dim  # noqa: E501
 from physika.utils.ast_utils import ASTNode
 from physika.elf import REGISTRY
 
@@ -25,6 +25,11 @@ class ExprContext:
         ``return_type``, ...).
     add_error : Callable
         Error callback.
+    type_info : Optional[Type]
+        Optional contextual type information used when inferring an
+        expression. For example, an array literal with ``TList`` type
+        information can be inferred using ``expr_list`` instead of
+        ``expr_array``.
 
     Examples
     --------
@@ -36,15 +41,23 @@ class ExprContext:
     {'x': ℝ}
     >>> ctx.s
     {}
+    >>> ctx.type_info is None
+    True
     """
 
-    def __init__(self, env: dict, s: Substitution, func_env: dict,
-                 class_env: dict, add_error: Callable) -> None:
+    def __init__(self,
+                 env: dict,
+                 s: Substitution,
+                 func_env: dict,
+                 class_env: dict,
+                 add_error: Callable,
+                 type_info: Optional[Type] = None) -> None:
         self.env = env
         self.s: Substitution = s
         self.func_env: dict = func_env
         self.class_env: dict = class_env
         self.add_error: Callable = add_error
+        self.type_info: Optional[Type] = type_info
 
 
 def expr_num(node: Any,
@@ -259,6 +272,85 @@ def expr_array(node: Any,
     if isinstance(base, TTensor):
         return TTensor(((n, "invariant"), ) + base.dims), cur
     return make_tensor([n]), cur
+
+
+def expr_list(node: Any,
+              ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the type of a list literal ``[e0, e1, ..., en]``.
+
+    Each element is inferred independently and its type is preserved in the
+    resulting ``TList``.
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("list", elements)`` where *elements* is a
+        list of AST expression nodes, one for each list element.
+
+    ctx : ExprContext
+        Current inference context. ``ctx.s`` is threaded through each
+        element inference so later elements see bindings from earlier ones.
+        Type errors are registered via ``ctx.add_error``.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(TList(element_types), updated_s)`` where each entry in
+        ``element_types`` is the inferred type of the corresponding list
+        element. Nested list expressions are represented recursively as
+        ``TList`` values
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_list
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({}, Substitution(), {}, {}, [].append)
+
+    >>> t, _ = expr_list(
+    ...     ("list", [("num", 1.0), ("num", 2.0), ("num", 3.0)]),
+    ...     ctx
+    ... )
+    >>> t
+    list
+
+    >>> t, _ = expr_list(
+    ...     ("list", [("num", 1.0), ("complex", 3)]),
+    ...     ctx
+    ... )
+    >>> t
+    list
+
+    >>> nested = (
+    ...     ("num", 1.0),
+    ...     ("list", [("num", 2.0), ("num", 3.0)])
+    ... )
+    >>> t, _ = expr_list(("list", list(nested)), ctx)
+    >>> t
+    list
+    """
+    elements = node[1]
+
+    elem_types = []
+    cur = ctx.s
+    for e in elements:
+        if isinstance(e, tuple) and e[0] == "array":
+            # A nested array inside a list is treated as another list.
+            et, cur = infer_expr(
+                e,
+                ctx.env,
+                cur,
+                ctx.func_env,
+                ctx.class_env,
+                ctx.add_error,
+                type_info=TList(()),
+            )
+        else:
+            et, cur = infer_expr(e, ctx.env, cur, ctx.func_env, ctx.class_env,
+                                 ctx.add_error)
+        elem_types.append(et)
+
+    return TList(tuple(elem_types)), cur
 
 
 def expr_chain_index(node: Any,
@@ -884,8 +976,8 @@ def expr_call(node: Any,
         else:
             for i, (pt, at) in enumerate(zip(param_types, arg_types)):
                 # Convert raw typespec to Type when needed.
-                if not isinstance(pt,
-                                  (TVar, TScalar, TTensor, TFunc, TInstance)):
+                if not isinstance(
+                        pt, (TVar, TScalar, TTensor, TFunc, TInstance, TList)):
                     pt = from_typespec(pt)
                 if pt is not None and at is not None:
                     try:
@@ -893,8 +985,9 @@ def expr_call(node: Any,
                     except TypeError as e:
                         ctx.add_error(f"Arg {i} of '{func_name}': {e}")
         # return the inferred type (no errors catched during unifcation)
-        if not isinstance(ret_type, (TVar, TScalar, TTensor, TFunc, TInstance,
-                                     type(None))):  # noqa: E125
+        if not isinstance(ret_type,
+                          (TVar, TScalar, TTensor, TFunc, TInstance, TList,
+                           type(None))):  # noqa: E125
             ret = from_typespec(ret_type)
         else:
             ret = ret_type
@@ -1147,6 +1240,7 @@ EXPR_DISPATCH: dict = {
     "complex": expr_complex,
     "imaginary": expr_imaginary,
     "array": expr_array,
+    "list": expr_list,
     "chain_index": expr_chain_index,
     "slice": expr_slice,
     "add": expr_add_sub,
@@ -1169,12 +1263,13 @@ EXPR_DISPATCH: dict = {
 
 
 def infer_expr(
-    node: ASTNode,
-    env: dict,
-    s: Substitution,
-    func_env: dict,
-    class_env: dict,
-    add_error: Callable,
+        node: ASTNode,
+        env: dict,
+        s: Substitution,
+        func_env: dict,
+        class_env: dict,
+        add_error: Callable,
+        type_info: Optional[Type] = None
 ) -> Tuple[Optional[Type], Substitution]:
     """
     Infer the type of an expression AST node.
@@ -1264,9 +1359,14 @@ def infer_expr(
                       s=s,
                       func_env=func_env,
                       class_env=class_env,
-                      add_error=add_error)
+                      add_error=add_error,
+                      type_info=type_info)
     # Dispatch to the appropriate expr_* handler based on the AST tag.
     handler = EXPR_DISPATCH.get(node[0])
+
+    if node[0] == "array" and isinstance(type_info, TList):
+        return expr_list(node, ctx)
+
     if handler is not None:
         if node[0] in ("for_expr", "for_expr_range"):
             return handler(node, ctx, new_dim)

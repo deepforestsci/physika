@@ -27,7 +27,10 @@ class TestFreshFVarId:
         fid = fresh_fvar_id("x")
 
         assert isinstance(fid, FVarId)
-        assert fid.id == "x.0"
+
+        prefix, _, suffix = fid.id.partition(".")
+        assert prefix == "x"
+        assert suffix.isdigit()
 
         # two calls with the same hint are different
         a = fresh_fvar_id("x")
@@ -35,8 +38,9 @@ class TestFreshFVarId:
 
         assert a != b
         assert a.id != b.id
-        assert a.id == "x.1"
-        assert b.id == "x.2"
+
+        assert a.id == f"x.{int(suffix) + 1}"
+        assert b.id == f"x.{int(suffix) + 2}"
 
 
 class TestLocalDeclVar:

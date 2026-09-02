@@ -1,0 +1,150 @@
+# ============================================================
+# Parameter Learning for the Central Dogma of Molecular Biology
+# ============================================================
+# The central dogma -- DNA is transcribed into messenger RNA,
+# which is translated into protein -- is the production line of
+# every cell. A minimal two-stage model tracks the mRNA level mr
+# and the protein level pr of a single gene:
+#
+#   dmr/dt = k_tx         - gamma_m * mr    (transcription - decay)
+#   dpr/dt = k_tl * mr    - gamma_p * pr    (translation   - decay)
+#
+# with transcription rate k_tx, translation rate k_tl, and
+# first-order decay rates gamma_m, gamma_p (mRNA and protein
+# turnover, growth dilution folded in). We learn
+# theta = [k_tx, k_tl, gamma_m, gamma_p]. Same adjoint machinery
+# as the sibling tutorials (full-trajectory MSE + running-cost
+# co-state); k_tx (~4) and gamma_p (~0.25) differ by an order of
+# magnitude, so -- as in the repressilator -- we hand-roll a
+# bias-corrected Adam step for scale-free updates.
+#
+# The twist is PARTIAL OBSERVATION and what it costs. A
+# fluorescent reporter measures PROTEIN, not mRNA, so we fit the
+# pr(t) trajectory ALONE (the co-state residual lives only on the
+# pr component). The fit becomes essentially perfect, yet k_tx
+# and k_tl are NOT recovered: at steady state protein depends on
+# them only through the product k_tx * k_tl / (gamma_m * gamma_p),
+# so the two synthesis rates trade off along a hidden manifold
+# while their product -- and the two decay rates, pinned by the
+# transient timescales -- come back exactly. A perfect fit is not
+# a recovered model: to identify the synthesis rates individually
+# you must also measure mRNA. This is the structural
+# identifiability lesson that the DREAM8 whole-cell parameter
+# challenge met at genome scale.
+# ============================================================
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def append(x: ℝ[m], var: ℝ): ℝ[n]:
+    new_length: ℝ = len(x) + 1
+    results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
+    for i:ℕ(new_length):
+        if i<len_x:
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+def f(state: ℝ[2], θ: ℝ[4]): ℝ[2]:
+    mr: ℝ = state[0]
+    pr: ℝ = state[1]
+    ktx: ℝ = θ[0]
+    ktl: ℝ = θ[1]
+    gm: ℝ = θ[2]
+    gp: ℝ = θ[3]
+    dmr: ℝ = ktx - gm * mr
+    dpr: ℝ = ktl * mr - gp * pr
+    return [dmr, dpr]
+
+def rk4_step(state: ℝ[2], θ: ℝ[4]): ℝ[2]:
+    k1: ℝ[2] = f(state, θ)
+    k2_state: ℝ[2] = state + 0.5 * dt * k1
+    k2: ℝ[2] = f(k2_state, θ)
+    k3_state: ℝ[2] = state + 0.5 * dt * k2
+    k3: ℝ[2] = f(k3_state, θ)
+    k4_state: ℝ[2] = state + dt * k3
+    k4: ℝ[2] = f(k4_state, θ)
+    return state + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+dt: ℝ = 0.1
+timesteps: ℝ = 250
+
+def solver(θ: ℝ[4]): ℝ[2, m]:
+    state: ℝ[2] = [0.0, 0.0]
+    mr_array: ℝ[1] = [0.0]
+    pr_array: ℝ[1] = [0.0]
+    for i:ℕ(timesteps):
+        results = rk4_step(state, θ)
+        mr = results[0]
+        pr = results[1]
+        mr_array = append(mr_array, mr)
+        pr_array = append(pr_array, pr)
+        state = results
+    return [mr_array, pr_array]
+
+true_theta: ℝ[4] = [4.0, 2.0, 1.0, 0.25]
+true_results: ℝ[2, m] = solver(true_theta)
+true_mr: ℝ[m] = true_results[0]
+true_pr: ℝ[m] = true_results[1]
+
+# Only the protein curve pr(t) is observed, so the loss and its
+# co-state residual live on the pr component alone (mRNA -> 0.0).
+def adjoint_grad(θ: ℝ[4]): ℝ[n]:
+    states: ℝ[2, m] = solver(θ)
+    mr_array: ℝ[m] = states[0]
+    pr_array: ℝ[m] = states[1]
+    m: ℝ = get_1d_array_length(pr_array)
+    s: ℝ[2] = [
+        0.0,
+        (pr_array[m-1] - true_pr[m-1]) / m
+    ]
+    L: ℝ[4] = zero_1d_array(4)
+    for i:ℕ(m-1):
+        idx = m - 2 - i
+        mr = mr_array[idx]
+        pr = pr_array[idx]
+        state = [mr, pr]
+        J_state = grad(rk4_step(state, θ), state)
+        J_theta = grad(rk4_step(state, θ), θ)
+        L += s @ J_theta
+        residual = [0.0, (pr_array[idx] - true_pr[idx]) / m]
+        s = residual + (s @ J_state)
+    return L
+
+θ: ℝ[4] = [3.0, 3.0, 0.7, 0.4]
+learning_rate: ℝ = 0.02
+beta1: ℝ = 0.9
+beta2: ℝ = 0.999
+eps_adam: ℝ = 0.00000001
+m_adam: ℝ[4] = [0.0, 0.0, 0.0, 0.0]
+v_adam: ℝ[4] = [0.0, 0.0, 0.0, 0.0]
+t_adam: ℝ = 0.0
+
+# ------------------------------------------------------------------
+# set epochs higher (e.g. 3000) for real training; here it is 1 so
+# physika's test suite (tests/test_tutorials.py) runs quickly
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+for i:ℕ(epochs):
+    g = adjoint_grad(θ)
+    t_adam = t_adam + 1.0
+    m_adam = beta1 * m_adam + (1.0 - beta1) * g
+    v_adam = beta2 * v_adam + (1.0 - beta2) * (g * g)
+    mhat = m_adam / (1.0 - beta1 ** t_adam)
+    vhat = v_adam / (1.0 - beta2 ** t_adam)
+    θ = θ - learning_rate * mhat / (sqrt(vhat) + eps_adam)
+
+pred_results = solver(θ)
+#plot_trajectories(true_results, pred_results)

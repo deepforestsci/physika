@@ -1,8 +1,13 @@
-from physika.core.level import LZero, LSucc, LMax, LIMax, LMVar
+from physika.core.level import LZero, LSucc, LMax, LIMax, LMVar, LParam
 from physika.utils.cic_utils.level_utils import (
     mk_level_max,
     mk_level_imax,
     level_has_mvar,
+    collect_params,
+    eval_level,
+    levels_equal,
+    level_to_nat,
+    instantiate_level_params,
 )
 
 
@@ -100,3 +105,145 @@ class TestLevelHasMvar:
         assert level_has_mvar(lvl, "m1") is True
         assert level_has_mvar(lvl, "m2") is True
         assert level_has_mvar(lvl, "m3") is False
+
+
+class TestCollectParams:
+    """
+    Tests for ``collect_params``
+    """
+
+    def test_collect_params(self):
+        """
+        Tests collect_params functionat different Levels.
+        """
+        assert collect_params(LParam("u")) == {"u"}
+
+        # checks LMVar is returned with prefix
+        assert collect_params(LMVar("m1")) == {"?m1"}
+
+        # LSucc recurses into pred
+        assert collect_params(LSucc(LParam("u"))) == {"u"}
+
+        # Lmax and LImax union
+        assert collect_params(LMax(LParam("u"), LParam("v"))) == {"u", "v"}
+        assert collect_params(LIMax(LParam("u"), LMVar("m1"))) == {"u", "?m1"}
+
+
+class TestEvalLevel:
+    """
+    Tests for ``eval_level``
+    """
+
+    def test_eval_level(self):
+        """
+        Tests for ``eval_level`` for checking appearences in different levels.
+        """
+        # LZero should return 0
+        assert eval_level(LZero(), {}) == 0
+
+        # LParam reads from subst dict
+        assert eval_level(LParam("u"), {"u": 1}) == 1
+        assert eval_level(LParam("u"), {}) == 0
+
+        # LMVar read prefixed key from subst dict
+        assert eval_level(LMVar("m1"), {"?m1": 1}) == 1
+        assert eval_level(LMVar("m1"), {}) == 0
+
+        #  ``LSucc`` evaluates its predecessor and adds 1.
+        assert eval_level(LSucc(LParam("u")), {"u": 1}) == 2
+
+        # ``LMax`` evaluates to the maximum of both operands.
+        assert eval_level(LMax(LParam("u"), LParam("v")), {
+            "u": 0,
+            "v": 1
+        }) == 1
+
+        # ``LIMax`` forces 0 whenever the second operand
+        # evaluates to 0.
+        assert eval_level(LIMax(LParam("u"), LParam("v")), {
+            "u": 1,
+            "v": 0
+        }) == 0
+
+        # when second operand is not zero, should behaves like a regular LMax
+        assert eval_level(LIMax(LParam("u"), LParam("v")), {
+            "u": 1,
+            "v": 1
+        }) == 1
+
+
+class TestLevelsEqual:
+    """
+    Tests for ``levels_equal``
+    """
+
+    def test_levels_equal(self):
+        """
+        Checks levels equals for different level setups.
+        """
+        # fast path parameter free levels are compared directly as
+        # integers
+        assert levels_equal(LSucc(LZero()), LSucc(LZero())) is True
+        assert levels_equal(LSucc(LZero()), LZero()) is False
+
+        # test max is commutative
+        assert levels_equal(LMax(LParam("u"), LParam("v")),
+                            LMax(LParam("v"), LParam("u"))) is True
+
+        # LIMax for 0 value operands
+        assert levels_equal(LIMax(LParam("u"), LZero()), LZero()) is True
+
+        # checks levels are not equal
+        assert levels_equal(LParam("u"), LSucc(LParam("u"))) is False
+
+
+class TestLevelToNat:
+    """
+    Tests for ``level_to_nat``
+    """
+
+    def test_level_to_nat(self):
+        """
+        Checks ``LZero`` evaluates to 0.
+        """
+        assert level_to_nat(LZero()) == 0
+
+        # LSucc chain
+        assert level_to_nat(LSucc(LSucc(LZero()))) == 2
+
+        # NAT is produces from LMax properly
+        assert level_to_nat(LMax(LSucc(LZero()), LZero())) == 1
+
+
+class TestInstantiateLevelParams:
+    """
+    Tests for ``instantiate_level_params``
+    """
+
+    def test_instantiate_level_params(self):
+        """
+        Inatntiate level parameters tests for different levels.
+        """
+        # Checks an ``LParam`` matching one of ``params`` is replaced by
+        # its corresponding level.
+        assert instantiate_level_params(LParam("u"), ["v", "u"],
+                                        [LZero(), LSucc(LZero())]) == LSucc(
+                                            LZero())
+
+        # An ``LParam`` not present in ``params`` is left
+        # unhanged
+        assert instantiate_level_params(LParam("v"), ["u"],
+                                        [LSucc(LZero())]) == LParam("v")
+
+        # LMVar should be untouched
+        mvar = LMVar("m1")
+
+        assert instantiate_level_params(mvar, ["u"], [LSucc(LZero())]) == mvar
+
+        # recurses into LSucc, LMax and LIMax levels
+        assert instantiate_level_params(LSucc(LParam("u")), ["u"],
+                                        [LZero()]) == LSucc(LZero())
+        assert instantiate_level_params(LMax(LParam("u"), LZero()), ["u"],
+                                        [LSucc(LZero())]) == LSucc(LZero())
+        assert instantiate_level_params(LIMax(LParam("u"), LZero()), ["u"],
+                                        [LSucc(LZero())]) == LZero()

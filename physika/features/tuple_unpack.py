@@ -146,6 +146,17 @@ class TupleUnpackFeature(ELF):
             rhs = ("expr_list", p[3]) if isinstance(p[3], list) else p[3]
             p[0] = ("stmt_tuple_unpack", p[1], rhs)
 
+        def p_class_item_field_tuple_unpack(p):
+            """class_item : typed_id_list NEWLINE"""
+            # Field declaration with tuple unpack inside a class body.
+            # Example:
+            # class A
+            #   x, y: ℝ
+            # Parameters:
+            #    p[1] - list of (field name, type_spec) pairs
+            p[0] = [("field_decl", name, type_spec)
+                    for name, type_spec in p[1]]
+
         return [
             p_return_type_single,
             p_return_type_tuple,
@@ -156,6 +167,7 @@ class TupleUnpackFeature(ELF):
             p_func_loop_stmt_tuple_unpack,
             p_statement_tuple_unpack,
             p_for_statement_tuple_unpack,
+            p_class_item_field_tuple_unpack,
         ]
 
     def forward_rules(self) -> dict:

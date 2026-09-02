@@ -1,5 +1,6 @@
 from physika.features.indexing_and_slicing import IndexingandSlicing
-from physika.utils.types import TTensor, T_REAL, TDim, Substitution, new_dim
+from physika.utils.types import (TTensor, T_REAL, T_COMPLEX, TList, TDim,
+                                 Substitution, new_dim)
 from tests.test_utils.test_infer_stmt import make_stmt_ctx
 from tests.test_utils.test_infer_expr import make_ctx
 from physika.utils.infer_expr import infer_expr
@@ -174,6 +175,76 @@ class TestExprIndex:
                               ctx.func_env, ctx.class_env, ctx.add_error,
                               infer_expr)
         assert s_out["δ0"] == 5
+
+    def test_list_index(self):
+        """
+        Test for indexing simple 1D-list
+        Example :
+        x: list = [1, 2, 3]
+        """
+        errors = []
+        ctx = make_ctx(env={"x": TList((T_REAL, T_REAL, T_REAL))},
+                       errors=errors)
+
+        # x[0]
+        t, _ = expr_index(("index", "x", ("num", 0)), ctx.env, ctx.s,
+                          ctx.func_env, ctx.class_env, ctx.add_error,
+                          infer_expr)
+        assert t == T_REAL
+
+        # x[2]
+        t, _ = expr_index(("index", "x", ("num", 2)), ctx.env, ctx.s,
+                          ctx.func_env, ctx.class_env, ctx.add_error,
+                          infer_expr)
+        assert t == T_REAL
+
+        # x[i]
+        t, _ = expr_index(("index", "x", ("var", "i")), ctx.env, ctx.s,
+                          ctx.func_env, ctx.class_env, ctx.add_error,
+                          infer_expr)
+        assert t == T_REAL
+
+        # x[3] - which will return error
+        expr_index(("index", "x", ("num", 3)), ctx.env, ctx.s, ctx.func_env,
+                   ctx.class_env, ctx.add_error, infer_expr)
+        assert len(errors) == 1
+        assert "List index out of range" in errors[0]
+
+    def test_nested_list_index(self):
+        """
+        Test for indexing nested list
+        Example :
+        x: ℝ[3] = [1, 2, 3]
+        y: ℝ[5] = [1, 2, 3, 4, 5]
+        nested: list = [x, y]
+        z: list = [1, 2, 1j, nested]
+        """
+        x = TTensor(((3, "invariant"), ))
+        y = TTensor(((5, "invariant"), ))
+
+        nested = TList((x, y))
+
+        z = TList((T_REAL, T_REAL, T_COMPLEX, nested))
+
+        ctx = make_ctx(env={"z": z})
+
+        # z[0] -> ℝ
+        t, _ = expr_index(("index", "z", ("num", 0)), ctx.env, ctx.s,
+                          ctx.func_env, ctx.class_env, ctx.add_error,
+                          infer_expr)
+        assert t == T_REAL
+
+        # z[0] -> ℂ
+        t, _ = expr_index(("index", "z", ("num", 2)), ctx.env, ctx.s,
+                          ctx.func_env, ctx.class_env, ctx.add_error,
+                          infer_expr)
+        assert t == T_COMPLEX
+
+        # z[0] -> nested
+        t, _ = expr_index(("index", "z", ("num", 3)), ctx.env, ctx.s,
+                          ctx.func_env, ctx.class_env, ctx.add_error,
+                          infer_expr)
+        assert t == nested
 
 
 class TestExprIndexN:

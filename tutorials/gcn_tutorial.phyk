@@ -1,0 +1,151 @@
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def zero_2d_array(rows: ℝ, cols: ℝ): ℝ[m, n]:
+    results: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
+    return results
+
+# dummy dataset creation
+def zero_3d_A(n: ℝ): ℝ[m, 44, 44]:
+    results: ℝ[n, 44, 44] = for i:ℕ(n) -> for j:ℕ(44) -> for k:ℕ(44) -> k*0
+    return results
+
+def zero_3d_H(n: ℝ): ℝ[m, 44, 30]:
+    results: ℝ[n, 44, 30] = for i:ℕ(n) -> for j:ℕ(44) -> for k:ℕ(30) -> k*0
+    return results
+
+def get_sum_of_1d_array(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    for i:
+        total += x[i]
+    return total
+
+def diag_matrix(d: ℝ[n]): ℝ[n, n]:
+    sz: ℝ = get_1d_array_length(d)
+    result: ℝ[sz, sz] = zero_2d_array(sz, sz)
+    for i:
+        result[i, i] = d[i]
+    return result
+
+def ones_vector(n: ℝ): ℝ[n]:
+    return for i:ℕ(n) -> 0.0*i + 1.0
+
+def sigma(x: ℝ[a,b]): ℝ[a,b]:
+    return 1.0 / (1.0 + exp(0.0 - x))
+
+def normalize_adj(A: ℝ[n, n]): ℝ[n, n]:
+    sz: ℝ = get_2d_array_num_rows(A)
+    I: ℝ[sz, sz] = diag_matrix(ones_vector(sz))
+    A_plus: ℝ[sz, sz] = A + I
+    deg: ℝ[sz] = for i:ℕ(sz) -> get_sum_of_1d_array(A_plus[i])
+    d_inv_sqrt: ℝ[sz] = for i:ℕ(sz) -> 1.0/sqrt(deg[i])
+    D: ℝ[sz, sz] = diag_matrix(d_inv_sqrt)
+    return D @ A_plus @ D
+
+def masked_graph_sum_pool(H: ℝ[n, d], sz: ℝ): ℝ[d]:
+    cols: ℝ = get_1d_array_length(H[0])
+    result: ℝ[cols] = zero_1d_array(cols)
+    for i:ℕ(sz):
+        row = H[i]
+        for j:ℕ(cols):
+            result[j] += row[j]
+    return result
+
+def mse(pred: ℝ, target: ℝ): ℝ:
+    return (pred - target) ** 2.0
+
+def within_tolerance(pred: ℝ, target: ℝ, tol: ℝ): ℝ:
+    diff: ℝ = pred - target
+    if diff < 0.0:
+        diff = 0.0 - diff
+    if diff < tol:
+        return 1.0
+    else:
+        return 0.0
+
+class GCNModel(W1: ℝ[30, 4], W2: ℝ[4]):
+    def λ(A: ℝ[n,n], H: ℝ[n,30], sz: ℝ) -> ℝ:
+        A_hat: ℝ[n,n] = normalize_adj(A)
+        H1: ℝ[n,4] = sigma(A_hat @ (H @ this.W1))
+        pooled: ℝ[4] = masked_graph_sum_pool(H1, sz)
+        pred: ℝ = pooled @ this.W2
+        return pred
+    def train(epochs: ℕ, lr: ℝ) -> ℝ:
+        len_train_X: ℝ = get_1d_array_length(train_sizes)
+        loss: ℝ = 0
+        for i:ℕ(epochs):
+            loss = 0
+            for j:ℕ(len_train_X):
+                A_j = train_A[j]
+                H_j = train_H[j]
+                sz_j = train_sizes[j]
+                label = train_y[j]
+                z = this(A_j, H_j, sz_j)
+                current_loss = mse(z, label)
+                loss += current_loss
+                learnable_grads = grad(current_loss, this.learnable_params)
+                this.update_params(lr, learnable_grads)
+            loss = loss / len_train_X
+        return loss
+    def evaluate() -> ℝ:
+        len_test_X: ℝ = get_1d_array_length(test_sizes)
+        correct: ℝ = 0
+        for i:ℕ(len_test_X):
+            A_i = test_A[i]
+            H_i = test_H[i]
+            sz_i = test_sizes[i]
+            y_pred = this(A_i, H_i, sz_i)
+            correct += within_tolerance(y_pred, test_y[i], 1.0)
+        return correct / len_test_X
+    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+        this.W1 = this.W1 - lr * learnable_grads[0]
+        this.W2 = this.W2 - lr * learnable_grads[1]
+
+# Normal distribution to generate random values with sigma as 1.0 and μ as 0.0
+μ : ℝ = 0.0
+σ : ℝ = 1.0
+
+W1: ℝ[30, 4] = for i:ℕ(30) -> row: ℝ[4] ~ Normal(μ, σ, 4)
+W2: ℝ[4] ~ Normal(μ, σ, 4)
+
+gcn_object: GCNModel = GCNModel(W1, W2)
+
+# dummy dataset: all zeros, matching the shapes create_dataset(...) would produce
+train_A: ℝ[513, 44, 44] = zero_3d_A(513)
+train_H: ℝ[513, 44, 30] = zero_3d_H(513)
+train_sizes: ℝ[513] = zero_1d_array(513)
+train_y: ℝ[513] = zero_1d_array(513)
+
+test_A: ℝ[65, 44, 44] = zero_3d_A(65)
+test_H: ℝ[65, 44, 30] = zero_3d_H(65)
+test_sizes: ℝ[65] = zero_1d_array(65)
+test_y: ℝ[65] = zero_1d_array(65)
+
+lr: ℝ = 0.0005
+# ------------------------------------------------------------------
+# set epoch value to 100, here we have set it to 1 to just test 
+# physika code through tests/test_tutorials.py
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+final_loss: ℝ = gcn_object.train(epochs, lr)
+print(final_loss)
+
+accuracy: ℝ = gcn_object.evaluate()
+print(accuracy)

@@ -54,6 +54,8 @@ def p_type_scalar(p):
         p[0] = "ℕ"
     elif p[1] == "ℂ":
         p[0] = "ℂ"
+    elif p[1] == "list":
+        p[0] = "list"
     else:
         p[0] = "ℝ"
 
@@ -114,8 +116,20 @@ def p_dimension_type_as_symbol(p):
     p[0] = (mapping.get(p[1], p[1]), "invariant")
 
 
+def p_module_path_single(p):
+    """module_path : ID"""
+    # base case: Single instance of module path
+    p[0] = p[1]
+
+
+def p_module_path_multiple(p):
+    """module_path : module_path DOT ID"""
+    # recursive case: Import from different directories using `.` keyword.
+    p[0] = f"{p[1]}.{p[3]}"
+
+
 def p_statement_import(p):
-    """statement : FROM ID IMPORT import_list NEWLINE"""
+    """statement : FROM module_path IMPORT import_list NEWLINE"""
     # import statement basic syntax
     # Example:
     #   from factorial import fact

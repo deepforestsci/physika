@@ -5,6 +5,19 @@ from physika.runtime import DEVICE
 
 from physika.runtime import print
 
+# === Functions ===
+def unpack_simple_array(arr):
+    a, b, c = arr
+    return a
+
+def return_array(n):
+    results = torch.stack([(i * 1) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    return results
+
+def unpack_array_in_function_call(n):
+    a, b, c = return_array(n)
+    return c
+
 # === Classes ===
 class Simple(nn.Module):
     def __init__(self, v):
@@ -202,7 +215,63 @@ class Vec2(nn.Module):
                 if g is not None:
                     p -= lr * g
 
+class A(nn.Module):
+    def __init__(self, x, y, z, c1, c2, total1, total2):
+        super().__init__()
+        self.x = torch.as_tensor(x).float()
+        self.y = torch.as_tensor(y).float()
+        self.z = torch.as_tensor(z).float()
+        self.c1 = torch.as_tensor(c1).float()
+        self.c2 = torch.as_tensor(c2).float()
+        self.total1 = int(total1)
+        self.total2 = int(total2)
+        self.learnable_params = [self.x, self.y, self.z, self.c1, self.c2]
+
+    def return_Real_type(self):
+        this = self
+        return self.x
+
+    def return_Complex_type(self):
+        this = self
+        return self.c1
+
+    def return_Natural_type(self):
+        this = self
+        return self.total1
+
+    @property
+    def params(self):
+        return list(self.parameters())
+
+    def update(self, lr, grads):
+        with torch.no_grad():
+            for p, g in zip(self.parameters(), grads):
+                if g is not None:
+                    p -= lr * g
+
 # === Program ===
+a, b, c, d = 1, 2, 3, 4
+print(a)
+print(b)
+print(c)
+print(d)
+a, b = 7, 8
+print(a)
+print(b)
+x_complex, y_complex = 1j, 2j
+print(x_complex)
+print(y_complex)
+x_arr, y_arr = torch.tensor([[1, 1], [1, 1]], device=DEVICE), torch.tensor([[1, 1], [1, 1]], device=DEVICE)
+print(x_arr)
+print(y_arr)
+print(unpack_simple_array(torch.tensor([1, 2, 3], device=DEVICE)))
+print(unpack_array_in_function_call(3))
+sample_arr = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]], device=DEVICE)
+for i in range(int(0), int(3)):
+    a, b, c = sample_arr[int(i)]
+    print(a)
+    print(b)
+    print(c)
 p = Point(1.0, 2.0).to(DEVICE)
 a, b = p.get()
 result = (a + b)
@@ -219,17 +288,7 @@ v = Vec2(0.5, 1.0).to(DEVICE)
 a, b = v.f()
 print(a)
 print(b)
-a, b, c, d = 1, 2, 3, 4
-print(a)
-print(b)
-print(c)
-print(d)
-a, b = 7, 8
-print(a)
-print(b)
-x_complex, y_complex = 1j, 2j
-print(x_complex)
-print(y_complex)
-x_arr, y_arr = torch.tensor([[1, 1], [1, 1]], device=DEVICE), torch.tensor([[1, 1], [1, 1]], device=DEVICE)
-print(x_arr)
-print(y_arr)
+obj_A = A(1.0, 2.0, 3.0, 1j, 2j, 10, 20).to(DEVICE)
+print(obj_A.return_Real_type())
+print(obj_A.return_Complex_type())
+print(obj_A.return_Natural_type())

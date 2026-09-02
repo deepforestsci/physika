@@ -29,6 +29,7 @@ the lexer maps all of them to the same underlying type:
 - Integer (ℤ): ``ℤ``, ``\mathbb{Z}``, ``\Z`` or ``Z``
 - Natural (ℕ): ``ℕ``, ``\mathbb{N}``, ``\N`` or ``N``
 - Complex (ℂ): ``ℂ``, ``\mathbb{C}``
+- list : ``list``
 
 .. note::
 
@@ -69,6 +70,17 @@ Tensors (contravariant / covariant)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. literalinclude:: ../examples/example_tensors.phyk
+   :language: text
+
+Lists
+~~~~~
+
+.. literalinclude:: ../examples/example_lists.phyk
+
+Tuple unpack
+~~~~~~~~~~~~
+
+.. literalinclude:: ../examples/tuple_unpack.phyk
    :language: text
 
 ----

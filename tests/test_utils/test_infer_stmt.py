@@ -3,6 +3,7 @@ from physika.utils.types import (
     T_REAL,
     T_NAT,
     T_COMPLEX,
+    TList,
     TVar,
     TDim,
     Substitution,
@@ -186,6 +187,20 @@ class TestInferTypeMethod:
         t = ctx.infer_type(("var", "unknown"))
         assert t is None
 
+    def test_list_literal_with_type_info(self):
+        """An array literal with TList context is inferred as a TList."""
+        ctx = make_stmt_ctx()
+        node = (
+            "array",
+            [
+                ("num", 1),
+                ("num", 2),
+                ("num", 3),
+            ],
+        )
+        assert ctx.infer_type(node, type_info=TList(())) == TList(
+            (T_REAL, T_REAL, T_REAL))
+
 
 class TestStmtBodyDecl:
     """Test function body declaration statements (stmt_body_decl)."""
@@ -309,6 +324,57 @@ class TestStmtBodyDecl:
         assert errors == [
             "In 'f': 'x' declared ℝ[4], inferred ℝ: Cannot unify tensor ℝ[4] with scalar ℝ"  # noqa: E501
         ]
+
+    def test_list_declared_and_inferred(self):
+        """Inferred list preserves its element types."""
+        errors = []
+
+        a = TTensor(((3, 'invariant'), ))
+        b = TTensor(((5, 'invariant'), ))
+
+        ctx = make_stmt_ctx(
+            env={
+                'a': a,
+                'b': b,
+            },
+            errors=errors,
+        )
+        stmt = (
+            'body_decl',
+            'v',
+            'list',
+            (
+                'list',
+                [
+                    ('var', 'a'),
+                    ('var', 'b'),
+                ],
+            ),
+        )
+
+        stmt_body_decl(stmt, ctx)
+
+        assert ctx.env['v'] == TList((a, b))
+        assert errors == []
+
+    def test_list_assigned_to_scalar_reports_error(self):
+        """A list literal cannot be assigned to a scalar variable."""
+        errors = []
+
+        ctx = make_stmt_ctx(errors=errors)
+
+        stmt = (
+            "body_decl",
+            "y",
+            "ℝ",
+            ("array", [("num", 2.0)]),
+        )
+
+        stmt_body_decl(stmt, ctx)
+
+        assert len(errors) == 1
+        assert errors[0] == ("In '': 'y' declared ℝ, inferred ℝ[1]: Cannot"
+                             " unify scalar ℝ with tensor ℝ[1]")
 
 
 class TestStmtBodyAssign:
@@ -1006,6 +1072,32 @@ class TestStmtDecl:
 
         # on a type mismatch the variable is still added to env
         assert 't' in ctx.env
+
+    def test_list(self):
+        """Declared list matched infer list type"""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+        stmt_decl(
+            (
+                "decl",
+                "x",
+                "list",
+                ("list", [
+                    ("num", 1.0),
+                    ("num", 2.0),
+                    ("num", 3.0),
+                ]),
+            ),
+            ctx,
+        )
+
+        assert isinstance(ctx.env["x"], TList)
+        assert ctx.env["x"].elements == (
+            T_REAL,
+            T_REAL,
+            T_REAL,
+        )
+        assert errors == []
 
 
 class TestStmtAssign:
