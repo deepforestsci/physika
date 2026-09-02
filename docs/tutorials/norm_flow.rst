@@ -147,19 +147,29 @@ Applying the logarithm to the change-of-variables formula gives the loss (negati
 .. math::
     \mathcal{L} = -\log p_z\!\left[f_K^{-1}(\cdots(f_1^{-1}(x)))\right] - \sum_{i=1}^{K} \log \left| \det \mathcal{J}(f_i^{-1}) \right|
 
-In Physika, the loss mirrors the two terms of the equation directly. The Jacobian :math:`\mathcal{J}(f_i^{-1})` is obtained with ``grad``, which returns the full Jacobian matrix for a vector-to-vector map (see `Jacobian of vector output functions <https://physika.readthedocs.io/en/latest/language.html#jacobian-of-vector-output-functions>`__). We walk :math:`x` back through the ``K`` inverse layers, accumulating each layer's log-determinant:
-Forming J here just shows the correspondence with :math:`\mathcal{J}`, because these Jacobians are triangular, :math:`\log|\det \mathcal{J}|` is the sum of the log-diagonals, which the RealNVP code in the next section reads straight off the scale network as sum(s) (the :math:`O(N)` version of the same quantity).
+In Physika, the loss mirrors the two terms of the equation directly: it maps :math:`x` back to :math:`z` by undoing the transformations in reverse order, then adds the base log-density :math:`\log p_z(z)` and each layer's log-determinant of the Jacobian. 
+The ``loss`` method below is derived from the chain of transformations ``f1``, ``f2`` which we applied on our sample ``z`` above.
 
-.. code-block:: python
+.. code-block:: text
 
-    def loss(x: ℝ[d], d: ℕ, K: ℕ): ℝ:
-        z: ℝ[d] = x
-        log_det: ℝ = 0.0
-        for i : ℕ(K):
-            J = grad(f_inv(z, i), z)          
-            log_det += log(abs(det(J)))       
-            z = f_inv(z, i)                   
-        return -log_pz(z, d) - log_det
+    # log-density of z under a standard Gaussian N(0, I)
+    def log_pz(z: ℝ[N]): ℝ:
+        return sum(-0.5 * z * z) - N * 0.5 * log(2.0 * 3.14159265)
+
+    # Inverse transformations (x to z)
+    def f2_inv(x: ℝ[N]): ℝ[N]:
+        return x - 1.0
+
+    def f1_inv(x: ℝ[N]): ℝ[N]:
+        return x / 2.0
+
+    # Loss: map x back to z, then add log p_z(z) and each layer's log|det J|
+    def loss(x: ℝ[N]): ℝ:
+        z1: ℝ[N] = f2_inv(x)
+        J2: ℝ[N, N] = grad(z1, x)
+        z: ℝ[N] = f1_inv(z1)
+        J1: ℝ[N, N] = grad(z, z1)
+        return -log_pz(z) - log(abs(det(J2))) - log(abs(det(J1)))
 
 The first term, :math:`-\log p_z[\cdot]`, penalizes mappings that send data points to low-density regions of the base distribution.
 The second term, :math:`-\sum_i \log |\det \mathcal{J}(f_i^{-1})|`, penalizes transformations that excessively compress volume (which would artificially inflate density).
@@ -232,10 +242,32 @@ This is not an exhaustive list, but below are some popular methods.
             x_1 &= z_1 \\
             x_2 &= \exp(s(z_1)) \odot z_2 + m(z_1)
 
+        This is implemented as the ``coupling`` method in Physika shown below: the first half ``x1`` passes through unchanged, and the second half ``x2`` is scaled by ``exp(s)`` and shifted by ``m``. Here ``s`` and ``m`` are two one-hidden-layer networks conditioned on ``x1``, built from the helpers ``linear`` (which computes ``x @ W + b``) and the activation function ``relu`` which computes ``(x + abs(x)) * 0.5``.
+
+        .. code-block:: text
+
+            def coupling(x: ℝ[d]): ℝ[d]:
+                x1: ℝ[n] = x[:this.n]
+                x2: ℝ[n] = x[this.n:]
+                s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+                m: ℝ[n] = linear(relu(linear(x1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
+                return concat(x1, exp(s) * x2 + m)
+
     - Inverse Mapping (:math:`z \to x`):
         .. math::
             z_1 &= x_1 \\
             z_2 &= (x_2 - m(x_1)) \odot \exp(-s(x_1))
+
+        The ``coupling_inv`` method is a mirror image of ``coupling``. Since ``y1`` is passed through unchanged, we recompute the exact same ``s`` and ``m`` from it and undo the affine map on ``y2`` by subtracting ``m``, then multiply by ``exp(-s)``:
+
+        .. code-block:: text
+
+            def coupling_inv(y: ℝ[d]): ℝ[d]:
+                y1: ℝ[n] = y[:this.n]
+                y2: ℝ[n] = y[this.n:]
+                s: ℝ[n] = linear(relu(linear(y1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+                m: ℝ[n] = linear(relu(linear(y1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
+                return concat(y1, (y2 - m) * exp(-s))
 
     The inverse is straightforward: since :math:`x_1 = z_1` is already known, we can evaluate :math:`s(x_1)` and :math:`m(x_1)` and recover :math:`z_2 = (x_2 - m(x_1)) \odot \exp(-s(x_1))` in a single forward pass of the networks, making it easy to compute unlike the planar flow above.
 
@@ -284,6 +316,15 @@ This is not an exhaustive list, but below are some popular methods.
     The log-exp pair cancels, reducing the computation to a simple sum of the scale network outputs.
     This is :math:`O(n)` rather than the :math:`O(N^3)` cost of a general determinant, the same computational advantage enjoyed by NICE.
 
+    In Physika, this is implemented as the ``log_det`` method: it runs just the scale network on ``x1`` and returns ``sum(s)``, reading the log-determinant straight off the scale outputs instead of forming the full Jacobian:
+
+    .. code-block:: text
+
+        def log_det(x: ℝ[d]): ℝ:
+            x1: ℝ[n] = x[:this.n]
+            s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+            return sum(s)
+
     Note that since :math:`s_i` can be any real number (positive or negative), the absolute value is accounted for by the exponential: :math:`e^{s_i} > 0\;\forall\, s_i \in \mathbb{R}`, so the determinant is always positive and the absolute value is no longer needed.
 
     **Loss:**
@@ -307,6 +348,16 @@ This is not an exhaustive list, but below are some popular methods.
         \mathcal{L}(\theta) = -\mathbb{E}_{x \sim p_{\text{data}}}\!\left[\log p_X(x)\right]
         = -\mathbb{E}_{x \sim p_{\text{data}}}\!\left[\log p_Z(f^{-1}(x)) + \sum_{k=1}^{K} \sum_{i=1}^{n} s_i^{(k)}\right]
 
+    In Physika these two terms are the ``λ`` method , it maps ``x`` to ``z`` with ``forward_z`` and adds the base log-density to the log-determinant  while ``loss`` just negates it for a single sample:
+
+    .. code-block:: text
+
+        def λ(x: ℝ[d]) -> ℝ:
+            z: ℝ[d] = this.forward_z(x)
+            return log_pz(z, this.d) + this.log_det(x)
+        def loss(x: ℝ[784]): ℝ:
+            return -this(x)
+        
     Minimizing :math:`\mathcal{L}` pushes the model to (a) map data points to high-density regions of the base distribution (via the :math:`\log p_Z` term) and (b) learn appropriate per-dimension scaling and shifting (via the :math:`\sum_k \sum_i s_i^{(k)}` term).
 
 
@@ -318,7 +369,7 @@ This is not an exhaustive list, but below are some popular methods.
 Implementing the RealNVP Normalizing Flow in Physika
 ------------------------------------------------------
 
-The code block below contains the core components of the RealNVP model implemented in Physika.
+The code block below contains the core components of the RealNVP model implemented in Physika as a single class.
 The coupling layer is implemented using two simple feedforward neural networks with one hidden layer and ReLU activation function: one for the scale :math:`s` and one for the shift :math:`m`.
 Unlike NICE, no separate rescale layer is needed because scaling is built into the affine coupling layers.
 In the next section, we will show how to train the RealNVP model on a simple image classification task.
@@ -327,7 +378,7 @@ In the next section, we will show how to train the RealNVP model on a simple ima
 Note: The code below is for pedagogical purposes.
 Please refer to the next section for the complete standalone implementation for image classification.
 
-.. code-block:: python
+.. code-block:: text
 
     class RealNVP(W1_s: ℝ[h, n], b1_s: ℝ[h], W2_s: ℝ[n, h], b2_s: ℝ[n], W1_m: ℝ[h, n], b1_m: ℝ[h], W2_m: ℝ[n, h], b2_m: ℝ[n], n: ℕ, d: ℕ):
         def coupling(x: ℝ[d]): ℝ[d]:
@@ -359,12 +410,9 @@ Please refer to the next section for the complete standalone implementation for 
         def loss(x: ℝ[784]): ℝ:
             return -this(x)
 
-Full Code
+Training a RealNVP Normalizing Flow on the MNIST Dataset
 ---------------------------------------------------------------------------------
-
-
 This is the complete code for training a model on the MNIST dataset using the RealNVP Normalizing Flow.
-
 
 .. note::
    ``create_dataset`` is not a built-in Physika function. To use it,
@@ -417,9 +465,10 @@ This is the complete code for training a model on the MNIST dataset using the Re
             test_data = [X_test, y_test]
             return [train_data, test_data]
 
-Code in the Physika (.phyk) file
+Full Code
+---------------------------------------------------------------------------------
 
-.. code-block:: python
+.. code-block:: text
 
     physika.seed(0)
 
@@ -538,12 +587,12 @@ Code in the Physika (.phyk) file
     dataset = create_dataset(80, 200)
     train_dataset = dataset[0]
     test_dataset = dataset[1]
-    train_X = train_dataset[0]
-    test_X = test_dataset[0]
-    len_train: ℝ, len_test: ℝ = len1d(train_X), len1d(test_X)
+    train_X: ℝ[160, 28, 28] = train_dataset[0]
+    test_X: ℝ[40, 28, 28] = test_dataset[0]
+    len_train: ℝ, len_test: ℝ = 160, 40
 
     # Dimensions
-    d, h, n = 784, 128, 392
+    d: ℝ, h: ℝ, n: ℝ = 784, 128, 392
     # He init, near-zero output so coupling starts near identity
     s1: ℝ, s2: ℝ = sqrt(2.0 / n), sqrt(2.0 / h) * 0.01
     W1_s, W1_m = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n), for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
