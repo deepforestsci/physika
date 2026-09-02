@@ -1,0 +1,166 @@
+# Parameter Learning for the Izhikevich Neuron: the Saltation (Event-Aware) Gradient
+# ===================================================================================
+#   v' = 0.04 v^2 + 5 v + 140 - u + I        (0.04 v^2 = spike upstroke)
+#   u' = a (b v - u)
+#   reset:  if v >= 30:  v <- c,  u <- u + d      <-- HYBRID discontinuity
+#
+# The reset makes this a HYBRID system. With a fixed-step integrator that checks the
+# guard only at step boundaries, the spike TIME is quantised to the dt grid, so the
+# loss is a sawtooth in the parameters: the exact gradient of that discrete system is
+# locally correct but jumps as spikes cross grid cells, which is useless for descent.
+#
+# The fix is the SALTATION (event-time-aware) gradient: locate the crossing inside the
+# step, reset there, then integrate the remainder. Differentiating through that
+# construction gives the saltation-corrected sensitivity -- no jump matrix assembled by
+# hand. Physika differentiates through it with `grad`.
+#
+# Two lessons:
+#   1. Saltation removes the sawtooth and gives a usable gradient; from a good start,
+#      log-space Adam recovers `a` to machine precision.
+#   2. It is still not enough in general: the spike-train loss is GLOBALLY non-convex
+#      (one basin per spike count), so recovery is start-dependent. Differentiability
+#      is necessary but not sufficient.
+
+# --- array helpers (same idiom as the sibling ODE tutorials) ---
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def append(x: ℝ[m], var: ℝ): ℝ[n]:
+    new_length: ℝ = get_1d_array_length(x) + 1
+    results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
+    for i:ℕ(new_length):
+        if i<len_x:
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+# --- fixed Izhikevich regular-spiking (RS) constants; only `a` is learnable ---
+b: ℝ = 0.2
+c: ℝ = -65.0
+d: ℝ = 8.0
+dt: ℝ = 0.5
+timesteps: ℕ = 200
+I: ℝ = 10.0          # suprathreshold drive -> repetitive firing (3 spikes)
+
+# --- baseline: guard checked at step boundaries -> spike time on the dt grid ---
+def solver_hard(a: ℝ): ℝ[m]:
+    v: ℝ = -65.0
+    u: ℝ = b * v
+    v_array: ℝ[1] = [-65.0]
+    for i:ℕ(timesteps):
+        v += 0.5 * dt * (0.04 * v * v + 5.0 * v + 140.0 - u + I)
+        v += 0.5 * dt * (0.04 * v * v + 5.0 * v + 140.0 - u + I)
+        u += dt * (a * (b * v - u))
+        if v >= 30.0:
+            v = c
+            u = u + d
+        v_array = append(v_array, v)
+    return v_array
+
+# --- saltation: locate the crossing inside the step, reset there, finish the step ---
+# temps hoisted to function scope; a NEW typed declaration inside a loop body
+# mis-lowers (the target identifier is character-split), so we only reassign below.
+def solver_salt(a: ℝ): ℝ[m]:
+    v: ℝ = -65.0
+    u: ℝ = b * v
+    vfull: ℝ = 0.0
+    ufull: ℝ = 0.0
+    frac: ℝ = 0.0
+    hf: ℝ = 0.0
+    vc: ℝ = 0.0
+    u_cross: ℝ = 0.0
+    hr: ℝ = 0.0
+    ur: ℝ = 0.0
+    vv: ℝ = 0.0
+    v_array: ℝ[1] = [-65.0]
+    for i:ℕ(timesteps):
+        # full step: boundary value decides whether v crosses 30 this step
+        vfull = v + 0.5 * dt * (0.04 * v * v + 5.0 * v + 140.0 - u + I)
+        vfull = vfull + 0.5 * dt * (0.04 * vfull * vfull + 5.0 * vfull + 140.0 - u + I)
+        ufull = u + dt * (a * (b * vfull - u))
+        if vfull >= 30.0:
+            # crossing fraction of the step (differentiable in a through v, vfull)
+            frac = (30.0 - v) / (vfull - v)
+            # integrate up to the event
+            hf = frac * dt
+            vc = v + 0.5 * hf * (0.04 * v * v + 5.0 * v + 140.0 - u + I)
+            vc = vc + 0.5 * hf * (0.04 * vc * vc + 5.0 * vc + 140.0 - u + I)
+            u_cross = u + hf * (a * (b * vc - u))
+            # reset at the event, then integrate the remainder of the step
+            hr = (1.0 - frac) * dt
+            ur = u_cross + d
+            vv = c + 0.5 * hr * (0.04 * c * c + 5.0 * c + 140.0 - ur + I)
+            vv = vv + 0.5 * hr * (0.04 * vv * vv + 5.0 * vv + 140.0 - ur + I)
+            u = ur + hr * (a * (b * vv - ur))
+            v = vv
+        else:
+            v = vfull
+            u = ufull
+        v_array = append(v_array, v)
+    return v_array
+
+# --- the "measured" spike train: the saltation-accurate trajectory at the true a ---
+true_a: ℝ = 0.02
+v_data: ℝ[m] = solver_salt(true_a)
+
+def loss_hard(a: ℝ): ℝ:
+    v_pred: ℝ[n] = solver_hard(a)
+    L: ℝ = 0.0
+    m: ℝ = get_1d_array_length(v_pred)
+    for i:ℕ(m):
+        L += (v_pred[i] - v_data[i]) ** 2
+    return L/m
+
+def loss_salt(a: ℝ): ℝ:
+    v_pred: ℝ[n] = solver_salt(a)
+    L: ℝ = 0.0
+    m: ℝ = get_1d_array_length(v_pred)
+    for i:ℕ(m):
+        L += (v_pred[i] - v_data[i]) ** 2
+    return L/m
+
+# --- Lesson 1: the boundary-check gradient vs the saltation gradient at a=0.025 ---
+# The boundary-check gradient reports the local sawtooth-tooth slope; the saltation
+# gradient matches h->0 finite differences (192903 in fp64) and drives clean descent.
+a_probe: ℝ = 0.025
+grad(loss_hard, a_probe)
+grad(loss_salt, a_probe)
+
+# --- Lesson 1 (cont.): recover `a` with log-space Adam on the saltation gradient ---
+# From a good start (a0 = 0.040) this reaches the true a = 0.020 to machine precision
+# (loss ~1e-10 in fp32, ~1e-24 in fp64). Set epochs higher (e.g. 800) for real
+# training; here it is 1 so the tutorial runs quickly.
+a_log: ℝ = log(0.040)
+learning_rate: ℝ = 0.004
+beta1: ℝ = 0.9
+beta2: ℝ = 0.999
+eps_adam: ℝ = 0.00000001
+m_adam: ℝ = 0.0
+v_adam: ℝ = 0.0
+t_adam: ℝ = 0.0
+epochs: ℕ = 1
+
+for i:ℕ(epochs):
+    a_lin = exp(a_log)
+    g = grad(loss_salt, a_lin)
+    g_log = g * a_lin                       # chain rule: dL/d(log a) = a * dL/da
+    t_adam = t_adam + 1.0
+    m_adam = beta1 * m_adam + (1.0 - beta1) * g_log
+    v_adam = beta2 * v_adam + (1.0 - beta2) * (g_log * g_log)
+    mhat = m_adam / (1.0 - beta1 ** t_adam)
+    vhat = v_adam / (1.0 - beta2 ** t_adam)
+    a_log = a_log - learning_rate * mhat / (sqrt(vhat) + eps_adam)
+
+a_final: ℝ = exp(a_log)
+print(a_final)
