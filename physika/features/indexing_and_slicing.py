@@ -117,8 +117,26 @@ def make_parser_rules():
         #   ("indexN", name, [idx_exprs])
         p[0] = ("indexN", p[1], p[3])
 
+    def p_for_statement_index_assign(p):
+        """for_statement : ID LBRACKET ID RBRACKET EQUALS func_expr NEWLINE"""
+        # 1-D Indexed assignment inside top-level for-body
+        # Example:
+        #   for i:ℕ(epochs):
+        #       loss_history[epoch] = loss
+        # Parameters:
+        #   p[1] - array name
+        #   p[3] - index variable
+        #   p[6] - right-hand side expression
+
+        p[0] = (
+            "for_index_assign_nd",
+            p[1],
+            [("index_item", ("var", p[3]))],
+            p[6],
+        )
+
     def p_for_statement_index_assign_nd(p):
-        """for_statement : ID LBRACKET loop_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
+        """for_statement : ID LBRACKET multi_index_list RBRACKET EQUALS func_expr NEWLINE"""  # noqa
         # nd Indexed assignment inside top-level for-body
         # Example:
         # # 1d array
@@ -275,13 +293,13 @@ def make_parser_rules():
         p_func_factor_index, p_multi_index_item_index,
         p_multi_index_item_slice, p_multi_index_list_single,
         p_multi_index_list_base, p_multi_index_list_extend,
-        p_func_factor_indexN, p_for_statement_index_assign_nd,
-        p_statement_index_assign, p_statement_index_assign_nd,
-        p_loop_index_item_index, p_loop_index_item_slice,
-        p_loop_index_list_single, p_loop_index_list_base,
-        p_loop_index_list_extend, p_func_loop_stmt_index_pluseq,
-        p_func_loop_stmt_index_assign_nd, p_func_body_stmt_index_assign,
-        p_func_body_stmt_index_assign_nd
+        p_func_factor_indexN, p_for_statement_index_assign,
+        p_for_statement_index_assign_nd, p_statement_index_assign,
+        p_statement_index_assign_nd, p_loop_index_item_index,
+        p_loop_index_item_slice, p_loop_index_list_single,
+        p_loop_index_list_base, p_loop_index_list_extend,
+        p_func_loop_stmt_index_pluseq, p_func_loop_stmt_index_assign_nd,
+        p_func_body_stmt_index_assign, p_func_body_stmt_index_assign_nd
     ]
 
 

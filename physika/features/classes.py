@@ -429,13 +429,15 @@ def generate_class(
                 f"if isinstance({pname}, (int, float, torch.Tensor)) else {pname}"  # noqa :E501
             )
 
-    learnable_names = [
-        pname for pname, ptype in constructor_params
-        if is_learnable(ptype) or (
-            isinstance(ptype, tuple) and ptype[0] == "tensor")
-    ]
-    params_list = ", ".join(f"self.{p}" for p in learnable_names)
-    class_lines.append(f"        self.learnable_params = [{params_list}]")
+    if has_forward:
+        learnable_names = [
+            pname for pname, ptype in constructor_params
+            if is_learnable(ptype) or (
+                isinstance(ptype, tuple) and ptype[0] == "tensor")
+        ]
+        params_list = ", ".join(f"self.{p}" for p in learnable_names)
+        class_lines.append(f"        self.learnable_params = [{params_list}]")
+        class_def["learnable_params"] = learnable_names
 
     # Fields should not be learnable (register_buffer)
     for fname, ftype in fields:
@@ -802,6 +804,18 @@ def make_parser_rules():
         #   p[5] - value expression
         p[0] = ("body_field_assign", p[1], p[3], p[5])
 
+    def p_for_statement_field_assign(p):
+        """for_statement : factor DOT ID EQUALS expr NEWLINE"""
+        # Field assignment inside a for loop
+        # Example:
+        #   for i:ℕ(epochs):
+        #       model.W1 = optimizer.step(model.W1, dW1)
+        # Parameters:
+        #   p[1] - object expression ("var", "this")
+        #   p[3] - name of field/var being assigned
+        #   p[5] - rhs expression
+        p[0] = ("for_field_assign", p[1], p[3], p[5])
+
     def p_member_expr_base(p):
         """member_expr : ID"""
         # Base case for member expression.
@@ -882,6 +896,7 @@ def make_parser_rules():
         p_type_class,
         p_func_body_stmt_method_call,
         p_func_body_stmt_field_assign,
+        p_for_statement_field_assign,
         p_class_method_void,
         p_member_expr_base,
         p_member_expr_field,
@@ -966,6 +981,30 @@ class ClassFeature(ELF):
     25.0 ∈ ℝ
     """
     name = "physika-class"
+
+    def __init__(self):
+        """
+        Initialize empty ClassFeature instance.
+
+        Attributes
+        ----------
+        learnable_params : set[str]
+            Variable names of learnable parameters which belongs to class
+            (nn.Module) with a forward method. These names are used during
+            code generation to identify assignments that should update
+            learnable parameters under ``torch.no_grad()``.
+
+        Examples
+        --------
+        >>> from physika.features.classes import ClassFeature
+        >>> feature = ClassFeature()
+        >>> feature.learnable_params
+        set()
+        >>> feature.learnable_params.update({"W1", "b1"})
+        >>> "W1" in feature.learnable_params
+        True    
+        """
+        self.learnable_params = set()
 
     def lexer_rules(self) -> dict:
         """
@@ -1462,7 +1501,10 @@ class ClassFeature(ELF):
             True
             """
             _, name, class_def = node
-            return generate_class(name, class_def)
+
+            generated_class_def = generate_class(name, class_def)
+            self.learnable_params.update(class_def.get("learnable_params", []))
+            return generated_class_def
 
         def emit_body_expr(node: tuple,
                            to_expr: Callable,
@@ -1554,10 +1596,71 @@ class ClassFeature(ELF):
             val_code = to_expr(expr, current_loop_var=current_loop_var)
             return f"{obj_code}.{field_name} = {val_code}"
 
+        def emit_for_field_assign(node: tuple, to_expr: Callable,
+                                  **ctx) -> str:
+            """
+            Emits a ``for_field_assign`` AST node when a field assignment statement
+            is used inside Top level for loops.
+
+
+            Parameters
+            ----------
+            node : tuple
+                AST node of the form
+                ``('for_field_assign', target, expr)`` where ``target`` is a
+                ``field_access`` node representing the field being assigned and
+                ``expr`` is the expression whose value is assigned to the field.
+            to_expr : Callable
+                Code generation function that converts an AST node to PyTorch
+                source code (generally the ``ast_to_torch_expr`` utility function).
+            **ctx
+                Extra keyword arguments forwarded by the dispatch mechanism.
+
+            Returns
+            -------
+            str
+                Python source string for a method call.
+            
+            Examples
+            --------
+            >>> from physika.features import ClassFeature
+            >>> from physika.utils.ast_utils import ast_to_torch_expr
+            >>> feature = ClassFeature()
+            >>> feature.learnable_params.add("W1")
+            >>> rules = feature.forward_rules()
+            >>> emit = rules["for_field_assign"]
+            >>> field_assign = (
+            ...     "for_field_assign",
+            ...     ("field_access", ("var", "model"), "W1"),
+            ...     ("var", "new_W1"),
+            ... )
+            >>> code = emit(field_assign, ast_to_torch_expr)
+            >>> "with torch.no_grad():" in code
+            True
+            >>> "model.W1.copy_(new_W1)" in code
+            True
+            """
+            _, obj_expr, field_name, expr = node
+            raw = to_expr(obj_expr)
+            if raw == "this":
+                obj_code = "self"
+            else:
+                obj_code = raw
+            val_code = to_expr(expr)
+            target_code = f"{obj_code}.{field_name}"
+
+            # update learnable params with ``torch.no_grad()``
+            if field_name in self.learnable_params:
+                return ("with torch.no_grad():\n"
+                        f"      {target_code}.copy_({val_code})")
+
+            return f"{target_code} = {val_code}"
+
         return {
             "field_access": emit_field_access,
             "method_call": emit_method_call,
             "class_def": emit_class_def,
             "body_expr": emit_body_expr,
             "body_field_assign": emit_body_field_assign,
+            "for_field_assign": emit_for_field_assign
         }
