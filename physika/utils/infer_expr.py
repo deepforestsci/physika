@@ -369,6 +369,17 @@ def expr_array(node: Any,
     if not elements:
         return make_tensor([0]), ctx.s  # empty array literal
 
+    # A string array literal (["H", "Cl"]) has no tensor representation -- it
+    # is an opaque Python list of strings passed straight through to a foreign
+    # call or stored as a class member. Type it as T_STRING (the same type a
+    # bare string literal and a `Str` annotation carry) so it unifies with
+    # `Str`-annotated members/parameters. `equation_string` is the tag string
+    # elements get at program level (factor : STRING); it has no expr handler,
+    # so match it here rather than recursing into infer_expr.
+    str_tags = ("string", "equation_string")
+    if all(isinstance(e, tuple) and e[0] in str_tags for e in elements):
+        return T_STRING, ctx.s
+
     elem_types = []
     cur = ctx.s
     for e in elements:
@@ -991,8 +1002,10 @@ def expr_call(node: Any,
         arg_types.append(at)
 
     # Built-in functions
+    # ``detach`` returns its argument with autograd tracking stripped; like the
+    # element-wise ops it preserves the argument's type/shape.
     elementwise_ops = ("exp", "log", "sin", "cos", "sqrt", "abs", "tanh",
-                       "real", "imag")
+                       "real", "imag", "detach")
     if func_name in elementwise_ops:
         # Element-wise ops preserve the shape of their argument
         if arg_types:
@@ -1273,6 +1286,26 @@ def expr_cond(node, ctx):
     return result_t, s
 
 
+def expr_cond_in(node: Any,
+                 ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the type of a membership condition ``element in container``.
+
+    Unlike the ordered comparisons, the two operands are *not* required to
+    have the same type: the container is normally an opaque Python list
+    returned by a foreign call, whose element type physika cannot see. Both
+    operands are still walked so their own sub-expressions get checked, and
+    the condition itself is typed ``T_REAL`` (physika `if` conditions are
+    truthy reals).
+    """
+    _op, left, right = node
+    _tl, s = infer_expr(left, ctx.env, ctx.s, ctx.func_env, ctx.class_env,
+                        ctx.add_error)
+    _tr, s = infer_expr(right, ctx.env, s, ctx.func_env, ctx.class_env,
+                        ctx.add_error)
+    return T_REAL, s
+
+
 EXPR_DISPATCH: dict = {
     "num": expr_num,
     "var": expr_var,
@@ -1300,6 +1333,7 @@ EXPR_DISPATCH: dict = {
     "cond_gt": expr_cond,
     "cond_leq": expr_cond,
     "cond_geq": expr_cond,
+    "cond_in": expr_cond_in,
 }
 
 

@@ -716,6 +716,11 @@ def ast_to_torch_expr(node: ASTNode,
         list_arg_funcs = {
             "concat": "torch.cat",
         }
+        if func_name == "detach":
+            # Strip autograd tracking. Leaves non-tensors untouched so the
+            # result stays usable by plain Python / NumPy consumers.
+            return f"(({arg}).detach() if isinstance({arg}, torch.Tensor) else {arg})"  # noqa: E501
+
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
 
@@ -934,6 +939,7 @@ def condition_to_expr(cond: ASTNode,
         "cond_gt": ">",
         "cond_leq": "<=",
         "cond_geq": ">=",
+        "cond_in": "in",
     }
     cond_t = cast(tuple[Any, ...], cond)
     op = cond_t[0]

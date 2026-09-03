@@ -64,6 +64,16 @@ def p_type_function(p):
     p[0] = ("func_type", p[1], p[3])
 
 
+def p_type_string(p):
+    """type_spec : STRTYPE"""
+    # String / opaque-string annotation (``Str``). Maps to the internal
+    # "string" type, which from_typespec() turns into T_STRING. A string
+    # array literal (["H", "Cl"]) infers as "string" too, so a member or
+    # parameter annotated ``Str`` accepts one and is stored/passed through
+    # unchanged (never tensor-converted).
+    p[0] = "string"
+
+
 def p_type_tangent(p):
     """type_spec : TANGENT ID TYPE"""
     # T_x M notation for tangent space at point x of manifold M
@@ -104,6 +114,14 @@ def p_dimension_invariant_id(p):
     """dimension_spec : ID"""
     # Symbolic dimension variable (e.g. M, K, hidden) — kept as string
     p[0] = (p[1], "invariant")
+
+
+def p_dimension_invariant_in(p):
+    """dimension_spec : IN"""
+    # ``in`` is a keyword (membership condition) but is also used as a
+    # symbolic tensor-dimension name in existing code, e.g. ``ℝ[out, in]``.
+    # Keep that spelling working.
+    p[0] = ("in", "invariant")
 
 
 def p_dimension_type_as_symbol(p):
@@ -525,6 +543,17 @@ def p_condition_geq(p):
     # Returns:
     #   ("cond_geq", left, right)
     p[0] = ("cond_geq", p[1], p[3])
+
+
+def p_condition_in(p):
+    """condition : func_expr IN func_expr"""
+    # Membership test used as an `if` condition:
+    #   if "Ge" in species:
+    # The right operand is typically an opaque Python container returned by a
+    # call into an injected sibling module (a list of chemical symbols, e.g.).
+    # Returns:
+    #   ("cond_in", element, container)
+    p[0] = ("cond_in", p[1], p[3])
 
 
 def p_statement_function_with_loop(p):
@@ -1080,7 +1109,11 @@ def p_func_factor_dict_empty(p):
 
 
 def p_dict_entries_single(p):
-    """dict_entries : dict_entry"""
+    """dict_entries : dict_entry
+                    | dict_entry COMMA"""
+    # Second form allows a trailing comma before the closing brace, so a
+    # multi-line dict literal can put every entry (including the last) on its
+    # own line with a comma.
     p[0] = [p[1]]
 
 
@@ -1153,7 +1186,11 @@ def p_func_factor_for_expr_auto(p):
 
 
 def p_func_elements_single(p):
-    """func_elements : func_expr"""
+    """func_elements : func_expr
+                     | func_expr COMMA"""
+    # Second form allows a trailing comma before the closing bracket, so a
+    # multi-line array literal can put every element (including the last) on
+    # its own line with a comma.
     p[0] = [p[1]]
 
 
@@ -1310,7 +1347,11 @@ def p_factor_for_expr_auto(p):
 
 
 def p_elements_single(p):
-    """elements : expr"""
+    """elements : expr
+                | expr COMMA"""
+    # Second form allows a trailing comma before the closing bracket (see
+    # p_func_elements_single); keeps program-level array literals in step with
+    # function-body ones.
     p[0] = [p[1]]
 
 

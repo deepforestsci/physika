@@ -1,12 +1,12 @@
 import ply.lex as lex
 
-tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
-          "TIMES", "DIVIDE", "INTDIV", "MATMUL", "POWER", "EQUALS", "EQEQ",
-          "NEQ", "LT", "GT", "LEQ", "GEQ", "PLUSEQ", "COLON", "COMMA", "ARROW",
-          "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE", "INDENT",
-          "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS", "LAMBDA",
-          "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION", "WALRUS",
-          "FROM", "IMPORT", "DOT", "LBRACE", "RBRACE")
+tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "STRTYPE", "PLUS",
+          "MINUS", "TIMES", "DIVIDE", "INTDIV", "MATMUL", "POWER", "EQUALS",
+          "EQEQ", "NEQ", "LT", "GT", "LEQ", "GEQ", "PLUSEQ", "COLON", "COMMA",
+          "ARROW", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE",
+          "INDENT", "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS",
+          "LAMBDA", "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION",
+          "WALRUS", "FROM", "IMPORT", "IN", "DOT", "LBRACE", "RBRACE")
 
 reserved = {
     "def": "DEF",
@@ -19,7 +19,11 @@ reserved = {
     "Function": "FUNCTION",
     "Equation": "EQUATION",
     "from": "FROM",
-    "import": "IMPORT"
+    "import": "IMPORT",
+    "in": "IN",
+    # String scalar / opaque-string type annotation. A string array literal
+    # (["H", "Cl"]) infers as this same type, so `atoms_list: Str` accepts one.
+    "Str": "STRTYPE",
 }
 
 t_POWER = r"\*\*"
