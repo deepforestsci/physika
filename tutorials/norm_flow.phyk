@@ -1,0 +1,163 @@
+physika.seed(0)
+
+# Helpers
+def len1d(x: ℝ[n]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def relu(x: ℝ[n]): ℝ[n]:
+    return (x + abs(x)) * 0.5
+
+def linear(x: ℝ[li], W: ℝ[lo, li], b: ℝ[lo]): ℝ[lo]:
+    in_dim: ℝ = len1d(x)
+    col: ℝ[li, 1] = for i:ℕ(in_dim) -> for j:ℕ(1) -> j*0
+    col[:, 0] = x
+    res: ℝ[lo, 1] = W @ col
+    return res[:, 0] + b
+
+def flatten(img: ℝ[H, W], rows: ℝ, cols: ℝ): ℝ[d]:
+    d: ℝ = rows * cols
+    out: ℝ[d] = for i:ℕ(d) -> i*0
+    for i:ℕ(rows):
+        out[i * cols : (i + 1) * cols] = img[i, :]
+    return out
+
+def unflatten(x: ℝ[d], rows: ℝ, cols: ℝ): ℝ[rows, cols]:
+    img: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
+    for i:ℕ(rows):
+        img[i, :] = x[i * cols : (i + 1) * cols]
+    return img
+
+def dequantize(x: ℝ[d], d: ℕ): ℝ[d]:
+    a: ℝ[1] = [0.0]
+    b: ℝ[1] = [1.0]
+    u: ℝ[d] ~ 𝒰(a[0], b[0], d)
+    return (x + u) / 256.0
+
+def log_pz(x: ℝ[d], d: ℕ): ℝ:
+    return sum(-0.5 * x * x) - d * 0.5 * log(2.0 * 3.14159265)
+
+def concat(a: ℝ[na], b: ℝ[nb]): ℝ[d]:
+    la: ℝ = len1d(a)
+    lb: ℝ = len1d(b)
+    d: ℝ = la + lb
+    out: ℝ[d] = for i:ℕ(d) -> i*0
+    out[:la] = a
+    out[la:] = b
+    return out
+
+# RealNVP, two networks scale (s) and shift (m)
+class RealNVP(W1_s: ℝ[h, n], b1_s: ℝ[h], W2_s: ℝ[n, h], b2_s: ℝ[n], W1_m: ℝ[h, n], b1_m: ℝ[h], W2_m: ℝ[n, h], b2_m: ℝ[n], n: ℕ, d: ℕ):
+    def coupling(x: ℝ[d]): ℝ[d]:
+        x1: ℝ[n] = x[:this.n]
+        x2: ℝ[n] = x[this.n:]
+        s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+        m: ℝ[n] = linear(relu(linear(x1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
+        return concat(x1, exp(s) * x2 + m)
+    def coupling_inv(y: ℝ[d]): ℝ[d]:
+        y1: ℝ[n] = y[:this.n]
+        y2: ℝ[n] = y[this.n:]
+        s: ℝ[n] = linear(relu(linear(y1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+        m: ℝ[n] = linear(relu(linear(y1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
+        return concat(y1, (y2 - m) * exp(-s))
+    def log_det(x: ℝ[d]): ℝ:
+        x1: ℝ[n] = x[:this.n]
+        s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+        return sum(s)
+    def forward_z(x: ℝ[d]): ℝ[d]:
+        return this.coupling(x)
+    def λ(x: ℝ[d]) -> ℝ:
+        z: ℝ[d] = this.forward_z(x)
+        return log_pz(z, this.d) + this.log_det(x)
+    def inverse(z: ℝ[d]): ℝ[d]:
+        return this.coupling_inv(z)
+    def sample(): ℝ[d]:
+        z: ℝ[d] ~ Normal(0.0, 1.0, this.d)
+        return this.inverse(z)
+    def loss(x: ℝ[784]): ℝ:
+        return -this(x)
+    def train(X: ℝ[160, 784], epochs: ℕ, lr: ℝ, len_train: ℝ):
+        for epoch: ℕ(epochs):
+            for i: ℕ(len_train):
+                L = this.loss(X[i])
+                grads = grad(L, this.params)
+                this.update_params(lr, grads)
+            total = 0
+            for i:ℕ(len_train):
+                total += this.loss(X[i])
+            epoch_loss = total/len_train
+            print(epoch_loss)
+            bits = this.evaluate(epoch_loss, len_train)
+            print(bits)
+    def test(Y: ℝ[40, 784], len_test: ℝ): ℝ:
+        total: ℝ = 0
+        for i:ℕ(len_test):
+            total += this.loss(Y[i])
+        return total / len_test
+    def evaluate(num: ℝ, len: ℝ): ℝ:
+        return num / (this.d * log(2.0)) + 8.0
+    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+        this.W1_s = this.W1_s - lr * learnable_grads[0]
+        this.b1_s = this.b1_s - lr * learnable_grads[1]
+        this.W2_s = this.W2_s - lr * learnable_grads[2]
+        this.b2_s = this.b2_s - lr * learnable_grads[3]
+        this.W1_m = this.W1_m - lr * learnable_grads[4]
+        this.b1_m = this.b1_m - lr * learnable_grads[5]
+        this.W2_m = this.W2_m - lr * learnable_grads[6]
+        this.b2_m = this.b2_m - lr * learnable_grads[7]
+
+
+# Dataset -- commented, add in runtime.py to run with real data
+# dataset = create_dataset(80, 200)
+# train_dataset = dataset[0]
+# test_dataset = dataset[1]
+# train_X: ℝ[160, 28, 28] = train_dataset[0]
+# test_X: ℝ[40, 28, 28] = test_dataset[0]
+
+# dummy data all zeros
+train_X: ℝ[160, 28, 28] = for i:ℕ(160) -> for j:ℕ(28) -> for k:ℕ(28) -> k*0
+test_X: ℝ[40, 28, 28] = for i:ℕ(40) -> for j:ℕ(28) -> for k:ℕ(28) -> k*0
+len_train: ℝ, len_test: ℝ = 160, 40
+
+# Dimensions
+d: ℝ, h: ℝ, n: ℝ = 784, 128, 392
+# He init, near-zero output so coupling starts near identity
+s1: ℝ, s2: ℝ = sqrt(2.0 / n), sqrt(2.0 / h) * 0.01
+W1_s, W1_m = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n), for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+b1_s, b1_m = for i:ℕ(h) -> i*0, for i:ℕ(h) -> i*0
+W2_s, W2_m = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h), for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+b2_s, b2_m = for i:ℕ(n) -> i*0, for i:ℕ(n) -> i*0
+
+realnvp: RealNVP = RealNVP(W1_s, b1_s, W2_s, b2_s, W1_m, b1_m, W2_m, b2_m, n, d)
+print(DEVICE)
+
+# Preprocess
+train_flat: ℝ[len_train, d] = for i:ℕ(len_train) -> for j:ℕ(d) -> j*0
+for i:ℕ(len_train):
+    train_flat[i, :] = dequantize(flatten(train_X[i], 28, 28), d)
+
+test_flat: ℝ[len_test, d] = for i:ℕ(len_test) -> for j:ℕ(d) -> j*0
+for i:ℕ(len_test):
+    test_flat[i, :] = dequantize(flatten(test_X[i], 28, 28), d)
+
+# Training
+epochs: ℕ = 20
+lr: ℝ = 0.00015
+X: ℝ[160,784] = train_flat
+Y: ℝ[40,784] = test_flat
+realnvp.train(X, epochs, lr, len_train)
+
+# Test
+test_loss: ℝ = realnvp.test(Y, len_test)
+print(test_loss)
+bits: ℝ = realnvp.evaluate(test_loss, len_test)
+print(bits)
+
+# Generate sample
+gen_flat: ℝ[d] = realnvp.sample()
+gen_img: ℝ[28, 28] = unflatten(gen_flat, 28, 28)
+print(gen_img)
