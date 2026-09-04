@@ -103,19 +103,3 @@ Vertex ``1`` connects to both ``0`` and ``2``, so its degree is ``2``;
 ``0`` and ``2`` are not directly connected. After ``add_vertex`` the graph
 has 4 vertices, and connecting the new vertex ``3`` to vertex ``2`` gives it
 degree ``1``.
-
-Running the program
---------------------
-
-.. code-block:: bash
-
-   physika examples/graph.phyk
-
-Further reading
-----------------
-
-- ``examples/lattice.phyk`` and :doc:`atoms` apply the same owning-object /
-  fixed-shape pattern to a kinetic Monte Carlo lattice and an atomic
-  structure.
-- The Classes section of :doc:`/examples` covers method calls and returning
-  an instance of the enclosing class.
