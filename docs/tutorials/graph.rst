@@ -1,8 +1,8 @@
-A Graph class
-=============
+A Undirected Graph class
+========================
 
-This tutorial implements an undirected graph, the ``Graph`` class familiar
-from a dict-of-adjacency-lists implementation, in Physika.
+This tutorial implements an undirected graph, the ``UndirectedGraph`` class
+familiar from a dict-of-adjacency-lists implementation, in Physika.
 
 Design
 ------
@@ -10,19 +10,20 @@ Design
 Physika has no ``dict`` and no growable container, and its values are
 immutable, so the design differs from the Python in three ways:
 
-- the adjacency structure is a fixed-size matrix, ``adjacency: ℝ[n, n]``,
+- The adjacency structure is a fixed-size matrix, ``adjacency: ℝ[n, n]``,
   with a ``1.0`` at ``[u, v]`` wherever an edge connects ``u`` and ``v``;
-- a method that would mutate the graph instead returns a **new** ``Graph``;
-- adding a vertex changes the matrix shape, which a method cannot do to its
+- A method that would mutate the graph instead returns a **new** ``Graph``;
+- Adding a vertex changes the matrix shape, which a method cannot do to its
   own ``this`` in place, so the new vertex count is passed in explicitly as
   a ``ℕ`` parameter.
 
-The Graph class
+The UndirectedGraph class
 ----------------
 
 .. code-block:: text
 
-   class Graph(adjacency: ℝ[n, n]):
+   class UndirectedGraph():
+       adjacency: ℝ[n, n]
        def num_vertices() → ℝ:
            return len(this.adjacency) * 1.0
        def has_edge(u: ℝ, v: ℝ) → ℝ:
@@ -36,13 +37,13 @@ The Graph class
        def neighbors(u: ℝ) → ℝ[n]:
            m: ℝ[n, n] = this.adjacency
            return m[u]
-       def add_edge(u: ℝ, v: ℝ) → Graph:
+       def add_edge(u: ℝ, v: ℝ):
            m: ℝ[n, n] = this.adjacency
            k: ℕ = len(m)
            new_adj: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → m[a, b]
            new_adj[u, v] = 1.0
            new_adj[v, u] = 1.0
-           return Graph(new_adj)
+           this.adjacency = new_adj
        def grow_adjacency(new_n: ℕ) → ℝ[new_n, new_n]:
            old: ℝ[n, n] = this.adjacency
            result: ℝ[new_n, new_n] = for a : ℕ(new_n) → for b : ℕ(new_n) → (a + b) * 0.0
@@ -51,8 +52,8 @@ The Graph class
                for b : ℕ(m):
                    result[a, b] = old[a, b]
            return result
-       def add_vertex(new_n: ℕ) → Graph:
-           return Graph(this.grow_adjacency(new_n))
+       def add_vertex(new_n: ℕ):
+           this.adjacency = this.grow_adjacency(new_n)
 
 ``add_edge`` copies the matrix and flips two entries, so its return type
 ``ℝ[n, n]`` is unchanged. ``add_vertex`` cannot do the same: it needs a
@@ -68,7 +69,9 @@ A ``Graph`` is built through a function rather than a literal matrix:
 
    def empty_graph(n_vertices: ℕ): Graph:
        z: ℝ[n_vertices, n_vertices] = for a : ℕ(n_vertices) → for b : ℕ(n_vertices) → (a + b) * 0.0
-       return Graph(z)
+       g: UndirectedGraph = UndirectedGraph()
+       g.adjacency = z
+       return g
 
 Example
 -------
@@ -76,20 +79,20 @@ Example
 .. code-block:: text
 
    n0: ℕ = 3
-   g0 = empty_graph(n0)
-   g0.num_vertices()
+   g = empty_graph(n0)
+   g.num_vertices()
 
-   g1 = g0.add_edge(0.0, 1.0)
-   g2 = g1.add_edge(1.0, 2.0)
+   g.add_edge(0.0, 1.0)
+   g.add_edge(1.0, 2.0)
 
-   g2.neighbors(1.0)
-   g2.degree(1.0)
-   g2.has_edge(0.0, 2.0)
+   g.neighbors(1.0)
+   g.degree(1.0)
+   g.has_edge(0.0, 2.0)
 
    n3: ℕ = 4
-   g3 = g2.add_vertex(n3)
-   g4 = g3.add_edge(2.0, 3.0)
-   g4.degree(3.0)
+   g.add_vertex(n3)
+   g.add_edge(2.0, 3.0)
+   g.degree(3.0)
 
 Output::
 
