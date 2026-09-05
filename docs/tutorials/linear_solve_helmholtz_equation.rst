@@ -8,9 +8,9 @@ In this tutorial, we will solve one-dimensional Helmholtz equation, which is def
     \frac{d^2 u}{dx^2} + k^2 u = 0
 
 We are going to solve this using boundary value problem method, where we discretize the continuous ODE into discrete space,
-and then define the boundaries of discrete space. [Wikipedia_boundary_value]_  [Jensen_Linear_Algebra]_
+and then define the boundaries of the discrete space. [Wikipedia_boundary_value]_  [Jensen_Linear_Algebra]_
 
-We can use central difference formula to discretize :math:`\frac{d^2 u}{dx^2}` into :math:`\frac{u_{j-1} - 2u_j + u_{j+1}}{\Delta x^2}`, 
+We can use the central difference formula to discretize :math:`\frac{d^2 u}{dx^2}` into :math:`\frac{u_{j-1} - 2u_j + u_{j+1}}{\Delta x^2}`, 
 so the discretized version of one-dimensional Helmholtz equation becomes: [Niemeyer_Finite_Difference]_
 
 .. math::
@@ -37,7 +37,7 @@ We will solve the equation using domain size of :math:`x = [0, 1]`, using :math:
 :math:`k = 2`.
 For the boundary values, we are using :math:`u(0) = 0` and :math:`u(1) = 1`
 
-Therefore, our discrete space :math:`X` gets divides from 0 to 1, into 4 nodes which gives us 5 discrete grid points:
+Therefore, our discrete space :math:`X` gets divides from 0 to 1 into 4 nodes which, gives us 5 discrete grid points:
 
 
 +--------------------------+------+------+------+------+------+
@@ -47,10 +47,10 @@ Therefore, our discrete space :math:`X` gets divides from 0 to 1, into 4 nodes w
 +--------------------------+------+------+------+------+------+
 
 Through boundary conditions we already know first and last values of :math:`n = 0, 4`, so we need to find values of interior nodes, which are
-:math:`n = 1, 2, 3`, we can also calculate value of :math:`\Delta x` with :math:`\frac{1}{4}` which becomes :math:`0.25`.
+:math:`n = 1, 2, 3`. We can also calculate value of :math:`\Delta x` with :math:`\frac{1}{4}` which becomes :math:`0.25`.
 
-This tutorial gets divided into 2 main sections, In the first section we will solve this equation numerically step by step and 
-then in second section we will learn the parameter :math:`k` using differentiable gaussian solver with Physika code.
+This tutorial is divided into 2 main sections. In the first section, we will solve this equation numerically step by step, and 
+then in second section, we will learn the parameter :math:`k` using differentiable gaussian solver with Physika code.
 
 
 Section 1: Solve numerically
@@ -75,20 +75,20 @@ Therefore:
          {\left(0.25\right)^2}
     + 2^2 u_j = 0
 
-Simplifying the equation gives:
+simplifying the equation gives:
 
 .. math::
 
     16\left(u_{j-1} - 2u_j + u_{j+1}\right) + 4u_j = 0
 
 
-Expanding the terms:
+expanding the terms:
 
 .. math::
 
     16u_{j-1} - 32u_j + 16u_{j+1} + 4u_j = 0
 
-Combining the terms involving :math:`u_j`:
+combining the terms involving :math:`u_j`:
 
 .. math::
 
@@ -116,7 +116,7 @@ which simplifies to:
 
     16u_0 - 28u_1 + 16u_2 = 0
 
-Since the boundary value :math:`u_0 = 0`, we obtain:
+since the boundary value :math:`u_0 = 0`, we obtain:
 
 .. math::
 
@@ -154,7 +154,7 @@ which simplifies to:
 
     16u_2 - 28u_3 + 16u_4 = 0
 
-Since the boundary value :math:`u_4 = 1`, we obtain:
+since the boundary value :math:`u_4 = 1`, we obtain:
 
 .. math::
 
@@ -262,7 +262,7 @@ To visualize above plot, use the below python script:
 Section 2: learn parameter :math:`k`
 -------------------------------------
 
-In this sub-section we are going to learn parameter :math:`k` from the Helmholtz equation equation using differentiable
+In this sub-section, we are going to learn the parameter :math:`k` from the Helmholtz equation equation using differentiable
 Gaussian solver and SGD (Stochastic gradient descent) training loop defined in Physika.
 We are using same setup of parameters used in Section 1 while solving numerically.
 
@@ -284,8 +284,8 @@ We are using same setup of parameters used in Section 1 while solving numericall
 
     X = linspace(0, 1, n+1)
 
-In first section, where we solve helmholtz equation numerically we used ``n=4`` for simplicity, But here we are using ``n=10``
-We can also use ``n=20`` or ``n=50`` to get a smoother curve on predicted trajectory, but currenly Physika dont have support to detach tensors
+In first section, where we solve helmholtz equation numerically, we used ``n=4`` for simplicity. But here we are using ``n=10``.
+We can also use ``n=20`` or ``n=50`` to get a smoother curve on predicted trajectory, but currenly Physika doesn't have support to detach tensors
 which is required in training loop. Therefore, we are using ``n=4`` which also gives expected results.
 
 The helmholtz_equation is:
@@ -435,7 +435,7 @@ respect to :math:`guess_k`, and update :math:`guess_k`:
     print(guess_k)
 
 After training for 300 epochs, the :math:`guess_k` value should be closer to our original :math:`k` value.
-Here is how the loss curve looks like:
+Here is what the loss curve and predicted trajectory after training looks like:
 
 .. code-block:: text
 
