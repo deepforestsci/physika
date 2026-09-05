@@ -1,0 +1,157 @@
+# --------------------------------
+# Helper functions
+# --------------------------------
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def zero_2d_array(rows: ℝ, cols: ℝ): ℝ[m, n]:
+    results: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
+    return results
+
+def linspace(start: ℝ, end: ℝ, n: ℕ): ℝ[n]:
+    x: ℝ[n] = zero_1d_array(n)
+    Δx: ℝ = (end - start) / (n - 1)
+    for i:ℕ(0, n):
+        x[i] = start + i * Δx
+    return x
+
+def append(x: ℝ[1], var: ℝ): ℝ[n]:
+    new_length: ℝ = len(x) + 1
+    results: ℝ[new_length] = zero_1d_array(new_length)
+    len_x: ℕ = get_1d_array_length(x)
+    for i:ℕ(new_length):
+        if i<len_x:
+            results[i] = x[i]
+        else:
+            results[i] = var
+    return results
+
+# -------------------------------------
+# Define domain
+# -------------------------------------
+
+
+x0, x1, n: ℝ = 0, 1, 10
+Δx: ℝ = (x1 - x0) / n
+u_x0, u_x1: ℝ = 0, 1
+
+k: ℝ = 2
+
+X = linspace(0, 1, n+1)
+
+# -------------------------------------
+# Discretize the equation
+# -------------------------------------
+
+def central_difference(u: ℝ[m], j: ℕ): ℝ:
+    return (u[j-1] - 2 * u[j] + u[j+1]) / (Δx**2)
+
+def helmholtz_equation(u: ℝ[m], j: ℕ, k: ℝ): ℝ:
+    return central_difference(u, j) + k**2 * u[j]
+
+# -------------------------------------
+# Helper functions to get 
+# coefficients from linear equation
+# -------------------------------------
+
+
+def get_row_coeffs(j: ℕ, k: ℝ): ℝ[3]:
+    e_left: ℝ[m] = zero_1d_array(n+1)
+    e_left[j-1] = 1
+    a: ℝ = helmholtz_equation(e_left, j, k)
+    e_center: ℝ[m] = zero_1d_array(n+1)
+    e_center[j] = 1
+    b: ℝ = helmholtz_equation(e_center, j, k)
+    e_right: ℝ[m] = zero_1d_array(n+1)
+    e_right[j+1] = 1
+    c: ℝ = helmholtz_equation(e_right, j, k)
+    return [a, b, c]
+
+
+def assemble_matrix(k: ℝ, n: ℕ): list:
+    n_size: ℝ = n + 1
+    A: ℝ[n_size, n_size] = zero_2d_array(n_size, n_size)
+    b: ℝ[n_size] = zero_1d_array(n_size)
+    for j:ℕ(1, n):
+        c1, c2, c3 = get_row_coeffs(j, k)
+        if j-1 == 0:
+            b[j] = b[j] - c1 * u_x0
+        else:
+            A[j, j-1] = c1
+        A[j, j] = c2
+        if j+1 == n + 0:
+            b[j] = b[j] - c3 * u_x1
+        else:
+            A[j, j+1] = c3
+    # --------------------------------
+    # Apply boundary conditions
+    # --------------------------------
+    A[0, 0] = 1
+    b[0] = u_x0
+    A[n, n] = 1
+    b[n] = u_x1
+    results: list = [A, b]
+    return results
+
+# -------------------------------------
+# Define solver
+# -------------------------------------
+
+# importing gaussian_solve function from `tutorials/`, in future gaussian_solve will
+# get imported from stdlib
+from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_cols, get_2d_array_num_rows, get_1d_array_length
+
+def solver(k: ℝ, n: ℕ): R[n]:
+    results: list = assemble_matrix(k, n)
+    A = results[0]
+    b = results[1]
+    u: ℝ[n] = gaussian_solve(A, b)
+    return u
+
+true_u = solver(k, n)
+
+# -------------------------------------
+# loss function (MSE)
+# -------------------------------------
+
+
+def mse_loss(true_u: ℝ[m], pred_u: ℝ[m]): ℝ:
+    total_len: ℝ = get_1d_array_length(pred_u)
+    square_diff: ℝ[5] = (true_u - pred_u) ** 2
+    total: ℝ = 0
+    for i:N(total_len):
+        total = total + square_diff[i]
+    return total / total_len
+
+# -------------------------------------
+# Training loop
+# -------------------------------------
+
+# dummy initial value for losses array
+losses: ℝ[1] = [100]
+guess_k: ℝ = 2.6
+
+# ------------------------------------------------------------------
+# Set epochs to ~300, here it is 1 so the
+# tutorial runs quickly through tests/test_tutorials.py.
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+lr: ℝ = 0.01
+
+for i:ℕ(epochs):
+    print(i)
+    pred_u = solver(guess_k, n)
+    loss = mse_loss(true_u, pred_u)
+    losses = append(losses, loss)
+    grad = grad(loss, guess_k)
+    guess_k = guess_k - lr * grad
+    print(guess_k)
+
+
+print(guess_k)
+pred_traj = solver(guess_k, n)
+
+#plot_loss(losses)
+#plot_results(X, pred_traj)
