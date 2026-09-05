@@ -1,0 +1,302 @@
+# ASE-style Atom / Atoms containers for Physika, after ase.atom.Atom and
+# ase.atoms.Atoms (Atomic Simulation Environment).
+#
+#   Atoms : owns a whole structure as flat, index-addressed arrays -- one per
+#           ase.atom.Atom attribute, plus the cell:
+#             numbers[a]     atomic number of atom a
+#             positions[a]   the (x, y, z) Cartesian position of atom a, in Å
+#             masses[a]      the mass of atom a, in amu
+#             tags[a]        integer label of atom a
+#             momenta[a]     the (x, y, z) Cartesian momentum of atom a
+#             magmoms[a]     magnetic moment of atom a
+#             charges[a]     charge of atom a
+#             cell           the 3x3 row-major matrix of lattice vectors, in Å
+#           atoms.atom(idx) hands back the Atom sitting at index idx.
+#   Atom  : an (atoms, index) pair. An Atom never inspects the arrays itself;
+#           every lookup goes through this.atoms, the way ase.Atom proxies to
+#           its parent Atoms once it is attached. Physika arrays cannot hold
+#           class instances, so Atoms does NOT keep a list of Atom objects --
+#           atoms.atom(idx) rebuilds a lightweight Atom on demand, which is
+#           observationally the same as ase's atoms[idx].
+#
+# ase.atom.Atom exposes: number, symbol, mass, position, x, y, z, momentum,
+# tag, magmom, charge, index. Physika has no string type, so `symbol` is
+# dropped and `number` stands in for it; every other attribute is reproduced.
+#
+# ASE hands back a fresh Atoms from operations like translate(); this file does
+# the same, so an Atoms value is never mutated in place: a method that
+# "changes" the structure returns a new Atoms built from the flat tables.
+#
+# Physika gotchas this file works around (superset of examples/lattice.phyk's):
+#   * a bare "i" / "j" is the imaginary unit, not a name -- indices are "a",
+#     "b", "idx" instead;
+#   * blank lines are only allowed between top-level items -- one inside a
+#     class or function body makes the parser bail, so the bodies are dense;
+#   * a comment between a "class ...:" header and its first "def" also breaks
+#     the parser, so the doc-comments sit above each class;
+#   * a typed declaration ("p: ℝ[3] = ...") inside a loop body is read as a
+#     tuple unpack, so loop bodies use plain assignment or inline the value;
+#   * nested "for" statements inside a method need explicit ℕ ranges, so each
+#     such body opens with "k: ℕ = len(...)" and loops over ℕ(k);
+#   * a "for ... → e" comprehension body must mention the loop var to build a
+#     tensor, hence the "* 0.0" padding terms.
+
+# Atom: the atom at `index` of `atoms`. Every attribute is read back through
+# the parent Atoms (forward-referenced here, defined just below). The method
+# set mirrors the attributes of ase.atom.Atom (minus the string `symbol`).
+#   idx()          -> index in the parent structure         (ase: index)
+#   number()       -> atomic number                         (ase: number)
+#   mass()         -> atomic mass, amu                       (ase: mass)
+#   position()     -> Cartesian position, Å                 (ase: position)
+#   x() y() z()    -> the position components               (ase: x, y, z)
+#   momentum()     -> Cartesian momentum                    (ase: momentum)
+#   tag()          -> integer label                         (ase: tag)
+#   magmom()       -> magnetic moment                       (ase: magmom)
+#   charge()       -> atomic charge                          (ase: charge)
+#   distance_to(b) -> distance to atom b (helper, not in ase.atom.Atom)
+class Atom(atoms: Atoms, index: ℝ):
+    def idx() → ℝ:
+        return this.index
+    def number() → ℝ:
+        return this.atoms.atomic_number(this.index)
+    def mass() → ℝ:
+        return this.atoms.mass(this.index)
+    def position() → ℝ[3]:
+        return this.atoms.position(this.index)
+    def x() → ℝ:
+        p: ℝ[3] = this.atoms.position(this.index)
+        return p[0]
+    def y() → ℝ:
+        p: ℝ[3] = this.atoms.position(this.index)
+        return p[1]
+    def z() → ℝ:
+        p: ℝ[3] = this.atoms.position(this.index)
+        return p[2]
+    def momentum() → ℝ[3]:
+        return this.atoms.momentum(this.index)
+    def tag() → ℝ:
+        return this.atoms.tag(this.index)
+    def magmom() → ℝ:
+        return this.atoms.magmom(this.index)
+    def charge() → ℝ:
+        return this.atoms.charge(this.index)
+    def distance_to(b: ℝ) → ℝ:
+        return this.atoms.distance(this.index, b)
+
+# Atoms: the whole structure, addressed by atom index. It owns one array per
+# ase.atom.Atom attribute, plus the cell.
+#   count()          -> number of atoms
+#   atomic_number(a) -> atomic number of atom a
+#   mass(a)          -> mass of atom a
+#   position(a)      -> Cartesian position of atom a
+#   momentum(a)      -> Cartesian momentum of atom a
+#   tag(a)           -> integer label of atom a
+#   magmom(a)        -> magnetic moment of atom a
+#   charge(a)        -> charge of atom a
+#   atom(idx)        -> the Atom at index idx
+#   total_mass()     -> sum of every atomic mass
+#   total_charge()   -> sum of every atomic charge
+#   kinetic_energy() -> Σ |p_a|² / (2 m_a)
+#   center_of_mass() -> mass-weighted mean position
+#   distance(a, b)   -> Euclidean distance between atoms a and b
+#   all_distances()  -> the full atom-atom distance matrix
+#   count_species(z) -> number of atoms whose atomic number is z
+#   volume()         -> unit-cell volume, |det(cell)|
+#   translate(shift) -> a new Atoms with every position shifted by `shift`
+#   centered()       -> a new Atoms whose centre of mass is the origin
+class Atoms(numbers: ℝ[n], positions: ℝ[n, 3], masses: ℝ[n], tags: ℝ[n], momenta: ℝ[n, 3], magmoms: ℝ[n], charges: ℝ[n], cell: ℝ[3, 3]):
+    def count() → ℝ:
+        return len(this.numbers) * 1.0
+    def atomic_number(a: ℝ) → ℝ:
+        nums: ℝ[n] = this.numbers
+        return nums[a]
+    def mass(a: ℝ) → ℝ:
+        m: ℝ[n] = this.masses
+        return m[a]
+    def position(a: ℝ) → ℝ[3]:
+        pos: ℝ[n, 3] = this.positions
+        return pos[a]
+    def momentum(a: ℝ) → ℝ[3]:
+        mom: ℝ[n, 3] = this.momenta
+        return mom[a]
+    def tag(a: ℝ) → ℝ:
+        t: ℝ[n] = this.tags
+        return t[a]
+    def magmom(a: ℝ) → ℝ:
+        mm: ℝ[n] = this.magmoms
+        return mm[a]
+    def charge(a: ℝ) → ℝ:
+        q: ℝ[n] = this.charges
+        return q[a]
+    def atom(idx: ℝ) → Atom:
+        return Atom(this, idx)
+    def total_mass() → ℝ:
+        m: ℝ[n] = this.masses
+        return sum(m)
+    def total_charge() → ℝ:
+        q: ℝ[n] = this.charges
+        return sum(q)
+    def kinetic_energy() → ℝ:
+        mom: ℝ[n, 3] = this.momenta
+        mass: ℝ[n] = this.masses
+        k: ℕ = len(mass)
+        total: ℝ = 0.0
+        for a : ℕ(k):
+            total += sum(mom[a] * mom[a]) / (2.0 * mass[a])
+        return total
+    def center_of_mass() → ℝ[3]:
+        pos: ℝ[n, 3] = this.positions
+        mass: ℝ[n] = this.masses
+        k: ℕ = len(pos)
+        acc: ℝ[3] = for c : ℕ(3) → c * 0.0
+        for a : ℕ(k):
+            acc = acc + pos[a] * mass[a]
+        return acc * (1.0 / sum(mass))
+    def distance(a: ℝ, b: ℝ) → ℝ:
+        pos: ℝ[n, 3] = this.positions
+        d: ℝ[3] = pos[a] - pos[b]
+        return sqrt(sum(d * d))
+    def all_distances() → ℝ[n, n]:
+        pos: ℝ[n, 3] = this.positions
+        k: ℕ = len(pos)
+        result: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → (a + b) * 0.0
+        for a : ℕ(k):
+            for b : ℕ(k):
+                d: ℝ[3] = pos[a] - pos[b]
+                result[a, b] = sqrt(sum(d * d))
+        return result
+    def count_species(z: ℝ) → ℝ:
+        nums: ℝ[n] = this.numbers
+        k: ℕ = len(nums)
+        total: ℝ = 0.0
+        for a : ℕ(k):
+            if nums[a] == z:
+                total += 1.0
+        return total
+    def volume() → ℝ:
+        c: ℝ[3, 3] = this.cell
+        m0: ℝ = c[1, 1] * c[2, 2] - c[1, 2] * c[2, 1]
+        m1: ℝ = c[1, 0] * c[2, 2] - c[1, 2] * c[2, 0]
+        m2: ℝ = c[1, 0] * c[2, 1] - c[1, 1] * c[2, 0]
+        det: ℝ = c[0, 0] * m0 - c[0, 1] * m1 + c[0, 2] * m2
+        return abs(det)
+    def translate(shift: ℝ[3]) → Atoms:
+        pos: ℝ[n, 3] = this.positions
+        k: ℕ = len(pos)
+        moved: ℝ[n, 3] = for a : ℕ(k) → for c : ℕ(3) → pos[a, c] + shift[c]
+        return Atoms(this.numbers, moved, this.masses, this.tags, this.momenta, this.magmoms, this.charges, this.cell)
+    def centered() → Atoms:
+        com: ℝ[3] = this.center_of_mass()
+        return this.translate(com * -1.0)
+
+# molecule: drop a set of atoms into a cubic box of side `box` Å, with the
+# dynamical per-atom arrays (tags, momenta, magmoms, charges) zero-filled --
+# the state ase.build.molecule(...) returns for a named species.
+def molecule(numbers: ℝ[p], positions: ℝ[p, 3], masses: ℝ[p], box: ℝ): Atoms:
+    k: ℕ = len(numbers)
+    zeros1: ℝ[p] = for a : ℕ(k) → numbers[a] * 0.0
+    zeros3: ℝ[p, 3] = for a : ℕ(k) → for c : ℕ(3) → positions[a, c] * 0.0
+    cell: ℝ[3, 3] = [
+        [box, 0.0, 0.0],
+        [0.0, box, 0.0],
+        [0.0, 0.0, box]
+    ]
+    return Atoms(numbers, positions, masses, zeros1, zeros3, zeros1, zeros1, cell)
+
+# A molecule with full per-atom data: water in a 10 Å box. O at the origin,
+# the two O-H bonds 0.9584 Å long and 104.45° apart. Atom 0 is O (Z = 8),
+# atoms 1-2 are H (Z = 1); the atoms carry TIP3P partial charges, opposing
+# momenta along x, and tags marking the H atoms.
+w_numbers: ℝ[3] = [8.0, 1.0, 1.0]
+w_positions: ℝ[3, 3] = [
+    [ 0.00000, 0.00000, 0.0],
+    [ 0.95840, 0.00000, 0.0],
+    [-0.23990, 0.92790, 0.0]
+]
+w_masses: ℝ[3] = [15.999, 1.008, 1.008]
+w_tags: ℝ[3] = [0.0, 1.0, 1.0]
+w_momenta: ℝ[3, 3] = [
+    [0.00, 0.0, 0.0],
+    [0.20, 0.0, 0.0],
+    [-0.20, 0.0, 0.0]
+]
+w_magmoms: ℝ[3] = [0.0, 0.0, 0.0]
+w_charges: ℝ[3] = [-0.834, 0.417, 0.417]
+w_cell: ℝ[3, 3] = [
+    [10.0, 0.0, 0.0],
+    [0.0, 10.0, 0.0],
+    [0.0, 0.0, 10.0]
+]
+water = Atoms(w_numbers, w_positions, w_masses, w_tags, w_momenta, w_magmoms, w_charges, w_cell)
+
+# whole-structure queries on Atoms
+water.count()
+water.total_mass()
+water.total_charge()
+water.kinetic_energy()
+water.center_of_mass()
+water.distance(0.0, 1.0)
+water.all_distances()
+
+# pull one Atom out (like ase's atoms[idx]) and read every ase.atom.Atom
+# attribute off it -- each call forwards to `water`
+o = water.atom(0.0)
+o.idx()
+o.number()
+o.mass()
+o.position()
+o.charge()
+h1 = water.atom(1.0)
+h1.number()
+h1.x()
+h1.momentum()
+h1.tag()
+h1.magmom()
+h1.charge()
+h1.distance_to(2.0)
+
+# translating shifts the centre of mass by the same vector; re-centring
+# puts it back on the origin
+shift: ℝ[3] = [1.0, 2.0, 3.0]
+moved = water.translate(shift)
+moved.center_of_mass()
+centred = water.centered()
+centred.center_of_mass()
+
+# the molecule() helper: a CO molecule with the dynamical arrays zero-filled
+co_numbers: ℝ[2] = [6.0, 8.0]
+co_positions: ℝ[2, 3] = [
+    [0.0, 0.0, 0.0],
+    [1.128, 0.0, 0.0]
+]
+co_masses: ℝ[2] = [12.011, 15.999]
+co = molecule(co_numbers, co_positions, co_masses, 8.0)
+co.atom(0.0).charge()
+co.atom(1.0).tag()
+
+# a crystal: the 2-atom primitive cell of rock-salt NaCl (a = 5.64 Å), FCC
+# lattice vectors a/2·{(0,1,1),(1,0,1),(1,1,0)}, with the ±1 ionic charges
+nacl_numbers: ℝ[2] = [11.0, 17.0]
+nacl_positions: ℝ[2, 3] = [
+    [0.00, 0.00, 0.00],
+    [2.82, 2.82, 2.82]
+]
+nacl_masses: ℝ[2] = [22.990, 35.450]
+nacl_tags: ℝ[2] = [0.0, 0.0]
+nacl_momenta: ℝ[2, 3] = [
+    [0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0]
+]
+nacl_magmoms: ℝ[2] = [0.0, 0.0]
+nacl_charges: ℝ[2] = [1.0, -1.0]
+nacl_cell: ℝ[3, 3] = [
+    [0.00, 2.82, 2.82],
+    [2.82, 0.00, 2.82],
+    [2.82, 2.82, 0.00]
+]
+nacl = Atoms(nacl_numbers, nacl_positions, nacl_masses, nacl_tags, nacl_momenta, nacl_magmoms, nacl_charges, nacl_cell)
+nacl.count_species(11.0)
+nacl.count_species(17.0)
+nacl.total_charge()
+nacl.distance(0.0, 1.0)
+nacl.volume()

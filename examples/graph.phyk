@@ -1,0 +1,97 @@
+class Vertex(graph: Graph, index: ℝ):
+    def idx() → ℝ:
+        return this.index
+    def label() → ℝ:
+        return this.graph.label(this.index)
+    def degree() → ℝ:
+        return this.graph.degree(this.index)
+    def adjacent_to(other: Vertex) → ℝ:
+        return this.graph.has_edge(this.index, other.idx())
+
+class Graph(adjacency: ℝ[n, n], labels: ℝ[n]):
+    def num_vertices() → ℝ:
+        return len(this.adjacency) * 1.0
+    def label(u: ℝ) → ℝ:
+        labs: ℝ[n] = this.labels
+        return labs[u]
+    def has_edge(u: ℝ, v: ℝ) → ℝ:
+        m: ℝ[n, n] = this.adjacency
+        r: ℝ[n] = m[u]
+        return r[v]
+    def degree(u: ℝ) → ℝ:
+        m: ℝ[n, n] = this.adjacency
+        r: ℝ[n] = m[u]
+        return sum(r)
+    def neighbors(u: ℝ) → ℝ[n]:
+        m: ℝ[n, n] = this.adjacency
+        return m[u]
+    def vertex(u: ℝ) → Vertex:
+        return Vertex(this, u)
+    def add_edge(u: ℝ, v: ℝ) → Graph:
+        m: ℝ[n, n] = this.adjacency
+        k: ℕ = len(m)
+        new_adj: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → m[a, b]
+        new_adj[u, v] = 1.0
+        new_adj[v, u] = 1.0
+        return Graph(new_adj, this.labels)
+    def set_label(u: ℝ, new_label: ℝ) → Graph:
+        labs: ℝ[n] = this.labels
+        k: ℕ = len(labs)
+        new_labels: ℝ[n] = for a : ℕ(k) → labs[a]
+        new_labels[u] = new_label
+        return Graph(this.adjacency, new_labels)
+    def grow_adjacency(new_n: ℕ) → ℝ[new_n, new_n]:
+        old: ℝ[n, n] = this.adjacency
+        result: ℝ[new_n, new_n] = for a : ℕ(new_n) → for b : ℕ(new_n) → (a + b) * 0.0
+        m: ℕ = len(old)
+        for a : ℕ(m):
+            for b : ℕ(m):
+                result[a, b] = old[a, b]
+        return result
+    def grow_labels(new_n: ℕ) → ℝ[new_n]:
+        old: ℝ[n] = this.labels
+        result: ℝ[new_n] = for a : ℕ(new_n) → a * 0.0
+        m: ℕ = len(old)
+        for a : ℕ(m):
+            result[a] = old[a]
+        return result
+    def add_vertex(new_n: ℕ, new_label: ℝ) → Graph:
+        new_adj: ℝ[new_n, new_n] = this.grow_adjacency(new_n)
+        new_labels: ℝ[new_n] = this.grow_labels(new_n)
+        idx: ℝ = this.num_vertices()
+        new_labels[idx] = new_label
+        return Graph(new_adj, new_labels)
+
+def empty_graph(n_vertices: ℕ): Graph:
+    z: ℝ[n_vertices, n_vertices] = for a : ℕ(n_vertices) → for b : ℕ(n_vertices) → (a + b) * 0.0
+    labs: ℝ[n_vertices] = for a : ℕ(n_vertices) → a * 0.0
+    return Graph(z, labs)
+
+n0: ℕ = 3
+g0 = empty_graph(n0)
+g1 = g0.set_label(0.0, 10.0)
+g2 = g1.set_label(1.0, 20.0)
+g3 = g2.set_label(2.0, 30.0)
+
+g4 = g3.add_edge(0.0, 1.0)
+g5 = g4.add_edge(1.0, 2.0)
+
+v0 = g5.vertex(0.0)
+v1 = g5.vertex(1.0)
+v2 = g5.vertex(2.0)
+v0.label()
+v1.label()
+v1.degree()
+v0.adjacent_to(v1)
+v0.adjacent_to(v2)
+
+n6: ℕ = 4
+g6 = g5.add_vertex(n6, 99.0)
+g6.num_vertices()
+v3 = g6.vertex(3.0)
+v3.label()
+v3.degree()
+
+g7 = g6.add_edge(2.0, 3.0)
+v3b = g7.vertex(3.0)
+v3b.degree()

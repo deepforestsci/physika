@@ -1,0 +1,125 @@
+# Lattice kinetic-Monte-Carlo primitives, after dcmat's lkmc_multi.py
+# (DeepChem-Materials: dcmat/primitives/optimization/lkmc_multi.py).
+#
+#   System : owns the whole lattice as flat, id-indexed arrays --
+#              site_values[i]      atomic number on site i, 0.0 == empty ("X")
+#              degrees[i]          coordination number of site i
+#              neighbor_table[i]   the (up to 4) neighbour ids of site i,
+#                                  padded with -1.0
+#            sys.site(id) hands back the Site for any id.
+#   Site   : an (id, system) pair plus the neighbour ids handed to it by the
+#            System. A Site never inspects another Site; every occupation
+#            question goes through this.system, like self.system.ase_atoms[...]
+#            in the reference.
+#
+# Physika arrays cannot hold class instances, so System does NOT store a list
+# of Site objects the way the reference does. Instead sys.site(id) rebuilds a
+# lightweight Site from the flat tables on demand -- observationally the same
+# as system[id].
+#
+# Physika gotchas this file works around:
+#   * blank lines are only allowed between top-level items -- one inside a
+#     class or function body makes the parser bail, so the bodies are dense;
+#   * a comment between a "class ...:" header and its first "def" also breaks
+#     the parser, so doc-comments sit above the class;
+#   * a method body cannot "return" from both arms of an if/else, so the
+#     predicates write a local and return once at the end;
+#   * a "for i : N(n) -> e" body must mention the loop var to build a tensor,
+#     hence the "+ a * 0.0" / "(a + c) * 0.0" padding terms;
+#   * a "for i: N(n)" index is a natural number, so bounds compared against
+#     it must be too (n_filled is declared ℕ).
+
+# Site: knows its id, its System, and its neighbour ids (-1.0 = padding).
+#   site_value()      -> occupation of this site, via the System
+#   is_empty()        -> 1.0 if this site is empty, else 0.0
+#   empty_neighbors() -> per neighbour slot, the neighbour id if it is an
+#                        empty site, else -1.0
+class Site(system: System, id: ℝ, coordination_number: ℝ, neighbors: ℝ[n]):
+    def site_value() → ℝ:
+        return this.system.value_at(this.id)
+    def is_empty() → ℝ:
+        result: ℝ = 0.0
+        if this.system.value_at(this.id) == 0.0:
+            result = 1.0
+        return result
+    def empty_neighbors() → ℝ[n]:
+        nbrs: ℝ[n] = this.neighbors
+        result: ℝ[n] = for i → nbrs[i] * 0.0 - 1.0
+        for i:
+            if nbrs[i] >= 0.0:
+                if this.system.value_at(nbrs[i]) == 0.0:
+                    result[i] = nbrs[i]
+        return result
+
+# System: the full lattice, addressed by site id.
+#   value_at(id)        -> occupation of a site
+#   count_empty_sites() -> number of empty sites
+#   site(id)            -> the Site object for that id
+class System(site_values: ℝ[k], degrees: ℝ[k], neighbor_table: ℝ[k, 4]):
+    def value_at(site_id: ℝ) → ℝ:
+        vals: ℝ[k] = this.site_values
+        return vals[site_id]
+    def count_empty_sites() → ℝ:
+        vals: ℝ[k] = this.site_values
+        total: ℝ = 0.0
+        for i:
+            if vals[i] == 0.0:
+                total += 1.0
+        return total
+    def site(site_id: ℝ) → Site:
+        degs: ℝ[k] = this.degrees
+        table: ℝ[k, 4] = this.neighbor_table
+        row: ℝ[4] = table[site_id]
+        return Site(this, site_id, degs[site_id], row)
+
+# build_si100_system: assemble a full System for a diamond-Si(100) slab,
+# after get_si_100_lattice_3d() in lkmc_multi.py.
+#
+# The slab is laid out layer by layer, atoms_per_layer sites each. The bottom
+# n_filled_layers carry silicon (14.0); the n_empty_layers above are empty
+# (0.0) -- the growth front for the KMC run. Bonds run vertically (site <->
+# same position one layer up / down) and along the row within a layer, so
+# interior sites get coordination number 4.
+def build_si100_system(n_filled_layers: ℝ, n_empty_layers: ℝ, atoms_per_layer: ℝ): System:
+    n_layers: ℝ = n_filled_layers + n_empty_layers
+    n_sites: ℝ = n_layers * atoms_per_layer
+    n_filled: ℕ = n_filled_layers * atoms_per_layer
+    site_values: ℝ[k] = for a : ℕ(n_sites) → 14.0 + a * 0.0
+    for a: ℕ(n_sites):
+        if a >= n_filled:
+            site_values[a] = 0.0
+    table: ℝ[k, 4] = for a : ℕ(n_sites) → for c : ℕ(4) → (a + c) * 0.0 - 1.0
+    for L: ℕ(n_layers):
+        for p: ℕ(atoms_per_layer):
+            idx = L * atoms_per_layer + p
+            if L > 0:
+                table[idx, 0] = idx - atoms_per_layer
+            if L < n_layers - 1:
+                table[idx, 1] = idx + atoms_per_layer
+            if p > 0:
+                table[idx, 2] = idx - 1.0
+            if p < atoms_per_layer - 1:
+                table[idx, 3] = idx + 1.0
+    degrees: ℝ[k] = for a : ℕ(n_sites) → a * 0.0
+    for a: ℕ(n_sites):
+        for c: ℕ(4):
+            if table[a, c] >= 0.0:
+                degrees[a] += 1.0
+    return System(site_values, degrees, table)
+
+# 3-wide slab: 2 filled Si layers + 2 empty layers -> 12 sites, ids 0..11.
+# Layer L holds ids [3L .. 3L+2]; sites 0..5 are Si, 6..11 are empty.
+sys = build_si100_system(2.0, 2.0, 3.0)
+sys.count_empty_sites()
+
+# pull any site out of the System by id
+s4 = sys.site(4.0)
+s4.coordination_number
+s4.site_value()
+s4.is_empty()
+s4.empty_neighbors()
+
+# site 7 sits in the first empty layer -- a growth site
+s7 = sys.site(7.0)
+s7.is_empty()
+s7.empty_neighbors()
