@@ -41,7 +41,6 @@ class A(nn.Module):
     def __init__(self, x):
         super().__init__()
         self.x = torch.as_tensor(x).float() if isinstance(x, (int, float, torch.Tensor)) else x
-        self.learnable_params = []
 
     def get_list(self):
         this = self

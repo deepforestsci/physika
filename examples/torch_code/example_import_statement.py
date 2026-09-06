@@ -42,7 +42,6 @@ def superbee(r):
 class ExampleClass(nn.Module):
     def __init__(self, ):
         super().__init__()
-        self.learnable_params = []
 
     def class_method(self):
         this = self

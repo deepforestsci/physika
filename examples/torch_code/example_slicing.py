@@ -19,7 +19,6 @@ def slice_demo_3d(a):
 class SliceDemo(nn.Module):
     def __init__(self, ):
         super().__init__()
-        self.learnable_params = []
 
     def return_x(self, x):
         this = self

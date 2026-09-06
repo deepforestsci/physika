@@ -354,7 +354,7 @@ class TestMakeParserRules:
         assert isinstance(make_parser_rules(), list)
 
         # Exactly 20 grammar rules
-        assert len(make_parser_rules()) == 23
+        assert len(make_parser_rules()) == 24
 
         # every item should be a callable p_ functino
         for rule in make_parser_rules():
@@ -637,13 +637,15 @@ class TestClassForwardRules:
         Takes ASTNodes and produce correct Pytorch code.
         """
         # forward_rules for field_access, method_call, and class_def
-        rules = ClassFeature().forward_rules()
+        feature = ClassFeature()
+        rules = feature.forward_rules()
         assert set(rules.keys()) == {
             "field_access",
             "method_call",
             "class_def",
             "body_expr",
             "body_field_assign",
+            "for_field_assign",
         }
         assert all(callable(h) for h in rules.values())
 
@@ -673,6 +675,19 @@ class TestClassForwardRules:
                      ("add", 1, ("var", "b"))),
                     ast_to_torch_expr,
                     current_loop_var=None) == "self.b = (1 + b)"
+
+        # Learnable field assignment uses torch.no_grad().
+        feature.learnable_params.add("W1")
+        emit = rules["for_field_assign"]
+        node = (
+            "for_field_assign",
+            ("var", "model"),
+            "W1",
+            ("var", "new_W1"),
+        )
+        code = emit(node, ast_to_torch_expr)
+        assert "with torch.no_grad():" in code
+        assert "model.W1.copy_(new_W1)" in code
 
         # class_def emits a complete nn.Module subclass
         emit = ClassFeature().forward_rules()["class_def"]
