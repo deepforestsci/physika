@@ -18,7 +18,7 @@ immutable, so the design differs from the Python in three ways:
   a ``ℕ`` parameter.
 
 The UndirectedGraph class
-----------------
+-------------------------
 
 .. code-block:: text
 
