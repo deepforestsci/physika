@@ -996,3 +996,62 @@ def compl_mul1d(x_ft, weights1):
     torch.Size([8, 16])
     """
     return torch.einsum("ix,iox->ox", x_ft, weights1)
+
+
+def detach(x):
+    """
+    Detach a tensor from current computation graph.
+
+    Parameters
+    ----------
+    x: torch.Tensor
+        Input tensor
+
+    Returns
+    -------
+    torch.Tensor
+        A tensor sharing same data as ``x`` but detached from
+        its computation graph.
+
+    Examples
+    --------
+    >>> import torch
+    >>> from physika.runtime import detach
+    >>> x = torch.tensor([1.0, 2.0], requires_grad=True)
+    >>> y = x * 2
+    >>> y.requires_grad
+    >>> True
+    >>> z = detach(y)
+    >>> z.requires_grad
+    >>> False
+    """
+    return x.detach()
+
+
+def detach_grad(x):
+    """
+    Detach a tensor from current computation graph and
+    enable gradient computation.
+
+    Parameters
+    ----------
+    x: torch.Tensor
+        Input tensor
+
+    Returns
+    -------
+    torch.Tensor
+        A detached leaf tensor containing the same data as ``x`` with
+        ``requires_grad=True``.
+
+    Examples
+    --------
+    >>> x = tensor([1.0, 2.0], requires_grad=True)
+    >>> y = x * 2
+    >>> z = detach_grad(y)
+    >>> z.requires_grad
+    True
+    >>> z.is_leaf
+    True
+    """
+    return x.detach().requires_grad_(True)

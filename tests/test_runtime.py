@@ -1,5 +1,5 @@
 import torch
-from physika.runtime import random_complex, compl_mul1d
+from physika.runtime import (random_complex, compl_mul1d, detach, detach_grad)
 from tests.conftest import type_errors, capture_output
 
 
@@ -106,3 +106,75 @@ class TestPhysikaPrint:
         assert "10" in out
         assert "20" in out
         assert "1" in out
+
+
+class TestDetach:
+    """
+    Tests for ``detach`` function, which disconnects a tensor from
+    its computation graph.
+    """
+
+    def test_detaches_tensor(self):
+        # Check that the returned tensor does not require gradients.
+        x = torch.tensor([1.0, 2.0], requires_grad=True)
+        out = detach(x)
+
+        assert not out.requires_grad
+
+    def test_preserves_values(self):
+        # Check that detaching does not change the tensor values.
+        x = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)
+        out = detach(x)
+
+        assert torch.equal(out, x)
+
+    def test_detached_tensor_is_leaf(self):
+        # A detached tensor should no longer be connected to the
+        # computation graph.
+        x = torch.tensor([1.0, 2.0], requires_grad=True)
+        y = x * 2.0
+        out = detach(y)
+
+        assert out.is_leaf
+        assert out.grad_fn is None
+
+
+class TestDetachGrad:
+    """
+    Tests for ``detach_grad`` function, which detaches a tensor and
+    enables gradients.
+    """
+
+    def test_requires_grad(self):
+        # Check that the returned tensor requires gradients.
+        x = torch.tensor([1.0, 2.0], requires_grad=True)
+        out = detach_grad(x)
+
+        assert out.requires_grad
+
+    def test_is_leaf(self):
+        # Check that the returned tensor is a new leaf in the computation
+        # graph.
+        x = torch.tensor([1.0, 2.0], requires_grad=True)
+        y = x * 2.0
+        out = detach_grad(y)
+
+        assert out.is_leaf
+
+    def test_preserves_values(self):
+        # Check that detaching and enabling gradients does not change
+        # the tensor values.
+        x = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)
+        out = detach_grad(x)
+
+        assert torch.equal(out, x)
+
+    def test_can_compute_gradients(self):
+        # Check that gradients can be computed through the returned tensor.
+        x = torch.tensor([1.0, 2.0], requires_grad=True)
+        out = detach_grad(x)
+
+        loss = (out**2).sum()
+        loss.backward()
+
+        assert torch.equal(out.grad, torch.tensor([2.0, 4.0]))
