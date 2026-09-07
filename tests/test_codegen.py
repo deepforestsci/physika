@@ -1,6 +1,11 @@
-"""Unit tests for codegen"""
+"""Unit tests for examples/codegen"""
 
+from typing import Any
 from physika.codegen import from_ast_to_torch
+from physika.utils.ast_utils import build_unified_ast
+from physika.parser import parser, symbol_table
+from physika.lexer import lexer
+from physika.utils.import_manager import resolve_imports
 from pathlib import Path
 import subprocess
 import os
@@ -17,6 +22,28 @@ PHYK_FILES = sorted(EXAMPLES_DIR.glob("*.phyk"))
 PHYK_IDS = [f.stem for f in PHYK_FILES]
 AST_DIR = EXAMPLES_DIR / "ast"
 TORCH_CODE_DIR = EXAMPLES_DIR / "torch_code"
+
+
+# Helper functions
+def load_expected_ast(stem: str) -> dict:
+    """Load the expected AST dict from ``examples/ast/<stem>.py``."""
+    ns: dict[str, Any] = {}
+    exec((AST_DIR / f"{stem}.py").read_text(), ns)
+    return ns["EXPECTED"]
+
+
+def parse_source_to_ast(source: str, source_path=None) -> dict:
+    """Run lexer/parser and build_unified_ast on a Physika source string."""
+    symbol_table.clear()
+    lexer.lexer.lineno = 1  # reset PLY line counter for deterministic output
+    program_ast = parser.parse(source, lexer=lexer)
+
+    if source_path is not None and any(
+            isinstance(node, tuple) and node[0] == "import"
+            for node in program_ast):
+        program_ast = resolve_imports(program_ast, source_path)
+
+    return build_unified_ast(program_ast, symbol_table)
 
 
 # Tests
