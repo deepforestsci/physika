@@ -10,8 +10,6 @@ from pathlib import Path
 import pytest
 import subprocess
 
-from tests.conftest import load_expected_ast, parse_source_to_ast
-
 from physika.core.elab.elab import Elab
 from physika.core.inductive import mk_builtin_env
 

@@ -7,7 +7,6 @@ from physika.utils.import_manager import resolve_imports
 from io import StringIO
 from contextlib import redirect_stdout
 from typing import Optional
-from typing import Any
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
 AST_DIR = EXAMPLES_DIR / "ast"
@@ -87,24 +86,3 @@ def capture_output(src):
     with redirect_stdout(buf):
         run_phyk(src)
     return buf.getvalue()
-
-
-def load_expected_ast(stem: str) -> dict:
-    """Load the expected AST dict from ``examples/ast/<stem>.py``."""
-    ns: dict[str, Any] = {}
-    exec((AST_DIR / f"{stem}.py").read_text(), ns)
-    return ns["EXPECTED"]
-
-
-def parse_source_to_ast(source: str, source_path=None) -> dict:
-    """Run lexer/parser and build_unified_ast on a Physika source string."""
-    symbol_table.clear()
-    lexer.lexer.lineno = 1  # reset PLY line counter for deterministic output
-    program_ast = parser.parse(source, lexer=lexer)
-
-    if source_path is not None and any(
-            isinstance(node, tuple) and node[0] == "import"
-            for node in program_ast):
-        program_ast = resolve_imports(program_ast, source_path)
-
-    return build_unified_ast(program_ast, symbol_table)
