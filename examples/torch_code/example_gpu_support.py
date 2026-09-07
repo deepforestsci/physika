@@ -29,7 +29,7 @@ class MatrixMultiply(nn.Module):
                     p -= lr * g
 
 # === Program ===
-x_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device=DEVICE)
+x_tensor = torch.stack([torch.as_tensor(1.0), torch.as_tensor(2.0), torch.as_tensor(3.0), torch.as_tensor(4.0), torch.as_tensor(5.0)])
 n_values = 10
 x_matrix = torch.stack([torch.stack([(i * 1) for _fi_j in range(int(n_values)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n_values)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 for i in range(int(0), int(100)):

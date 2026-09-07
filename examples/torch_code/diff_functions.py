@@ -8,12 +8,12 @@ from physika.runtime import compute_grad
 
 # === Functions ===
 def torch_funcs_with_scalar_R(x):
-    result_sin = torch.sin(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_cos = torch.cos(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_exp = torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_sqrt = torch.sqrt(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_log = torch.log(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_abs = torch.abs(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    result_sin = torch.sin(torch.as_tensor(x).float())
+    result_cos = torch.cos(torch.as_tensor(x).float())
+    result_exp = torch.exp(torch.as_tensor(x).float())
+    result_sqrt = torch.sqrt(torch.as_tensor(x).float())
+    result_log = torch.log(torch.as_tensor(x).float())
+    result_abs = torch.abs(torch.as_tensor(x))
     return torch.stack([torch.as_tensor(result_sin), torch.as_tensor(result_cos), torch.as_tensor(result_exp), torch.as_tensor(result_sqrt), torch.as_tensor(result_log), torch.as_tensor(result_abs)])
 
 def check_diff_torch_funcs(x):

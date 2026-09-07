@@ -101,7 +101,7 @@ def adam(ρ, g, m, v, t, lr):
     v_new = ((β2 * v) + ((1.0 - β2) * (g ** 2)))
     m_hat = (m_new / (1.0 - (β1 ** t)))
     v_hat = (v_new / (1.0 - (β2 ** t)))
-    ρ_new = (ρ - ((lr * m_hat) / (torch.sqrt(v_hat if isinstance(v_hat, torch.Tensor) else torch.tensor(float(v_hat))) + ε)))
+    ρ_new = (ρ - ((lr * m_hat) / (torch.sqrt(torch.as_tensor(v_hat).float()) + ε)))
     return torch.stack([torch.as_tensor(ρ_new), torch.as_tensor(m_new), torch.as_tensor(v_new), torch.as_tensor((t + 1.0))])
 
 # === Program ===
@@ -114,7 +114,7 @@ true_ρ = 1.0
 horizontal_velocity_top = 1.0
 n_pressure_poisson_iterations = 10
 stability_safety_factor = 0.5
-element_length = (domain_size / (n_points - 1))
+element_length = (domain_size / (n_points - float(1)))
 x = linspace(0.0, domain_size, n_points)
 y = linspace(0.0, domain_size, n_points)
 f = zero_2d_array(n_points, n_points)

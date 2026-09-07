@@ -21,8 +21,8 @@ z = (x + y)
 print(z)
 greek_letters_array = torch.stack([torch.as_tensor(α), torch.as_tensor(β)])
 print(greek_letters_array)
-μ = torch.as_tensor(torch.tensor([2.0], device=DEVICE)).requires_grad_(True).to(DEVICE)
-grad_μ = compute_grad(f, μ)
+μ = torch.as_tensor(torch.stack([torch.as_tensor(2.0)])).requires_grad_(True).to(DEVICE)
+grad_μ = compute_grad(lambda _dμ: f(_dμ), μ)
 print(grad_μ)
 ℏ = 1.0546e-34
 σ = 5.6704e-08
@@ -33,7 +33,7 @@ if α < threshold:
 else:
     result_if = (α + β)
 print(result_if)
-Ω = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5], device=DEVICE)
+Ω = torch.stack([torch.as_tensor(0.1), torch.as_tensor(0.2), torch.as_tensor(0.3), torch.as_tensor(0.4), torch.as_tensor(0.5)])
 sum_Ω = 0
 for i in range(len(Ω)):
     sum_Ω = sum_Ω + Ω[int(i)]

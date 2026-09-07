@@ -7,13 +7,10 @@ from physika.runtime import print
 from physika.runtime import compute_grad
 
 # === Functions ===
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def zero_1d_array(len):
     results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -53,7 +50,7 @@ def calculate_loss(α):
 # === Program ===
 lx = 1.0
 nx = 21
-dx = (lx / (nx - 1))
+dx = (lx / (nx - float(1)))
 x = linspace(0, lx, nx)
 true_alpha = 0.4
 fourier = 0.49

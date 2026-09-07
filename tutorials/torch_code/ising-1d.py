@@ -7,8 +7,8 @@ from physika.runtime import print
 
 # === Functions ===
 def tanh(z):
-    num = (torch.exp(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) - torch.exp((-z) if isinstance((-z), torch.Tensor) else torch.tensor(float((-z)))))
-    denom = (torch.exp(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) + torch.exp((-z) if isinstance((-z), torch.Tensor) else torch.tensor(float((-z)))))
+    num = (torch.exp(torch.as_tensor(z).float()) - torch.exp(torch.as_tensor((-z)).float()))
+    denom = (torch.exp(torch.as_tensor(z).float()) + torch.exp(torch.as_tensor((-z)).float()))
     res = (num / denom)
     return res
 
@@ -20,13 +20,11 @@ def H(J, h, spins, n):
     return (((-J) * nn_sum) - (h * field_sum))
 
 def neg_entropy_per_site(p):
-    return ((p * torch.log(p if isinstance(p, torch.Tensor) else torch.tensor(float(p)))) + ((1.0 - p) * torch.log((1.0 - p) if isinstance((1.0 - p), torch.Tensor) else torch.tensor(float((1.0 - p))))))
+    return ((p * torch.log(torch.as_tensor(p).float())) + ((1.0 - p) * torch.log(torch.as_tensor((1.0 - p)).float())))
 
 def mean_field_reference(J, h, β, iters):
     m = 0.0
-    for it in range(int(0), int(iters)):
-        m = tanh((β * (((2.0 * J) * m) + h)))
-    return ((1.0 + m) * 0.5)
+    return ((1.0 + (lambda _acc: ([_acc := (lambda m=_acc: (lambda m=tanh((β * (((2.0 * J) * m) + h))): m)())() for it in range(int((iters - 0)))], _acc)[1])(m)) * 0.5)
 
 # === Classes ===
 class MeanFieldIsing(nn.Module):
@@ -99,9 +97,9 @@ batch = 32
 logit_init = 0.0
 lr = 0.05
 ising = MeanFieldIsing(logit_init).to(DEVICE)
-p_before = (1.0 / (1.0 + torch.exp((0.0 - ising.logit_p) if isinstance((0.0 - ising.logit_p), torch.Tensor) else torch.tensor(float((0.0 - ising.logit_p))))))
+p_before = (1.0 / (1.0 + torch.exp(torch.as_tensor((0.0 - ising.logit_p)).float())))
 print(ising.train(n, steps, batch, lr, J, h, β, n))
-p_after = (1.0 / (1.0 + torch.exp((0.0 - ising.logit_p) if isinstance((0.0 - ising.logit_p), torch.Tensor) else torch.tensor(float((0.0 - ising.logit_p))))))
+p_after = (1.0 / (1.0 + torch.exp(torch.as_tensor((0.0 - ising.logit_p)).float())))
 p_ref = mean_field_reference(J, h, β, 200)
 print(p_before)
 print(p_after)

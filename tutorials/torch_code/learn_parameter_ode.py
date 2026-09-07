@@ -11,13 +11,10 @@ def zero_1d_array(len):
     results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def append(x, var):
     new_length = (get_1d_array_length(x) + 1)

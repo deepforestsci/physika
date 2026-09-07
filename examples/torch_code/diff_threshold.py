@@ -8,10 +8,7 @@ from physika.runtime import compute_grad
 
 # === Functions ===
 def L(t):
-    if t > 0.5:
-        return ((3 * ((t - 0.75) ** 2)) + 0.1)
-    else:
-        return ((t ** 2) + 2)
+    return (((float(3) * ((t - 0.75) ** 2)) + 0.1) if (t > 0.5) else ((t ** 2) + float(2)))
 
 # === Program ===
 t0 = torch.tensor(0.9, requires_grad=True)

@@ -10,13 +10,10 @@ def zero_1d_array(len):
     results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def append(x, var):
     new_length = (len(x) + 1)
@@ -31,11 +28,11 @@ def append(x, var):
 
 def f(state, θ):
     u1 = state[int(0)]
-    v1 = state[int(1)]
-    u2 = state[int(2)]
-    v2 = state[int(3)]
+    v1 = state[int((1 + 0))]
+    u2 = state[int((1 + (1 + 0)))]
+    v2 = state[int((1 + (1 + (1 + 0))))]
     a1 = θ[int(0)]
-    a2 = θ[int(1)]
+    a2 = θ[int((1 + 0))]
     du1 = ((a1 / (1.0 + (v1 ** 2))) - u1)
     dv1 = ((a2 / (1.0 + (u1 ** 2))) - v1)
     du2 = ((a1 / (1.0 + (v2 ** 2))) - u2)
@@ -101,13 +98,13 @@ def adjoint_grad(θ):
 # === Program ===
 dt = 0.1
 timesteps = 100
-true_theta = torch.tensor([3.0, 3.0], device=DEVICE)
+true_theta = torch.stack([torch.as_tensor(3.0), torch.as_tensor(3.0)])
 true_results = solver(true_theta)
 true_u1 = true_results[int(0)]
 true_v1 = true_results[int(1)]
 true_u2 = true_results[int(2)]
 true_v2 = true_results[int(3)]
-θ = torch.tensor([2.0, 2.0], device=DEVICE)
+θ = torch.stack([torch.as_tensor(2.0), torch.as_tensor(2.0)])
 learning_rate = 1.0
 epochs = 1
 for i in range(int(0), int(epochs)):

@@ -8,10 +8,10 @@ from physika.runtime import compute_grad
 
 # === Functions ===
 def magnitude(z):
-    return torch.abs(z if isinstance(z, torch.Tensor) else torch.tensor(float(z)))
+    return torch.abs(torch.as_tensor(z))
 
 def f(x):
-    return torch.abs((x ** 2) if isinstance((x ** 2), torch.Tensor) else torch.tensor(float((x ** 2))))
+    return torch.abs(torch.as_tensor((x ** 2)))
 
 # === Classes ===
 class A(nn.Module):

@@ -11,10 +11,7 @@ def f_x(x):
     return (x ** 2)
 
 def fact(n):
-    if n == 0.0:
-        return 1.0
-    else:
-        return (n * fact((n - 1.0)))
+    return (1.0 if (n == 0.0) else (n * fact((n - 1.0))))
 
 def f(x):
     if x > 0:
@@ -23,12 +20,12 @@ def f(x):
         return torch.sin(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
 
 def torch_funcs_with_scalar_R(x):
-    result_sin = torch.sin(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_cos = torch.cos(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_exp = torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_sqrt = torch.sqrt(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_log = torch.log(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
-    result_abs = torch.abs(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))
+    result_sin = torch.sin(torch.as_tensor(x).float())
+    result_cos = torch.cos(torch.as_tensor(x).float())
+    result_exp = torch.exp(torch.as_tensor(x).float())
+    result_sqrt = torch.sqrt(torch.as_tensor(x).float())
+    result_log = torch.log(torch.as_tensor(x).float())
+    result_abs = torch.abs(torch.as_tensor(x))
     return torch.stack([torch.as_tensor(result_sin), torch.as_tensor(result_cos), torch.as_tensor(result_exp), torch.as_tensor(result_sqrt), torch.as_tensor(result_log), torch.as_tensor(result_abs)])
 
 def superbee(r):
@@ -69,13 +66,13 @@ print(f_results)
 obj_example_class = ExampleClass().to(DEVICE)
 class_value = obj_example_class.class_method()
 print(class_value)
-v = torch.tensor([1.0, 2.0, 3.0], device=DEVICE)
+v = torch.stack([torch.as_tensor(1.0), torch.as_tensor(2.0), torch.as_tensor(3.0)])
 for i in range(int(0), int(3)):
     if v[int(i)] > 2:
         v[int(i)] = (v[int(i)] * 2)
 print(v)
 grad_f_x = compute_grad(f_x, v[int(2)])
 print(grad_f_x)
-r = torch.tensor([(-1.0), 0.0, 0.5, 1.0, 2.0], device=DEVICE)
+r = torch.stack([torch.as_tensor((-1.0)), torch.as_tensor(0.0), torch.as_tensor(0.5), torch.as_tensor(1.0), torch.as_tensor(2.0)])
 φ = superbee(r)
 print(φ)

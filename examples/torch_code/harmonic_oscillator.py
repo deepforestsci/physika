@@ -10,13 +10,10 @@ from physika.runtime import compute_grad
 from physika.runtime import animate
 
 # === Functions ===
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def zero_1d_array(len):
     results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -49,12 +46,12 @@ def solve(A, b):
 
 def U(k, m, t, x0, v0):
     omega = ((k / m) ** 0.5)
-    A = torch.tensor([[1.0, 0.0], [0.0, omega]], device=DEVICE)
+    A = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1.0), torch.as_tensor(0.0)])), torch.as_tensor(torch.stack([torch.as_tensor(0.0), torch.as_tensor(omega)]))])
     B = torch.stack([torch.as_tensor(x0), torch.as_tensor(v0)])
     coeffs = solve(A, B)
     a = coeffs[int(0)]
-    b = coeffs[int(1)]
-    return ((a * torch.cos((omega * t) if isinstance((omega * t), torch.Tensor) else torch.tensor(float((omega * t))))) + (b * torch.sin((omega * t) if isinstance((omega * t), torch.Tensor) else torch.tensor(float((omega * t))))))
+    b = coeffs[int((1 + 0))]
+    return ((a * torch.cos(torch.as_tensor((omega * t)).float())) + (b * torch.sin(torch.as_tensor((omega * t)).float())))
 
 # === Program ===
 k = 1.0

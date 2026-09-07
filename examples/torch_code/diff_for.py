@@ -11,11 +11,8 @@ def sum_for_expr(s):
     return torch.sum(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]) if isinstance(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]), torch.Tensor) else torch.tensor(float(torch.stack([(s * i) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]))))
 
 def dot_with_arr(s):
-    a3 = torch.tensor([1.0, 2.0, 3.0, 4.0], device=DEVICE)
-    result = 0.0
-    for i in range(len(a3)):
-        result = result + (s * a3[int(i)])
-    return result
+    a3 = torch.stack([torch.as_tensor(1.0), torch.as_tensor(2.0), torch.as_tensor(3.0), torch.as_tensor(4.0)])
+    return torch.sum(torch.stack([torch.as_tensor((s * a3[int(i)])) for i in range(int(4))]).float())
 
 def matmul_scale(s):
     A3 = torch.tensor([[1.0, 2.0], [3.0, 4.0]], device=DEVICE)
@@ -39,8 +36,10 @@ def sq_vec(x):
 def cos_freqs(x):
     return torch.stack([torch.cos((x * (i + 1)) if isinstance((x * (i + 1)), torch.Tensor) else torch.tensor(float((x * (i + 1))))) for _fi_i in range(int(4)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 
-def elementwise_sq(x):
-    return torch.stack([(x[int(i)] ** 2) for _fi_i in range(int(len(x))) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+def elementwise_sq(x, n=None):
+    if n is None:
+        n = int(x.shape[0])
+    return torch.stack([torch.as_tensor((x[int(i)] ** 2)) for i in range(int(n))]).float()
 
 # === Program ===
 s0 = torch.tensor(2.0, requires_grad=True)
@@ -64,6 +63,6 @@ print(compute_grad(lambda _dsv: sq_vec(_dsv), sv))
 x = torch.tensor(0.5, requires_grad=True)
 print(cos_freqs(x))
 print(compute_grad(lambda _dx: cos_freqs(_dx), x))
-ev = torch.as_tensor(torch.tensor([1.0, 2.0, 3.0], device=DEVICE)).requires_grad_(True).to(DEVICE)
-print(elementwise_sq(ev))
-print(compute_grad(lambda _dev: elementwise_sq(_dev), ev))
+ev = torch.as_tensor(torch.stack([torch.as_tensor(1.0), torch.as_tensor(2.0), torch.as_tensor(3.0)])).requires_grad_(True).to(DEVICE)
+print(elementwise_sq(ev, 3))
+print(compute_grad(lambda _dev: elementwise_sq(_dev, 3), ev))

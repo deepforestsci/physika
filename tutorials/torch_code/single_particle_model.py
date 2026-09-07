@@ -11,36 +11,29 @@ def zero_1d_array(len):
     results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def clip_stoichiometry(θ):
     x = θ
-    if x < 0.002:
-        x = 0.002
-    if x > 0.995:
-        x = 0.995
+    x = (0.002 if (x < 0.002) else x)
+    x = (0.995 if (x > 0.995) else x)
     return x
 
 def clip_concentration(c_s, c_s_max):
     c = c_s
-    if c < 1.0:
-        c = 1.0
-    if c > (c_s_max - 1.0):
-        c = (c_s_max - 1.0)
+    c = (1.0 if (c < 1.0) else c)
+    c = ((c_s_max - 1.0) if (c > (c_s_max - 1.0)) else c)
     return c
 
 def tanh_scalar(z):
-    return ((torch.exp(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) - torch.exp((-z) if isinstance((-z), torch.Tensor) else torch.tensor(float((-z))))) / (torch.exp(z if isinstance(z, torch.Tensor) else torch.tensor(float(z))) + torch.exp((-z) if isinstance((-z), torch.Tensor) else torch.tensor(float((-z))))))
+    return ((torch.exp(torch.as_tensor(z).float()) - torch.exp(torch.as_tensor((-z)).float())) / (torch.exp(torch.as_tensor(z).float()) + torch.exp(torch.as_tensor((-z)).float())))
 
 def ocp_negative(θ):
     x = clip_stoichiometry(θ)
-    return (((((1.9793 * torch.exp(((-39.3631) * x) if isinstance(((-39.3631) * x), torch.Tensor) else torch.tensor(float(((-39.3631) * x))))) + 0.2482) - (0.0909 * tanh_scalar((29.8538 * (x - 0.1234))))) - (0.04478 * tanh_scalar((14.9159 * (x - 0.2769))))) - (0.0205 * tanh_scalar((30.4444 * (x - 0.6103)))))
+    return (((((1.9793 * torch.exp(torch.as_tensor(((-39.3631) * x)).float())) + 0.2482) - (0.0909 * tanh_scalar((29.8538 * (x - 0.1234))))) - (0.04478 * tanh_scalar((14.9159 * (x - 0.2769))))) - (0.0205 * tanh_scalar((30.4444 * (x - 0.6103)))))
 
 def ocp_positive(θ):
     x = clip_stoichiometry(θ)
@@ -51,7 +44,7 @@ def exchange_current(c_s_surface, c_s_max, k0):
     return (k0 * torch.sqrt(((c_e * c_s) * (c_s_max - c_s)) if isinstance(((c_e * c_s) * (c_s_max - c_s)), torch.Tensor) else torch.tensor(float(((c_e * c_s) * (c_s_max - c_s))))))
 
 def asinh_scalar(z):
-    return torch.log((z + torch.sqrt(((z ** 2) + 1.0) if isinstance(((z ** 2) + 1.0), torch.Tensor) else torch.tensor(float(((z ** 2) + 1.0))))) if isinstance((z + torch.sqrt(((z ** 2) + 1.0) if isinstance(((z ** 2) + 1.0), torch.Tensor) else torch.tensor(float(((z ** 2) + 1.0))))), torch.Tensor) else torch.tensor(float((z + torch.sqrt(((z ** 2) + 1.0) if isinstance(((z ** 2) + 1.0), torch.Tensor) else torch.tensor(float(((z ** 2) + 1.0))))))))
+    return torch.log(torch.as_tensor((z + torch.sqrt(torch.as_tensor(((z ** 2) + 1.0)).float()))).float())
 
 def bv_overpotential(reaction_current, i0):
     z = (reaction_current / (2.0 * i0))
@@ -184,10 +177,10 @@ train_substeps_per_sample = 90
 Δt = 20.0
 validation_num_samples = 27
 validation_substeps_per_sample = 45
-validation_time_h = torch.tensor([0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.0, 4.25, 4.5, 4.75, 5.0, 5.25, 5.5, 5.75, 6.0], device=DEVICE)
-validation_c_rate_profile = torch.tensor([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05], device=DEVICE)
-validation_current_a = (validation_c_rate_profile * nominal_capacity_ah)
-dfn_train_voltage = torch.tensor([4.158395248, 4.084192602, 4.071392813, 4.049195473, 4.006860924, 3.961241395, 3.916527071, 3.86177453, 3.814408034, 3.772015162, 3.725484224, 3.682248062, 3.645685812, 3.609974847, 3.565901908, 3.513874271, 3.468832454, 3.424676253, 3.317194985, 3.146746296, 2.789451932], device=DEVICE)
+validation_time_h = torch.stack([torch.as_tensor(0.0), torch.as_tensor(0.25), torch.as_tensor(0.5), torch.as_tensor(0.75), torch.as_tensor(1.0), torch.as_tensor(1.25), torch.as_tensor(1.5), torch.as_tensor(1.75), torch.as_tensor(2.0), torch.as_tensor(2.0), torch.as_tensor(2.25), torch.as_tensor(2.5), torch.as_tensor(2.75), torch.as_tensor(3.0), torch.as_tensor(3.25), torch.as_tensor(3.5), torch.as_tensor(3.75), torch.as_tensor(4.0), torch.as_tensor(4.0), torch.as_tensor(4.25), torch.as_tensor(4.5), torch.as_tensor(4.75), torch.as_tensor(5.0), torch.as_tensor(5.25), torch.as_tensor(5.5), torch.as_tensor(5.75), torch.as_tensor(6.0)])
+validation_c_rate_profile = torch.stack([torch.as_tensor(0.2), torch.as_tensor(0.2), torch.as_tensor(0.2), torch.as_tensor(0.2), torch.as_tensor(0.2), torch.as_tensor(0.2), torch.as_tensor(0.2), torch.as_tensor(0.2), torch.as_tensor(0.2), torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.05), torch.as_tensor(0.05), torch.as_tensor(0.05), torch.as_tensor(0.05), torch.as_tensor(0.05), torch.as_tensor(0.05), torch.as_tensor(0.05), torch.as_tensor(0.05), torch.as_tensor(0.05)])
+validation_current_a = (nominal_capacity_ah * validation_c_rate_profile)
+dfn_train_voltage = torch.stack([torch.as_tensor(4.158395248), torch.as_tensor(4.084192602), torch.as_tensor(4.071392813), torch.as_tensor(4.049195473), torch.as_tensor(4.006860924), torch.as_tensor(3.961241395), torch.as_tensor(3.916527071), torch.as_tensor(3.86177453), torch.as_tensor(3.814408034), torch.as_tensor(3.772015162), torch.as_tensor(3.725484224), torch.as_tensor(3.682248062), torch.as_tensor(3.645685812), torch.as_tensor(3.609974847), torch.as_tensor(3.565901908), torch.as_tensor(3.513874271), torch.as_tensor(3.468832454), torch.as_tensor(3.424676253), torch.as_tensor(3.317194985), torch.as_tensor(3.146746296), torch.as_tensor(2.789451932)])
 initial_ε_s_p = 0.3
 chen2020_ε_s_p = 0.665
 ε_s_p = torch.tensor(initial_ε_s_p, requires_grad=True)
@@ -206,7 +199,7 @@ for epoch in range(int(0), int(epochs)):
 fitted_train_voltage = spm_solver(ε_s_p, train_c_rate, train_substeps_per_sample, Δt)
 fitted_train_rmse = rmse(fitted_train_voltage, dfn_train_voltage)
 pybamm_validation_ε_s_p = 0.6471111178398132
-pybamm_validation_voltage = torch.tensor([4.142996394, 4.067772943, 4.057471567, 4.027229404, 3.981657244, 3.937880704, 3.895608468, 3.838549294, 3.788632364, 3.81322811, 3.833002643, 3.833640604, 3.833695039, 3.833696392, 3.833696305, 3.833696268, 3.833696266, 3.833696264, 3.827385441, 3.811877071, 3.800818412, 3.789583321, 3.778002657, 3.766121504, 3.754073902, 3.742039259, 3.730207631], device=DEVICE)
+pybamm_validation_voltage = torch.stack([torch.as_tensor(4.142996394), torch.as_tensor(4.067772943), torch.as_tensor(4.057471567), torch.as_tensor(4.027229404), torch.as_tensor(3.981657244), torch.as_tensor(3.937880704), torch.as_tensor(3.895608468), torch.as_tensor(3.838549294), torch.as_tensor(3.788632364), torch.as_tensor(3.81322811), torch.as_tensor(3.833002643), torch.as_tensor(3.833640604), torch.as_tensor(3.833695039), torch.as_tensor(3.833696392), torch.as_tensor(3.833696305), torch.as_tensor(3.833696268), torch.as_tensor(3.833696266), torch.as_tensor(3.833696264), torch.as_tensor(3.827385441), torch.as_tensor(3.811877071), torch.as_tensor(3.800818412), torch.as_tensor(3.789583321), torch.as_tensor(3.778002657), torch.as_tensor(3.766121504), torch.as_tensor(3.754073902), torch.as_tensor(3.742039259), torch.as_tensor(3.730207631)])
 validation_voltage = validation_protocol_solver(ε_s_p, Δt)
 validation_rmse = rmse(validation_voltage, pybamm_validation_voltage)
 print(print(ε_s_p))

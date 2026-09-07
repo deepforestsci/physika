@@ -266,7 +266,7 @@ print(x_arr)
 print(y_arr)
 print(unpack_simple_array(torch.tensor([1, 2, 3], device=DEVICE)))
 print(unpack_array_in_function_call(3))
-sample_arr = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]], device=DEVICE)
+sample_arr = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3)])), torch.as_tensor(torch.stack([torch.as_tensor(4), torch.as_tensor(5), torch.as_tensor(6)])), torch.as_tensor(torch.stack([torch.as_tensor(7), torch.as_tensor(8), torch.as_tensor(9)]))])
 for i in range(int(0), int(3)):
     a, b, c = sample_arr[int(i)]
     print(a)

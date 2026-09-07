@@ -51,7 +51,7 @@ def adam(α, g, m, v, t, lr):
     v_new = ((β2 * v) + ((1.0 - β2) * (g ** 2)))
     m_hat = (m_new / (1.0 - (β1 ** t)))
     v_hat = (v_new / (1.0 - (β2 ** t)))
-    α_new = (α - ((lr * m_hat) / (torch.sqrt(v_hat if isinstance(v_hat, torch.Tensor) else torch.tensor(float(v_hat))) + ε)))
+    α_new = (α - ((lr * m_hat) / (torch.sqrt(torch.as_tensor(v_hat).float()) + ε)))
     return torch.stack([torch.as_tensor(α_new), torch.as_tensor(m_new), torch.as_tensor(v_new), torch.as_tensor((t + 1.0))])
 
 # === Program ===

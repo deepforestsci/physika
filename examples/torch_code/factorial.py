@@ -7,10 +7,7 @@ from physika.runtime import print
 
 # === Functions ===
 def fact(n):
-    if n == 0.0:
-        return 1.0
-    else:
-        return (n * fact((n - 1.0)))
+    return (1.0 if (n == 0.0) else (n * fact((n - 1.0))))
 
 # === Program ===
 print(fact(0.0))

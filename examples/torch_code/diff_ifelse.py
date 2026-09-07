@@ -8,10 +8,7 @@ from physika.runtime import compute_grad
 
 # === Functions ===
 def f(x):
-    if x > 0.0:
-        return (x * x)
-    else:
-        return (-x)
+    return ((x * x) if (x > 0.0) else (-x))
 
 # === Program ===
 a = torch.tensor(3.0, requires_grad=True)

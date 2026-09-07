@@ -6,21 +6,17 @@ from physika.runtime import DEVICE
 from physika.runtime import print
 
 # === Functions ===
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
-def get_2d_array_num_rows(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_2d_array_num_rows(x, m=None, n=None):
+    if m is None:
+        m = int(x.shape[0])
+    if n is None:
+        n = int(x.shape[1])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def zero_2d_array(rows, cols):
     results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -102,15 +98,15 @@ class FullyConnectedNetwork(nn.Module):
                     p -= lr * g
 
 # === Program ===
-W0 = torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], device=DEVICE)
-c0 = torch.tensor([[0.1], [0.2]], device=DEVICE)
-w1 = torch.tensor([[0.7, 0.8]], device=DEVICE)
+W0 = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(0.1), torch.as_tensor(0.2), torch.as_tensor(0.3)])), torch.as_tensor(torch.stack([torch.as_tensor(0.4), torch.as_tensor(0.5), torch.as_tensor(0.6)]))])
+c0 = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(0.1)])), torch.as_tensor(torch.stack([torch.as_tensor(0.2)]))])
+w1 = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(0.7), torch.as_tensor(0.8)]))])
 b1 = 0.3
 net1 = OneLayerNet(W0, c0, w1, b1)
 print(net1(torch.tensor([1.0, 2.0, 3.0], device=DEVICE)))
-W = torch.tensor([[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], [[0.2, 0.3, 0.4], [0.5, 0.6, 0.7], [0.8, 0.9, 0.1]]], device=DEVICE)
-B = torch.tensor([[[0.1], [0.2], [0.3]], [[0.1], [0.2], [0.3]]], device=DEVICE)
-w = torch.tensor([[0.5, 0.5, 0.5]], device=DEVICE)
+W = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(0.1), torch.as_tensor(0.2), torch.as_tensor(0.3)])), torch.as_tensor(torch.stack([torch.as_tensor(0.4), torch.as_tensor(0.5), torch.as_tensor(0.6)])), torch.as_tensor(torch.stack([torch.as_tensor(0.7), torch.as_tensor(0.8), torch.as_tensor(0.9)]))])), torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(0.2), torch.as_tensor(0.3), torch.as_tensor(0.4)])), torch.as_tensor(torch.stack([torch.as_tensor(0.5), torch.as_tensor(0.6), torch.as_tensor(0.7)])), torch.as_tensor(torch.stack([torch.as_tensor(0.8), torch.as_tensor(0.9), torch.as_tensor(0.1)]))]))])
+B = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(0.1)])), torch.as_tensor(torch.stack([torch.as_tensor(0.2)])), torch.as_tensor(torch.stack([torch.as_tensor(0.3)]))])), torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(0.1)])), torch.as_tensor(torch.stack([torch.as_tensor(0.2)])), torch.as_tensor(torch.stack([torch.as_tensor(0.3)]))]))])
+w = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(0.5), torch.as_tensor(0.5), torch.as_tensor(0.5)]))])
 b = 0.1
 net2 = FullyConnectedNetwork(W, B, w, b, 2)
 print(net2(torch.tensor([[1.0], [2.0], [3.0]], device=DEVICE)))

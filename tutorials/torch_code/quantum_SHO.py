@@ -30,7 +30,7 @@ def adam(parameter, gradient_value, first_moment, second_moment, step, learning_
     new_second_moment = ((beta_2 * second_moment) + ((1.0 - beta_2) * (gradient_value ** 2)))
     corrected_first_moment = (new_first_moment / (1.0 - (beta_1 ** step)))
     corrected_second_moment = (new_second_moment / (1.0 - (beta_2 ** step)))
-    new_parameter = (parameter - ((learning_rate * corrected_first_moment) / (torch.sqrt(corrected_second_moment if isinstance(corrected_second_moment, torch.Tensor) else torch.tensor(float(corrected_second_moment))) + epsilon)))
+    new_parameter = (parameter - ((learning_rate * corrected_first_moment) / (torch.sqrt(torch.as_tensor(corrected_second_moment).float()) + epsilon)))
     return torch.stack([torch.as_tensor(new_parameter), torch.as_tensor(new_first_moment), torch.as_tensor(new_second_moment), torch.as_tensor((step + 1.0))])
 
 # === Program ===
@@ -44,7 +44,7 @@ oxygen_mass_amu = 15.99491461957
 reduced_mass_amu = ((carbon_mass_amu * oxygen_mass_amu) / (carbon_mass_amu + oxygen_mass_amu))
 reduced_mass = (reduced_mass_amu * atomic_mass_unit)
 N_levels = 5
-reference_energies_eV = torch.tensor([0.134509, 0.403527, 0.672545, 0.941563, 1.210581], device=DEVICE)
+reference_energies_eV = torch.stack([torch.as_tensor(0.134509), torch.as_tensor(0.403527), torch.as_tensor(0.672545), torch.as_tensor(0.941563), torch.as_tensor(1.210581)])
 learned_energy_spacing_eV = torch.tensor(0.0, requires_grad=True)
 first_moment = 0.0
 second_moment = 0.0
@@ -62,10 +62,10 @@ for epoch in range(int(0), int(epochs)):
     optimizer_step = adam_result[int(3)]
 learned_angular_frequency = ((learned_energy_spacing_eV * joule_per_electronvolt) / ℏ_SI)
 learned_force_constant = (reduced_mass * (learned_angular_frequency ** 2))
-oscillator_length_m = torch.sqrt((ℏ_SI / (reduced_mass * learned_angular_frequency)) if isinstance((ℏ_SI / (reduced_mass * learned_angular_frequency)), torch.Tensor) else torch.tensor(float((ℏ_SI / (reduced_mass * learned_angular_frequency)))))
+oscillator_length_m = torch.sqrt(torch.as_tensor((ℏ_SI / (reduced_mass * learned_angular_frequency))).float())
 x_max_m = (10.0 * oscillator_length_m)
 N_grid = 601
-dx_m = ((2.0 * x_max_m) / ((N_grid - 1) * 1.0))
+dx_m = ((2.0 * x_max_m) / (float((N_grid - 1)) * 1.0))
 position_m = torch.stack([((-x_max_m) + (i * dx_m)) for _fi_i in range(int(N_grid)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 position_A = torch.stack([(position_m[int(i)] * meter_to_angstrom) for _fi_i in range(int(N_grid)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 wavefunctions = torch.stack([torch.stack([((n + i) * 0.0) for _fi_i in range(int(N_grid)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]) for _fi_n in range(int(N_levels)) for n in [torch.tensor(float(_fi_n), device=DEVICE)]])

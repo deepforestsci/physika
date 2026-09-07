@@ -10,13 +10,10 @@ def zero_1d_array(len):
     results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def append(x, var):
     new_length = (get_1d_array_length(x) + 1)
@@ -31,29 +28,23 @@ def append(x, var):
 
 def alpha_m(V):
     x = (V + 40.0)
-    if torch.abs(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) < 0.0001:
-        return 1.0
-    else:
-        return ((0.1 * x) / (1.0 - torch.exp((0.0 - (x / 10.0)) if isinstance((0.0 - (x / 10.0)), torch.Tensor) else torch.tensor(float((0.0 - (x / 10.0)))))))
+    return (1.0 if (torch.abs(torch.as_tensor(x)) < 0.0001) else ((0.1 * x) / (1.0 - torch.exp(torch.as_tensor((0.0 - (x / 10.0))).float()))))
 
 def beta_m(V):
-    return (4.0 * torch.exp((0.0 - ((V + 65.0) / 18.0)) if isinstance((0.0 - ((V + 65.0) / 18.0)), torch.Tensor) else torch.tensor(float((0.0 - ((V + 65.0) / 18.0))))))
+    return (4.0 * torch.exp(torch.as_tensor((0.0 - ((V + 65.0) / 18.0))).float()))
 
 def alpha_h(V):
-    return (0.07 * torch.exp((0.0 - ((V + 65.0) / 20.0)) if isinstance((0.0 - ((V + 65.0) / 20.0)), torch.Tensor) else torch.tensor(float((0.0 - ((V + 65.0) / 20.0))))))
+    return (0.07 * torch.exp(torch.as_tensor((0.0 - ((V + 65.0) / 20.0))).float()))
 
 def beta_h(V):
-    return (1.0 / (1.0 + torch.exp((0.0 - ((V + 35.0) / 10.0)) if isinstance((0.0 - ((V + 35.0) / 10.0)), torch.Tensor) else torch.tensor(float((0.0 - ((V + 35.0) / 10.0)))))))
+    return (1.0 / (1.0 + torch.exp(torch.as_tensor((0.0 - ((V + 35.0) / 10.0))).float())))
 
 def alpha_n(V):
     x = (V + 55.0)
-    if torch.abs(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) < 0.0001:
-        return 0.1
-    else:
-        return ((0.01 * x) / (1.0 - torch.exp((0.0 - (x / 10.0)) if isinstance((0.0 - (x / 10.0)), torch.Tensor) else torch.tensor(float((0.0 - (x / 10.0)))))))
+    return (0.1 if (torch.abs(torch.as_tensor(x)) < 0.0001) else ((0.01 * x) / (1.0 - torch.exp(torch.as_tensor((0.0 - (x / 10.0))).float()))))
 
 def beta_n(V):
-    return (0.125 * torch.exp((0.0 - ((V + 65.0) / 80.0)) if isinstance((0.0 - ((V + 65.0) / 80.0)), torch.Tensor) else torch.tensor(float((0.0 - ((V + 65.0) / 80.0))))))
+    return (0.125 * torch.exp(torch.as_tensor((0.0 - ((V + 65.0) / 80.0))).float()))
 
 def f(state, θ):
     V = state[int(0)]
@@ -138,16 +129,16 @@ EL = (-54.387)
 Iapp = 10.0
 dt = 0.05
 timesteps = 400
-true_theta = torch.tensor([120.0, 36.0, 0.3], device=DEVICE)
+true_theta = torch.stack([torch.as_tensor(120.0), torch.as_tensor(36.0), torch.as_tensor(0.3)])
 true_results = solver(true_theta)
 true_V = true_results[int(0)]
-θ = torch.tensor([100.0, 30.0, 0.5], device=DEVICE)
+θ = torch.stack([torch.as_tensor(100.0), torch.as_tensor(30.0), torch.as_tensor(0.5)])
 learning_rate = 0.2
 beta1 = 0.9
 beta2 = 0.999
 eps_adam = 1e-08
-m_adam = torch.tensor([0.0, 0.0, 0.0], device=DEVICE)
-v_adam = torch.tensor([0.0, 0.0, 0.0], device=DEVICE)
+m_adam = torch.stack([torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0)])
+v_adam = torch.stack([torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0)])
 t_adam = 0.0
 epochs = 1
 for i in range(int(0), int(epochs)):

@@ -7,13 +7,10 @@ from physika.runtime import print
 from physika.runtime import compute_grad
 
 # === Functions ===
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def zero_1d_array(len):
     results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -61,8 +58,8 @@ a = 0
 b = 1
 t0 = 0
 tf = 1
-dx = ((b - a) / (nx - 1))
-dt = ((tf - t0) / (nt - 1))
+dx = ((b - a) / (nx - float(1)))
+dt = ((tf - t0) / (nt - float(1)))
 pi = 3.14
 true_c = 0.5
 x = linspace(a, b, nx)

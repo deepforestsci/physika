@@ -47,9 +47,9 @@ class SliceDemo(nn.Module):
                     p -= lr * g
 
 # === Program ===
-x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8], device=DEVICE)
-y = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]], device=DEVICE)
-z = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], device=DEVICE)
+x = torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3), torch.as_tensor(4), torch.as_tensor(5), torch.as_tensor(6), torch.as_tensor(7), torch.as_tensor(8)])
+y = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3), torch.as_tensor(4)])), torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6), torch.as_tensor(7), torch.as_tensor(8)])), torch.as_tensor(torch.stack([torch.as_tensor(9), torch.as_tensor(10), torch.as_tensor(11), torch.as_tensor(12)])), torch.as_tensor(torch.stack([torch.as_tensor(13), torch.as_tensor(14), torch.as_tensor(15), torch.as_tensor(16)]))])
+z = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2)])), torch.as_tensor(torch.stack([torch.as_tensor(3), torch.as_tensor(4)]))])), torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6)])), torch.as_tensor(torch.stack([torch.as_tensor(7), torch.as_tensor(8)]))]))])
 x_slice_1_to_3 = x[int(1):int(3)]
 x_slice_start_to_4 = x[:int(4)]
 y_rows_1_to_3 = y[int(1):int(3), :]
@@ -62,18 +62,18 @@ print(y_rows_1_to_3)
 print(y_column_2)
 print(z_layer_1)
 print(z_first_element_each_layer)
-x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8], device=DEVICE)
-y = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]], device=DEVICE)
-z = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], device=DEVICE)
+x = torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3), torch.as_tensor(4), torch.as_tensor(5), torch.as_tensor(6), torch.as_tensor(7), torch.as_tensor(8)])
+y = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3), torch.as_tensor(4)])), torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6), torch.as_tensor(7), torch.as_tensor(8)])), torch.as_tensor(torch.stack([torch.as_tensor(9), torch.as_tensor(10), torch.as_tensor(11), torch.as_tensor(12)])), torch.as_tensor(torch.stack([torch.as_tensor(13), torch.as_tensor(14), torch.as_tensor(15), torch.as_tensor(16)]))])
+z = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2)])), torch.as_tensor(torch.stack([torch.as_tensor(3), torch.as_tensor(4)]))])), torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6)])), torch.as_tensor(torch.stack([torch.as_tensor(7), torch.as_tensor(8)]))]))])
 func_x = slice_demo_1d(x)
 func_y = slice_demo_2d(y)
 func_z = slice_demo_3d(z)
 print(func_x)
 print(func_y)
 print(func_z)
-x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8], device=DEVICE)
-y = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]], device=DEVICE)
-z = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], device=DEVICE)
+x = torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3), torch.as_tensor(4), torch.as_tensor(5), torch.as_tensor(6), torch.as_tensor(7), torch.as_tensor(8)])
+y = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3), torch.as_tensor(4)])), torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6), torch.as_tensor(7), torch.as_tensor(8)])), torch.as_tensor(torch.stack([torch.as_tensor(9), torch.as_tensor(10), torch.as_tensor(11), torch.as_tensor(12)])), torch.as_tensor(torch.stack([torch.as_tensor(13), torch.as_tensor(14), torch.as_tensor(15), torch.as_tensor(16)]))])
+z = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2)])), torch.as_tensor(torch.stack([torch.as_tensor(3), torch.as_tensor(4)]))])), torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6)])), torch.as_tensor(torch.stack([torch.as_tensor(7), torch.as_tensor(8)]))]))])
 obj_slice_demo = SliceDemo().to(DEVICE)
 class_x = obj_slice_demo.return_x(x)
 class_y = obj_slice_demo.return_y(y)
@@ -81,9 +81,9 @@ class_z = obj_slice_demo.return_z(z)
 print(class_x)
 print(class_y)
 print(class_z)
-x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8], device=DEVICE)
-y = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]], device=DEVICE)
-z = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], device=DEVICE)
+x = torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3), torch.as_tensor(4), torch.as_tensor(5), torch.as_tensor(6), torch.as_tensor(7), torch.as_tensor(8)])
+y = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3), torch.as_tensor(4)])), torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6), torch.as_tensor(7), torch.as_tensor(8)])), torch.as_tensor(torch.stack([torch.as_tensor(9), torch.as_tensor(10), torch.as_tensor(11), torch.as_tensor(12)])), torch.as_tensor(torch.stack([torch.as_tensor(13), torch.as_tensor(14), torch.as_tensor(15), torch.as_tensor(16)]))])
+z = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2)])), torch.as_tensor(torch.stack([torch.as_tensor(3), torch.as_tensor(4)]))])), torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6)])), torch.as_tensor(torch.stack([torch.as_tensor(7), torch.as_tensor(8)]))]))])
 x_assign = x
 y_assign = y
 z_assign = z
@@ -93,8 +93,8 @@ z_assign[:, :, int(0)] = torch.tensor([10, 20], device=DEVICE)
 print(x_assign)
 print(y_assign)
 print(z_assign)
-y = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]], device=DEVICE)
-z = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], device=DEVICE)
+y = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2), torch.as_tensor(3), torch.as_tensor(4)])), torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6), torch.as_tensor(7), torch.as_tensor(8)])), torch.as_tensor(torch.stack([torch.as_tensor(9), torch.as_tensor(10), torch.as_tensor(11), torch.as_tensor(12)])), torch.as_tensor(torch.stack([torch.as_tensor(13), torch.as_tensor(14), torch.as_tensor(15), torch.as_tensor(16)]))])
+z = torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(1), torch.as_tensor(2)])), torch.as_tensor(torch.stack([torch.as_tensor(3), torch.as_tensor(4)]))])), torch.as_tensor(torch.stack([torch.as_tensor(torch.stack([torch.as_tensor(5), torch.as_tensor(6)])), torch.as_tensor(torch.stack([torch.as_tensor(7), torch.as_tensor(8)]))]))])
 for i in range(int(0), int(2)):
     y[:, int(0)] = torch.tensor([1, 2, 3, 4], device=DEVICE)
 for i in range(int(0), int(2)):

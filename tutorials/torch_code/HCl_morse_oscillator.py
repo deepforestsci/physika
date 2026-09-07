@@ -43,7 +43,7 @@ def adam(parameter, gradient_value, first_moment, second_moment, step, learning_
     new_second_moment = ((β_2 * second_moment) + ((1.0 - β_2) * (gradient_value ** 2)))
     corrected_first_moment = (new_first_moment / (1.0 - (β_1 ** step)))
     corrected_second_moment = (new_second_moment / (1.0 - (β_2 ** step)))
-    new_parameter = (parameter - ((learning_rate * corrected_first_moment) / (torch.sqrt(corrected_second_moment if isinstance(corrected_second_moment, torch.Tensor) else torch.tensor(float(corrected_second_moment))) + ε)))
+    new_parameter = (parameter - ((learning_rate * corrected_first_moment) / (torch.sqrt(torch.as_tensor(corrected_second_moment).float()) + ε)))
     return torch.stack([torch.as_tensor(new_parameter), torch.as_tensor(new_first_moment), torch.as_tensor(new_second_moment), torch.as_tensor((step + 1.0))])
 
 def zero_matrix(rows, columns):
@@ -57,17 +57,19 @@ def linspace(start, end, number):
         values[int(index)] = (start + (index * spacing))
     return values
 
-def integrate(values, grid_spacing, number):
+def integrate(values, grid_spacing, number, m=None):
+    if m is None:
+        m = int(values.shape[0])
     integral = 0.0
-    for index in range(int(0), int(number)):
-        integral = (integral + (values[int(index)] * grid_spacing))
-    return integral
+    return (lambda _acc: ([_acc := (lambda integral=_acc: (lambda integral=(integral + (values[int(index)] * grid_spacing)): integral)())() for index in range(int((number - 0)))], _acc)[1])(integral)
 
-def dot_product(first, second, number):
+def dot_product(first, second, number, m=None, n=None):
+    if m is None:
+        m = int(first.shape[0])
+    if n is None:
+        n = int(second.shape[0])
     value = 0.0
-    for index in range(int(0), int(number)):
-        value = (value + (first[int(index)] * second[int(index)]))
-    return value
+    return (lambda _acc: ([_acc := (lambda value=_acc: (lambda value=(value + (first[int(index)] * second[int(index)])): value)())() for index in range(int((number - 0)))], _acc)[1])(value)
 
 def normalize_vector(values, number):
     result = zero_array(number)
@@ -160,8 +162,8 @@ mass_H = (mass_H_u * atomic_mass_unit)
 mass_Cl = (mass_Cl_u * atomic_mass_unit)
 μ_HCl = ((mass_H * mass_Cl) / (mass_H + mass_Cl))
 N_reference_points = 13
-reference_bond_distance_angstrom = torch.tensor([1.1, 1.2746, 1.6, 2.15, 2.65, 3.2, 3.75, 3.95, 4.25, 4.55, 4.8, 5.0, 5.3], device=DEVICE)
-reference_potential_eV = torch.tensor([0.68888, 0.0, 0.97847, 3.22469, 4.2397, 4.54743, 4.60134, 4.60678, 4.61086, 4.61274, 4.61355, 4.61396, 4.61434], device=DEVICE)
+reference_bond_distance_angstrom = torch.stack([torch.as_tensor(1.1), torch.as_tensor(1.2746), torch.as_tensor(1.6), torch.as_tensor(2.15), torch.as_tensor(2.65), torch.as_tensor(3.2), torch.as_tensor(3.75), torch.as_tensor(3.95), torch.as_tensor(4.25), torch.as_tensor(4.55), torch.as_tensor(4.8), torch.as_tensor(5.0), torch.as_tensor(5.3)])
+reference_potential_eV = torch.stack([torch.as_tensor(0.68888), torch.as_tensor(0.0), torch.as_tensor(0.97847), torch.as_tensor(3.22469), torch.as_tensor(4.2397), torch.as_tensor(4.54743), torch.as_tensor(4.60134), torch.as_tensor(4.60678), torch.as_tensor(4.61086), torch.as_tensor(4.61274), torch.as_tensor(4.61355), torch.as_tensor(4.61396), torch.as_tensor(4.61434)])
 learned_dissociation_energy_eV = torch.tensor(3.5, requires_grad=True)
 learned_α_inverse_angstrom = torch.tensor(1.5, requires_grad=True)
 learned_equilibrium_distance_angstrom = torch.tensor(1.35, requires_grad=True)
@@ -213,7 +215,7 @@ block_size = 2
 Krylov_dimension = 40
 r_min = 5e-11
 r_max = 2e-10
-grid_spacing = ((r_max - r_min) / (N_grid + 1))
+grid_spacing = ((r_max - r_min) / float((N_grid + 1)))
 r_start = (r_min + grid_spacing)
 r_end = (r_max - grid_spacing)
 bond_distance = linspace(r_start, r_end, N_grid)

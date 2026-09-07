@@ -33,7 +33,7 @@ def calculate_loss(eps):
 
 # === Program ===
 Nx = 64
-dx = (1.0 / Nx)
+dx = (1.0 / float(Nx))
 dt = 0.02
 stab = 2.0
 jacobi_iters = 12

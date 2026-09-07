@@ -6,21 +6,17 @@ from physika.runtime import DEVICE
 from physika.runtime import print
 
 # === Functions ===
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
-def get_2d_array_num_rows(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_2d_array_num_rows(x, m=None, n=None):
+    if m is None:
+        m = int(x.shape[0])
+    if n is None:
+        n = int(x.shape[1])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def zero_1d_array(len):
     results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -38,11 +34,10 @@ def zero_3d_H(n):
     results = torch.stack([torch.stack([torch.stack([(k * 0) for _fi_k in range(int(30)) for k in [torch.tensor(float(_fi_k), device=DEVICE)]]) for _fi_j in range(int(44)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
-def get_sum_of_1d_array(x):
-    total = 0
-    for i in range(len(x)):
-        total = total + x[int(i)]
-    return total
+def get_sum_of_1d_array(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(x[int(i)]) for i in range(int(m))]).float())
 
 def diag_matrix(d):
     sz = get_1d_array_length(d)
@@ -80,12 +75,8 @@ def mse(pred, target):
 
 def within_tolerance(pred, target, tol):
     diff = (pred - target)
-    if diff < 0.0:
-        diff = (0.0 - diff)
-    if diff < tol:
-        return 1.0
-    else:
-        return 0.0
+    diff = ((0.0 - diff) if (diff < 0.0) else diff)
+    return (1.0 if (diff < tol) else 0.0)
 
 # === Classes ===
 class GCNModel(nn.Module):

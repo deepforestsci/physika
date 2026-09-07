@@ -10,13 +10,10 @@ def zero_1d_array(len):
     results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def append(x, var):
     new_length = (len(x) + 1)
@@ -31,14 +28,14 @@ def append(x, var):
 
 def f(state, θ):
     m1 = state[int(0)]
-    m2 = state[int(1)]
-    m3 = state[int(2)]
-    p1 = state[int(3)]
-    p2 = state[int(4)]
-    p3 = state[int(5)]
+    m2 = state[int((1 + 0))]
+    m3 = state[int((1 + (1 + 0)))]
+    p1 = state[int((1 + (1 + (1 + 0))))]
+    p2 = state[int((1 + (1 + (1 + (1 + 0)))))]
+    p3 = state[int((1 + (1 + (1 + (1 + (1 + 0))))))]
     a = θ[int(0)]
-    a0 = θ[int(1)]
-    beta = θ[int(2)]
+    a0 = θ[int((1 + 0))]
+    beta = θ[int((1 + (1 + 0)))]
     dm1 = ((a0 + (a / (1.0 + (p3 ** 2)))) - m1)
     dm2 = ((a0 + (a / (1.0 + (p1 ** 2)))) - m2)
     dm3 = ((a0 + (a / (1.0 + (p2 ** 2)))) - m3)
@@ -118,7 +115,7 @@ def adjoint_grad(θ):
 # === Program ===
 dt = 0.1
 timesteps = 200
-true_theta = torch.tensor([40.0, 1.0, 1.0], device=DEVICE)
+true_theta = torch.stack([torch.as_tensor(40.0), torch.as_tensor(1.0), torch.as_tensor(1.0)])
 true_results = solver(true_theta)
 true_m1 = true_results[int(0)]
 true_m2 = true_results[int(1)]
@@ -126,13 +123,13 @@ true_m3 = true_results[int(2)]
 true_p1 = true_results[int(3)]
 true_p2 = true_results[int(4)]
 true_p3 = true_results[int(5)]
-θ = torch.tensor([30.0, 1.5, 0.7], device=DEVICE)
+θ = torch.stack([torch.as_tensor(30.0), torch.as_tensor(1.5), torch.as_tensor(0.7)])
 learning_rate = 0.05
 beta1 = 0.9
 beta2 = 0.999
 eps_adam = 1e-08
-m_adam = torch.tensor([0.0, 0.0, 0.0], device=DEVICE)
-v_adam = torch.tensor([0.0, 0.0, 0.0], device=DEVICE)
+m_adam = torch.stack([torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0)])
+v_adam = torch.stack([torch.as_tensor(0.0), torch.as_tensor(0.0), torch.as_tensor(0.0)])
 t_adam = 0.0
 epochs = 1
 for i in range(int(0), int(epochs)):

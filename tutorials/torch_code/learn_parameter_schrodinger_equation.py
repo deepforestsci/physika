@@ -18,21 +18,17 @@ def linspace(start, end, n):
         x[int(i)] = (start + (i * Δx))
     return x
 
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_1d_array_length(x, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
-def get_2d_array_num_rows(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def get_2d_array_num_rows(x, m=None, n=None):
+    if m is None:
+        m = int(x.shape[0])
+    if n is None:
+        n = int(x.shape[1])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
 
 def zero_complex_2d_array(rows, cols):
     results = torch.stack([torch.stack([(j * 1j) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -100,7 +96,7 @@ def adam(bh, g, m, v, t, lr):
     v_new = ((β2 * v) + ((1.0 - β2) * (g ** 2)))
     m_hat = (m_new / (1.0 - (β1 ** t)))
     v_hat = (v_new / (1.0 - (β2 ** t)))
-    bh_new = (bh - ((lr * m_hat) / (torch.sqrt(v_hat if isinstance(v_hat, torch.Tensor) else torch.tensor(float(v_hat))) + ε)))
+    bh_new = (bh - ((lr * m_hat) / (torch.sqrt(torch.as_tensor(v_hat).float()) + ε)))
     return torch.stack([torch.as_tensor(bh_new), torch.as_tensor(m_new), torch.as_tensor(v_new), torch.as_tensor((t + 1.0))])
 
 # === Program ===
