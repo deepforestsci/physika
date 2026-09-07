@@ -212,7 +212,7 @@ Mathematically, ``ssp`` is defined as:
    def ssp(x: ℝ): ℝ:
        return log(0.5 * exp(x) + 0.5)
 
-Theory: Spherical Harmonics
+Spherical Harmonics
 -----------------------------
 
 Wigner-D matrices tell us how a degree-:math:`\ell` feature is allowed
@@ -407,7 +407,7 @@ edge feature combined with a degree-0 node feature, reduced to degree
 0), and ``cg_202`` is ``CG(2,0,2)`` (a degree-2 edge feature combined
 with a degree-0 node feature, reduced to degree 2).
 
-Theory: Equivariant Message Passing
+Equivariant Message Passing
 --------------------------------------
 
 A TFN layer updates each node :math:`u` by aggregating, over every
@@ -446,7 +446,7 @@ neighbor :math:`v`, the tensor product of the edge feature
                results[a, m] = acc[m]
        return results
 
-Code: Reassembling the Tensor
+Reassembling the Tensor
 --------------------------------
 
 A 3x3 matrix is basically the tensor product of two ordinary 3D
