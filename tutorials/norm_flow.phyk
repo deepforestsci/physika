@@ -145,7 +145,11 @@ for i:ℕ(len_test):
     test_flat[i, :] = dequantize(flatten(test_X[i], 28, 28), d)
 
 # Training
-epochs: ℕ = 20
+# ------------------------------------------------------------------
+# Set epochs to ~20; here it is 1 so the
+# tutorial runs quickly through tests/test_tutorials.py.
+# ------------------------------------------------------------------
+epochs: ℕ = 1
 lr: ℝ = 0.00015
 X: ℝ[160,784] = train_flat
 Y: ℝ[40,784] = test_flat

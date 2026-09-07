@@ -949,7 +949,7 @@ EXPECTED = {'functions': {'len1d': {'params': [('x', ('tensor', [('n', 'invarian
                     ('num', 28)]),
                   ('var', 'd')]))],
               144),
-             ('decl', 'epochs', 'ℕ', ('num', 20), 148),
+             ('decl', 'epochs', 'ℕ', ('num', 1), 148),
              ('decl', 'lr', 'ℝ', ('num', 0.00015), 149),
              ('decl',
               'X',

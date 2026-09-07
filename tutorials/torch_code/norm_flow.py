@@ -6,13 +6,10 @@ from physika.runtime import DEVICE
 from physika.runtime import print
 
 # === Functions ===
-def len1d(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def len1d(x, n=None):
+    if n is None:
+        n = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(n))]).float())
 
 def relu(x):
     return ((x + torch.abs(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))) * 0.5)
@@ -28,13 +25,13 @@ def flatten(img, rows, cols):
     d = (rows * cols)
     out = torch.stack([(i * 0) for _fi_i in range(int(d)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     for i in range(int(0), int(rows)):
-        out[(i * cols):((i + 1) * cols)] = img[int(i), :]
+        out[int((i * cols)):int(((i + 1) * cols))] = img[int(i), :]
     return out
 
 def unflatten(x, rows, cols):
     img = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     for i in range(int(0), int(rows)):
-        img[int(i), :] = x[(i * cols):((i + 1) * cols)]
+        img[int(i), :] = x[int((i * cols)):int(((i + 1) * cols))]
     return img
 
 def dequantize(x, d):
@@ -51,8 +48,8 @@ def concat(a, b):
     lb = len1d(b)
     d = (la + lb)
     out = torch.stack([(i * 0) for _fi_i in range(int(d)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-    out[:la] = a
-    out[la:] = b
+    out[:int(la)] = a
+    out[int(la):] = b
     return out
 
 # === Classes ===
@@ -74,8 +71,8 @@ class RealNVP(nn.Module):
     def coupling(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        x1 = x[:self.n]
-        x2 = x[self.n:]
+        x1 = x[:int(self.n)]
+        x2 = x[int(self.n):]
         s = linear(relu(linear(x1, self.W1_s, self.b1_s)), self.W2_s, self.b2_s)
         m = linear(relu(linear(x1, self.W1_m, self.b1_m)), self.W2_m, self.b2_m)
         return torch.cat([x1, ((torch.exp(s if isinstance(s, torch.Tensor) else torch.tensor(float(s))) * x2) + m)])
@@ -83,8 +80,8 @@ class RealNVP(nn.Module):
     def coupling_inv(self, y):
         this = self
         y = torch.as_tensor(y, device=DEVICE).float()
-        y1 = y[:self.n]
-        y2 = y[self.n:]
+        y1 = y[:int(self.n)]
+        y2 = y[int(self.n):]
         s = linear(relu(linear(y1, self.W1_s, self.b1_s)), self.W2_s, self.b2_s)
         m = linear(relu(linear(y1, self.W1_m, self.b1_m)), self.W2_m, self.b2_m)
         return torch.cat([y1, ((y2 - m) * torch.exp((-s) if isinstance((-s), torch.Tensor) else torch.tensor(float((-s)))))])
@@ -92,7 +89,7 @@ class RealNVP(nn.Module):
     def log_det(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        x1 = x[:self.n]
+        x1 = x[:int(self.n)]
         s = linear(relu(linear(x1, self.W1_s, self.b1_s)), self.W2_s, self.b2_s)
         return torch.sum(s if isinstance(s, torch.Tensor) else torch.tensor(float(s)))
 
@@ -204,7 +201,7 @@ for i in range(int(0), int(len_train)):
 test_flat = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(d)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(len_test)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 for i in range(int(0), int(len_test)):
     test_flat[int(i), :] = dequantize(flatten(test_X[int(i)], 28, 28), d)
-epochs = 20
+epochs = 1
 lr = 0.00015
 X = train_flat
 Y = test_flat
