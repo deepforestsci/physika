@@ -123,11 +123,6 @@ pairwise distances.
    gamma: ℝ = 1.0 / rbf_spacing
    hidden: ℝ = 16
 
-   center_idx: ℝ = 0.0
-   rotation_angle: ℝ = 0.9
-   w_init_low: ℝ = -0.2
-   w_init_high: ℝ = 0.2
-
 A raw distance :math:`r` is just one number, too little for a small
 MLP to shape a geometric profile from. So instead of feeding :math:`r`
 directly into the network, we expand it into a series of Gaussian
@@ -150,30 +145,6 @@ Helper Functions
 -----------------
 
 .. code-block:: text
-
-   def get_1d_array_length(x: ℝ[m]): ℝ:
-       total: ℝ = 0
-       temp: ℝ = 0
-       for i:
-           temp = x[i]
-           total += 1
-       return total
-
-   def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
-       total: ℝ = 0
-       temp: ℝ = 0
-       for i:
-           temp = x[i]
-           total += 1
-       return total
-
-   def get_3d_array_num_rows(x: ℝ[m, n, p]): ℝ:
-       total: ℝ = 0
-       temp: ℝ = 0
-       for i:
-           temp = x[i]
-           total += 1
-       return total
 
    def zero_1d(n: ℝ): ℝ[m]:
        results: ℝ[n] = for i:ℕ(n) -> i*0
@@ -280,7 +251,7 @@ the theory in [Cheng2022]_.
 
    Y_2 = \left[\frac{xy}{r^2},\ \frac{yz}{r^2},\ \frac{2z^2-x^2-y^2}{2\sqrt{3}\,r^2},\ \frac{zx}{r^2},\ \frac{x^2-y^2}{2r^2}\right]
 
-.. figure:: /_static/tutorial_files/l2_harmonics.png
+.. figure:: /_static/tutorial_files/tfn_l2_harmonics.png
    :alt: Comparison of a GCN and a CNN processing a molecule
    :align: center
    :width: 500px
@@ -350,7 +321,7 @@ to the true radial profile dictated by the underlying physics.
        return results
 
    def to_column(x: ℝ[n]): ℝ[n, 1]:
-       n_x: ℝ = get_1d_array_length(x)
+       n_x: ℝ = len(x)
        results: ℝ[n_x, 1] = zero_2d(n_x, 1)
        for i:ℕ(n_x):
            results[i, 0] = x[i]
@@ -598,7 +569,12 @@ where:
 Model Definition
 -----------------
 
+This model and its training loop are adapted from [MOINotebook]_,
+based on the reference implementation in [SmidtCode]_.
+
 .. code-block:: text
+
+   center_idx: ℝ = 0.0
 
    class MOIModel(w1_0: ℝ[hidden, rbf_count], b1_0: ℝ[hidden, 1], w2_0: ℝ[1, hidden], b2_0: ℝ[1, 1],
                   w1_2: ℝ[hidden, rbf_count], b1_2: ℝ[hidden, 1], w2_2: ℝ[1, hidden], b2_2: ℝ[1, 1]):
@@ -765,7 +741,6 @@ Full Code
 
 .. code-block:: text
 
-  
    # Tensor Field Networks 
 
    # Setup 
@@ -779,36 +754,7 @@ Full Code
    gamma: ℝ = 1.0 / rbf_spacing
    hidden: ℝ = 16
 
-   center_idx: ℝ = 0.0
-   rotation_angle: ℝ = 0.9
-   w_init_low: ℝ = -0.2
-   w_init_high: ℝ = 0.2
-
    #  Helper Functions 
-   def get_1d_array_length(x: ℝ[m]): ℝ:
-       total: ℝ = 0
-       temp: ℝ = 0
-       for i:
-           temp = x[i]
-           total += 1
-       return total
-
-   def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
-       total: ℝ = 0
-       temp: ℝ = 0
-       for i:
-           temp = x[i]
-           total += 1
-       return total
-
-   def get_3d_array_num_rows(x: ℝ[m, n, p]): ℝ:
-       total: ℝ = 0
-       temp: ℝ = 0
-       for i:
-           temp = x[i]
-           total += 1
-       return total
-
    def zero_1d(n: ℝ): ℝ[m]:
        results: ℝ[n] = for i:ℕ(n) -> i*0
        return results
@@ -890,7 +836,7 @@ Full Code
        return results
 
    def to_column(x: ℝ[n]): ℝ[n, 1]:
-       n_x: ℝ = get_1d_array_length(x)
+       n_x: ℝ = len(x)
        results: ℝ[n_x, 1] = zero_2d(n_x, 1)
        for i:ℕ(n_x):
            results[i, 0] = x[i]
@@ -989,6 +935,8 @@ Full Code
        diff: ℝ[3,3] = pred - target
        result = sum(diff * diff) / 9.0
        return result
+
+   center_idx: ℝ = 0.0
 
    # Model Definition
    class MOIModel(w1_0: ℝ[hidden, rbf_count], b1_0: ℝ[hidden, 1], w2_0: ℝ[1, hidden], b2_0: ℝ[1, 1],
@@ -1127,6 +1075,9 @@ Full Code
    # Main Program:
 
    # Uniform distribution to initialize the weight tensors within [w_init_low, w_init_high]
+   w_init_low: ℝ = -0.2
+   w_init_high: ℝ = 0.2
+
    w1_0: ℝ[16, 30] ~ 𝒰(w_init_low, w_init_high, 16, 30)
    b1_0: ℝ[16, 1] = zero_2d(16, 1)
    w2_0: ℝ[1, 16] ~ 𝒰(w_init_low, w_init_high, 1, 16)
@@ -1157,6 +1108,7 @@ Full Code
    test_masses: ℝ[num_points] = random_masses(num_points, min_mass, max_mass)
    test_masses[center_idx] = 0.0
 
+   rotation_angle: ℝ = 0.9
    Rmat: ℝ[3, 3] = rotation_matrix_z(rotation_angle)
    rotated_points: ℝ[num_points, 3] = rotate_points(test_points, Rmat)
 
