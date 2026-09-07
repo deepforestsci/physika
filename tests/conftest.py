@@ -9,7 +9,6 @@ from contextlib import redirect_stdout
 from typing import Optional
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
-AST_DIR = EXAMPLES_DIR / "ast"
 
 
 def exec_phyk(stem: str) -> dict:
