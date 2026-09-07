@@ -1,15 +1,15 @@
 """Unit tests for codegen"""
 
-from typing import Any
 from physika.codegen import from_ast_to_torch
-from physika.utils.ast_utils import build_unified_ast
-from physika.parser import parser, symbol_table
-from physika.lexer import lexer
-from physika.utils.import_manager import resolve_imports
 from pathlib import Path
 import subprocess
 import os
 import pytest
+
+from tests.conftest import load_expected_ast, parse_source_to_ast
+
+from physika.core.elab.elab import Elab
+from physika.core.inductive import mk_builtin_env
 
 HEADER = "import torch\nimport torch.nn as nn\nimport torch.optim as optim\n"
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
@@ -17,28 +17,6 @@ PHYK_FILES = sorted(EXAMPLES_DIR.glob("*.phyk"))
 PHYK_IDS = [f.stem for f in PHYK_FILES]
 AST_DIR = EXAMPLES_DIR / "ast"
 TORCH_CODE_DIR = EXAMPLES_DIR / "torch_code"
-
-
-# Helper functions
-def load_expected_ast(stem: str) -> dict:
-    """Load the expected AST dict from ``examples/ast/<stem>.py``."""
-    ns: dict[str, Any] = {}
-    exec((AST_DIR / f"{stem}.py").read_text(), ns)
-    return ns["EXPECTED"]
-
-
-def parse_source_to_ast(source: str, source_path=None) -> dict:
-    """Run lexer/parser and build_unified_ast on a Physika source string."""
-    symbol_table.clear()
-    lexer.lexer.lineno = 1  # reset PLY line counter for deterministic output
-    program_ast = parser.parse(source, lexer=lexer)
-
-    if source_path is not None and any(
-            isinstance(node, tuple) and node[0] == "import"
-            for node in program_ast):
-        program_ast = resolve_imports(program_ast, source_path)
-
-    return build_unified_ast(program_ast, symbol_table)
 
 
 # Tests
@@ -75,9 +53,24 @@ def test_codegen_matches_reference(phyk_file):
     python file in torch_code dir
     """
     src = phyk_file.read_text()
-    code_phyk = from_ast_to_torch(parse_source_to_ast(src,
-                                                      phyk_file.resolve()),
-                                  print_code=False)
+
+    unified_ast = parse_source_to_ast(
+        src,
+        phyk_file.resolve(),
+    )
+    cic_elab = Elab(mk_builtin_env())
+    cic_result = cic_elab.elaborate(unified_ast)
+
+    code_phyk = from_ast_to_torch(
+        unified_ast,
+        print_code=False,
+        resolved_bodies=cic_result.get("resolved_bodies"),
+        resolved_methods=cic_result.get("resolved_methods"),
+        resolved_program=cic_result.get("resolved_program"),
+        resolved_program_fvar_names=cic_result.get(
+            "resolved_program_fvar_names"),
+        cic_env=cic_elab.state.env,
+    )
     code_torch = (TORCH_CODE_DIR / f"{phyk_file.stem}.py").read_text()
 
     assert HEADER in code_phyk
