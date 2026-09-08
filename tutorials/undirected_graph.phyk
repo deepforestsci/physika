@@ -30,6 +30,40 @@ class UndirectedGraph():
         return result
     def add_vertex(new_n: ℕ):
         this.adjacency = this.grow_adjacency(new_n)
+    def dfs(start: ℝ) → ℝ[n]:
+        # Iterative depth-first search from `start`.
+        # Returns the visitation order: order[k] is the k-th vertex visited,
+        # and slots for unreached vertices stay -1.0.
+        m: ℝ[n, n] = this.adjacency
+        k: ℕ = len(m)
+        cap: ℕ = k * k + 1
+        visited: ℝ[n] = for a : ℕ(k) → a * 0.0
+        order: ℝ[n] = for a : ℕ(k) → (a * 0.0) - 1.0
+        stack: ℝ[cap] = for a : ℕ(cap) → a * 0.0
+        sp: ℕ = 0
+        count: ℕ = 0
+        stack[sp] = start
+        sp = sp + 1
+        # Each pop consumes one push, and at most 2*|E| + 1 <= cap pushes happen.
+        for step : ℕ(cap):
+            if sp > 0:
+                sp = sp - 1
+                # `* 1.0` forces a fresh scalar; a bare `stack[sp]` would alias
+                # the stack storage and change under later pushes.
+                v = stack[sp] * 1.0
+                if visited[v] == 0.0:
+                    visited[v] = 1.0
+                    order[count] = v * 1.0
+                    count = count + 1
+                    # Push neighbours in descending index order so the
+                    # lowest-numbered neighbour is explored first.
+                    for j : ℕ(k):
+                        w = (k - 1) - j
+                        if m[v, w] == 1.0:
+                            if visited[w] == 0.0:
+                                stack[sp] = w * 1.0
+                                sp = sp + 1
+        return order
 
 def empty_graph(n_vertices: ℕ): UndirectedGraph:
     z: ℝ[n_vertices, n_vertices] = for a : ℕ(n_vertices) → for b : ℕ(n_vertices) → (a + b) * 0.0
@@ -52,3 +86,12 @@ n3: ℕ = 4
 g.add_vertex(n3)
 g.add_edge(2.0, 3.0)
 g.degree(3.0)
+
+# Depth-first search over the path graph 0 - 1 - 2 - 3
+g.dfs(0.0)   # [0, 1, 2, 3]
+g.dfs(2.0)   # [2, 1, 0, 3]
+
+# Close the path into a cycle 0 - 1 - 2 - 3 - 0 and search again
+g.add_edge(0.0, 3.0)
+g.dfs(0.0)   # [0, 1, 2, 3]
+g.dfs(1.0)   # [1, 0, 3, 2]
