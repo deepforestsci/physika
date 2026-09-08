@@ -8,7 +8,7 @@ familiar from a dict-of-adjacency-lists implementation, in Physika.
    :align: center
    :alt: A graph with six vertices and seven edges
 
-   Figure 1: A graph with six vertices and seven edges
+   Figure 1: A graph with six vertices and seven edges [AzaTothGraph]_
 
 Graphs provide a powerful way to represent relationships and connections
 between different entities like people in a social network, computers in a
@@ -130,3 +130,6 @@ References
    *Commentarii Academiae Scientiarum Imperialis Petropolitanae*, 8, 128–140,
    1741.
 
+.. [AzaTothGraph] AzaToth. Own work based on 6n-graf.png. Public Domain.
+   Wikimedia Commons.
+   https://commons.wikimedia.org/w/index.php?curid=820489
