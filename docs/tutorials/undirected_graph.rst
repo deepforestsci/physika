@@ -1,8 +1,23 @@
-A Undirected Graph class
-========================
+Undirected Graph class
+======================
 
 This tutorial implements an undirected graph, the ``UndirectedGraph`` class
 familiar from a dict-of-adjacency-lists implementation, in Physika.
+
+.. figure:: ../_static/tutorial_files/undirected_graph.webp
+   :align: center
+   :alt: A graph with six vertices and seven edges
+
+   Figure 1: A graph with six vertices and seven edges
+
+Graphs provide a powerful way to represent relationships and connections
+between different entities like people in a social network, computers in a
+datacenter, etc. Graph algorithms can then be used to solve problems such as
+finding shortest path between locations, determining connectivity.
+
+The exact origin of graphs as a general mathematical concept is difficult to
+attribute to a single person, but the origin of graph theory is can traced to
+Leonhard Euler's work on the Seven Bridges of Königsberg in 1736. [Euler1736]_
 
 Design
 ------
@@ -106,3 +121,12 @@ Vertex ``1`` connects to both ``0`` and ``2``, so its degree is ``2``;
 ``0`` and ``2`` are not directly connected. After ``add_vertex`` the graph
 has 4 vertices, and connecting the new vertex ``3`` to vertex ``2`` gives it
 degree ``1``.
+
+
+References
+----------
+
+.. [Euler1736] Euler, L. Solutio problematis ad geometriam situs pertinentis.
+   *Commentarii Academiae Scientiarum Imperialis Petropolitanae*, 8, 128–140,
+   1741.
+
