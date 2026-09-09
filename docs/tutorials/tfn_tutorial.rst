@@ -503,6 +503,9 @@ transforming under its own clean representation:
 
 Defining the Point-Mass Cloud Coordinates
 --------------------------------------------
+Every training step calls ``random_points``/``random_masses`` to 
+generate a new, independent point-mass cloud, computes the loss 
+against the analytic ground truth for that cloud, and discards it.
 
 .. code-block:: text
 
@@ -666,6 +669,44 @@ where:
                    this.update(lr, learnable_grads)
                    last_loss = current_loss
            return last_loss
+
+Plotting the Loss Curve
+------------------------------
+
+.. code-block:: text
+
+    loss_plot: ℝ[epochs] = zero_1d(epochs)
+    for step:ℕ(epochs):
+        current_loss = moi_object.loss_sample()
+        learnable_grads = grad(current_loss, moi_object.learnable_params)
+        moi_object.update(lr, learnable_grads)
+        loss_plot[step] = current_loss
+
+    plot_training_loss(loss_plot)
+
+.. note::
+   ``plot_training_loss`` is not a built-in Physika function. To use it,
+   add the following helper to ``physika/runtime.py``:
+
+   .. code-block:: python
+
+      import matplotlib.pyplot as plt
+      def plot_training_loss(loss_plot):
+
+            plt.plot(loss_plot.detach().numpy())
+
+            plt.xlabel("Training step")
+            plt.ylabel("MSE loss")
+            plt.yscale("log")
+            plt.title("Training Loss")
+            plt.show()
+
+.. figure:: /_static/tutorial_files/tfn_loss_curve.png
+   :alt: TFN training loss curve
+   :align: center
+   :width: 700px
+
+   Training loss over 300 epochs
 
 Evaluating the Model
 ----------------------
