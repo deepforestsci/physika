@@ -99,19 +99,23 @@ def get_2d_array_num_cols(x, m=None, n=None):
         m = int(x.shape[0])
     if n is None:
         n = int(x.shape[1])
-    return get_1d_array_length(x[int(0)], n)
+    return get_1d_array_length(x[int(0)])
 
-def get_2d_array_num_rows(x, m=None, n=None):
-    if m is None:
-        m = int(x.shape[0])
-    if n is None:
-        n = int(x.shape[1])
-    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
+def get_2d_array_num_rows(x):
+    total = 0
+    temp = 0
+    for i in range(len(x)):
+        temp = x[int(i)]
+        total = total + 1
+    return total
 
-def get_1d_array_length(x, m=None):
-    if m is None:
-        m = int(x.shape[0])
-    return torch.sum(torch.stack([torch.as_tensor(1) for i in range(int(m))]).float())
+def get_1d_array_length(x):
+    total = 0
+    temp = 0
+    for i in range(len(x)):
+        temp = x[int(i)]
+        total = total + 1
+    return total
 
 def zero_2d_array(rows, cols):
     results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -148,10 +152,10 @@ for i in range(int(0), int(3)):
 print(v)
 grad_f_x = compute_grad(f_x, v[int(2), int(0)])
 print(grad_f_x)
-r = torch.stack([torch.as_tensor((-1.0)), torch.as_tensor(0.0), torch.as_tensor(0.5), torch.as_tensor(1.0), torch.as_tensor(2.0)])
+r = torch.tensor([(-1.0), 0.0, 0.5, 1.0, 2.0], device=DEVICE)
 φ = superbee(r)
 print(φ)
 A = torch.tensor([[1, 2, 1], [3, 1, (-1)], [2, (-1), 1]], device=DEVICE)
-b = torch.stack([torch.as_tensor(8), torch.as_tensor(2), torch.as_tensor(3)])
+b = torch.tensor([8, 2, 3], device=DEVICE)
 gaussian_results = gaussian_solve(A, b)
 print(gaussian_results)
