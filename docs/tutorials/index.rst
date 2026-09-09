@@ -93,6 +93,7 @@ Tutorials
    :caption: General Methods & Machine Learning Foundations
 
    learn_parameter_ode
+   kmeans
    cnn_tutorial
    gcn_tutorial
    fft_tutorial

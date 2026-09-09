@@ -1,0 +1,84 @@
+# ============================================================
+# K-Means clustering (Lloyd's algorithm) in Physika
+# ============================================================
+# Given n points in the plane, split them into k = 2 clusters by
+# alternating two steps until the centroids stop moving:
+#
+#   1. Assignment step : label every point with the index of its
+#                        nearest centroid, argmin_j ||x_i - c_j||^2
+#   2. Update step      : move every centroid to the mean of the
+#                        points currently assigned to it
+#
+# The assignment step is an argmin, which is piecewise constant,
+# so K-Means is NOT differentiable. This tutorial is therefore a
+# plain forward computation (no grad(...) calls); it exercises
+# Physika functions, loops, for-expressions and shape checking.
+#
+# We fix k = 2 so the assignment can be written as a single
+# comparison d1 < d0. For k > 2 the same idea generalises to an
+# argmin loop over the centroids.
+# ============================================================
+
+n: ℝ = 8
+iters: ℕ = 10
+
+# squared Euclidean distance between two points in the plane
+def sq_dist(a: ℝ[2], b: ℝ[2]): ℝ:
+    e0: ℝ = a[0] - b[0]
+    e1: ℝ = a[1] - b[1]
+    return e0 * e0 + e1 * e1
+
+# assignment step (k = 2): label 0 if the point is nearer to
+# C[0], otherwise label 1
+def nearest_of_two(point: ℝ[2], C: ℝ[2, 2]): ℝ:
+    d0: ℝ = sq_dist(point, C[0])
+    d1: ℝ = sq_dist(point, C[1])
+    label: ℝ = 0.0
+    if d1 < d0:
+        label = 1.0
+    return label
+
+# one label per point
+def assign_labels(X: ℝ[n, 2], C: ℝ[2, 2]): ℝ[n]:
+    return for i:ℕ(n) -> nearest_of_two(X[i], C)
+
+# mean of the points whose label equals `target`; if that cluster
+# is momentarily empty, keep the previous centroid `fallback`
+def cluster_mean(X: ℝ[n, 2], labels: ℝ[n], target: ℝ, fallback: ℝ[2]): ℝ[2]:
+    s0: ℝ = 0.0
+    s1: ℝ = 0.0
+    cnt: ℝ = 0.0
+    for i:ℕ(n):
+        if labels[i] == target:
+            s0 += X[i, 0]
+            s1 += X[i, 1]
+            cnt += 1.0
+    if cnt > 0.0:
+        return [s0 / cnt, s1 / cnt]
+    else:
+        return fallback
+
+# update step: recompute both centroids
+def update_centroids(X: ℝ[n, 2], labels: ℝ[n], C_old: ℝ[2, 2]): ℝ[2, 2]:
+    c0: ℝ[2] = cluster_mean(X, labels, 0.0, C_old[0])
+    c1: ℝ[2] = cluster_mean(X, labels, 1.0, C_old[1])
+    return [c0, c1]
+
+# ------------------------------------------------------------
+# toy dataset: two well-separated blobs in the plane
+# ------------------------------------------------------------
+X: ℝ[8, 2] = [
+    [1.0, 1.0], [1.5, 2.0], [1.0, 2.5], [2.0, 1.5],
+    [8.0, 8.0], [8.5, 9.0], [9.0, 8.5], [7.5, 9.5]
+]
+
+# initialise the centroids with two of the data points
+C: ℝ[2, 2] = [[1.0, 1.0], [8.0, 8.0]]
+
+labels: ℝ[8] = for i:ℕ(n) -> i * 0.0
+for step:ℕ(iters):
+    labels = assign_labels(X, C)
+    C = update_centroids(X, labels, C)
+
+print(labels)
+print(C)
