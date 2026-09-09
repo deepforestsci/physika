@@ -19,4 +19,3 @@ The linear solvers module provides differentiable functions for solving linear s
 The following functions are currently available:
 
 * `Gaussian elimination method <https://github.com/deepforestsci/physika/blob/main/physika/Std/linear_solvers.phyk#L42>`_ 
-* lu_decomposition
