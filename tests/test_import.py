@@ -57,6 +57,11 @@ class TestExampleImportFile:
         assert len(phi) == 5
         assert phi.tolist() == [0.0, 0.0, 1.0, 1.0, 2.0]
 
+    def test_import_from_Std(self, numeric_ns):
+        """Test correctness of Std imports"""
+        gaussian_results = numeric_ns["gaussian_results"]
+        assert gaussian_results.tolist() == [1.0, 2.0, 3.0]
+
     def test_imported_statement_runtime_error(self):
         """Test runtime error in import statement"""
         src = ("from examples.example_tensors import v\n"

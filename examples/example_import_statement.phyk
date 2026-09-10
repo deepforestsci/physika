@@ -62,3 +62,20 @@ from tutorials.learn_flux_limiter_euler_equations import superbee
 r: ℝ[5] = [-1.0, 0.0, 0.5, 1.0, 2.0]
 φ: ℝ[5] = superbee(r)
 φ
+
+
+# ----------------------------------------------
+# Import from Std
+# ----------------------------------------------
+
+from Std.linear_solvers import gaussian_solve, get_2d_array_num_cols, get_2d_array_num_rows, get_1d_array_length, zero_2d_array, zero_1d_array
+
+A: ℝ[3,3] = [
+    [1, 2, 1],
+    [3, 1, -1],
+    [2, -1, 1]
+]
+b: ℝ[3] = [8, 2, 3]
+
+gaussian_results: ℝ[3] = gaussian_solve(A, b)
+gaussian_results
