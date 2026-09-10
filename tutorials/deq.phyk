@@ -1,0 +1,123 @@
+physika.seed(0)
+def tanh(a: ℝ[p,q]): ℝ[p,q]:
+    num: ℝ[p,q] = exp(a) - exp(-a)
+    denom: ℝ[p,q] = exp(a) + exp(-a)
+    return num / denom
+
+def rand_array(n: ℝ, m: ℝ, μ: ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → ε: ℝ[m] ~ Normal(0.0, μ, m)
+
+def zeros2d(n: ℝ, m: ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → j * 0.0
+
+def zeros1d(k: ℝ): ℝ[k]:
+    return for i:ℕ(k) → i * 0.0
+
+def eye(n: ℝ): ℝ[n, n]:
+    I: ℝ[n, n] = for i:ℕ(n) → for j:ℕ(n) → j * 0.0
+    for i:ℕ(n):
+        I[i, i] = 1.0
+    return I
+
+def df_dh(W: ℝ[n,n], tanh_prime: ℝ[1,n]): ℝ[n,n]:
+    return for r:ℕ(n) → for c:ℕ(n) → W[r, c] * tanh_prime[0, c]
+
+def linsolve(A: ℝ[16, 16], b: ℝ[16]): ℝ[16]:
+    aug: ℝ[16, 17] = zeros2d(16, 17)
+    for i:ℕ(16):
+        for c:ℕ(16):
+            aug[i, c] = A[i, c]
+        aug[i, 16] = b[i]
+    for i:ℕ(16):
+        piv = zeros1d(17)
+        for c:ℕ(17):
+            piv[c] = aug[i, c]
+        aug_next = zeros2d(16, 17)
+        for r:ℕ(16):
+            if r == i:
+                for c:ℕ(17):
+                    aug_next[r, c] = piv[c] / piv[i]
+            else:
+                fac = aug[r, i] / piv[i]
+                for c:ℕ(17):
+                    aug_next[r, c] = aug[r, c] - fac * piv[c]
+        aug = aug_next
+    x: ℝ[16] = zeros1d(16)
+    for i:ℕ(16):
+        idx = 15 - i
+        total = aug[idx, 16]
+        for j:ℕ(idx + 1, 16):
+            total = total - aug[idx, j] * x[j]
+        x_next = zeros1d(16)
+        for c:ℕ(16):
+            if c == idx:
+                x_next[c] = total / aug[idx, idx]
+            else:
+                x_next[c] = x[c]
+        x = x_next
+    return x
+
+class DEQ(W: ℝ[n,n], U: ℝ[d,n], b: ℝ[1,n], Wo: ℝ[n,d], bo: ℝ[1,d]):
+    h_star: ℝ[1,n]
+    def f(h: ℝ[1,n], x: ℝ[1,d]): ℝ[1,n]:
+        return tanh(h @ W + x @ U + b)
+    def equilibrium(x: ℝ[1,d]): ℝ[1,n]:
+        num_solver_steps: ℕ = 3
+        this.h_star = zeros2d(1, 16)
+        f_h: ℝ[1,n] = this.f(this.h_star, x)
+        tanh_prime: ℝ[1,n] = 1.0 - f_h * f_h
+        J: ℝ[n,n] = df_dh(W, tanh_prime) - eye(16)
+        for k:ℕ(num_solver_steps):
+            g = this.f(this.h_star, x) - this.h_star
+            delta = linsolve(J, g[0])
+            this.h_star = this.h_star - [delta]
+        return this.h_star
+    def λ(x: ℝ[1,d]) → ℝ[1,d]:
+        h_star: ℝ[1,n] = this.equilibrium(x)
+        return h_star @ Wo + bo
+    def loss(target: ℝ[1,784], x_hat: ℝ[1,784]): ℝ:
+        diff: ℝ[1,784] = target - x_hat
+        return sum(diff * diff)
+    def train(X: ℝ[50,784], epochs: ℕ, lr: ℝ, images: ℝ):
+        for epoch:ℕ(epochs):
+            for i:ℕ(images):
+                x: ℝ[1,d] = [X[i]]
+                preds = this(x)
+                L = this.loss(x, preds)
+                grads = grad(L, this.params)
+                this.update_params(lr, grads)
+            total = 0
+            for i:ℕ(images):
+                x: ℝ[1,d] = [X[i]]
+                pred = this(x)
+                total += this.loss(x, pred)
+            print(total / images)
+    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+        this.W = this.W - lr * learnable_grads[0]
+        this.U = this.U - lr * learnable_grads[1]
+        this.b = this.b - lr * learnable_grads[2]
+        this.Wo = this.Wo - lr * learnable_grads[3]
+        this.bo = this.bo - lr * learnable_grads[4]
+
+print(DEVICE)
+W: ℝ[16,16] = rand_array(16, 16, 0.01)
+U: ℝ[784,16] = rand_array(784, 16, 0.02)
+b: ℝ[1,16] = zeros2d(1, 16)
+Wo: ℝ[16,784] = rand_array(16, 784, 0.05)
+bo: ℝ[1,784] = zeros2d(1, 784)
+deq: DEQ = DEQ(W, U, b, Wo, bo)
+
+images: ℝ = 50
+X: ℝ[50, 784] = rand_array(50, 784, 1.0)      
+
+x0: ℝ[1,784] = [X[0]]
+recon_before: ℝ[1,784] = deq(x0)
+loss_before: ℝ = deq.loss(x0, recon_before)
+print(loss_before)
+
+epochs: ℕ = 1
+lr: ℝ = 0.001
+deq.train(X, epochs, lr, images)
+recon_after: ℝ[1,784] = deq(x0)
+loss_after: ℝ = deq.loss(x0, recon_after)
+print(loss_after)
