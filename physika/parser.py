@@ -56,6 +56,8 @@ def p_type_scalar(p):
         p[0] = "ℂ"
     elif p[1] == "list":
         p[0] = "list"
+    elif p[1] == "String":
+        p[0] = "String"
     else:
         p[0] = "ℝ"
 
@@ -1425,7 +1427,7 @@ def p_factor_array(p):
 def p_factor_string(p):
     """factor : STRING"""
     # String literal (for equations and symbolic): 'x0 = a + b'
-    p[0] = ("equation_string", p[1])
+    p[0] = ("string", p[1])
 
 
 def p_factor_for_expr_range(p):

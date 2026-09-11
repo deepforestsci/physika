@@ -67,3 +67,13 @@ c_mathbb
 
 c_vector : ℂ[2] = [1 + 2j, 3 + 4j]
 c_vector
+
+
+
+# -----------------------
+# string type (String)
+# notations: String
+# -----------------------
+
+name: String = "physika"
+name

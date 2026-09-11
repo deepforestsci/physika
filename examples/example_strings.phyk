@@ -1,0 +1,62 @@
+# =======================================================
+# String data type in Physika
+# 
+# This Physika file showcases how you can use string  
+# data types
+# 
+# This are the subsections:
+# * Basic declarations
+# * Concatenation of two strings
+# * Simple indexing
+# * strings slicing
+# =======================================================
+
+
+
+# --------------------
+# Basic declarations
+# --------------------
+
+
+empty_string: String = ""
+name: String = "Physika"
+msg: String = "Hello, World!"
+
+print(empty_string)
+print(name)
+print(msg)
+
+
+# --------------------
+# Concatenation
+# --------------------
+
+first_name: String = "Physika"
+last_name: String = "Language"
+
+full_name: String = first_name + " " + last_name
+
+print(full_name)
+
+
+
+# --------------------
+# Simple indexing
+# --------------------
+
+first_character: String = name[0]
+third_character: String = name[2]
+
+print(first_character)
+print(third_character)
+
+
+# --------------------
+# strings slicing
+# --------------------
+
+first_part: String = full_name[:7]
+last_part: String = full_name[8:]
+
+print(first_part)
+print(last_part)

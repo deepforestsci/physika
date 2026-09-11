@@ -1,6 +1,6 @@
 from physika.features.indexing_and_slicing import IndexingandSlicing
 from physika.utils.types import (TTensor, T_REAL, T_COMPLEX, TList, TDim,
-                                 Substitution, new_dim)
+                                 Substitution, new_dim, T_STRING)
 from tests.test_utils.test_infer_stmt import make_stmt_ctx
 from tests.test_utils.test_infer_expr import make_ctx
 from physika.utils.infer_expr import infer_expr
@@ -247,6 +247,16 @@ class TestExprIndex:
                           infer_expr)
         assert t == nested
 
+    def test_string_index(self):
+        """
+        Test for simple indexing for string.
+        """
+        errors = []
+        ctx = make_ctx(env={"x": T_STRING}, errors=errors)
+        expr_index(("index", "x", ("num", 0)), ctx.env, ctx.s, ctx.func_env,
+                   ctx.class_env, ctx.add_error, infer_expr)
+        assert len(errors) == 0
+
 
 class TestExprIndexN:
     """
@@ -488,6 +498,59 @@ class TestExprIndexN:
                            infer_expr)
         assert t == TTensor(
             ((2, "invariant"), (2, "invariant"), (4, "invariant")))
+
+    def test_string_slice(self):
+        """String slice with both start and end indices: s[1:2]."""
+        ctx = make_ctx(env={"s": T_STRING})
+
+        t, _ = expr_indexN(
+            ("indexN", "s", [
+                ("slice_item", ("num", 1), ("num", 2)),
+            ]),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert t == T_STRING
+
+    def test_string_end_slice(self):
+        """String slice with only an end index: s[:2]."""
+        ctx = make_ctx(env={"s": T_STRING})
+
+        t, _ = expr_indexN(
+            ("indexN", "s", [
+                ("slice_item", None, ("num", 2)),
+            ]),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+
+        assert t == T_STRING
+
+    def test_string_start_slice(self):
+        """String slice with only a start index: s[3:]."""
+        ctx = make_ctx(env={"s": T_STRING})
+
+        t, _ = expr_indexN(
+            ("indexN", "s", [
+                ("slice_item", ("num", 3), None),
+            ]),
+            ctx.env,
+            ctx.s,
+            ctx.func_env,
+            ctx.class_env,
+            ctx.add_error,
+            infer_expr,
+        )
+        assert t == T_STRING
 
 
 class TestStmtForEq:

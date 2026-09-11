@@ -44,3 +44,5 @@ print(c_unicode)
 print(c_mathbb)
 c_vector = torch.stack([torch.as_tensor((1 + 2j), dtype=torch.complex64), torch.as_tensor((3 + 4j), dtype=torch.complex64)])
 print(c_vector)
+name = 'physika'
+print(name)

@@ -1,7 +1,7 @@
 from physika.elf import ELF
 from typing import Callable, Optional, Tuple
-from physika.utils.types import (Substitution, Type, TVar, TDim, T_REAL,
-                                 TTensor, TList)
+from physika.utils.types import (Substitution, Type, TVar, TDim, T_REAL, T_NAT,
+                                 TTensor, TList, T_STRING)
 from physika.utils.type_checker_utils import get_tensor_shape, unify_dim, make_tensor  # noqa
 
 
@@ -545,6 +545,37 @@ class IndexingandSlicing(ELF):
                 # multiple types, e.g - z: list = [1j, 2, x, [x, y]]
                 return None, s
 
+            # Indexing for ``String`` dtype
+            if arr_t == T_STRING:
+                idx_node = node[2]
+
+                # integer literal: x[2]
+                if (isinstance(idx_node, tuple) and idx_node[0] == "num"
+                        and isinstance(idx_node[1], int)):
+                    return T_STRING, s
+
+                # float literal: x[2.3]
+                if (isinstance(idx_node, tuple) and idx_node[0] == "num"
+                        and isinstance(idx_node[1], float)):
+                    add_error("String indices must be integers, not floats")
+                    return None, s
+
+                # dynamic index
+                idx_t, s = infer_expr(idx_node, env, s, func_env, class_env,
+                                      add_error)
+
+                # allow only ``T_NAT`` type
+                if idx_t == T_NAT:
+                    return T_STRING, s
+
+                if idx_t == T_REAL:
+                    add_error(
+                        "String indices of type ℝ must be integer-valued")
+                    return None, s
+
+                add_error("String index must be an integer.")
+                return T_STRING, s
+
             if shape is None:
                 # Only report an error when arr_t is a non-tensor type.
                 # TVar / TDim means the type is still unknown.
@@ -660,6 +691,13 @@ class IndexingandSlicing(ELF):
             # leading dimension
             for idx_expr, dim in zip(idx_exprs, shape or []):
                 if idx_expr[0] == "index_item":
+                    idx_node = idx_expr[1]
+
+                    if (isinstance(idx_node, tuple) and idx_node[0] == "num"
+                            and isinstance(idx_node[1], float)):
+                        add_error("Index must be an integer, not a float")
+                        return None, s
+
                     idx_t, s = infer_expr(idx_expr[1], env, s, func_env,
                                           class_env, add_error)
                     if isinstance(idx_t, (TVar, TDim, str, int)):
@@ -670,8 +708,19 @@ class IndexingandSlicing(ELF):
                                 f"Index mismatch for '{arr_name}[...]: {e}")
 
                 elif idx_expr[0] == "slice_item":
-                    if idx_expr[1] is not None:
-                        idx_t, s = infer_expr(idx_expr[1], env, s, func_env,
+                    start_idx = idx_expr[1]
+                    end_idx = idx_expr[2]
+
+                    if start_idx is not None:
+
+                        if (isinstance(start_idx, tuple)
+                                and start_idx[0] == "num"
+                                and isinstance(start_idx[1], float)):
+                            add_error(
+                                "Slice indices must be integers, not floats")
+                            return None, s
+
+                        idx_t, s = infer_expr(start_idx, env, s, func_env,
                                               class_env, add_error)
                         if isinstance(idx_t, (TVar, TDim, str, int)):
                             try:
@@ -681,8 +730,15 @@ class IndexingandSlicing(ELF):
                                     f"Index mismatch for '{arr_name}[...]: {e}"
                                 )
 
-                    if idx_expr[2] is not None:
-                        idx_t, s = infer_expr(idx_expr[2], env, s, func_env,
+                    if end_idx is not None:
+
+                        if (isinstance(end_idx, tuple) and end_idx[0] == "num"
+                                and isinstance(end_idx[1], float)):
+                            add_error(
+                                "Slice indices must be integers, not floats")
+                            return None, s
+
+                        idx_t, s = infer_expr(end_idx, env, s, func_env,
                                               class_env, add_error)
                         if isinstance(idx_t, (TVar, TDim, str, int)):
                             try:
@@ -691,6 +747,9 @@ class IndexingandSlicing(ELF):
                                 add_error(
                                     f"Index mismatch for '{arr_name}[...]: {e}"
                                 )
+
+            if arr_t == T_STRING:
+                return T_STRING, s
 
             n_idx = len(idx_exprs)
             # arr is scalar (catched by expr_index as well)
