@@ -3,7 +3,9 @@ K-Means Clustering (Lloyd's algorithm)
 
 K-Means is an unsupervised machine learning algorithm used to partition a
 dataset into a fixed number of groups called `clusters`. The objective is to
-have clusters which contains points which are similar to each other.
+have clusters which contains points which are similar to each other. The
+algorithm alternates between assigning points to their nearest centroid and
+recomputing the centroids as the mean of their assigned points [Lloyd1982]_.
 
 .. figure:: ../_static/tutorial_files/K_Means.svg
    :align: center
@@ -36,6 +38,126 @@ clusters :math:`k`, K-Means proceeds as follows:
         \sum_{i:c_i=j} x_i
 
 4. Repeat steps 2 and 3 until the clusters assignments converge.
+
+Distance and Cluster Assignment
+-------------------------------
+
+The first step of each K-Means iteration is to assign every data point to the
+nearest centroid. This requires computing the distance between a point and each
+centroid and selecting the centroid with the smallest distance.
+
+Squared Euclidean Distance
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For a point :math:`x` and centroid :math:`\mu`, the squared Euclidean distance
+is
+
+.. math:: d(x, \mu) = \|x - \mu\|^2 = \sum_{c=1}^{D} (x_c - \mu_c)^2
+
+where :math:`D` is the number of dimensions.
+
+The square root normally used in Euclidean distance is not required here
+because the square-root function is monotonic. Therefore, the centroid that
+minimizes the squared distance is also the centroid that minimizes the
+Euclidean distance.
+
+Finding the Nearest Centroid
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For each data point :math:`x_i`, K-Means assigns the point to the
+centroid with the minimum distance:
+
+.. math::
+
+    c_i =
+    \underset{j \in \{1,\ldots,k\}}{\operatorname{argmin}}
+    \|x_i - \mu_j\|^2
+
+Objective Function
+------------------
+
+The objective of K-Means is to partition the dataset into :math:`k`
+clusters such that points within the same cluster are as close to their
+cluster centroid as possible. This is achieved by minimizing the
+within-cluster sum of squared distances (WCSS), also known as the
+K-Means objective function:
+
+.. math::
+
+    J = \sum_{i=1}^{n} \left\|x_i - \mu_{c_i}\right\|^2
+
+where :math:`x_i` is the :math:`i`-th data point, :math:`c_i` is the
+cluster assigned to that point, and :math:`\mu_{c_i}` is the centroid of
+that cluster.
+
+Equivalently, the objective can be written as a sum over all clusters:
+
+.. math::
+
+    J = \sum_{j=1}^{k} \sum_{x_i \in C_j}
+        \left\|x_i - \mu_j\right\|^2
+
+A lower value of :math:`J` indicates that the points are, on average,
+closer to their assigned centroids. Lloyd's algorithm minimizes this
+objective by repeatedly alternating between assigning points to their
+nearest centroid and recomputing each centroid as the mean of its
+assigned points.
+
+
+Convergence
+-----------
+
+Lloyd's algorithm alternates between assignment and centroid updates until the
+assignments stop changing. The implementation detects this by comparing the
+current labels with the labels from the previous iteration.
+
+If
+
+.. math::
+
+    \sum_i |c_i^{(t)} - c_i^{(t-1)}| = 0,
+
+then no point has changed clusters and the algorithm has converged.
+
+Complexity
+----------
+
+For :math:`n` points, :math:`k` clusters, and :math:`d` dimensions, each
+assignment step requires :math:`O(nkd)` operations.
+
+The centroid update also requires :math:`O(nd)` work for each cluster in the
+implementation, giving an overall per-iteration complexity of approximately
+:math:`O(nk + nkd)` i.e. :math:`O(nkd)`.
+
+Helper Functions
+----------------
+
+``absolute`` function computes the element-wise absolute value of a vector.
+It uses the identity:
+
+.. math:: |a| = \sqrt{a^2}
+
+.. code-block:: text
+    
+    def absolute(a: ℝ[m]): ℝ[m]:
+        return sqrt(a * a)
+
+``get_sum_of_1d_array`` function computes the sum of all elements in a
+one-dimensional array:
+
+.. math::
+
+    s = \sum_{i=1}^{m} x_i
+
+It performs the reduction explicitly using a loop:
+
+.. code-block:: text
+
+    def get_sum_of_1d_array(x: ℝ[m]): ℝ:
+        total: ℝ = 0
+        for i:
+            total += x[i]
+        return total
 
 Function Summary
 ----------------
@@ -175,6 +297,10 @@ Full Code
 
 References
 ----------
+
+.. [Lloyd1982] Stuart P. Lloyd. "Least squares quantization in PCM."
+   IEEE Transactions on Information Theory, 28(2), 129-137, 1982.
+   DOI: 10.1109/TIT.1982.1056489.
 
 .. [WestonPace] Weston.pace. Own work. CC BY-SA 3.0.
    Wikimedia Commons.

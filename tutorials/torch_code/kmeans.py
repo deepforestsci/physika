@@ -6,6 +6,15 @@ from physika.runtime import DEVICE
 from physika.runtime import print
 
 # === Functions ===
+def absolute(a):
+    return torch.sqrt((a * a) if isinstance((a * a), torch.Tensor) else torch.tensor(float((a * a))))
+
+def get_sum_of_1d_array(x):
+    total = 0
+    for i in range(len(x)):
+        total = total + x[int(i)]
+    return total
+
 def sq_dist(a, b):
     acc = 0.0
     for c in range(int(0), int(DIM)):
@@ -13,11 +22,12 @@ def sq_dist(a, b):
     return acc
 
 def argmin_vec(v):
+    av = absolute(v)
     best_j = 0.0
-    best_v = torch.abs(v[int(0)] if isinstance(v[int(0)], torch.Tensor) else torch.tensor(float(v[int(0)])))
+    best_v = av[int(0)]
     for j in range(int(0), int(K)):
-        if torch.abs(v[int(j)] if isinstance(v[int(j)], torch.Tensor) else torch.tensor(float(v[int(j)]))) < best_v:
-            best_v = torch.abs(v[int(j)] if isinstance(v[int(j)], torch.Tensor) else torch.tensor(float(v[int(j)])))
+        if av[int(j)] < best_v:
+            best_v = av[int(j)]
             best_j = j
     return best_j
 
@@ -53,13 +63,13 @@ def update_centroids(X, labels, C_old):
 def data_min(X):
     m = X[int(0)]
     for i in range(int(0), int(NPTS)):
-        m = (((m + X[int(i)]) - torch.abs((m - X[int(i)]) if isinstance((m - X[int(i)]), torch.Tensor) else torch.tensor(float((m - X[int(i)]))))) * 0.5)
+        m = (((m + X[int(i)]) - absolute((m - X[int(i)]))) * 0.5)
     return m
 
 def data_max(X):
     m = X[int(0)]
     for i in range(int(0), int(NPTS)):
-        m = (((m + X[int(i)]) + torch.abs((m - X[int(i)]) if isinstance((m - X[int(i)]), torch.Tensor) else torch.tensor(float((m - X[int(i)]))))) * 0.5)
+        m = (((m + X[int(i)]) + absolute((m - X[int(i)]))) * 0.5)
     return m
 
 def rand_centroid(lo, hi):
@@ -82,7 +92,7 @@ labels = torch.stack([(i * 0.0) for _fi_i in range(int(NPTS)) for i in [torch.te
 converged_at = (0.0 - 1.0)
 for step in range(int(0), int(ITERS)):
     labels = assign_labels(X, C)
-    moved = torch.sum(torch.abs((labels - prev_labels) if isinstance((labels - prev_labels), torch.Tensor) else torch.tensor(float((labels - prev_labels)))) if isinstance(torch.abs((labels - prev_labels) if isinstance((labels - prev_labels), torch.Tensor) else torch.tensor(float((labels - prev_labels)))), torch.Tensor) else torch.tensor(float(torch.abs((labels - prev_labels) if isinstance((labels - prev_labels), torch.Tensor) else torch.tensor(float((labels - prev_labels)))))))
+    moved = get_sum_of_1d_array(absolute((labels - prev_labels)))
     if moved == 0.0:
         if converged_at < 0.0:
             converged_at = step
