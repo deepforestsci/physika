@@ -1,0 +1,383 @@
+# Tensor Field Networks 
+
+# Setup 
+num_points: ℝ = 15
+
+rbf_low: ℝ = 0.0
+rbf_high: ℝ = 2.0
+rbf_count: ℝ = 30
+rbf_spacing: ℝ = (rbf_high - rbf_low) / rbf_count
+centers: ℝ[30] = for i : ℕ(rbf_count) -> rbf_low + i * rbf_spacing
+gamma: ℝ = 1.0 / rbf_spacing
+hidden: ℝ = 16
+
+#  Helper Functions 
+def zero_1d(n: ℝ): ℝ[m]:
+    results: ℝ[n] = for i:ℕ(n) -> i*0
+    return results
+
+def zero_2d(rows: ℝ, cols: ℝ): ℝ[m, n]:
+    results: ℝ[rows, cols] = for i:ℕ(rows) -> for j:ℕ(cols) -> j*0
+    return results
+
+def zero_3d(a: ℝ, b: ℝ, c: ℝ): ℝ[m, n, p]:
+    results: ℝ[a, b, c] = for i:ℕ(a) -> for j:ℕ(b) -> for k:ℕ(c) -> k*0
+    return results
+
+def difference_matrix(r: ℝ[num_points, 3]): ℝ[num_points, num_points, 3]:
+    results: ℝ[num_points, num_points, 3] = zero_3d(num_points, num_points, 3)
+    for i:ℕ(num_points):
+        for j:ℕ(num_points):
+            for k:ℕ(3):
+                results[i, j, k] = r[i, k] - r[j, k]
+    return results
+
+def distance_matrix(rij: ℝ[num_points, num_points, 3]): ℝ[num_points, num_points]:
+    results: ℝ[num_points, num_points] = zero_2d(num_points, num_points)
+    for i:ℕ(num_points):
+        for j:ℕ(num_points):
+            acc = 0
+            for k:ℕ(3):
+                acc += rij[i, j, k] * rij[i, j, k]
+            results[i, j] = sqrt(acc + 1e-12)
+    return results
+
+def ssp(x: ℝ): ℝ:
+    return log(0.5 * exp(x) + 0.5)
+
+# Spherical Harmonics
+def Y0(rij: ℝ[num_points, num_points, 3]): ℝ[num_points, num_points, 1]:
+    results: ℝ[num_points, num_points, 1] = zero_3d(num_points, num_points, 1)
+    for i:ℕ(num_points):
+        for j:ℕ(num_points):
+            results[i, j, 0] = 1.0
+    return results
+
+def Y1(rij: ℝ[num_points, num_points, 3]): ℝ[num_points, num_points, 3]:
+    results: ℝ[num_points, num_points, 3] = zero_3d(num_points, num_points, 3)
+    for i:ℕ(num_points):
+        for j:ℕ(num_points):
+            x = rij[i, j, 0]
+            y = rij[i, j, 1]
+            z = rij[i, j, 2]
+            r_norm = sqrt(x*x + y*y + z*z + 1e-12)
+            results[i, j, 0] = x / r_norm
+            results[i, j, 1] = y / r_norm
+            results[i, j, 2] = z / r_norm
+    return results
+
+def Y2(rij: ℝ[num_points, num_points, 3]): ℝ[num_points, num_points, 5]:
+    results: ℝ[num_points, num_points, 5] = zero_3d(num_points, num_points, 5)
+    sqrt3: ℝ = sqrt(3.0)
+    for i:ℕ(num_points):
+        for j:ℕ(num_points):
+            x = rij[i, j, 0]
+            y = rij[i, j, 1]
+            z = rij[i, j, 2]
+            r2 = x*x + y*y + z*z + 1e-12
+            results[i, j, 0] = x*y / r2
+            results[i, j, 1] = y*z / r2
+            results[i, j, 2] = (2.0*z*z - x*x - y*y) / (2.0 * sqrt3 * r2)
+            results[i, j, 3] = z*x / r2
+            results[i, j, 4] = (x*x - y*y) / (2.0 * r2)
+    return results
+
+# Radial Network 
+def gaussian_rbf(dij: ℝ[num_points, num_points], centers: ℝ[rbf_count], gamma: ℝ): ℝ[num_points, num_points, rbf_count]:
+    results: ℝ[num_points, num_points, rbf_count] = zero_3d(num_points, num_points, rbf_count)
+    for i:ℕ(num_points):
+        for j:ℕ(num_points):
+            for c:ℕ(rbf_count):
+                diff = dij[i, j] - centers[c]
+                results[i, j, c] = exp(-gamma * diff * diff)
+    return results
+
+def to_column(x: ℝ[n]): ℝ[n, 1]:
+    n_x: ℝ = len(x)
+    results: ℝ[n_x, 1] = zero_2d(n_x, 1)
+    for i:ℕ(n_x):
+        results[i, 0] = x[i]
+    return results
+
+def ssp_col(x: ℝ[m, 1]): ℝ[m, 1]:
+    return log(0.5 * exp(x) + 0.5)
+
+def radial_net(rbf_features: ℝ[rbf_count], w1: ℝ[hidden, rbf_count], b1: ℝ[hidden, 1], w2: ℝ[1, hidden], b2: ℝ[1, 1]): ℝ:
+    x_col: ℝ[rbf_count, 1] = to_column(rbf_features)
+    h_pre: ℝ[hidden, 1] = w1 @ x_col + b1
+    h: ℝ[hidden, 1] = ssp_col(h_pre)
+    out: ℝ[1, 1] = w2 @ h + b2
+    return out[0, 0]
+
+def radial_field(rbf: ℝ[num_points, num_points, rbf_count], w1: ℝ[hidden, rbf_count], b1: ℝ[hidden, 1], w2: ℝ[1, hidden], b2: ℝ[1, 1]): ℝ[num_points, num_points]:
+    results: ℝ[num_points, num_points] = zero_2d(num_points, num_points)
+    for i:ℕ(num_points):
+        for j:ℕ(num_points):
+            efeat = rbf[i, j]
+            results[i, j] = radial_net(efeat, w1, b1, w2, b2)
+    return results
+
+# Clebsch-Gordan lookup + tensor product reduction 
+def tensor_product_reduce(cg: ℝ[d1, d2, d3], a: ℝ[d1], b: ℝ[d2], dim1: ℝ, dim2: ℝ, dim3: ℝ): ℝ[d3]:
+    results: ℝ[dim3] = zero_1d(dim3)
+    for k:ℕ(dim3):
+        acc = 0
+        for i:ℕ(dim1):
+            for j:ℕ(dim2):
+                acc += cg[i, j, k] * a[i] * b[j]
+        results[k] = acc
+    return results
+
+cg_000: ℝ[1, 1, 1] = [[[1.0]]]
+cg_202: ℝ[5, 1, 5] = [
+    [[1.0, 0.0, 0.0, 0.0, 0.0]],
+    [[0.0, 1.0, 0.0, 0.0, 0.0]],
+    [[0.0, 0.0, 1.0, 0.0, 0.0]],
+    [[0.0, 0.0, 0.0, 1.0, 0.0]],
+    [[0.0, 0.0, 0.0, 0.0, 1.0]]
+]
+
+def filter_00(masses: ℝ[num_points], phi0: ℝ[num_points, num_points]): ℝ[num_points]:
+    results: ℝ[num_points] = zero_1d(num_points)
+    for a:ℕ(num_points):
+        acc = [0.0]
+        for b:ℕ(num_points):
+            edge0 = [phi0[a, b]]
+            mass_b = [masses[b]]
+            contrib = tensor_product_reduce(cg_000, edge0, mass_b, 1, 1, 1)
+            acc = [acc[0] + contrib[0]]
+        results[a] = acc[0]
+    return results
+
+def filter_22(masses: ℝ[num_points], phi2: ℝ[num_points, num_points], y2: ℝ[num_points, num_points, 5]): ℝ[num_points, 5]:
+    results: ℝ[num_points, 5] = zero_2d(num_points, 5)
+    for a:ℕ(num_points):
+        acc = zero_1d(5)
+        for b:ℕ(num_points):
+            edge2 = [phi2[a,b]*y2[a,b,0], phi2[a,b]*y2[a,b,1], phi2[a,b]*y2[a,b,2], phi2[a,b]*y2[a,b,3], phi2[a,b]*y2[a,b,4]]
+            mass_b = [masses[b]]
+            contrib = tensor_product_reduce(cg_202, edge2, mass_b, 5, 1, 5)
+            for m:ℕ(5):
+                acc[m] = acc[m] + contrib[m]
+        for m:ℕ(5):
+            results[a, m] = acc[m]
+    return results
+
+# Reassembling the Tensor 
+def matrix_from_0_2(out0: ℝ[num_points], out2: ℝ[num_points, 5]): ℝ[num_points, 3, 3]:
+    results: ℝ[num_points, 3, 3] = zero_3d(num_points, 3, 3)
+    sqrt3: ℝ = sqrt(3.0)
+    for a:ℕ(num_points):
+        d_xy = out2[a, 0]
+        d_yz = out2[a, 1]
+        d_z2 = out2[a, 2]
+        d_zx = out2[a, 3]
+        d_x2y2 = out2[a, 4]
+        d_z2_scaled = d_z2 / sqrt3
+        Mxx = 0.0 - d_z2_scaled + d_x2y2 + out0[a]
+        Myy = 0.0 - d_z2_scaled - d_x2y2 + out0[a]
+        Mzz = 2.0 * d_z2_scaled + out0[a]
+        results[a, 0, 0] = Mxx
+        results[a, 0, 1] = d_xy
+        results[a, 0, 2] = d_zx
+        results[a, 1, 0] = d_xy
+        results[a, 1, 1] = Myy
+        results[a, 1, 2] = d_yz
+        results[a, 2, 0] = d_zx
+        results[a, 2, 1] = d_yz
+        results[a, 2, 2] = Mzz
+    return results
+
+def mse(pred: ℝ[3, 3], target: ℝ[3, 3]): ℝ:
+    diff: ℝ[3,3] = pred - target
+    result = sum(diff * diff) / 9.0
+    return result
+
+center_idx: ℝ = 0.0
+
+# Model Definition
+class MOIModel(w1_0: ℝ[hidden, rbf_count], b1_0: ℝ[hidden, 1], w2_0: ℝ[1, hidden], b2_0: ℝ[1, 1],
+               w1_2: ℝ[hidden, rbf_count], b1_2: ℝ[hidden, 1], w2_2: ℝ[1, hidden], b2_2: ℝ[1, 1]):
+    def λ(points: ℝ[num_points, 3], masses: ℝ[num_points], centers: ℝ[rbf_count], gamma: ℝ) → ℝ[num_points, 3, 3]:
+        rij: ℝ[num_points, num_points, 3] = difference_matrix(points)
+        dij: ℝ[num_points, num_points] = distance_matrix(rij)
+        y2: ℝ[num_points, num_points, 5] = Y2(rij)
+        rbf: ℝ[num_points, num_points, rbf_count] = gaussian_rbf(dij, centers, gamma)
+        phi0: ℝ[num_points, num_points] = radial_field(rbf, this.w1_0, this.b1_0, this.w2_0, this.b2_0)
+        phi2: ℝ[num_points, num_points] = radial_field(rbf, this.w1_2, this.b1_2, this.w2_2, this.b2_2)
+        out0: ℝ[num_points] = filter_00(masses, phi0)
+        out2: ℝ[num_points, 5] = filter_22(masses, phi2, y2)
+        moi: ℝ[num_points, 3, 3] = matrix_from_0_2(out0, out2)
+        return moi
+    def loss_sample() → ℝ:
+        points = random_points(num_points, max_coord)
+        masses = random_masses(num_points, min_mass, max_mass)
+        masses[center_idx] = 0.0
+        target = moi_tensor(points, masses, center_idx)
+        pred_full = this(points, masses, centers, gamma)
+        pred = pred_full[center_idx]
+        result = mse(pred, target)
+        return result
+    def train(steps: ℕ, lr: ℝ) → ℝ:
+        last_loss = 0
+        for step:ℕ(steps):
+            for rep:ℕ(1):
+                current_loss = this.loss_sample()
+                learnable_grads = grad(current_loss, this.learnable_params)
+                this.update(lr, learnable_grads)
+                last_loss = current_loss
+        return last_loss
+    def evaluate() → ℝ:
+        total_loss = 0
+        for s:ℕ(eval_samples):
+            for rep:ℕ(1):
+                current_loss = this.loss_sample()
+                total_loss = total_loss + current_loss
+        result = total_loss / eval_samples
+        return result
+
+# Ground Truth 
+def moi_tensor(points: ℝ[num_points, 3], masses: ℝ[num_points], center_idx: ℝ): ℝ[3, 3]:
+    cx = points[center_idx, 0]
+    cy = points[center_idx, 1]
+    cz = points[center_idx, 2]
+    x: ℝ[num_points] = points[:, 0] - cx
+    y: ℝ[num_points] = points[:, 1] - cy
+    z: ℝ[num_points] = points[:, 2] - cz
+    m: ℝ[num_points] = masses
+    Ixx = sum((y*y + z*z) * m)
+    Iyy = sum((x*x + z*z) * m)
+    Izz = sum((x*x + y*y) * m)
+    Ixy = sum((0.0 - x*y) * m)
+    Iyz = sum((0.0 - y*z) * m)
+    Ixz = sum((0.0 - x*z) * m)
+    moi = zero_2d(3, 3)
+    moi[0,0] = Ixx
+    moi[1,1] = Iyy
+    moi[2,2] = Izz
+    moi[0,1] = Ixy
+    moi[1,0] = Ixy
+    moi[1,2] = Iyz
+    moi[2,1] = Iyz
+    moi[0,2] = Ixz
+    moi[2,0] = Ixz
+    return moi
+
+# Defining the point-mass cloud coordinates 
+# sampled from a uniform distribution
+max_coord: ℝ = 0.5
+min_mass: ℝ = 0.5
+max_mass: ℝ = 2.0
+
+def random_points(n: ℝ, max_coord: ℝ): ℝ[m, 3]:
+    pts: ℝ[n, 3] = for i : ℕ(n) → ε : ℝ[3] ~ 𝒰(-max_coord, max_coord, 3)
+    return pts
+
+def random_masses(n: ℝ, min_mass: ℝ, max_mass: ℝ): ℝ[m]:
+    masses: ℝ[n] ~ 𝒰(min_mass, max_mass, n)
+    return masses
+
+# Equivariance Check
+def transpose3x3(M: ℝ[3, 3]): ℝ[3, 3]:
+    T = zero_2d(3, 3)
+    T[0,0] = M[0,0]
+    T[0,1] = M[1,0]
+    T[0,2] = M[2,0]
+    T[1,0] = M[0,1]
+    T[1,1] = M[1,1]
+    T[1,2] = M[2,1]
+    T[2,0] = M[0,2]
+    T[2,1] = M[1,2]
+    T[2,2] = M[2,2]
+    return T
+
+def rotation_matrix_z(theta: ℝ): ℝ[3, 3]:
+    c = cos(theta)
+    s = sin(theta)
+    Rmat = zero_2d(3, 3)
+    Rmat[0,0] = c
+    Rmat[0,1] = 0.0 - s
+    Rmat[0,2] = 0.0
+    Rmat[1,0] = s
+    Rmat[1,1] = c
+    Rmat[1,2] = 0.0
+    Rmat[2,0] = 0.0
+    Rmat[2,1] = 0.0
+    Rmat[2,2] = 1.0
+    return Rmat
+
+def rotate_points(points: ℝ[num_points, 3], Rmat: ℝ[3, 3]): ℝ[num_points, 3]:
+    RmatT: ℝ[3, 3] = transpose3x3(Rmat)
+    results: ℝ[num_points, 3] = points @ RmatT
+    return results
+
+def rotate_matrix(Mmat: ℝ[3, 3], Rmat: ℝ[3, 3]): ℝ[3, 3]:
+    RmatT: ℝ[3, 3] = transpose3x3(Rmat)
+    RM: ℝ[3, 3] = Rmat @ Mmat
+    result: ℝ[3, 3] = RM @ RmatT
+    return result
+
+def max_abs_diff(Amat: ℝ[3, 3], Bmat: ℝ[3, 3]): ℝ:
+    diff: ℝ[3,3] = Amat - Bmat
+    sq: ℝ[3,3] = diff * diff
+    worst = 0.0
+    for i:ℕ(3):
+        for j:ℕ(3):
+            if sq[i,j] > worst:
+                worst = sq[i,j]
+    result = sqrt(worst)
+    return result
+
+
+# Main Program:
+
+# Uniform distribution to initialize the weight tensors
+w_init_low: ℝ = -0.2
+w_init_high: ℝ = 0.2
+
+w1_0: ℝ[16, 30] ~ 𝒰(w_init_low, w_init_high, 16, 30)
+b1_0: ℝ[16, 1] = zero_2d(16, 1)
+w2_0: ℝ[1, 16] ~ 𝒰(w_init_low, w_init_high, 1, 16)
+b2_0: ℝ[1, 1] = zero_2d(1, 1)
+
+w1_2: ℝ[16, 30] ~ 𝒰(w_init_low, w_init_high, 16, 30)
+b1_2: ℝ[16, 1] = zero_2d(16, 1)
+w2_2: ℝ[1, 16] ~ 𝒰(w_init_low, w_init_high, 1, 16)
+b2_2: ℝ[1, 1] = zero_2d(1, 1)
+
+moi_object: MOIModel = MOIModel(w1_0, b1_0, w2_0, b2_0, w1_2, b1_2, w2_2, b2_2)
+
+eval_samples: ℕ = 30
+
+lr: ℝ = 0.002
+# ------------------------------------------------------------------
+# set epoch value to 300, here we have set it to 1 to just test 
+# physika code through tests/test_tutorials.py
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+loss_before: ℝ = moi_object.evaluate()
+print(loss_before)
+
+final_loss: ℝ = moi_object.train(epochs, lr)
+print(final_loss)
+
+avg_mse_loss: ℝ = moi_object.evaluate()
+print(avg_mse_loss)
+
+test_points: ℝ[num_points, 3] = random_points(num_points, max_coord)
+test_masses: ℝ[num_points] = random_masses(num_points, min_mass, max_mass)
+test_masses[center_idx] = 0.0
+
+rotation_angle: ℝ = 0.9
+Rmat: ℝ[3, 3] = rotation_matrix_z(rotation_angle)
+rotated_points: ℝ[num_points, 3] = rotate_points(test_points, Rmat)
+
+pred_orig_full = moi_object(test_points, test_masses, centers, gamma)
+pred_orig = pred_orig_full[center_idx]
+pred_rot_full = moi_object(rotated_points, test_masses, centers, gamma)
+pred_rot = pred_rot_full[center_idx]
+expected_rot = rotate_matrix(pred_orig, Rmat)
+
+diff = max_abs_diff(pred_rot, expected_rot)
+print(diff)
