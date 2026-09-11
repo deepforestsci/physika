@@ -94,12 +94,16 @@ def to_column(x):
 def ssp_col(x):
     return torch.log(((0.5 * torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))) + 0.5) if isinstance(((0.5 * torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))) + 0.5), torch.Tensor) else torch.tensor(float(((0.5 * torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))) + 0.5))))
 
-def radial_net(rbf_features, w1, b1, w2, b2):
+def radial_net(rbf_features, w1, b1, w2, b2, rbf_count=None, hidden=None):
+    if rbf_count is None:
+        rbf_count = int(rbf_features.shape[0])
+    if hidden is None:
+        hidden = int(w1.shape[0])
     x_col = to_column(rbf_features)
-    h_pre = ((w1 @ x_col) + b1)
+    h_pre = (torch.matmul(w1, x_col) + b1)
     h = ssp_col(h_pre)
-    out = ((w2 @ h) + b2)
-    return out[int(0), int(0)]
+    out = (torch.matmul(w2, h) + b2)
+    return out[int(0)][int(0)]
 
 def radial_field(rbf, w1, b1, w2, b2):
     results = zero_2d(num_points, num_points)
@@ -236,9 +240,11 @@ def rotation_matrix_z(theta):
     Rmat[int(2), int(2)] = 1.0
     return Rmat
 
-def rotate_points(points, Rmat):
+def rotate_points(points, Rmat, num_points=None):
+    if num_points is None:
+        num_points = int(points.shape[0])
     RmatT = transpose3x3(Rmat)
-    results = (points @ RmatT)
+    results = torch.matmul(points, RmatT)
     return results
 
 def rotate_matrix(Mmat, Rmat):
