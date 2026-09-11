@@ -24,23 +24,31 @@ ITERS: ℕ = 50
 
 physika.seed(SEED)
 
-# Squared Euclidean distance between two DIM-vectors (no sqrt needed:
-# it does not change which centroid is nearest)
+# Helper Functions
+def absolute(a: ℝ[m]): ℝ[m]:
+    return sqrt(a * a)
+
+def get_sum_of_1d_array(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    for i:
+        total += x[i]
+    return total
+
+# Squared Euclidean distanc
 def sq_dist(a: ℝ[DIM], b: ℝ[DIM]): ℝ:
     acc: ℝ = 0.0
     for c:ℕ(DIM):
         acc += (a[c] - b[c]) * (a[c] - b[c])
     return acc
 
-# Index of the smallest entry of a length-K vector.  abs(...) is a
-# no-op on non-negative distances; it also gives the type checker a
-# concrete ℝ for the loop-indexed comparison.
+# Index of the smallest entry of a length-K vector.
 def argmin_vec(v: ℝ[K]): ℝ:
+    av: ℝ[K] = absolute(v)
     best_j: ℝ = 0.0
-    best_v: ℝ = abs(v[0])
+    best_v: ℝ = av[0]
     for j:ℕ(K):
-        if abs(v[j]) < best_v:
-            best_v = abs(v[j])
+        if av[j] < best_v:
+            best_v = av[j]
             best_j = j
     return best_j
 
@@ -73,13 +81,13 @@ def update_centroids(X: ℝ[NPTS, DIM], labels: ℝ[NPTS], C_old: ℝ[K, DIM]): 
 def data_min(X: ℝ[NPTS, DIM]): ℝ[DIM]:
     m: ℝ[DIM] = X[0]
     for i:ℕ(NPTS):
-        m = (m + X[i] - abs(m - X[i])) * 0.5
+        m = (m + X[i] - absolute(m - X[i])) * 0.5
     return m
 
 def data_max(X: ℝ[NPTS, DIM]): ℝ[DIM]:
     m: ℝ[DIM] = X[0]
     for i:ℕ(NPTS):
-        m = (m + X[i] + abs(m - X[i])) * 0.5
+        m = (m + X[i] + absolute(m - X[i])) * 0.5
     return m
 
 # one random centroid, uniform inside the [lo, hi] box
@@ -99,16 +107,13 @@ lo_box: ℝ[DIM] = data_min(X)
 hi_box: ℝ[DIM] = data_max(X)
 C: ℝ[K, DIM] = for j:ℕ(K) -> rand_centroid(lo_box, hi_box)
 
-# `prev_labels` starts at -1 (a value no real label can take) so the first
-# sweep always counts as "changed".
-# `converged_at` stays -1 until the labels match the previous sweep.
 prev_labels:  ℝ[NPTS] = for i:ℕ(NPTS) -> i * 0.0 - 1.0
 labels:       ℝ[NPTS] = for i:ℕ(NPTS) -> i * 0.0
 converged_at: ℝ = 0.0 - 1.0
 
 for step:ℕ(ITERS):
     labels = assign_labels(X, C)
-    moved = sum(abs(labels - prev_labels))
+    moved = get_sum_of_1d_array(absolute(labels - prev_labels))
     if moved == 0.0:
         if converged_at < 0.0:
             converged_at = step
