@@ -100,6 +100,7 @@ Tutorials
    2d_pde_parameter_estimation
    norm_flow
    undirected_graph
+   neural_ode
 
 .. toctree::
    :maxdepth: 1
