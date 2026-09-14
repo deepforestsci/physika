@@ -1,0 +1,187 @@
+def get_sum_of_1d_array(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    for i:
+        total += x[i]
+    return total
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i * 0
+    return results
+
+def sigma(x: ℝ[a, b]): ℝ[a, b]:
+    return 1.0 / (1.0 + exp(0.0 - x))
+
+def softmax_row(x: ℝ[m]): ℝ[m]:
+    sz: ℝ = get_1d_array_length(x)
+    e: ℝ[sz] = for i: ℕ(sz) -> exp(x[i])
+    total: ℝ = get_sum_of_1d_array(e)
+    return for i: ℕ(sz) -> e[i] / total
+
+def mse(pred: ℝ, target: ℝ): ℝ:
+    return (pred - target) ** 2.0
+
+class UndirectedGraph():
+    adjacency: ℝ[n, n]
+    def num_vertices() → ℝ:
+        return get_2d_array_num_rows(this.adjacency) * 1.0
+    def add_weighted_edge(u: ℝ, v: ℝ, w: ℝ):
+        m: ℝ[n, n] = this.adjacency
+        k: R = get_2d_array_num_rows(m)
+        new_adj: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → m[a, b]
+        new_adj[u, v] = w
+        new_adj[v, u] = w
+        this.adjacency = new_adj
+    def add_edge(u: ℝ, v: ℝ):
+        this.add_weighted_edge(u, v, 1.0)
+
+def empty_graph(n_vertices: ℕ): UndirectedGraph:
+    z: ℝ[n_vertices, n_vertices] = for a : ℕ(n_vertices) → for b : ℕ(n_vertices) → (a + b) * 0.0
+    g: UndirectedGraph = UndirectedGraph()
+    g.adjacency = z
+    return g
+
+class NeuralFingerprint(Hw: ℝ[2, 4, 4], Wout: ℝ[2, 4, 8], Wr: ℝ[8]):
+    def λ(A: ℝ[n, n], H0: ℝ[n, 4]) → ℝ[8]:
+        f: ℝ[8] = zero_1d_array(8.0)
+        r: ℝ[n, 4] = H0
+        n_atoms: ℝ = get_2d_array_num_rows(A)
+        for L: ℕ(2):
+            nbr_sum = A @ r
+            v = r + nbr_sum
+            HwL = this.Hw[L]
+            r = sigma(v @ HwL)
+            WoutL = this.Wout[L]
+            logits = r @ WoutL
+            for a: ℕ(n_atoms):
+                f += softmax_row(logits[a])
+        return f
+    def train(epochs: ℕ, lr: ℝ) → ℝ:
+        # Trains a linear readout (this.Wr) on top of the fingerprint,
+        # jointly with the fingerprint weights (this.Hw, this.Wout),
+        # to predict a toy target property for each molecule.
+        loss: ℝ = 0
+        for step: ℕ(epochs):
+            fp_h2o = this(A_h2o, H0_h2o)
+            fp_ch4 = this(A_ch4, H0_ch4)
+            pred_h2o = get_sum_of_1d_array(fp_h2o * this.Wr)
+            pred_ch4 = get_sum_of_1d_array(fp_ch4 * this.Wr)
+            loss = mse(pred_h2o, target_h2o) + mse(pred_ch4, target_ch4)
+            g = grad(loss, this.learnable_params)
+            this.Hw = this.Hw - lr * g[0]
+            this.Wout = this.Wout - lr * g[1]
+            this.Wr = this.Wr - lr * g[2]
+        return loss
+
+μ : ℝ = 0.0
+σ : ℝ = 1.0
+
+Hw: ℝ[2, 4, 4] = for i: ℕ(2) -> for j: ℕ(4) -> row: ℝ[4] ~ Normal(μ, σ, 4)
+Wout: ℝ[2, 4, 8] = for i: ℕ(2) -> for j: ℕ(4) -> row: ℝ[8] ~ Normal(μ, σ, 8)
+Wr: ℝ[8] ~ Normal(μ, σ, 8)
+
+fp_model: NeuralFingerprint = NeuralFingerprint(Hw, Wout, Wr)
+
+n0: ℕ = 3
+g: UndirectedGraph = empty_graph(n0)
+g.add_edge(0.0, 1.0)
+g.add_edge(1.0, 2.0)
+
+H0: ℝ[3, 4] = for i: ℕ(3) -> row: ℝ[4] ~ Normal(μ, σ, 4)
+
+fingerprint: ℝ[8] = fp_model(g.adjacency, H0)
+fingerprint
+
+fp_sum: ℝ = get_sum_of_1d_array(fingerprint)
+grad(fp_sum, H0)
+
+grad(fp_sum, fp_model.learnable_params)
+
+# ------------------------------------------------------------------
+# Converting real molecules to fingerprints.
+# g(a) is a one-hot atom-type encoding in R^4: [is_H, is_C, is_O, is_N].
+# The same fp_model (same Hw, Wout) handles molecules of any size, since
+# NeuralFingerprint.λ keeps the atom count n symbolic.
+# ------------------------------------------------------------------
+
+# H2O: atoms = [O, H, H], bonds O-H, O-H
+A_h2o: ℝ[3, 3] = [
+    [0.0, 1.0, 1.0],
+    [1.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0]
+]
+H0_h2o: ℝ[3, 4] = [
+    [0.0, 0.0, 1.0, 0.0],
+    [1.0, 0.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0, 0.0]
+]
+
+# CH4: atoms = [C, H, H, H, H], bonds C-H x4
+A_ch4: ℝ[5, 5] = [
+    [0.0, 1.0, 1.0, 1.0, 1.0],
+    [1.0, 0.0, 0.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0, 0.0, 0.0]
+]
+H0_ch4: ℝ[5, 4] = [
+    [0.0, 1.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0, 0.0]
+]
+
+fp_h2o: ℝ[8] = fp_model(A_h2o, H0_h2o)
+fp_ch4: ℝ[8] = fp_model(A_ch4, H0_ch4)
+
+fp_h2o
+fp_ch4
+
+# ------------------------------------------------------------------
+# Training on just these 2 molecules.
+# Toy task: predict a normalized boiling point from the fingerprint via
+# a learned linear readout Wr (1.0 = H2O, 0.0 = CH4). With 2 examples and
+# ~100 parameters the model can essentially memorize them, so watching the
+# loss collapse toward 0 confirms the whole pipeline (message passing,
+# softmax pooling, and grad() through the class's own weights) is trainable.
+# ------------------------------------------------------------------
+
+target_h2o: ℝ = 1.0
+target_ch4: ℝ = 0.0
+
+pred_h2o_0: ℝ = get_sum_of_1d_array(fp_h2o * fp_model.Wr)
+pred_ch4_0: ℝ = get_sum_of_1d_array(fp_ch4 * fp_model.Wr)
+loss0: ℝ = mse(pred_h2o_0, target_h2o) + mse(pred_ch4_0, target_ch4)
+
+pred_h2o_0
+pred_ch4_0
+loss0
+
+epochs: ℕ = 300
+lr: ℝ = 0.01
+final_loss: ℝ = fp_model.train(epochs, lr)
+final_loss
+
+fp_h2o_trained: ℝ[8] = fp_model(A_h2o, H0_h2o)
+fp_ch4_trained: ℝ[8] = fp_model(A_ch4, H0_ch4)
+pred_h2o_1: ℝ = get_sum_of_1d_array(fp_h2o_trained * fp_model.Wr)
+pred_ch4_1: ℝ = get_sum_of_1d_array(fp_ch4_trained * fp_model.Wr)
+
+pred_h2o_1
+pred_ch4_1
