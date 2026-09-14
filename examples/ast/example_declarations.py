@@ -69,4 +69,6 @@ EXPECTED = {'functions': {},
                [('add', ('num', 1), ('complex', 2j)),
                 ('add', ('num', 3), ('complex', 4j))]),
               68),
-             ('expr', ('var', 'c_vector'), 0)]}
+             ('expr', ('var', 'c_vector'), 0),
+             ('decl', 'name', 'String', ('string', 'physika'), 78),
+             ('expr', ('var', 'name'), 0)]}
