@@ -145,16 +145,6 @@ class NeuralFluxLimiter(nn.Module):
         with torch.no_grad():
             self.b2.copy_((self.b2 - ((lr * (self.m_b / (1.0 - (β1 ** self.t_adam)))) / (torch.sqrt((self.v_b / (1.0 - (β2 ** self.t_adam))) if isinstance((self.v_b / (1.0 - (β2 ** self.t_adam))), torch.Tensor) else torch.tensor(float((self.v_b / (1.0 - (β2 ** self.t_adam)))))) + 1e-08))))
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 γ = 1.4
 Nx = 100

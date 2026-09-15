@@ -49,9 +49,11 @@ class MeanFieldIsing(logit_p: ℝ):
                 spins, log_prob = this(n)
                 mean_energy_ps = mean_energy_ps + H(J, h, spins, size) / n / n_batch
                 batch_loss = batch_loss + this.loss(spins, log_prob, J, h, β, size) / n_batch
-            grads = grad(batch_loss, this.params)
+            learnable_grads = grad(batch_loss, this.learnable_params)
             this.baseline = 0.9 * this.baseline + 0.1 * mean_energy_ps
-            this.update(lr, grads)
+            this.update(lr, learnable_grads)
+    def update(lr: ℝ, learnable_grads: ℝ[m]):
+        this.logit_p = this.logit_p - lr * learnable_grads[0]
 
 n : ℕ = 20
 J : ℝ = 1.0

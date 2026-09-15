@@ -53,16 +53,6 @@ class A(nn.Module):
         results = [value1, value2]
         return results
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 x = torch.tensor([1.0, 2.0, 3.0], device=DEVICE)
 y = torch.tensor([9.0, 3.0, 5.0, 1.0, 4.0], device=DEVICE)

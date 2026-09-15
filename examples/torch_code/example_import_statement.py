@@ -47,16 +47,6 @@ class ExampleClass(nn.Module):
         this = self
         return 1
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 x = 1.0
 fact_results = fact(x)

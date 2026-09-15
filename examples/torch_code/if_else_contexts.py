@@ -56,16 +56,6 @@ class PiecewiseNet(nn.Module):
         target = torch.as_tensor(target, device=DEVICE).float()
         return ((pred - target) ** 2)
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 a = torch.tensor(2.0, requires_grad=True)
 b = torch.tensor((-1.5), requires_grad=True)

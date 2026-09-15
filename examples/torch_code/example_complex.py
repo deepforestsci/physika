@@ -31,16 +31,6 @@ class A(nn.Module):
         f_value = self.f(y)
         return compute_grad(f_value, self.x)
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 x = torch.tensor((3 + 1j), dtype=torch.complex64)
 y = torch.tensor((5 + 3j), dtype=torch.complex64)

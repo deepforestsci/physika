@@ -84,8 +84,8 @@ class RealNVP(W1_s: ℝ[h, n], b1_s: ℝ[h], W2_s: ℝ[n, h], b2_s: ℝ[n], W1_m
         for epoch: ℕ(epochs):
             for i: ℕ(len_train):
                 L = this.loss(X[i])
-                grads = grad(L, this.params)
-                this.update_params(lr, grads)
+                learnable_grads = grad(L, this.learnable_params)
+                this.update_params(lr, learnable_grads)
             total = 0
             for i:ℕ(len_train):
                 total += this.loss(X[i])
