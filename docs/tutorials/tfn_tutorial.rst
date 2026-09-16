@@ -7,12 +7,12 @@ point-mass cloud.
 Introduction
 ------------
 
-Tensor Field Networks (TFNs) are a specialized neural
+Tensor Field Networks (TFNs) [Thomas2018]_ are a specialized neural
 network architecture designed to process 3D data, such as point
 clouds or atoms, while respecting 3D geometric transformations. In
 this tutorial, we implement a TFN from scratch in Physika and train
 it on a synthetic dataset of point masses to predict their moment of
-inertia. [Thomas2018]_
+inertia.
 
 .. figure:: /_static/tutorial_files/tfn_message_passing.png
    :alt: Comparison of a GCN and a CNN processing a molecule
@@ -35,14 +35,13 @@ transform accordingly. In other words, the model is equivariant to
 the global transformation.
 
 Here, the transformation :math:`g` is always a rotation of 3D
-space. A function :math:`f` is **equivariant** to :math:`g` if
-applying :math:`g` to the input first and then running :math:`f`
-gives the same result as running :math:`f` first and then applying
-:math:`g` to the output:
-
-.. math::
-
-   f(g \cdot x) = g \cdot f(x)
+space. A function :math:`f` is equivariant to :math:`g` if applying
+:math:`g` to the input first and then running :math:`f` gives the
+same result as running :math:`f` first and then applying :math:`g`
+to the output: :math:`f(gx) = gf(x)`. Concretely for this tutorial:
+rotate the point cloud first and then predict its moment of
+inertia, or predict the moment of inertia first and then rotate
+that result -- either order gives the same answer.
 
 
 Spherical Tensors
@@ -50,9 +49,9 @@ Spherical Tensors
 
 Any tensor can be decomposed into a basis of components indexed by
 rank :math:`\ell`, where each captures one specific direction of
-angular behavior. An ordinary Cartesian tensor is  actually a mix 
-of several of these components at once, which is why  rotating it 
-mixes its components together in a rank-dependent way, 
+angular behavior. An ordinary Cartesian tensor is 
+actually a mix of several of these components at once, which is why 
+rotating it mixes its components together in a rank-dependent way, 
 blending those distinct directions back into one another. 
 
 This is why we use spherical tensors: so that each rank-:math:`\ell`
@@ -96,7 +95,9 @@ unitary matrix assigned to each rotation :math:`R`, one per degree
    D^0(R) = 1, \qquad D^1(R) = R
 
 :math:`\ell=0` (scalars) is untouched by rotation; :math:`\ell=1` *is*
-the ordinary 3x3 rotation matrix itself.  [Cheng2022]_.
+the ordinary 3x3 rotation matrix itself.
+
+This construction follows the theory in [Cheng2022]_.
 
 Edge Tensor
 ------------
@@ -286,7 +287,8 @@ transformation law:
 
    Y_\ell(\mathcal{R} \cdot \hat{\mathbf{r}}) = \mathcal{D}^\ell_\mathcal{R}\, Y_\ell(\hat{\mathbf{r}})
 
-This is the :math:`Y_\ell(\hat{r})` from the edge tensor.
+This is the :math:`Y_\ell(\hat{r})` from the edge tensor, following
+the theory in [Cheng2022]_.
 
 **The three degrees used here:**
 
@@ -487,7 +489,9 @@ transforming under its own clean representation:
            Mxx = 0.0 - d_z2_scaled + d_x2y2 + out0[a]
            Myy = 0.0 - d_z2_scaled - d_x2y2 + out0[a]
            Mzz = 2.0 * d_z2_scaled + out0[a]
-           results[a] = [[Mxx, d_xy, d_zx], [d_xy, Myy, d_yz], [d_zx, d_yz, Mzz]]
+           results[a, 0, :] = [Mxx, d_xy, d_zx]
+           results[a, 1, :] = [d_xy, Myy, d_yz]
+           results[a, 2, :] = [d_zx, d_yz, Mzz]
        return results
 
 Defining the Point-Mass Cloud Coordinates
@@ -561,6 +565,9 @@ where:
 Model Definition
 -----------------
 
+This model and its training loop are adapted from the reference
+implementation [MOINotebook]_ [SmidtCode]_.
+
 .. code-block:: text
 
    center_idx: ℝ = 0.0
@@ -589,18 +596,20 @@ Model Definition
            return result
        def train(steps: ℕ, lr: ℝ) → ℝ:
            last_loss: ℝ = 0
+           current_loss: ℝ = 0
            for step:ℕ(steps):
                for rep:ℕ(1):
-                   current_loss: ℝ = this.loss_sample()
+                   current_loss = this.loss_sample()
                    learnable_grads = grad(current_loss, this.learnable_params)
                    this.update(lr, learnable_grads)
                    last_loss = current_loss
            return last_loss
        def evaluate() → ℝ:
            total_loss: ℝ = 0
+           current_loss: ℝ = 0
            for s:ℕ(eval_samples):
                for rep:ℕ(1):
-                   current_loss: ℝ = this.loss_sample()
+                   current_loss = this.loss_sample()
                    total_loss = total_loss + current_loss
            result: ℝ = total_loss / eval_samples
            return result
@@ -654,9 +663,10 @@ where:
 
        def train(steps: ℕ, lr: ℝ) → ℝ:
            last_loss: ℝ = 0
+           current_loss: ℝ = 0
            for step:ℕ(steps):
                for rep:ℕ(1):
-                   current_loss: ℝ = this.loss_sample()
+                   current_loss = this.loss_sample()
                    learnable_grads = grad(current_loss, this.learnable_params)
                    this.update(lr, learnable_grads)
                    last_loss = current_loss
@@ -666,15 +676,18 @@ Evaluating the Model
 ----------------------
 
 ``evaluate`` reports the model's average loss over several fresh
-samples.
+samples, giving a much steadier read on performance than any single
+``loss_sample()`` call -- the same averaging ``train`` never does,
+since each individual training step only ever sees one sample.
 
 .. code-block:: text
 
        def evaluate() → ℝ:
            total_loss: ℝ = 0
+           current_loss: ℝ = 0
            for s:ℕ(eval_samples):
                for rep:ℕ(1):
-                   current_loss: ℝ = this.loss_sample()
+                   current_loss = this.loss_sample()
                    total_loss = total_loss + current_loss
            result: ℝ = total_loss / eval_samples
            return result
@@ -943,7 +956,9 @@ Full Code
            Mxx = 0.0 - d_z2_scaled + d_x2y2 + out0[a]
            Myy = 0.0 - d_z2_scaled - d_x2y2 + out0[a]
            Mzz = 2.0 * d_z2_scaled + out0[a]
-           results[a] = [[Mxx, d_xy, d_zx], [d_xy, Myy, d_yz], [d_zx, d_yz, Mzz]]
+           results[a, 0, :] = [Mxx, d_xy, d_zx]
+           results[a, 1, :] = [d_xy, Myy, d_yz]
+           results[a, 2, :] = [d_zx, d_yz, Mzz]
        return results
 
    def mse(pred: ℝ[3, 3], target: ℝ[3, 3]): ℝ:
@@ -978,18 +993,20 @@ Full Code
            return result
        def train(steps: ℕ, lr: ℝ) → ℝ:
            last_loss: ℝ = 0
+           current_loss: ℝ = 0
            for step:ℕ(steps):
                for rep:ℕ(1):
-                   current_loss: ℝ = this.loss_sample()
+                   current_loss = this.loss_sample()
                    learnable_grads = grad(current_loss, this.learnable_params)
                    this.update(lr, learnable_grads)
                    last_loss = current_loss
            return last_loss
        def evaluate() → ℝ:
            total_loss: ℝ = 0
+           current_loss: ℝ = 0
            for s:ℕ(eval_samples):
                for rep:ℕ(1):
-                   current_loss: ℝ = this.loss_sample()
+                   current_loss = this.loss_sample()
                    total_loss = total_loss + current_loss
            result: ℝ = total_loss / eval_samples
            return result

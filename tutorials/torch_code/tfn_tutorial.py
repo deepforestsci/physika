@@ -154,7 +154,9 @@ def matrix_from_0_2(out0, out2):
         Mxx = (((0.0 - d_z2_scaled) + d_x2y2) + out0[int(a)])
         Myy = (((0.0 - d_z2_scaled) - d_x2y2) + out0[int(a)])
         Mzz = ((2.0 * d_z2_scaled) + out0[int(a)])
-        results[int(a)] = torch.tensor([[Mxx, d_xy, d_zx], [d_xy, Myy, d_yz], [d_zx, d_yz, Mzz]], device=DEVICE)
+        results[int(a), int(0), :] = torch.stack([torch.as_tensor(Mxx), torch.as_tensor(d_xy), torch.as_tensor(d_zx)])
+        results[int(a), int(1), :] = torch.stack([torch.as_tensor(d_xy), torch.as_tensor(Myy), torch.as_tensor(d_yz)])
+        results[int(a), int(2), :] = torch.stack([torch.as_tensor(d_zx), torch.as_tensor(d_yz), torch.as_tensor(Mzz)])
     return results
 
 def mse(pred, target):
@@ -277,9 +279,10 @@ class MOIModel(nn.Module):
         this = self
         lr = torch.as_tensor(lr, device=DEVICE).float()
         last_loss = 0
+        current_loss = 0
         for step in range(int(0), int(steps)):
             for rep in range(int(0), int(1)):
-                c, u, r, r, e, n, t, _, l, o, s, s = self.loss_sample()
+                current_loss = self.loss_sample()
                 learnable_grads = compute_grad(current_loss, self.learnable_params)
                 self.update(lr, learnable_grads)
                 last_loss = current_loss
@@ -288,9 +291,10 @@ class MOIModel(nn.Module):
     def evaluate(self):
         this = self
         total_loss = 0
+        current_loss = 0
         for s in range(int(0), int(eval_samples)):
             for rep in range(int(0), int(1)):
-                c, u, r, r, e, n, t, _, l, o, s, s = self.loss_sample()
+                current_loss = self.loss_sample()
                 total_loss = (total_loss + current_loss)
         result = (total_loss / eval_samples)
         return result
