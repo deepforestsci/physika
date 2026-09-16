@@ -1,0 +1,5 @@
+torch
+ply
+
+[dev]
+pytest>=7

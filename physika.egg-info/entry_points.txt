@@ -1,0 +1,2 @@
+[console_scripts]
+physika = physika.execute:main

@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: physika
+Version: 0.1.0
+Home-page: https://github.com/deepforestsci/physika
+License: MIT
+Project-URL: Source, https://github.com/deepforestsci/physika
+Requires-Python: >=3.9
+License-File: LICENSE
+Requires-Dist: torch
+Requires-Dist: ply
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python

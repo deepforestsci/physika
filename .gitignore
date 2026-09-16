@@ -10,5 +10,3 @@ parsetab.py
 
 # Sphinx build output
 docs/_build/
-
-physika.egg-info/
