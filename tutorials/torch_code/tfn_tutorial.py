@@ -198,15 +198,9 @@ def rotation_matrix_z(theta):
     c = torch.cos(theta if isinstance(theta, torch.Tensor) else torch.tensor(float(theta)))
     s = torch.sin(theta if isinstance(theta, torch.Tensor) else torch.tensor(float(theta)))
     Rmat = zero_2d(3, 3)
-    Rmat[int(0), int(0)] = c
-    Rmat[int(0), int(1)] = (0.0 - s)
-    Rmat[int(0), int(2)] = 0.0
-    Rmat[int(1), int(0)] = s
-    Rmat[int(1), int(1)] = c
-    Rmat[int(1), int(2)] = 0.0
-    Rmat[int(2), int(0)] = 0.0
-    Rmat[int(2), int(1)] = 0.0
-    Rmat[int(2), int(2)] = 1.0
+    Rmat[int(0), :] = torch.stack([torch.as_tensor(c), torch.as_tensor((0.0 - s)), torch.as_tensor(0.0)])
+    Rmat[int(1), :] = torch.stack([torch.as_tensor(s), torch.as_tensor(c), torch.as_tensor(0.0)])
+    Rmat[int(2), :] = torch.tensor([0.0, 0.0, 1.0], device=DEVICE)
     return Rmat
 
 def rotate_points(points, Rmat, num_points=None):
@@ -218,8 +212,7 @@ def rotate_points(points, Rmat, num_points=None):
 
 def rotate_matrix(Mmat, Rmat):
     RmatT = transpose3x3(Rmat)
-    RM = (Rmat @ Mmat)
-    result = (RM @ RmatT)
+    result = ((Rmat @ Mmat) @ RmatT)
     return result
 
 def max_abs_diff(Amat, Bmat):
@@ -311,8 +304,7 @@ class MOIModel(nn.Module):
 
 # === Program ===
 num_points = 15
-rbf_low = 0.0
-rbf_high = 2.0
+rbf_low, rbf_high = 0.0, 2.0
 rbf_count = 30
 rbf_spacing = ((rbf_high - rbf_low) / rbf_count)
 centers = torch.stack([(rbf_low + (i * rbf_spacing)) for _fi_i in range(int(rbf_count)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -322,8 +314,7 @@ cg_000 = torch.tensor([[[1.0]]], device=DEVICE)
 cg_202 = torch.tensor([[[1.0, 0.0, 0.0, 0.0, 0.0]], [[0.0, 1.0, 0.0, 0.0, 0.0]], [[0.0, 0.0, 1.0, 0.0, 0.0]], [[0.0, 0.0, 0.0, 1.0, 0.0]], [[0.0, 0.0, 0.0, 0.0, 1.0]]], device=DEVICE)
 center_idx = 0.0
 max_coord, min_mass, max_mass = 0.5, 0.5, 2.0
-w_init_low = (-0.2)
-w_init_high = 0.2
+w_init_low, w_init_high = (-0.2), 0.2
 w1_0 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(16), int(30),))
 b1_0 = zero_2d(16, 1)
 w2_0 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(1), int(16),))

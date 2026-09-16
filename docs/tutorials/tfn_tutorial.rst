@@ -127,8 +127,7 @@ expansion used to featurize pairwise distances.
 
    num_points: ℝ = 15
 
-   rbf_low: ℝ = 0.0
-   rbf_high: ℝ = 2.0
+   rbf_low: ℝ, rbf_high: ℝ = 0.0, 2.0
    rbf_count: ℝ = 30
    rbf_spacing: ℝ = (rbf_high - rbf_low) / rbf_count
    centers: ℝ[30] = for i : ℕ(rbf_count) -> rbf_low + i * rbf_spacing
@@ -151,7 +150,8 @@ turning a single distance into a higher-dimensional "soft histogram":
    :width: 500px
 
    Figure 2: The Gaussian bump functions defined by ``centers`` and
-   ``gamma``, spanning ``[rbf_low, rbf_high]``.
+   ``gamma``, spanning ``[rbf_low, rbf_high]``. Setup adapted from
+   [MOINotebook]_.
 
 Helper Functions
 -----------------
@@ -747,15 +747,9 @@ Equivariance Check
        c = cos(theta)
        s = sin(theta)
        Rmat = zero_2d(3, 3)
-       Rmat[0,0] = c
-       Rmat[0,1] = 0.0 - s
-       Rmat[0,2] = 0.0
-       Rmat[1,0] = s
-       Rmat[1,1] = c
-       Rmat[1,2] = 0.0
-       Rmat[2,0] = 0.0
-       Rmat[2,1] = 0.0
-       Rmat[2,2] = 1.0
+       Rmat[0, :] = [c, 0.0 - s, 0.0]
+       Rmat[1, :] = [s, c, 0.0]
+       Rmat[2, :] = [0.0, 0.0, 1.0]
        return Rmat
 
    def rotate_points(points: ℝ[num_points, 3], Rmat: ℝ[3, 3]): ℝ[num_points, 3]:
@@ -765,8 +759,7 @@ Equivariance Check
 
    def rotate_matrix(Mmat: ℝ[3, 3], Rmat: ℝ[3, 3]): ℝ[3, 3]:
        RmatT: ℝ[3, 3] = transpose3x3(Rmat)
-       RM: ℝ[3, 3] = Rmat @ Mmat
-       result: ℝ[3, 3] = RM @ RmatT
+       result: ℝ[3, 3] = (Rmat @ Mmat) @ RmatT
        return result
 
    def max_abs_diff(Amat: ℝ[3, 3], Bmat: ℝ[3, 3]): ℝ:
@@ -790,8 +783,7 @@ Full Code
    # Setup 
    num_points: ℝ = 15
 
-   rbf_low: ℝ = 0.0
-   rbf_high: ℝ = 2.0
+   rbf_low: ℝ, rbf_high: ℝ = 0.0, 2.0
    rbf_count: ℝ = 30
    rbf_spacing: ℝ = (rbf_high - rbf_low) / rbf_count
    centers: ℝ[30] = for i : ℕ(rbf_count) -> rbf_low + i * rbf_spacing
@@ -1051,15 +1043,9 @@ Full Code
        c = cos(theta)
        s = sin(theta)
        Rmat = zero_2d(3, 3)
-       Rmat[0,0] = c
-       Rmat[0,1] = 0.0 - s
-       Rmat[0,2] = 0.0
-       Rmat[1,0] = s
-       Rmat[1,1] = c
-       Rmat[1,2] = 0.0
-       Rmat[2,0] = 0.0
-       Rmat[2,1] = 0.0
-       Rmat[2,2] = 1.0
+       Rmat[0, :] = [c, 0.0 - s, 0.0]
+       Rmat[1, :] = [s, c, 0.0]
+       Rmat[2, :] = [0.0, 0.0, 1.0]
        return Rmat
 
    def rotate_points(points: ℝ[num_points, 3], Rmat: ℝ[3, 3]): ℝ[num_points, 3]:
@@ -1069,8 +1055,7 @@ Full Code
 
    def rotate_matrix(Mmat: ℝ[3, 3], Rmat: ℝ[3, 3]): ℝ[3, 3]:
        RmatT: ℝ[3, 3] = transpose3x3(Rmat)
-       RM: ℝ[3, 3] = Rmat @ Mmat
-       result: ℝ[3, 3] = RM @ RmatT
+       result: ℝ[3, 3] = (Rmat @ Mmat) @ RmatT
        return result
 
    def max_abs_diff(Amat: ℝ[3, 3], Bmat: ℝ[3, 3]): ℝ:
@@ -1088,8 +1073,7 @@ Full Code
    # Main Program:
 
    # Uniform distribution to initialize the weight tensors within [w_init_low, w_init_high]
-   w_init_low: ℝ = -0.2
-   w_init_high: ℝ = 0.2
+   w_init_low: ℝ, w_init_high: ℝ = -0.2, 0.2
 
    w1_0: ℝ[16, 30] ~ 𝒰(w_init_low, w_init_high, 16, 30)
    b1_0: ℝ[16, 1] = zero_2d(16, 1)
@@ -1125,13 +1109,13 @@ Full Code
    Rmat: ℝ[3, 3] = rotation_matrix_z(rotation_angle)
    rotated_points: ℝ[num_points, 3] = rotate_points(test_points, Rmat)
 
-   pred_orig_full = moi_object(test_points, test_masses, centers, gamma)
-   pred_orig = pred_orig_full[center_idx]
-   pred_rot_full = moi_object(rotated_points, test_masses, centers, gamma)
-   pred_rot = pred_rot_full[center_idx]
-   expected_rot = rotate_matrix(pred_orig, Rmat)
+   pred_orig_full: ℝ[num_points, 3, 3] = moi_object(test_points, test_masses, centers, gamma)
+   pred_orig: ℝ[3, 3] = pred_orig_full[center_idx]
+   pred_rot_full: ℝ[num_points, 3, 3] = moi_object(rotated_points, test_masses, centers, gamma)
+   pred_rot: ℝ[3, 3] = pred_rot_full[center_idx]
+   expected_rot: ℝ[3, 3] = rotate_matrix(pred_orig, Rmat)
 
-   diff = max_abs_diff(pred_rot, expected_rot)
+   diff: ℝ = max_abs_diff(pred_rot, expected_rot)
    print(diff)
 
 References
