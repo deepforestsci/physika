@@ -1,0 +1,75 @@
+π, ε0: R = 3.14159, 0.000000000008854
+
+def dist_3d(p1: R[3], p2: R[3]): R:
+    return ((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (p1[2] - p2[2])**2)**(1/2)
+
+# q1: Charge at position x1
+# q2: Charge at position x2
+# x1: Position of the first charge
+# x2: Position where the field/force is evaluated
+def F(q1: R, q2: R, x1: R[3], x2: R[3]): R[3]:
+    return (1 / (4 * π * ε0)) * (q1 * q2 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
+
+coulomb_f = F(1, 1, [0, 0, 0], [1, 1, 1])
+print(coulomb_f)
+
+def E(q1: R, x1: R[3], x2: R[3]): R[3]:
+    return (1 / (4 * π * ε0)) * (q1 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
+
+coulomb_e = E(1, [0, 0, 0], [1, 1, 1])
+print(coulomb_e)
+
+# RC circuit: equipment as classes
+
+class VoltageSource:
+    Volt: R
+    def voltage(): R:
+        return this.Volt
+
+
+class Resistor:
+    Ress: R
+    def current(V: R): R:
+        return V / this.Ress
+
+
+class Capacitor:
+    Capa: R
+    def dV_dt(V: R, Ress: R): R:
+        return -V / (Ress * this.Capa)
+
+
+class RCCircuit:
+    source: VoltageSource
+    resistor: Resistor
+    capacitor: Capacitor
+    def rk4_step(V: R, dt: R): R:
+        k1: R = this.capacitor.dV_dt(V, this.resistor.Ress)
+        k2: R = this.capacitor.dV_dt(V + 0.5 * dt * k1, this.resistor.Ress)
+        k3: R = this.capacitor.dV_dt(V + 0.5 * dt * k2, this.resistor.Ress)
+        k4: R = this.capacitor.dV_dt(V + dt * k3, this.resistor.Ress)
+        return V + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+    def voltage_at(dt: R, steps: N): R:
+        V: R = this.source.voltage()
+        for i: N(steps):
+            V = this.rk4_step(V, dt)
+        return V
+    def current_at(dt: R, steps: N): R:
+        V: R = this.voltage_at(dt, steps)
+        return this.resistor.current(V)
+
+
+Capa, Ress, V0: R = 1.0, 10.0, 10.0
+dt: R = 0.01
+steps: N = 200
+
+source: VoltageSource = VoltageSource(V0)
+resistor: Resistor = Resistor(Ress)
+capacitor: Capacitor = Capacitor(Capa)
+circuit: RCCircuit = RCCircuit(source, resistor, capacitor)
+
+V_final: R = circuit.voltage_at(dt, steps)
+print(V_final)
+
+I_final: R = circuit.current_at(dt, steps)
+print(I_final)
