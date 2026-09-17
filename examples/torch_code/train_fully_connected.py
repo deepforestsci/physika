@@ -106,16 +106,6 @@ class FullyConnectedNetwork(nn.Module):
         with torch.no_grad():
             self.b.copy_((self.b - (lr * learnable_grads[int(3)])))
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 X = torch.tensor([[[1.0], [0.0], [0.0]], [[0.0], [1.0], [0.0]], [[0.0], [0.0], [1.0]], [[1.0], [1.0], [1.0]]], device=DEVICE)
 y = torch.tensor([0.2, 0.4, 0.6, 0.9], device=DEVICE)

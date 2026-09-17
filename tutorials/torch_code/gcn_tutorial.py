@@ -146,16 +146,6 @@ class GCNModel(nn.Module):
         with torch.no_grad():
             self.W2.copy_((self.W2 - (lr * learnable_grads[int(1)])))
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 μ = 0.0
 σ = 1.0

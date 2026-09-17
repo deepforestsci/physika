@@ -103,16 +103,6 @@ class UndirectedGraph(nn.Module):
         this = self
         self.adjacency = self.grow_adjacency(new_n)
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 n0 = 3
 g = empty_graph(n0)

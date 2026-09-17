@@ -58,16 +58,6 @@ class OneLayerNet(nn.Module):
         target = torch.as_tensor(target, device=DEVICE).float()
         return ((y - target) ** 2.0)
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class FullyConnectedNetwork(nn.Module):
     def __init__(self, W, B, w, b, n):
         super().__init__()
@@ -90,16 +80,6 @@ class FullyConnectedNetwork(nn.Module):
         y = torch.as_tensor(y, device=DEVICE).float()
         target = torch.as_tensor(target, device=DEVICE).float()
         return ((y - target) ** 2.0)
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 # === Program ===
 W0 = torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], device=DEVICE)

@@ -35,16 +35,6 @@ class SliceDemo(nn.Module):
         z = torch.as_tensor(z, device=DEVICE).float()
         return z[:, int(1), int(0)]
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8], device=DEVICE)
 y = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]], device=DEVICE)

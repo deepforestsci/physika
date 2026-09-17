@@ -74,19 +74,15 @@ class MeanFieldIsing(nn.Module):
                 spins, log_prob = self(n)
                 mean_energy_ps = (mean_energy_ps + ((H(J, h, spins, size) / n) / n_batch))
                 batch_loss = (batch_loss + (self.loss(spins, log_prob, J, h, β, size) / n_batch))
-            grads = compute_grad(batch_loss, self.params)
+            learnable_grads = compute_grad(batch_loss, self.learnable_params)
             self.baseline = ((0.9 * self.baseline) + (0.1 * mean_energy_ps))
-            self.update(lr, grads)
+            self.update(lr, learnable_grads)
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
+    def update(self, lr, learnable_grads):
+        this = self
+        lr = torch.as_tensor(lr, device=DEVICE).float()
         with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
+            self.logit_p.copy_((self.logit_p - (lr * learnable_grads[int(0)])))
 
 # === Program ===
 torch.manual_seed(int(0))

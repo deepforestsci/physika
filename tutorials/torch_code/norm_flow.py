@@ -130,8 +130,8 @@ class RealNVP(nn.Module):
         for epoch in range(int(0), int(epochs)):
             for i in range(int(0), int(len_train)):
                 L = self.loss(X[int(i)])
-                grads = compute_grad(L, self.params)
-                self.update_params(lr, grads)
+                learnable_grads = compute_grad(L, self.learnable_params)
+                self.update_params(lr, learnable_grads)
             total = 0
             for i in range(int(0), int(len_train)):
                 total = total + self.loss(X[int(i)])
@@ -174,16 +174,6 @@ class RealNVP(nn.Module):
             self.W2_m.copy_((self.W2_m - (lr * learnable_grads[int(6)])))
         with torch.no_grad():
             self.b2_m.copy_((self.b2_m - (lr * learnable_grads[int(7)])))
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 # === Program ===
 torch.manual_seed(int(0))

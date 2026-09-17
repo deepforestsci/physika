@@ -28,16 +28,6 @@ class ExampleClass(nn.Module):
         this = self
         return 1
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class ScalarClass(nn.Module):
     def __init__(self, x):
         super().__init__()
@@ -46,16 +36,6 @@ class ScalarClass(nn.Module):
     def return_member_variable(self):
         this = self
         return self.x
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 class Vec(nn.Module):
     def __init__(self, x, y):
@@ -75,16 +55,6 @@ class Vec(nn.Module):
     def norm_sq(self):
         this = self
         return ((self.x * self.x) + (self.y * self.y))
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 class Particle(nn.Module):
     def __init__(self, pos, vel, mass):
@@ -106,30 +76,10 @@ class Particle(nn.Module):
         new_pos = (self.pos + (self.vel * dt))
         return Particle(new_pos, new_vel, self.mass)
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class A(nn.Module):
     def __init__(self, x):
         super().__init__()
         self.x = torch.as_tensor(x).float()
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 class B(nn.Module):
     def __init__(self, objA):
@@ -146,16 +96,6 @@ class B(nn.Module):
         for i in range(int(0), int(1)):
             self.objA.x = 3.0
         return self.objA.x
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 # === Program ===
 obj_example_class = ExampleClass().to(DEVICE)
