@@ -415,8 +415,8 @@ Training a RealNVP Normalizing Flow on the MNIST Dataset
 This is the complete code for training a model on the MNIST dataset using the RealNVP Normalizing Flow.
 
 .. note::
-   ``create_dataset`` is not a built-in Physika function. To use it,
-   add the following helper to ``physika/runtime.py``:
+   ``create_dataset`` and ``plot_losses_bits_per_dim`` are not built-in Physika functions. To use them,
+   add the following helpers to ``physika/runtime.py``:
 
     .. code-block:: python
 
@@ -464,6 +464,31 @@ This is the complete code for training a model on the MNIST dataset using the Re
             train_data = [X_train, y_train]
             test_data = [X_test, y_test]
             return [train_data, test_data]
+
+        def plot_losses_bits_per_dim(losses):
+            import matplotlib.pyplot as plt
+            import numpy as np
+        
+            bits_per_dim = losses / (784 * np.log(2)) + 8
+            epochs = range(1, len(losses) + 1)
+        
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
+        
+            ax1.plot(epochs, losses.cpu().detach().numpy())
+            ax1.set_xlabel("Epoch")
+            ax1.set_ylabel("Loss")
+            ax1.set_title("RealNVP Normalizing Flow on 160 Samples of MNIST — Training Curve\nLoss by epoch")
+            ax1.set_xticks(epochs)
+        
+            ax2.plot(epochs, bits_per_dim.cpu().detach().numpy())
+            ax2.set_xlabel("Epoch")
+            ax2.set_ylabel("Bits per dim")
+            ax2.set_title("Bits per dim by epoch (lower is better)")
+            ax2.set_xticks(epochs)
+        
+            plt.tight_layout()
+            plt.savefig("realnvp_train_curve.png", dpi=300, bbox_inches="tight")
+            plt.show()
 
 Full Code
 ---------------------------------------------------------------------------------
@@ -552,7 +577,8 @@ Full Code
             return this.inverse(z)
         def loss(x: ℝ[784]): ℝ:
             return -this(x)
-        def train(X: ℝ[160, 784], epochs: ℕ, lr: ℝ, len_train: ℝ):
+        def train(X: ℝ[160, 784], epochs: ℕ, lr: ℝ, len_train: ℝ): ℝ[epochs]:
+            loss: ℝ[epochs] = for i:ℕ(epochs) -> i*0
             for epoch: ℕ(epochs):
                 for i: ℕ(len_train):
                     L = this.loss(X[i])
@@ -562,9 +588,11 @@ Full Code
                 for i:ℕ(len_train):
                     total += this.loss(X[i])
                 epoch_loss = total/len_train
+                loss[epoch] = epoch_loss
                 print(epoch_loss)
                 bits = this.evaluate(epoch_loss, len_train)
                 print(bits)
+            return loss
         def test(Y: ℝ[40, 784], len_test: ℝ): ℝ:
             total: ℝ = 0
             for i:ℕ(len_test):
@@ -617,7 +645,8 @@ Full Code
     lr: ℝ = 0.00015
     X: ℝ[160,784] = train_flat
     Y: ℝ[40,784] = test_flat
-    realnvp.train(X, epochs, lr, len_train)
+    losses: ℝ[epochs] = realnvp.train(X, epochs, lr, len_train)
+    plot_losses_bits_per_dim(losses)
 
     # Test
     test_loss: ℝ = realnvp.test(Y, len_test)
@@ -634,7 +663,7 @@ Full Code
 Training plots
 ---------------
 
-After running the code below, you should see the training loss decrease over epochs, indicating that the model is learning to better fit the data distribution.
+After running the code below (~30 mins), you should see the training loss decrease over epochs, indicating that the model is learning to better fit the data distribution.
 
 .. figure:: /_static/tutorial_files/norm_flow/realnvp_train_curve.png
    :alt:

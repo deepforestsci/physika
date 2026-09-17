@@ -80,7 +80,8 @@ class RealNVP(W1_s: ℝ[h, n], b1_s: ℝ[h], W2_s: ℝ[n, h], b2_s: ℝ[n], W1_m
         return this.inverse(z)
     def loss(x: ℝ[784]): ℝ:
         return -this(x)
-    def train(X: ℝ[160, 784], epochs: ℕ, lr: ℝ, len_train: ℝ):
+    def train(X: ℝ[160, 784], epochs: ℕ, lr: ℝ, len_train: ℝ): ℝ[epochs]:
+        loss: ℝ[epochs] = for i:ℕ(epochs) -> i*0
         for epoch: ℕ(epochs):
             for i: ℕ(len_train):
                 L = this.loss(X[i])
@@ -90,9 +91,11 @@ class RealNVP(W1_s: ℝ[h, n], b1_s: ℝ[h], W2_s: ℝ[n, h], b2_s: ℝ[n], W1_m
             for i:ℕ(len_train):
                 total += this.loss(X[i])
             epoch_loss = total/len_train
+            loss[epoch] = epoch_loss
             print(epoch_loss)
             bits = this.evaluate(epoch_loss, len_train)
             print(bits)
+        return loss
     def test(Y: ℝ[40, 784], len_test: ℝ): ℝ:
         total: ℝ = 0
         for i:ℕ(len_test):
@@ -111,7 +114,7 @@ class RealNVP(W1_s: ℝ[h, n], b1_s: ℝ[h], W2_s: ℝ[n, h], b2_s: ℝ[n], W1_m
         this.b2_m = this.b2_m - lr * learnable_grads[7]
 
 
-# Dataset -- commented, add in runtime.py to run with real data
+# Dataset -- commented for CI, add in runtime.py to run with real data
 # dataset = create_dataset(80, 200)
 # train_dataset = dataset[0]
 # test_dataset = dataset[1]
@@ -151,7 +154,11 @@ epochs: ℕ = 1
 lr: ℝ = 0.00015
 X: ℝ[160,784] = train_flat
 Y: ℝ[40,784] = test_flat
-realnvp.train(X, epochs, lr, len_train)
+losses: ℝ[epochs] = realnvp.train(X, epochs, lr, len_train)
+
+# Commented for CI - add in runtime.py to plot losses
+# plot_losses_bits_per_dim(losses)
+print(losses)
 
 # Test
 test_loss: ℝ = realnvp.test(Y, len_test)
