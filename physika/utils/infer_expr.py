@@ -413,12 +413,19 @@ def expr_dict(node: Any,
     >>> t
     Dict[ℝ, ℝ | ℂ]
     """
+    # mypy fixes
+    if not isinstance(ctx.type_info, TDict):
+        ctx.add_error("Expected dictionary type information")
+        return None, ctx.s
+
     from physika.utils.type_checker_utils import unify
     elements = node[1]
+    if not elements:
+        return ctx.type_info, ctx.s
 
     # list to store key and value types
-    key_types = []
-    value_types = []
+    key_types: list[Type] = []
+    value_types: list[Type] = []
     cur = ctx.s
     for e in elements:
         if isinstance(e, tuple):
@@ -427,13 +434,15 @@ def expr_dict(node: Any,
                                  ctx.class_env, ctx.add_error)
             vt, cur = infer_expr(value_node, ctx.env, cur, ctx.func_env,
                                  ctx.class_env, ctx.add_error)
-            key_types.append(kt)
-            value_types.append(vt)
+            if kt is not None:
+                key_types.append(kt)
+            if vt is not None:
+                value_types.append(vt)
 
     # declared key type, passed through ``infer_stmts/stmt_decl``
     declared_key_type = ctx.type_info.key_type
 
-    key_base = key_types[0] if key_types else None
+    key_base = key_types[0]
 
     for i, kt in enumerate(key_types):
         if declared_key_type is not None and kt is not None:
@@ -445,7 +454,7 @@ def expr_dict(node: Any,
 
     # declared value type, passed through ``infer_stmts/stmt_decl``
     # either scalar or Union of types.
-    
+
     declared_value_type = ctx.type_info.value_type
     for i, vt in enumerate(value_types):
         if vt is None:
@@ -460,7 +469,7 @@ def expr_dict(node: Any,
                           f"declared value type {declared_value_type}")
 
     # Returns inferred value as unique set of values
-    unique_value_types = []
+    unique_value_types: list[Type] = []
     for vt in value_types:
         if vt is None:
             continue

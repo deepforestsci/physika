@@ -285,12 +285,12 @@ class TUnion:
     >>> from physika.utils.types import TUnion, T_REAL, T_NAT, T_COMPLEX
     >>> # Union of real and natural types.
     >>> t = TUnion((T_REAL, T_NAT))
-    >>> t
-    ℝ | ℕ
+    >>> repr)t)
+    'ℝ | ℕ'
     >>> # Union of multiple scalar types.
     >>> t = TUnion((T_REAL, T_NAT, T_COMPLEX))
-    >>> t
-    ℝ | ℕ | ℂ
+    >>> repr(t)
+    'ℝ | ℕ | ℂ'
     """
     types: tuple["Type", ...]
 
@@ -335,7 +335,7 @@ class TDict:
     --------
     >>> from physika.utils.types import TDict, TUnion, T_REAL, T_NAT
     >>> t = TDict(T_REAL, T_REAL)
-    >>> t
+    >>> repr(t)
     'Dict[ℝ, ℝ]'
     >>> t = TDict(T_REAL, TUnion((T_REAL, T_NAT)))
     >>> repr(t)
@@ -362,9 +362,9 @@ class TDict:
         --------
         >>> from physika.utils.types import TDict, TUnion, T_REAL, T_NAT
         >>> repr(TDict(T_REAL, T_REAL))
-        Dict[ℝ, ℝ]
+        'Dict[ℝ, ℝ]'
         >>> repr(TDict(T_REAL, TUnion((T_REAL, T_NAT))))
-        Dict[ℝ, ℝ | ℕ]
+        'Dict[ℝ, ℝ | ℕ]'
         """
         return f"Dict[{self.key_type}, {self.value_type}]"
 
@@ -456,7 +456,8 @@ class TInstance:
         return f"instance({self.class_name})"
 
 
-Type = Union[TVar, TDim, TScalar, TTensor, TFunc, TInstance, TList, TUnion]
+Type = Union[TVar, TDim, TScalar, TTensor, TFunc, TInstance, TList, TUnion,
+             TDict]
 
 # Ground scalar types
 T_REAL = TScalar("ℝ")

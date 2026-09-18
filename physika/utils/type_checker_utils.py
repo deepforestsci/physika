@@ -797,17 +797,21 @@ def from_typespec(ts: Any) -> Optional[Type]:
             return ("tuple_type", [from_typespec(t) for t in ts[1]]
                     )  # type: ignore[return-value]
         if ts[0] == "union":
-            types = []
+            types: list[Type] = []
             for t in ts[1:]:
                 converted = from_typespec(t)
+                if converted is None:
+                    return None
                 if isinstance(converted, TUnion):
                     types.extend(converted.types)
                 else:
-                    types.append(converted) 
+                    types.append(converted)
             return TUnion(tuple(types))
         if ts[0] == "dict_type":
             key_type = from_typespec(ts[1])
             value_type = from_typespec(ts[2])
+            if key_type is None or value_type is None:
+                return None
             return TDict(key_type, value_type)
 
     return None
