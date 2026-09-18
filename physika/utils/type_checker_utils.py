@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, List, Tuple, Union, Optional
 from physika.utils.types import (Type, TTensor, TScalar, TFunc, TInstance,
                                  TVar, TDim, T_REAL, T_NAT, T_COMPLEX,
-                                 T_STRING, TList, Substitution)
+                                 T_STRING, TList, TDict, TUnion, Substitution)
 
 # Type aliases used throughout this module.
 TypeSpec = Any  # "ℝ", "ℕ", ("tensor", [...]), ("func_type", ...), None
@@ -796,6 +796,20 @@ def from_typespec(ts: Any) -> Optional[Type]:
         if ts[0] == "tuple_type":
             return ("tuple_type", [from_typespec(t) for t in ts[1]]
                     )  # type: ignore[return-value]
+        if ts[0] == "union":
+            types = []
+            for t in ts[1:]:
+                converted = from_typespec(t)
+                if isinstance(converted, TUnion):
+                    types.extend(converted.types)
+                else:
+                    types.append(converted) 
+            return TUnion(tuple(types))
+        if ts[0] == "dict_type":
+            key_type = from_typespec(ts[1])
+            value_type = from_typespec(ts[2])
+            return TDict(key_type, value_type)
+
     return None
 
 
