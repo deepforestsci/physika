@@ -2,6 +2,9 @@ from physika.parser import parser
 from physika.lexer import lexer
 from pathlib import Path
 from physika.parser import symbol_table
+import physika
+
+STDLIB_PATH = Path(physika.__file__).resolve().parent / "Std"
 
 
 def find_module(module_name: str, source_file_path: Path) -> Path:
@@ -34,9 +37,21 @@ def find_module(module_name: str, source_file_path: Path) -> Path:
     >>> module_path.name
     'factorial.phyk'
     """
-    module_path = Path(module_name.replace(".", "/"))
-    module_file = module_path.with_suffix(".phyk")
-    search_paths = [source_file_path.parent, *source_file_path.parent.parents]
+    # Split module name with `.`
+    module_parts = module_name.split(".")
+
+    if module_parts[0] == "Std":
+        search_paths = [STDLIB_PATH]
+        module_path_str = ".".join(module_parts[1:])
+    else:
+        search_paths = [
+            source_file_path.parent,
+            *source_file_path.parent.parents,
+        ]
+        module_path_str = module_name
+
+    # replace import statement syntax with `/` and add `.phyk` as suffix
+    module_file = Path(module_path_str.replace(".", "/")).with_suffix(".phyk")
     for path in search_paths:
         file_name = path / module_file
         if file_name.exists():
