@@ -285,7 +285,7 @@ class TUnion:
     >>> from physika.utils.types import TUnion, T_REAL, T_NAT, T_COMPLEX
     >>> # Union of real and natural types.
     >>> t = TUnion((T_REAL, T_NAT))
-    >>> repr)t)
+    >>> repr(t)
     'ℝ | ℕ'
     >>> # Union of multiple scalar types.
     >>> t = TUnion((T_REAL, T_NAT, T_COMPLEX))
