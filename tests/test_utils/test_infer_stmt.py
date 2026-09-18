@@ -168,7 +168,7 @@ class TestInferTypeMethod:
         vec = TTensor(((3, "invariant"), ))
         ctx = make_stmt_ctx(env={"v": vec})
         assert ctx.infer_type(("var", "v")) == vec
-    
+
     def test_dict(self):
         """Dictionary expressions infer to TDict with key and value types."""
         ctx = make_stmt_ctx()
@@ -250,7 +250,7 @@ class TestStmtBodyDecl:
         stmt_body_decl(stmt, ctx)
         assert ctx.env['v'] == a_type
         assert errors == []
-    
+
     def test_dict(self):
         """Declaring a dictionary inside function body."""
         errors = []
@@ -270,7 +270,6 @@ class TestStmtBodyDecl:
 
         assert ctx.env['d'] == TDict(T_REAL, T_REAL)
         assert errors == []
-
 
     def test_no_declared_type(self):
         """No type annotation, but env dict gets the inferred type."""

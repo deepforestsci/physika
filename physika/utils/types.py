@@ -362,9 +362,9 @@ class TDict:
         --------
         >>> from physika.utils.types import TDict, TUnion, T_REAL, T_NAT
         >>> repr(TDict(T_REAL, T_REAL))
-        'Dict[ℝ, ℝ]'
+        Dict[ℝ, ℝ]
         >>> repr(TDict(T_REAL, TUnion((T_REAL, T_NAT))))
-        'Dict[ℝ, ℝ | ℕ]'
+        Dict[ℝ, ℝ | ℕ]
         """
         return f"Dict[{self.key_type}, {self.value_type}]"
 
