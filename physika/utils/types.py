@@ -270,6 +270,106 @@ class TList:
 
 
 @dataclass(frozen=True)
+class TUnion:
+    """
+    A Union type which represents set of types.
+
+    Parameters
+    ----------
+    types : Tuple
+        Tuple containing the types declared in union. It may contain scalar
+        types tensor types and other types.
+
+    Examples
+    --------
+    >>> from physika.utils.types import TUnion, T_REAL, T_NAT, T_COMPLEX
+    >>> # Union of real and natural types.
+    >>> t = TUnion((T_REAL, T_NAT))
+    >>> t
+    ℝ | ℕ
+    >>> # Union of multiple scalar types.
+    >>> t = TUnion((T_REAL, T_NAT, T_COMPLEX))
+    >>> t
+    ℝ | ℕ | ℂ
+    """
+    types: tuple["Type", ...]
+
+    def __repr__(self) -> str:
+        """
+        Return the union type in Physika notation ``T1 | T2 | ...``.
+
+        Each type in the union is rendered using ``str()`` and joined
+        with ``" | "``.
+
+        Returns
+        -------
+        str
+            String representation of the union, such as ``"ℝ | ℕ"`` or
+            ``"ℝ | ℕ | ℂ"``.
+
+        Examples
+        --------
+        >>> from physika.utils.types import TUnion, T_REAL, T_NAT
+        >>> repr(TUnion((T_REAL, T_NAT)))
+        'ℝ | ℕ'
+        """
+        return " | ".join(str(t) for t in self.types)
+
+
+@dataclass(frozen=True)
+class TDict:
+    """
+    A dictionary type with fixed key and value type.
+
+    All keys required to have the same type (homogeneous), while the values can
+    be a single type or Union of types.
+
+    Parameters
+    ----------
+    key_type : Type
+        Type for key of dictionary.
+    value_type : Type
+        Type for value of dictionary.
+
+    Examples
+    --------
+    >>> from physika.utils.types import TDict, TUnion, T_REAL, T_NAT
+    >>> t = TDict(T_REAL, T_REAL)
+    >>> t
+    'Dict[ℝ, ℝ]'
+    >>> t = TDict(T_REAL, TUnion((T_REAL, T_NAT)))
+    >>> repr(t)
+    'Dict[ℝ, ℝ | ℕ]'
+    """
+    key_type: "Type"
+    value_type: "Type"
+
+    def __repr__(self) -> str:
+        """
+        Returns the dictionary type in Physika notation ``Dict[K, V]``.
+
+        The key and value types are rendered using ``str()``.
+        If the value type is a ``TUnion``, its allowed types are
+        rendered using the union notation ``T1 | T2 | ...``.
+
+        Returns
+        -------
+        str
+            String representation of the dictionary type, such as
+            ``"Dict[ℝ, ℝ]"`` or ``"Dict[ℝ, ℝ | ℕ]"``.
+
+        Examples
+        --------
+        >>> from physika.utils.types import TDict, TUnion, T_REAL, T_NAT
+        >>> repr(TDict(T_REAL, T_REAL))
+        'Dict[ℝ, ℝ]'
+        >>> repr(TDict(T_REAL, TUnion((T_REAL, T_NAT))))
+        'Dict[ℝ, ℝ | ℕ]'
+        """
+        return f"Dict[{self.key_type}, {self.value_type}]"
+
+
+@dataclass(frozen=True)
 class TFunc:
     """
     A function type ``(p0, p1, ...): return_type``.
@@ -356,7 +456,7 @@ class TInstance:
         return f"instance({self.class_name})"
 
 
-Type = Union[TVar, TDim, TScalar, TTensor, TFunc, TInstance, TList]
+Type = Union[TVar, TDim, TScalar, TTensor, TFunc, TInstance, TList, TUnion]
 
 # Ground scalar types
 T_REAL = TScalar("ℝ")
