@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Tuple
-from physika.utils.types import Substitution, Type, T_NAT, TList, new_var, new_dim  # noqa: E501
+from physika.utils.types import Substitution, Type, T_NAT, TList, TDict, new_var, new_dim  # noqa: E501
 from physika.elf import REGISTRY
 
 
@@ -181,20 +181,27 @@ def stmt_body_decl(stmt: Tuple, ctx: StmtContext) -> None:
     from physika.utils.type_checker_utils import from_typespec, unify, type_to_str  # noqa: E501
     # example stmt node: ('body_decl', var, var_type, expr)
     _, var_name, var_type_spec, expr = stmt
+    declared = from_typespec(var_type_spec)
     if var_type_spec == "list":
         inferred = ctx.infer_type(expr, type_info=TList(()))
+    elif (isinstance(var_type_spec, tuple)
+          and var_type_spec[0] == "dict_type"):
+        inferred = ctx.infer_type(expr, type_info=declared)
     else:
         inferred = ctx.infer_type(expr)
-    declared = from_typespec(var_type_spec)
+
     mismatch = False
     if declared is not None and inferred is not None:
-        try:
-            ctx.s = unify(declared, inferred, ctx.s)
-        except TypeError as e:
-            mismatch = True
-            ctx.add_error(
-                f"In '{ctx.func_name}': '{var_name}' declared {type_to_str(declared)}, "  # noqa: E501
-                f"inferred {type_to_str(ctx.s.apply(inferred))}: {e}")
+        # unify except `TDict` which has Union types,
+        # handled in ``infer_expr/expr_dict``
+        if not isinstance(declared, TDict):
+            try:
+                ctx.s = unify(declared, inferred, ctx.s)
+            except TypeError as e:
+                mismatch = True
+                ctx.add_error(
+                    f"In '{ctx.func_name}': '{var_name}' declared {type_to_str(declared)}, "  # noqa: E501
+                    f"inferred {type_to_str(ctx.s.apply(inferred))}: {e}")
     # Update env dictionary
     if mismatch:
         if inferred is not None:
@@ -675,20 +682,26 @@ def stmt_decl(stmt: Any, ctx: StmtContext) -> None:
     """
     from physika.utils.type_checker_utils import from_typespec, unify, type_to_str  # noqa: E501
     _, name, ts, expr, *_ = stmt
+    declared = from_typespec(ts)
     if ts == "list":
         inferred = ctx.infer_type(expr, type_info=TList(()))
+    elif isinstance(ts, tuple) and ts[0] == "dict_type":
+        inferred = ctx.infer_type(expr, type_info=declared)
     else:
         inferred = ctx.infer_type(expr)
-    declared = from_typespec(ts)
+
     mismatch = False
     if declared is not None and inferred is not None:
-        try:
-            ctx.s = unify(declared, inferred, ctx.s)
-        except TypeError as e:
-            mismatch = True
-            ctx.add_error(
-                f"Type mismatch for '{name}': declared {type_to_str(declared)}, "  # noqa: E501
-                f"got {type_to_str(inferred)}: {e}")
+        # unify except `TDict` which has Union types,
+        # handled in ``infer_expr/expr_dict``
+        if not isinstance(declared, TDict):
+            try:
+                ctx.s = unify(declared, inferred, ctx.s)
+            except TypeError as e:
+                mismatch = True
+                ctx.add_error(
+                    f"Type mismatch for '{name}': declared {type_to_str(declared)}, "  # noqa: E501
+                    f"got {type_to_str(inferred)}: {e}")
     if mismatch:
         if inferred is not None:
             ctx.env[name] = inferred
