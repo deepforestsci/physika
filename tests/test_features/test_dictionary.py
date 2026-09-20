@@ -32,14 +32,16 @@ class TestDictionaryFeature:
 
     def test_parser_rules(self):
         """
-        parser rules should return seven handlers.
+        parser rules should return nine handlers.
         """
         rules = DictionaryFeature().parser_rules()
-        assert len(rules) == 7
+        assert len(rules) == 9
         names = [r.__name__ for r in rules]
         assert "p_type_dict" in names
         assert "p_factor_dict_empty" in names
         assert "p_factor_dict" in names
+        assert "p_func_factor_dict_empty" in names
+        assert "p_func_factor_dict" in names
         assert "p_dict_items_single" in names
         assert "p_dict_items_multi" in names
         assert "p_dict_items_newline" in names
