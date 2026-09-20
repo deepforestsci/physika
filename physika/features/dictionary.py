@@ -35,6 +35,23 @@ def make_parser_rules():
         #   ("dict", dict_items)
         p[0] = ("dict", p[2])
 
+    def p_func_factor_dict_empty(p):
+        """func_factor : LBRACE RBRACE"""
+        # An empty dictionary type (inside function)
+        # Returns:
+        #   ("dict", [])
+        p[0] = ("dict", [])
+
+    def p_func_factor_dict(p):
+        """func_factor : LBRACE dict_items RBRACE"""
+        # A dictionary syntax with key value (inside function)
+        # pairs
+        # Parameters:
+        #   p[2] - dictionary items
+        # Returns:
+        #   ("dict", dict_items)
+        p[0] = ("dict", p[2])
+
     def p_dict_items_single(p):
         """dict_items : dict_item"""
         # A single dictionary item.
@@ -77,7 +94,8 @@ def make_parser_rules():
             p[0] = p[2] if isinstance(p[2], list) else p[1]
 
     return [
-        p_type_dict, p_factor_dict_empty, p_factor_dict, p_dict_item,
+        p_type_dict, p_factor_dict_empty, p_factor_dict,
+        p_func_factor_dict_empty, p_func_factor_dict, p_dict_item,
         p_dict_items_single, p_dict_items_multi, p_dict_items_newline
     ]
 
@@ -90,7 +108,7 @@ class DictionaryFeature(ELF):
     parser and code generator.
 
     **Parser rules**
-    Seven PLY grammer functions (see ``make_parser_rules``) handle
+    Nine PLY grammer functions (see ``make_parser_rules``) handle
     dictionary declarations, empty dictionary declaration, and also
     support for indentation (BLANK spaces) for declaring key value
     pairs.
