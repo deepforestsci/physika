@@ -454,16 +454,44 @@ def expr_dict(node: Any,
 
     # declared value type, passed through ``infer_stmts/stmt_decl``
     # either scalar or Union of types.
-
     declared_value_type = ctx.type_info.value_type
+
     for i, vt in enumerate(value_types):
         if vt is None:
             continue
+
         if isinstance(declared_value_type, TUnion):
-            if vt not in declared_value_type.types:
+            allowed = False
+
+            for allowed_type in declared_value_type.types:
+                # unify TTensor type to allow general tensor declarations
+                # e.g :- ℝ[n], ℝ[m]
+                if isinstance(vt, TTensor) and isinstance(
+                        allowed_type, TTensor):
+                    try:
+                        cur = unify(vt, allowed_type, cur)
+                        allowed = True
+                        break
+                    except TypeError:
+                        pass
+                elif vt == allowed_type:
+                    allowed = True
+                    break
+
+            if not allowed:
                 ctx.add_error(
                     f"Dictionary value at index {i} is not allowed by "
                     f"declared value type {declared_value_type}")
+
+        elif isinstance(vt, TTensor) and isinstance(declared_value_type,
+                                                    TTensor):
+            try:
+                cur = unify(vt, declared_value_type, cur)
+            except TypeError:
+                ctx.add_error(
+                    f"Dictionary value at index {i} is not allowed by "
+                    f"declared value type {declared_value_type}")
+
         elif vt != declared_value_type:
             ctx.add_error(f"Dictionary value at index {i} is not allowed by "
                           f"declared value type {declared_value_type}")
