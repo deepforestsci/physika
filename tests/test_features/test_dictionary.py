@@ -133,3 +133,38 @@ class TestExampleDict:
             union_dict[3],
             torch.tensor([1, 2, 3]),
         )
+
+        func_dict = dict_ns["func_dict"]
+        assert func_dict == {0: 1.0, 1: 2.0}
+
+        class_dict = dict_ns["class_dict"]
+        assert class_dict == {0: 1.6, 1: 3.2, 2: 5.5}
+
+    def test_indexing(self, dict_ns):
+        """
+        Tests for dictionary indexing.
+        """
+        first_value = dict_ns["first_value"]
+        assert first_value == 1
+
+        last_value = dict_ns["last_value"]
+        assert last_value.tolist() == [1, 2, 3]
+
+    def test_update(self, dict_ns):
+        """
+        Tests for dictionary update.
+        """
+        example_dict = dict_ns["example_dict"]
+        assert example_dict[0] == 1.6
+        assert example_dict[1] == 3.2
+        assert torch.equal(example_dict[2], torch.tensor([1, 2, 3]))
+
+    def test_differentiability(self, dict_ns):
+        """
+        Tests for dictionary differentiability.
+        """
+        scalar_diff = dict_ns["scalar_diff"]
+        assert scalar_diff == 2
+
+        array_diff = dict_ns["array_diff"]
+        assert array_diff.tolist() == [2, 4, 6]
