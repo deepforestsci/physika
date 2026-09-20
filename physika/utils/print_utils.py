@@ -269,10 +269,7 @@ def _from_torch(v: Any) -> Any:
         if isinstance(v, list):
             return [_from_torch(item) for item in v]
         if isinstance(v, dict):
-            return {
-                key: _from_torch(value)
-                for key, value in v.items()
-            }
+            return {key: _from_torch(value) for key, value in v.items()}
         return v
     if v.numel() == 1:
         val = v.item()
