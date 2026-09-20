@@ -2,6 +2,9 @@
 # Example file for Dictionary in Physika.
 #
 # * Basic declarations
+# * Indexing
+# * Update dict
+# * Differentiable usecase
 # =====================================================================
 
 
@@ -22,10 +25,85 @@ simple_dict: Dict[ℝ, ℝ] = {
 print(simple_dict)
 
 
-union_dict: Dict[ℝ, ℝ | ℂ | ℝ[3]] = {
+union_dict: Dict[ℝ, ℝ | ℂ | ℝ[n]] = {
     0: 1,
     1: 3j,
     2: 30,
     3: [1, 2, 3]
 }
 print(union_dict)
+
+
+# declare inside function
+def declare_dict(value1: ℝ, value2: ℝ): Dict[ℝ, ℝ]:
+    function_dict: Dict[ℝ, ℝ] = {0: value1, 1: value2}
+    return function_dict
+
+
+func_dict: Dict[ℝ, ℝ] = declare_dict(1.0, 2.0)
+print(func_dict)
+
+
+# usecase of dict in class
+class A:
+    x: Dict[ℝ, ℝ]
+    def return_dict(): Dict[ℝ, ℝ]:
+        return this.x
+
+objA: A = A(simple_dict)
+class_dict: Dict[ℝ, ℝ] = objA.return_dict()
+print(class_dict)
+
+
+
+# -----------------------------------------
+# Indexing
+# -----------------------------------------
+
+
+first_value: ℝ = union_dict[0]
+last_value: ℝ[3] = union_dict[3]
+print(first_value)
+print(last_value)
+
+
+# -----------------------------------------
+# Update dict
+# -----------------------------------------
+
+
+# declare dict with ℝ and ℝ[n], but later Update
+# key with ℝ[n] type value.
+
+example_dict: Dict[ℝ, ℝ | ℝ[n]] = {
+    0: 1.6,
+    1: 3.2,
+    2: 5.5
+}
+print(example_dict)
+
+
+example_dict[2] = [1, 2, 3]
+print(example_dict)
+
+
+
+# -----------------------------------------
+# Differentiable usecase
+# -----------------------------------------
+
+
+def scalar_f(x: ℝ): ℝ:
+    return x**2
+
+
+def array_f(x: ℝ[n]): ℝ:
+    return sum(for i:ℕ(n) → x[i]**2)
+
+
+scalar_diff: ℝ = grad(scalar_f, union_dict[0])
+print(scalar_diff)
+
+
+array_diff: ℝ[3] = grad(array_f, union_dict[3])
+print(array_diff)
