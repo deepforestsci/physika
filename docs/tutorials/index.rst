@@ -101,6 +101,7 @@ Tutorials
    norm_flow
    undirected_graph
    kmeans
+   circular_fingerprints
 
 .. toctree::
    :maxdepth: 1
