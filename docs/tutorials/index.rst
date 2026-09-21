@@ -101,6 +101,7 @@ Tutorials
    norm_flow
    undirected_graph
    kmeans
+   deq
 
 .. toctree::
    :maxdepth: 1
