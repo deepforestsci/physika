@@ -9,26 +9,6 @@ def modulo(s: R, m: R): R:
         d = d / 2.0
     return r
 
-def floor(x: R): R:
-    a: R = x
-    if x < 0.0:
-        a = 0.0 - x
-    r: R = a
-    n: R = 0.0
-    p: R = 2.0 ** (BITS - 1)
-    for k:ℕ(BITS):
-        if r >= p:
-            r = r - p
-            n = n + p
-        p = p / 2.0
-    result: R = n
-    if x < 0.0:
-        if r > 0.0:
-            result = 0.0 - n - 1.0
-        else:
-            result = 0.0 - n
-    return result
-
 M: ℝ = 65521.0
 # length of the folded fingerprint bit vector
 N_BITS: ℕ = 2048
@@ -58,12 +38,6 @@ def bubble_sort(xs: ℝ[n]): ℝ[n]:
 # tutorials/undirected_graph.phyk): atoms are vertices and the
 # edge weight is the bond order
 # (0 = no bond, 1 = single, 2 = double, 3 = triple, 1.5 = aromatic)
-def get_sum_of_1d_array(x: ℝ[m]): ℝ:
-    total: ℝ = 0
-    for i:
-        total += x[i]
-    return total
-
 def get_2d_array_num_rows(x: R[m, n]): ℝ:
     total: ℝ = 0
     temp: ℝ = 0
@@ -154,15 +128,6 @@ def invariants(g: Molecule): ℝ[5, n]:
         inv[4, a] = aromatic(g, a)
     return inv
 
-# invariants of atom u
-def atom(g: Molecule, u: ℝ): ℝ[5]:
-    inv: ℝ[5, n] = invariants(g)
-    return inv[:, u]
-
-# initial identifier of atom u
-def atom_id(g: Molecule, u: ℝ): ℝ:
-    return hash_list(atom(g, u))
-
 # Morgan identifiers and the folded fingerprint
 # round 0: hash each atom's invariants
 def initial_ids(g: Molecule): ℝ[n]:
@@ -237,10 +202,6 @@ CH4.add_edge(0.0, 4.0)
 # rows: atomic_num, degree, formal_charge, hydrogens, aromatic
 invariants(CH4)
 
-# initial identifier of the carbon and of one hydrogen
-atom_id(CH4, 0.0)
-atom_id(CH4, 1.0)
-
 # 1. initialize the atoms
 C6H6_atomic_num: ℝ[12] = [6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1]
 C6H6_formal_charge: ℝ[12] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -262,11 +223,6 @@ C6H6.add_edge(5.0, 11.0)
 
 # 3. compute the invariants from the atoms and bonds
 invariants(C6H6)
-
-# every carbon gets the same identifier, and so does every hydrogen;
-# the hydrogens match methane's until the Morgan iterations add neighbours
-atom_id(C6H6, 0.0)
-atom_id(C6H6, 6.0)
 
 # 1. initialize the atoms
 C7H8_atomic_num: ℝ[15] = [6, 6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1]
