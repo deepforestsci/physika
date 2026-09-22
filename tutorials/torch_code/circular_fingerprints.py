@@ -15,26 +15,6 @@ def modulo(s, m):
         d = (d / 2.0)
     return r
 
-def floor(x):
-    a = x
-    if x < 0.0:
-        a = (0.0 - x)
-    r = a
-    n = 0.0
-    p = (2.0 ** (BITS - 1))
-    for k in range(int(0), int(BITS)):
-        if r >= p:
-            r = (r - p)
-            n = (n + p)
-        p = (p / 2.0)
-    result = n
-    if x < 0.0:
-        if r > 0.0:
-            result = ((0.0 - n) - 1.0)
-        else:
-            result = (0.0 - n)
-    return result
-
 def hash_list(xs):
     h = 17.0
     for i in range(int(0), int(len(xs))):
@@ -54,12 +34,6 @@ def bubble_sort(xs):
                 ys[int(j)] = ys[int((j + 1))]
                 ys[int((j + 1))] = t
     return ys
-
-def get_sum_of_1d_array(x):
-    total = 0
-    for i in range(len(x)):
-        total = total + x[int(i)]
-    return total
 
 def get_2d_array_num_rows(x):
     total = 0
@@ -120,13 +94,6 @@ def invariants(g):
         inv[int(3), int(a)] = hydrogens(g, a)
         inv[int(4), int(a)] = aromatic(g, a)
     return inv
-
-def atom(g, u):
-    inv = invariants(g)
-    return inv[:, int(u)]
-
-def atom_id(g, u):
-    return hash_list(atom(g, u))
 
 def initial_ids(g):
     inv = invariants(g)
@@ -246,8 +213,6 @@ print(CH4.add_edge(0.0, 2.0))
 print(CH4.add_edge(0.0, 3.0))
 print(CH4.add_edge(0.0, 4.0))
 print(invariants(CH4))
-print(atom_id(CH4, 0.0))
-print(atom_id(CH4, 1.0))
 C6H6_atomic_num = torch.tensor([6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1], device=DEVICE)
 C6H6_formal_charge = torch.tensor([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=DEVICE)
 C6H6 = new_molecule(C6H6_atomic_num, C6H6_formal_charge)
@@ -264,8 +229,6 @@ print(C6H6.add_edge(3.0, 9.0))
 print(C6H6.add_edge(4.0, 10.0))
 print(C6H6.add_edge(5.0, 11.0))
 print(invariants(C6H6))
-print(atom_id(C6H6, 0.0))
-print(atom_id(C6H6, 6.0))
 C7H8_atomic_num = torch.tensor([6, 6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1], device=DEVICE)
 C7H8_formal_charge = torch.tensor([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=DEVICE)
 C7H8 = new_molecule(C7H8_atomic_num, C7H8_formal_charge)
