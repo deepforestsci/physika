@@ -1,44 +1,45 @@
 Circular Fingerprints
 =====================
 
-In this tutorial we introduce a way of representing molecules called,
-`molecular fingerprint`. While there are many ways to represent molecules
-`molecular fingerprint` is simple and easy to use across many applications.
+In this tutorial, we introduce a way of representing molecules called a
+**molecular fingerprint**. While there are many ways to represent molecules,
+a molecular fingerprint is simple and easy to use across many applications.
 
 .. note::
 
-    This implementation`s results differs slightly from `rdkit` because `rdkit`
-    takes care of many edge cases, and some repeating atoms. Including so much
-    details in a educational content will make it difficult for new readers to
-    get started so a simplified approach has been taken here.
+    This implementation's results differ slightly from `rdkit` because `rdkit`
+    handles many edge cases and repeating atoms. Including so much
+    details in educational content will make it difficult for new readers to
+    get started, so a simplified approach has been taken here.
 
 What is a Fingerprint?
 ----------------------
 
-For applying allmost all of the computational techniques on atomic systems we
+For applying almost all of the computational techniques on atomic systems, we
 need to have a mathematical representation of them. This creates a task of how
-to do so, with this also comes the question what information to include in it.
-Does representing H2O `Water` according to its atomic number [1, 8, 1] does it
-becomes useful for the Chem Statistician. In a world where we don't know what
-this array represent we will think that index 1 is 8 times index 0, something
-like this we will think, but does Oxygen Equals 8 Hydrogens, it does not and we
-know this. But how will we tell the machine about it. To overcome these
-problems molecular fingerprints try to convert these data into forms which are
-inter related and also easy to use for algorithms. One such fingerprinting
-technique is `Extended Connectivity Fingerprint` or `ECFP`.
+to do so; with this also comes the question of what information to include in it.
+Does representing H2O Water according to its atomic number [1, 8, 1] make it
+useful for the Chem Statistician? In a world where we don’t know what
+this array represents, we will think that index 1 is 8 times index 0, something
+like this we will think, but does oxygen equal 8 hydrogens? It does not, and we
+know this. But how will we tell the machine about it? To overcome these
+problems, molecular fingerprints try to convert these data into forms which are
+interrelated and also easy to use for algorithms. One such fingerprinting
+technique is Extended Connectivity Fingerprint or ECFP. [RogersHahn2010]_
 
 Morgan Algorithm
 ----------------
 
-The Morgan algorithm is a graph based molecular representation method that
+The Morgan algorithm is a graph-based molecular representation method that
 assigns numerical identifiers to atoms based on their neighbouring structural
-environments. It starts from very
-basic infomations like bonds, charges etc and created a feature out of them
-a hashing function. After that as we want it to be more dense with more
-information we will increase the algorithm's radius by 1, now it will include
+environments. It was first described as a way of giving every molecule a
+unique machine-readable description. [Morgan1965]_ It starts from very
+basic information like bonds, charges, etc and creates a feature out of them
+using a hashing function. After that, as we want it to be more dense with more
+information, we will increase the algorithm’s radius by 1; now it will include
 the information of the atom as well as its immediate neighbour. Now if we
-increase it's radius again by 1 then it will include information about it's
-neighbour's neighbour also.
+increase its radius again by 1, then it will include information about its
+neighbour’s neighbour also.
 
 .. math::
 
@@ -276,6 +277,66 @@ atomic/molecular systems.
    Formal Charge: It is the hypothetical charge assigned to an atom in a
    molecule when we assume bond electrons are shared equally between atoms.
 
+Example
+-------
+
+A molecule is built in three steps: create it from its atomic numbers and
+formal charges, add the bonds, then hash it into a fingerprint. Benzene
+:math:`\mathrm{C_6H_6}` is six aromatic carbons in a ring, each carrying one
+hydrogen:
+
+.. code:: text
+
+    C6H6_atomic_num: ℝ[12] = [6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1]
+    C6H6_formal_charge: ℝ[12] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    C6H6: Molecule = new_molecule(C6H6_atomic_num, C6H6_formal_charge)
+
+    C6H6.add_weighted_edge(0.0, 1.0, 1.5)
+    C6H6.add_weighted_edge(1.0, 2.0, 1.5)
+    C6H6.add_weighted_edge(2.0, 3.0, 1.5)
+    C6H6.add_weighted_edge(3.0, 4.0, 1.5)
+    C6H6.add_weighted_edge(4.0, 5.0, 1.5)
+    C6H6.add_weighted_edge(5.0, 0.0, 1.5)
+    C6H6.add_edge(0.0, 6.0)
+    C6H6.add_edge(1.0, 7.0)
+    C6H6.add_edge(2.0, 8.0)
+    C6H6.add_edge(3.0, 9.0)
+    C6H6.add_edge(4.0, 10.0)
+    C6H6.add_edge(5.0, 11.0)
+
+Toluene :math:`\mathrm{C_7H_8}` is the same ring with one hydrogen replaced by
+a methyl group, and methane :math:`\mathrm{CH_4}` is a single carbon with four
+hydrogens. With all three built, ``ecfp`` folds each one into a bit vector and
+``tanimoto`` compares them:
+
+.. code:: text
+
+    CH4_ecfp4: ℝ[N_BITS] = ecfp(CH4, 4)
+    C6H6_ecfp4: ℝ[N_BITS] = ecfp(C6H6, 4)
+    C7H8_ecfp4: ℝ[N_BITS] = ecfp(C7H8, 4)
+
+    sum(CH4_ecfp4)
+    sum(C6H6_ecfp4)
+    sum(C7H8_ecfp4)
+
+    tanimoto(C6H6_ecfp4, C6H6_ecfp4)
+    tanimoto(C6H6_ecfp4, C7H8_ecfp4)
+    tanimoto(CH4_ecfp4, C6H6_ecfp4)
+    tanimoto(CH4_ecfp4, C7H8_ecfp4)
+
+Output::
+
+   3.0 ∈ ℝ
+   3.0 ∈ ℝ
+   12.0 ∈ ℝ
+   1.0 ∈ ℝ
+   0.25 ∈ ℝ
+   0.0 ∈ ℝ
+   0.0 ∈ ℝ
+
+A molecule compared with itself gives :math:`1`. Toluene shares 3 of its bits
+with benzene, Methane shares nothing with either ring, giving :math:`0`.
+
 Limitations of ECFP
 -------------------
 
@@ -407,7 +468,8 @@ same environment always get the same identifier.
 Tanimoto Similarity
 ~~~~~~~~~~~~~~~~~~~
 
-The Tanimoto similarity of two binary fingerprints :math:`a` and :math:`b` is
+The Tanimoto similarity [Tanimoto1958]_, also known as the Jaccard index
+[Jaccard1901]_, of two binary fingerprints :math:`a` and :math:`b` is
 the number of bits set in both divided by the number of bits set in either.
 It is :math:`1` for identical fingerprints and :math:`0` when no bits are
 shared.
@@ -426,270 +488,29 @@ shared.
 Full Code
 ---------
 
-.. code:: text
-
-    BITS: ℕ = 32
-
-    def modulo(s: R, m: R): R:
-        r: R = s
-        d: R = m * (2.0 ** (BITS - 1))
-        for k:ℕ(BITS):
-            if r >= d:
-                r = r - d
-            d = d / 2.0
-        return r
-
-    M: ℝ = 65521.0
-    N_BITS: ℕ = 2048
-    def hash_list(xs: ℝ[n]): ℝ:
-        h: ℝ = 17.0
-        for i : ℕ(len(xs)):
-            h = modulo(h * 31.0 + xs[i], M)
-        return h
-
-    def hash_step(h: ℝ, x: ℝ): ℝ:
-        return modulo(h * 31.0 + x, M)
-
-    def bubble_sort(xs: ℝ[n]): ℝ[n]:
-        k: ℕ = len(xs)
-        ys: ℝ[k] = for a : ℕ(k) → xs[a]
-        for i : ℕ(k):
-            for j : ℕ(k - 1):
-                if ys[j] > ys[j + 1]:
-                    t: ℝ = ys[j] + 0.0
-                    ys[j] = ys[j + 1]
-                    ys[j + 1] = t
-        return ys
-
-    def get_2d_array_num_rows(x: R[m, n]): ℝ:
-        total: ℝ = 0
-        temp: ℝ = 0
-        for i:
-            temp = x[i]
-            total += 1
-        return total
-
-    class Molecule():
-        adjacency: ℝ[n, n]
-        atomic_num: ℝ[n]
-        formal_charge: ℝ[n]
-        def num_atoms() → ℝ:
-            return get_2d_array_num_rows(this.adjacency) * 1.0
-        def has_edge(u: ℝ, v: ℝ) → ℝ:
-            m: ℝ[n, n] = this.adjacency
-            r: ℝ[n] = m[u]
-            return r[v]
-        def neighbors(u: ℝ) → ℝ[n]:
-            m: ℝ[n, n] = this.adjacency
-            return m[u]
-        def add_weighted_edge(u: ℝ, v: ℝ, w: ℝ):
-            m: ℝ[n, n] = this.adjacency
-            k: R = get_2d_array_num_rows(m)
-            new_adj: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → m[a, b]
-            new_adj[u, v] = w
-            new_adj[v, u] = w
-            this.adjacency = new_adj
-        def add_edge(u: ℝ, v: ℝ):
-            this.add_weighted_edge(u, v, 1.0)
-
-    def new_molecule(atomic_num: ℝ[n], formal_charge: ℝ[n]): Molecule:
-        n_atoms: ℕ = len(atomic_num)
-        z: ℝ[n_atoms, n_atoms] = for a : ℕ(n_atoms) → for b : ℕ(n_atoms) → (a + b) * 0.0
-        g: Molecule = Molecule()
-        g.adjacency = z
-        g.atomic_num = atomic_num
-        g.formal_charge = formal_charge
-        return g
-
-    def degree(g: Molecule, u: ℕ): ℝ:
-        m: ℝ[n, n] = g.adjacency
-        k: R = get_2d_array_num_rows(m)
-        d: ℝ = 0
-        for v : ℕ(k):
-            if m[u, v] > 0.0:
-                d += 1
-        return d
-
-    def hydrogens(g: Molecule, u: ℕ): ℝ:
-        m: ℝ[n, n] = g.adjacency
-        z: ℝ[n] = g.atomic_num
-        k: R = get_2d_array_num_rows(m)
-        h: ℝ = 0
-        for v : ℕ(k):
-            if m[u, v] > 0.0:
-                if z[v] == 1.0:
-                    h += 1
-        return h
-
-    def aromatic(g: Molecule, u: ℕ): ℝ:
-        m: ℝ[n, n] = g.adjacency
-        k: R = get_2d_array_num_rows(m)
-        r: ℝ = 0
-        for v : ℕ(k):
-            if m[u, v] == 1.5:
-                r = 1
-        return r
-
-    def invariants(g: Molecule): ℝ[5, n]:
-        m: ℝ[n, n] = g.adjacency
-        z: ℝ[n] = g.atomic_num
-        c: ℝ[n] = g.formal_charge
-        k: R = get_2d_array_num_rows(m)
-        inv: ℝ[5, k] = for i : ℕ(5) → for a : ℕ(k) → a * 0.0
-        for a : ℕ(k):
-            inv[0, a] = z[a]
-            inv[1, a] = degree(g, a)
-            inv[2, a] = c[a]
-            inv[3, a] = hydrogens(g, a)
-            inv[4, a] = aromatic(g, a)
-        return inv
-
-    def initial_ids(g: Molecule): ℝ[n]:
-        inv: ℝ[5, n] = invariants(g)
-        k: R = get_2d_array_num_rows(g.adjacency)
-        new_ids: ℝ[k] = for a : ℕ(k) → a * 0.0
-        for a : ℕ(k):
-            new_ids[a] = hash_list(inv[:, a])
-        return new_ids
-
-    def update_ids(g: Molecule, ids: ℝ[n], r: ℝ): ℝ[n]:
-        m: ℝ[n, n] = g.adjacency
-        k: R = get_2d_array_num_rows(m)
-        new_ids: ℝ[k] = for a : ℕ(k) → a * 0.0
-        keys: ℝ[k] = for a : ℕ(k) → a * 0.0
-        for u : ℕ(k):
-            for v : ℕ(k):
-                keys[v] = 0.0
-                if m[u, v] > 0.0:
-                    keys[v] = 2.0 * m[u, v] * M + ids[v]
-            keys = bubble_sort(keys)
-            h: ℝ = 17.0
-            h = hash_step(h, r)
-            h = hash_step(h, ids[u])
-            for i : ℕ(k):
-                if keys[i] > 0.0:
-                    h = hash_step(h, keys[i])
-            new_ids[u] = h
-        return new_ids
-
-    def fingerprint(g: Molecule, radius: ℝ): ℝ[N_BITS]:
-        z: ℝ[n] = g.atomic_num
-        k: R = get_2d_array_num_rows(g.adjacency)
-        fp: ℝ[N_BITS] = for b : ℕ(N_BITS) → b * 0.0
-        ids: ℝ[n] = initial_ids(g)
-        for a : ℕ(k):
-            if z[a] > 1.0:
-                fp[modulo(ids[a], N_BITS)] = 1.0
-        for r : ℕ(radius):
-            ids = update_ids(g, ids, r + 1.0)
-            for a : ℕ(k):
-                if z[a] > 1.0:
-                    fp[modulo(ids[a], N_BITS)] = 1.0
-        return fp
-
-    def ecfp(g: Molecule, diameter: ℝ): ℝ[N_BITS]:
-        return fingerprint(g, diameter / 2.0)
-
-    def tanimoto(a: ℝ[n], b: ℝ[n]): ℝ:
-        both: ℝ = sum(a * b)
-        return both / (sum(a) + sum(b) - both)
-
-    CH4_atomic_num: ℝ[5] = [6, 1, 1, 1, 1]
-    CH4_formal_charge: ℝ[5] = [0, 0, 0, 0, 0]
-    CH4: Molecule = new_molecule(CH4_atomic_num, CH4_formal_charge)
-
-    CH4.add_edge(0.0, 1.0)
-    CH4.add_edge(0.0, 2.0)
-    CH4.add_edge(0.0, 3.0)
-    CH4.add_edge(0.0, 4.0)
-
-    invariants(CH4)
-
-    # 1. initialize the atoms
-    C6H6_atomic_num: ℝ[12] = [6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1]
-    C6H6_formal_charge: ℝ[12] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    C6H6: Molecule = new_molecule(C6H6_atomic_num, C6H6_formal_charge)
-
-    # 2. add the bonds: aromatic ring (bond order 1.5), then the C-H bonds
-    C6H6.add_weighted_edge(0.0, 1.0, 1.5)
-    C6H6.add_weighted_edge(1.0, 2.0, 1.5)
-    C6H6.add_weighted_edge(2.0, 3.0, 1.5)
-    C6H6.add_weighted_edge(3.0, 4.0, 1.5)
-    C6H6.add_weighted_edge(4.0, 5.0, 1.5)
-    C6H6.add_weighted_edge(5.0, 0.0, 1.5)
-    C6H6.add_edge(0.0, 6.0)
-    C6H6.add_edge(1.0, 7.0)
-    C6H6.add_edge(2.0, 8.0)
-    C6H6.add_edge(3.0, 9.0)
-    C6H6.add_edge(4.0, 10.0)
-    C6H6.add_edge(5.0, 11.0)
-
-    # 3. compute the invariants from the atoms and bonds
-    invariants(C6H6)
-
-    # 1. initialize the atoms
-    C7H8_atomic_num: ℝ[15] = [6, 6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1]
-    C7H8_formal_charge: ℝ[15] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    C7H8: Molecule = new_molecule(C7H8_atomic_num, C7H8_formal_charge)
-
-    # 2. add the bonds: aromatic ring, ring-methyl bond, then the C-H bonds
-    C7H8.add_weighted_edge(0.0, 1.0, 1.5)
-    C7H8.add_weighted_edge(1.0, 2.0, 1.5)
-    C7H8.add_weighted_edge(2.0, 3.0, 1.5)
-    C7H8.add_weighted_edge(3.0, 4.0, 1.5)
-    C7H8.add_weighted_edge(4.0, 5.0, 1.5)
-    C7H8.add_weighted_edge(5.0, 0.0, 1.5)
-    C7H8.add_edge(0.0, 6.0)
-    C7H8.add_edge(1.0, 7.0)
-    C7H8.add_edge(2.0, 8.0)
-    C7H8.add_edge(3.0, 9.0)
-    C7H8.add_edge(4.0, 10.0)
-    C7H8.add_edge(5.0, 11.0)
-    C7H8.add_edge(6.0, 12.0)
-    C7H8.add_edge(6.0, 13.0)
-    C7H8.add_edge(6.0, 14.0)
-
-    # 3. compute the invariants from the atoms and bonds
-    # carbon 0 has lost its hydrogen, and the methyl carbon is not aromatic
-    invariants(C7H8)
-
-    # Morgan update: each round, an atom's new identifier hashes
-    # the round number, its own identifier, and the sorted
-    # (bond order, identifier) pairs of its neighbours
-    CH4_ids0: ℝ[5] = initial_ids(CH4)
-    CH4_ids1: ℝ[5] = update_ids(CH4, CH4_ids0, 1.0)
-    CH4_ids2: ℝ[5] = update_ids(CH4, CH4_ids1, 2.0)
-    CH4_ids1
-    CH4_ids2
-
-    C6H6_ids0: ℝ[12] = initial_ids(C6H6)
-    C6H6_ids1: ℝ[12] = update_ids(C6H6, C6H6_ids0, 1.0)
-    C6H6_ids2: ℝ[12] = update_ids(C6H6, C6H6_ids1, 2.0)
-    C6H6_ids1
-    C6H6_ids2
-
-    # ECFP4: fold every heavy-atom identifier from rounds 0..2
-    # into an N_BITS bit vector (bit = id mod N_BITS)
-    CH4_ecfp4: ℝ[N_BITS] = ecfp(CH4, 4)
-    C6H6_ecfp4: ℝ[N_BITS] = ecfp(C6H6, 4)
-    C7H8_ecfp4: ℝ[N_BITS] = ecfp(C7H8, 4)
-
-    # number of bits set
-    sum(CH4_ecfp4)
-    sum(C6H6_ecfp4)
-    sum(C7H8_ecfp4)
-
-    # Tanimoto similarity between the fingerprints
-    # a molecule compared with itself
-    tanimoto(C6H6_ecfp4, C6H6_ecfp4)
-    # toluene contains benzene's ring environments: 3 of its 12 bits are shared
-    tanimoto(C6H6_ecfp4, C7H8_ecfp4)
-    # methane shares no environments with either
-    tanimoto(CH4_ecfp4, C6H6_ecfp4)
-    tanimoto(CH4_ecfp4, C7H8_ecfp4)
+.. literalinclude:: ../../tutorials/circular_fingerprints.phyk
+   :language: text
 
 References
 ----------
+
+.. [RogersHahn2010] David Rogers and Mathew Hahn.
+   "Extended-Connectivity Fingerprints."
+   *Journal of Chemical Information and Modeling*, 2010.
+
+.. [Morgan1965] H. L. Morgan.
+   "The Generation of a Unique Machine Description for Chemical Structures -
+   A Technique Developed at Chemical Abstracts Service."
+   *Journal of Chemical Documentation*, 1965.
+
+.. [Tanimoto1958] T. T. Tanimoto.
+   *An Elementary Mathematical Theory of Classification and Prediction*.
+   IBM Internal Report, 1958.
+
+.. [Jaccard1901] Paul Jaccard.
+   "Etude comparative de la distribution florale dans une portion des Alpes
+   et des Jura."
+   *Bulletin de la Societe Vaudoise des Sciences Naturelles*, 1901.
 
 .. [PattersonHennessy] David A. Patterson and John L. Hennessy.
    *Computer Organization and Design: The Hardware/Software Interface*.
