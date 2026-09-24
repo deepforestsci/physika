@@ -1,9 +1,11 @@
 Circular Fingerprints
 =====================
 
-In this tutorial, we introduce a way of representing molecules called a
-**molecular fingerprint**. While there are many ways to represent molecules,
-a molecular fingerprint is simple and easy to use across many applications.
+In this tutorial, we introduce **molecular fingerprint**, a efficient way of
+representing molecules. Although there are many ways to represent molecules,
+a molecular fingerprint is simple and versatile making them useful for
+molecular similarity search, virtual screening, drug discovery, toxicity
+prediction etc.
 
 .. note::
 
@@ -17,15 +19,15 @@ What is a Fingerprint?
 
 For applying almost all of the computational techniques on atomic systems, we
 need to have a mathematical representation of them. This creates a task of how
-to do so; with this also comes the question of what information to include in it.
-Does representing H2O Water according to its atomic number [1, 8, 1] make it
-useful for the Chem Statistician? In a world where we don’t know what
-this array represents, we will think that index 1 is 8 times index 0, something
-like this we will think, but does oxygen equal 8 hydrogens? It does not, and we
-know this. But how will we tell the machine about it? To overcome these
-problems, molecular fingerprints try to convert these data into forms which are
-interrelated and also easy to use for algorithms. One such fingerprinting
-technique is Extended Connectivity Fingerprint or ECFP. [RogersHahn2010]_
+to do so; with this also comes the question of what information to include in
+it. Does representing H2O Water according to its atomic number [1, 8, 1] make
+it useful for the Chem Statistician? In a world where we don’t know what this
+array represents, we will think that index 1 is 8 times index 0, but does
+oxygen equal 8 hydrogens? It does not, and we know this. But how will we tell
+the machine about it? To overcome these problems, molecular fingerprints try to
+convert these data into forms which are interrelated and also easy to use for
+algorithms. One such fingerprinting technique is Extended Connectivity
+Fingerprint or ECFP. [RogersHahn2010]_
 
 Morgan Algorithm
 ----------------
@@ -77,7 +79,7 @@ neighbour’s neighbour also.
 
     def fingerprint(g: Molecule, radius: ℝ): ℝ[N_BITS]:
         z: ℝ[n] = g.atomic_num
-        k: R = get_2d_array_num_rows(g.adjacency)
+        k: ℝ = get_2d_array_num_rows(g.adjacency)
         fp: ℝ[N_BITS] = for b : ℕ(N_BITS) → b * 0.0
         ids: ℝ[n] = initial_ids(g)
         for a : ℕ(k):
@@ -97,21 +99,21 @@ Atom Invariants
 ---------------
 
 Before looking at any neighbours, each atom is described by five numbers,
-called its invariants because they do not depend on how the atoms are
-numbered:
+called its invariants. These properties/numbers does not depends on the
+ordering of the atoms:
 
-1. atomic number
-2. degree, the number of bonded atoms
-3. formal charge
-4. number of attached hydrogens
-5. aromatic, :math:`1` if the atom has an aromatic (order 1.5) bond,
+1. Atomic number
+2. Degree, the number of bonded atoms
+3. Formal charge
+4. Number of attached hydrogens
+5. Aromatic, :math:`1` if the atom has an aromatic (order 1.5) bond,
    otherwise :math:`0`
 
 .. code:: text
 
     def degree(g: Molecule, u: ℕ): ℝ:
         m: ℝ[n, n] = g.adjacency
-        k: R = get_2d_array_num_rows(m)
+        k: ℝ = get_2d_array_num_rows(m)
         d: ℝ = 0
         for v : ℕ(k):
             if m[u, v] > 0.0:
@@ -121,7 +123,7 @@ numbered:
     def hydrogens(g: Molecule, u: ℕ): ℝ:
         m: ℝ[n, n] = g.adjacency
         z: ℝ[n] = g.atomic_num
-        k: R = get_2d_array_num_rows(m)
+        k: ℝ = get_2d_array_num_rows(m)
         h: ℝ = 0
         for v : ℕ(k):
             if m[u, v] > 0.0:
@@ -131,7 +133,7 @@ numbered:
 
     def aromatic(g: Molecule, u: ℕ): ℝ:
         m: ℝ[n, n] = g.adjacency
-        k: R = get_2d_array_num_rows(m)
+        k: ℝ = get_2d_array_num_rows(m)
         r: ℝ = 0
         for v : ℕ(k):
             if m[u, v] == 1.5:
@@ -142,12 +144,12 @@ numbered:
         m: ℝ[n, n] = g.adjacency
         z: ℝ[n] = g.atomic_num
         c: ℝ[n] = g.formal_charge
-        k: R = get_2d_array_num_rows(m)
+        k: ℝ = get_2d_array_num_rows(m)
         inv: ℝ[5, k] = for i : ℕ(5) → for a : ℕ(k) → a * 0.0
+        inv[0, :] = z
+        inv[2, :] = c
         for a : ℕ(k):
-            inv[0, a] = z[a]
             inv[1, a] = degree(g, a)
-            inv[2, a] = c[a]
             inv[3, a] = hydrogens(g, a)
             inv[4, a] = aromatic(g, a)
         return inv
@@ -171,7 +173,7 @@ The hash starts from :math:`h = 17` and adds one value at a time using
 
     def initial_ids(g: Molecule): ℝ[n]:
         inv: ℝ[5, n] = invariants(g)
-        k: R = get_2d_array_num_rows(g.adjacency)
+        k: ℝ = get_2d_array_num_rows(g.adjacency)
         new_ids: ℝ[k] = for a : ℕ(k) → a * 0.0
         for a : ℕ(k):
             new_ids[a] = hash_list(inv[:, a])
@@ -209,7 +211,7 @@ The hash adds one value at a time, starting from :math:`h = 17`, using
 
     def update_ids(g: Molecule, ids: ℝ[n], r: ℝ): ℝ[n]:
         m: ℝ[n, n] = g.adjacency
-        k: R = get_2d_array_num_rows(m)
+        k: ℝ = get_2d_array_num_rows(m)
         new_ids: ℝ[k] = for a : ℕ(k) → a * 0.0
         keys: ℝ[k] = for a : ℕ(k) → a * 0.0
         for u : ℕ(k):
@@ -255,7 +257,7 @@ atomic/molecular systems.
             return m[u]
         def add_weighted_edge(u: ℝ, v: ℝ, w: ℝ):
             m: ℝ[n, n] = this.adjacency
-            k: R = get_2d_array_num_rows(m)
+            k: ℝ = get_2d_array_num_rows(m)
             new_adj: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → m[a, b]
             new_adj[u, v] = w
             new_adj[v, u] = w
@@ -315,9 +317,9 @@ hydrogens. With all three built, ``ecfp`` folds each one into a bit vector and
     C6H6_ecfp4: ℝ[N_BITS] = ecfp(C6H6, 4)
     C7H8_ecfp4: ℝ[N_BITS] = ecfp(C7H8, 4)
 
-    sum(CH4_ecfp4)
-    sum(C6H6_ecfp4)
-    sum(C7H8_ecfp4)
+    get_sum_of_1d_array(CH4_ecfp4)
+    get_sum_of_1d_array(C6H6_ecfp4)
+    get_sum_of_1d_array(C7H8_ecfp4)
 
     tanimoto(C6H6_ecfp4, C6H6_ecfp4)
     tanimoto(C6H6_ecfp4, C7H8_ecfp4)
@@ -393,36 +395,14 @@ remainder.
 
 .. code-block:: text
 
-  def modulo(s: R, m: R): R:
-      r: R = s
-      d: R = m * (2.0 ** (BITS - 1))
+  def modulo(s: ℝ, m: ℝ): ℝ:
+      r: ℝ = s
+      d: ℝ = m * (2.0 ** (BITS - 1))
       for k:ℕ(BITS):
           if r >= d:
               r = r - d
           d = d / 2.0
       return r
-
-get_2d_array_num_rows
-~~~~~~~~~~~~~~~~~~~~~
-
-``get_2d_array_num_rows`` returns the number of rows :math:`m` of a
-two-dimensional array :math:`x \in \mathbb{R}^{m \times n}`. It is used to get
-the number of atoms from the :math:`n \times n` adjacency matrix. It counts the
-rows by looping over them and adding :math:`1` for each:
-
-.. math::
-
-    m = \sum_{i=1}^{m} 1
-
-.. code-block:: text
-
-    def get_2d_array_num_rows(x: R[m, n]): ℝ:
-        total: ℝ = 0
-        temp: ℝ = 0
-        for i:
-            temp = x[i]
-            total += 1
-        return total
 
 Bubble Sort
 ~~~~~~~~~~~
@@ -468,9 +448,10 @@ same environment always get the same identifier.
 Tanimoto Similarity
 ~~~~~~~~~~~~~~~~~~~
 
-The Tanimoto similarity [Tanimoto1958]_, also known as the Jaccard index
-[Jaccard1901]_, of two binary fingerprints :math:`a` and :math:`b` is
+The Tanimoto similarity , also known as the Jaccard index
+, of two binary fingerprints :math:`a` and :math:`b` is
 the number of bits set in both divided by the number of bits set in either.
+[Tanimoto1958]_ [Jaccard1901]_
 It is :math:`1` for identical fingerprints and :math:`0` when no bits are
 shared.
 
@@ -482,8 +463,8 @@ shared.
 .. code:: text
 
     def tanimoto(a: ℝ[n], b: ℝ[n]): ℝ:
-        both: ℝ = sum(a * b)
-        return both / (sum(a) + sum(b) - both)
+        both: ℝ = get_sum_of_1d_array(a * b)
+        return both / (get_sum_of_1d_array(a) + get_sum_of_1d_array(b) - both)
 
 Full Code
 ---------

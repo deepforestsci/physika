@@ -87,10 +87,10 @@ def invariants(g):
     c = g.formal_charge
     k = get_2d_array_num_rows(m)
     inv = torch.stack([torch.stack([(a * 0.0) for _fi_a in range(int(k)) for a in [torch.tensor(float(_fi_a), device=DEVICE)]]) for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    inv[int(0), :] = z
+    inv[int(2), :] = c
     for a in range(int(0), int(k)):
-        inv[int(0), int(a)] = z[int(a)]
         inv[int(1), int(a)] = degree(g, a)
-        inv[int(2), int(a)] = c[int(a)]
         inv[int(3), int(a)] = hydrogens(g, a)
         inv[int(4), int(a)] = aromatic(g, a)
     return inv
@@ -141,11 +141,17 @@ def fingerprint(g, radius):
 def ecfp(g, diameter):
     return fingerprint(g, (diameter / 2.0))
 
+def get_sum_of_1d_array(x):
+    total = 0
+    for i in range(len(x)):
+        total = total + x[int(i)]
+    return total
+
 def tanimoto(a, b, n=None):
     if n is None:
         n = int(a.shape[0])
-    both = torch.sum((a * b))
-    return (both / ((torch.sum(a) + torch.sum(b)) - both))
+    both = get_sum_of_1d_array((a * b))
+    return (both / ((get_sum_of_1d_array(a) + get_sum_of_1d_array(b)) - both))
 
 # === Classes ===
 class Molecule(nn.Module):
@@ -261,9 +267,9 @@ print(C6H6_ids2)
 CH4_ecfp4 = ecfp(CH4, 4)
 C6H6_ecfp4 = ecfp(C6H6, 4)
 C7H8_ecfp4 = ecfp(C7H8, 4)
-print(torch.sum(CH4_ecfp4 if isinstance(CH4_ecfp4, torch.Tensor) else torch.tensor(float(CH4_ecfp4))))
-print(torch.sum(C6H6_ecfp4 if isinstance(C6H6_ecfp4, torch.Tensor) else torch.tensor(float(C6H6_ecfp4))))
-print(torch.sum(C7H8_ecfp4 if isinstance(C7H8_ecfp4, torch.Tensor) else torch.tensor(float(C7H8_ecfp4))))
+print(get_sum_of_1d_array(CH4_ecfp4))
+print(get_sum_of_1d_array(C6H6_ecfp4))
+print(get_sum_of_1d_array(C7H8_ecfp4))
 print(tanimoto(C6H6_ecfp4, C6H6_ecfp4))
 print(tanimoto(C6H6_ecfp4, C7H8_ecfp4))
 print(tanimoto(CH4_ecfp4, C6H6_ecfp4))
