@@ -323,13 +323,6 @@ class TestGenerateClass:
         # check method
         assert "def ke(self):" in code
 
-        # params to be updated in backprop
-        assert "@property" in code
-        assert "def params(self):" in code
-        assert "return list(self.parameters())" in code
-        assert "def update(self, lr, grads):" in code
-        assert "p -= lr * g" in code
-
     def test_constructur_params_and_forward(self):
         """
         class with forward method treat learnable params as ``nn.Parameter``

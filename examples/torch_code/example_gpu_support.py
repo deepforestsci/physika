@@ -18,16 +18,6 @@ class MatrixMultiply(nn.Module):
         B = torch.as_tensor(B, device=DEVICE).float()
         return (A @ B)
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 x_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], device=DEVICE)
 n_values = 10

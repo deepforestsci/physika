@@ -36,16 +36,6 @@ class Simple(nn.Module):
             total = ((total + a) + b)
         return total
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class Pair(nn.Module):
     def __init__(self, a, b):
         super().__init__()
@@ -60,16 +50,6 @@ class Pair(nn.Module):
         this = self
         x, y = self.get()
         return (x + y)
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 class Model(nn.Module):
     def __init__(self, a, b):
@@ -90,16 +70,6 @@ class Model(nn.Module):
             total = ((total + p) + q)
         return total
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class Grid(nn.Module):
     def __init__(self, v):
         super().__init__()
@@ -114,16 +84,6 @@ class Grid(nn.Module):
             total = (((total + a) + b) + c)
         return total
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class Point(nn.Module):
     def __init__(self, x, y):
         super().__init__()
@@ -133,16 +93,6 @@ class Point(nn.Module):
     def get(self):
         this = self
         return (self.x, self.y)
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 class Vec4(nn.Module):
     def __init__(self, w, x, y, z):
@@ -156,16 +106,6 @@ class Vec4(nn.Module):
         this = self
         return ((self.w * 10), (self.x * 10), (self.y * 10), (self.z * 10))
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class Tensors(nn.Module):
     def __init__(self, a, b):
         super().__init__()
@@ -177,16 +117,6 @@ class Tensors(nn.Module):
         x, y = self.a, self.b
         return (x + y)
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class Vec2(nn.Module):
     def __init__(self, x, y):
         super().__init__()
@@ -196,16 +126,6 @@ class Vec2(nn.Module):
     def f(self):
         this = self
         return ((self.x * 10), (self.y * 10))
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 class A(nn.Module):
     def __init__(self, x, y, z, c1, c2, total1, total2):
@@ -229,16 +149,6 @@ class A(nn.Module):
     def return_Natural_type(self):
         this = self
         return self.total1
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 # === Program ===
 a, b, c, d = 1, 2, 3, 4

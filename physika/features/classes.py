@@ -166,7 +166,8 @@ def emit_method(
     to_expr: Callable,
     scalar_only: bool,
     resolved: Optional[tuple] = None,
-    resolved_names: Collection[str] = ()
+    resolved_names: Collection[str] = (),
+    grad_targets: Collection[str] = ()
 ) -> list[str]:
     """
     Emit code for a class method as an ``nn.Module`` class.
@@ -189,6 +190,10 @@ def emit_method(
         ``body``
     resolved_names: Collection[str]
         Function and method names that contains ``dim_var=None`` parameter.
+    grad_targets: Collection[str]
+        Variable names used as differentiation targets in ``grad()``
+        calls.  Collected by ``collect_grad_targets`` during the
+        analysis pass.
 
     Returns
     -------
@@ -268,9 +273,15 @@ def emit_method(
     for pname, ptype in params:
         if is_learnable(ptype):
             if pname != "learnable_grads":
-                method_lines.append(
-                    f"        {pname} = torch.as_tensor({pname}, device=DEVICE).float()"
-                )
+                if pname in grad_targets:
+                    method_lines.append(
+                        f"        {pname} = torch.as_tensor("
+                        f"{pname}, device=DEVICE).float().requires_grad_(True)"
+                    )
+                else:
+                    method_lines.append(
+                        f"        {pname} = torch.as_tensor({pname}, device=DEVICE).float()"
+                    )
 
     # lower torch code from CIC elaborated term
     if resolved is not None:
@@ -505,7 +516,8 @@ def generate_class(
                                   ast_to_torch_expr,
                                   scalar_only,
                                   resolved=method_resolved,
-                                  resolved_names=resolved_names)
+                                  resolved_names=resolved_names,
+                                  grad_targets=grad_targets)
         except Exception as e:
             # Method was CIC verified but torch_lowering failed
             # fall back to raw-AST codegen for this method.
@@ -518,20 +530,6 @@ def generate_class(
                                   scalar_only,
                                   resolved_names=resolved_names)
         class_lines.extend(m_lines)
-
-    # params property and gradient descent update helper
-    class_lines += [
-        "",
-        "    @property",
-        "    def params(self):",
-        "        return list(self.parameters())",
-        "",
-        "    def update(self, lr, grads):",
-        "        with torch.no_grad():",
-        "            for p, g in zip(self.parameters(), grads):",
-        "                if g is not None:",
-        "                    p -= lr * g",
-    ]
 
     return "\n".join(class_lines)
 
@@ -1226,7 +1224,7 @@ class ClassFeature(ELF):
                     if field_name in all_fields:
                         return from_typespec(all_fields[field_name]), s
                     # params and update are defined nn.Module methods
-                    if field_name in ("params", "update", "learnable_params"):
+                    if field_name in ("learnable_params"):
                         return None, s
                     add_error(
                         f"Class '{obj_type.class_name}' has no field '{field_name}'"

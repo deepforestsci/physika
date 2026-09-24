@@ -12,26 +12,46 @@ def tanh(x: ℝ): ℝ:
     return (exp(x) - exp(0.0 - x)) / (exp(x) + exp(0.0 - x))
 
 # ------------------------------------------------------------
-# Hamiltonian Network with Physics-Informed Loss
-# Input: x = [q, p] ∈ R[2], Output: H ∈ R
-# Loss enforces Hamilton's equations in a single expression
+# Hamiltonian Network with MSE loss (mean square error)
 # ------------------------------------------------------------
 
 
-class HamiltonianNet:
-    W1: ℝ[M,N]
-    b1: ℝ[M,1]
-    w2: ℝ[1,M]
-    b2: ℝ
-    def λ(x: ℝ[N, 1]) → ℝ[2, 1]:
-        h: ℝ[1, 1] = w2 @ tanh(W1 @ x + b1) + b2
-        dh_grad = grad(h, x)
-        dh_dp: R = dh_grad[1, 0]
-        dh_dq: R = -dh_grad[0, 0]
-        return [[dh_dp], [dh_dq]]
-     def loss(symplectic_gradient: ℝ[2], target: ℝ[N]) → ℝ:
-        lo : ℝ = (symplectic_gradient[0] - target[0]) ** 2.0 + (symplectic_gradient[1] - target[1]) ** 2.0
-        return lo
+def mse_loss(symplectic_gradient: ℝ[2], target_gradient: ℝ[N]): ℝ:
+    loss : ℝ = (symplectic_gradient[0] - target_gradient[0]) ** 2.0 + (symplectic_gradient[1] - target_gradient[1]) ** 2.0
+    return loss
+
+
+class HamiltonianNet(W1: ℝ[M,N], b1: ℝ[M,1], W2: ℝ[1,M], b2: ℝ):
+    def λ(x: ℝ[N, 1]) → ℝ[2]:
+        h: ℝ[1, 1] = W2 @ tanh(W1 @ x + b1) + b2
+        dh_grad: ℝ[2, 1] = grad(h, x)
+        dh_dp: ℝ = dh_grad[1, 0]
+        dh_dq: ℝ = -dh_grad[0, 0]
+        return [dh_dp, dh_dq]
+    def train(train_X: ℝ[8, 2, 1], train_y: ℝ[8, 2], epochs: ℕ, lr: R) → ℝ:
+        for epoch:ℕ(epochs):
+            loss = 0
+            for i:ℕ(8)
+                state = train_X[i]
+                target = train_y[i]
+                prediction = this(state)
+                loss = mse_loss(prediction, target)
+                learnable_grads = grad(loss, this.learnable_params)
+                this.update_params(lr, learnable_grads)
+        return loss
+    def evaluate(X: ℝ[8,2,1], y: ℝ[8,2]) → ℝ:
+        total_loss: ℝ = 0
+        for j:ℕ(8):
+            pred = this(X[j])
+            current_loss = mse_loss(pred, y[j])
+            total_loss = total_loss + current_loss
+        return total_loss / 8
+    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+        this.W1 = this.W1 - lr * learnable_grads[0]
+        this.b1 = this.b1 - lr * learnable_grads[1]
+        this.W2 = this.W2 - lr * learnable_grads[2]
+        this.b2 = this.b2 - lr * learnable_grads[3]
+
 
 # ------------------------------------------------------------
 # Training Data: Simple Harmonic Oscillator
@@ -48,57 +68,54 @@ X: ℝ[8,2,1] = [
     [[-0.7],[0.7]]
 ]
 
-y: ℝ[8,2,1] = [
-    [[1.0],[0.0]],
-    [[0.0],[-1.0]],
-    [[-1.0],[0.0]],
-    [[0.0],[1.0]],
-    [[0.5],[-0.5]],
-    [[-0.5],[0.5]],
-    [[-0.7],[-0.7]],
-    [[0.7],[0.7]]
+y: ℝ[8,2] = [
+    [1.0,0.0],
+    [0.0,-1.0],
+    [-1.0,0.0],
+    [0.0,1.0],
+    [0.5,-0.5],
+    [-0.5,0.5],
+    [-0.7,-0.7],
+    [0.7,0.7]
 ]
 
 # ------------------------------------------------------------
-# Initialize Hamiltonian Network (weights and bias can be hanfled in backend)
+# Initialize Hamiltonian Network 
 # ------------------------------------------------------------
-W1: ℝ[16,2] = [[0.5, 0.1], [0.1, 0.5], [0.3, 0.3], [0.4, 0.2],
-               [0.2, 0.4], [0.1, 0.1], [0.3, 0.1], [0.1, 0.3],
-               [0.2, 0.2], [0.4, 0.4], [0.5, 0.3], [0.3, 0.5],
-               [0.2, 0.1], [0.1, 0.2], [0.4, 0.1], [0.1, 0.4]]
-b1: ℝ[16,1] = [
-    [0.0],[0.0],[0.0],[0.0],
-    [0.0],[0.0],[0.0],[0.0],
-    [0.0],[0.0],[0.0],[0.0],
-    [0.0],[0.0],[0.0],[0.0]
-]
 
-w2: ℝ[1,16] = [[
- 0.1,0.1,0.1,0.1,
- 0.1,0.1,0.1,0.1,
- 0.1,0.1,0.1,0.1,
- 0.1,0.1,0.1,0.1
-]]
+# helper function to Initialize weights through random sample
+def rand_array(n:ℝ, m:ℝ, μ:ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+
+W1: ℝ[16,2] = rand_array(16, 2, 0.05)
+b1: ℝ[16,1] = rand_array(16, 1, 0.05)
+W2: ℝ[1,16] = rand_array(1, 16, 0.05)
 b2: ℝ = 0.0
 
-H_net = HamiltonianNet(W1, b1, w2, b2)
+
+H_net: HamiltonianNet = HamiltonianNet(W1, b1, W2, b2)
+
 
 # ------------------------------------------------------------
-# Evaluate before training
+# Evaluate Before Training 
 # ------------------------------------------------------------
-loss_before = evaluate(H_net, X, y)
-loss_before
+loss_before: ℝ = H_net.evaluate(X, y)
+print(loss_before)
+
 
 # ------------------------------------------------------------
-# Train HNN using the defined loss in class
+# Train Network (overfitting on small dataset)
+# If the model is not overfitting on 1000 epochs
+# set the epochs value to 5000
 # ------------------------------------------------------------
+epochs: ℕ = 1000
+lr: ℝ = 0.01
+train_loss: ℝ = H_net.train(X, y, epochs, lr)
+print(train_loss)
 
-epochs : ℕ = 500
-lr : ℝ = 0.01 
-H_trained = train(H_net, X, y, epochs, lr)
 
 # ------------------------------------------------------------
-# Evaluate after training
+# Evaluate After Training 
 # ------------------------------------------------------------
-loss_after = evaluate(H_trained, X, y)
-loss_after
+loss_after: ℝ = H_net.evaluate(X, y)
+print(loss_after)

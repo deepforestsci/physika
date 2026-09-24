@@ -27,16 +27,6 @@ class Conv1d(nn.Module):
         with torch.no_grad():
             self.b.copy_((self.b - (lr * learnable_grads[int(1)])))
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class MLP(nn.Module):
     def __init__(self, W1, b1, W2, b2):
         super().__init__()
@@ -66,16 +56,6 @@ class MLP(nn.Module):
         with torch.no_grad():
             self.b2.copy_((self.b2 - (lr * learnable_grads[int(3)])))
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 class SpectralConv(nn.Module):
     def __init__(self, weights1, in_ch, out_ch, modes):
         super().__init__()
@@ -99,16 +79,6 @@ class SpectralConv(nn.Module):
         lr = torch.as_tensor(lr, device=DEVICE).float()
         with torch.no_grad():
             self.weights1.copy_((self.weights1 - (lr * learnable_grads[int(0)])))
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 class FNO1d(nn.Module):
     def __init__(self, p, conv0, conv1, conv2, conv3, mlp0, mlp1, mlp2, mlp3, w0, w1, w2, w3, q):
@@ -197,16 +167,6 @@ class FNO1d(nn.Module):
                 self.q.update_params(lr, dq)
             last_loss = (epoch_loss / len_dataset)
         return last_loss
-
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
 
 # === Program ===
 width = 16
