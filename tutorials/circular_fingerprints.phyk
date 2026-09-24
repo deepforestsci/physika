@@ -1,8 +1,8 @@
 BITS: ℕ = 32
 
-def modulo(s: R, m: R): R:
-    r: R = s
-    d: R = m * (2.0 ** (BITS - 1))
+def modulo(s: ℝ, m: ℝ): ℝ:
+    r: ℝ = s
+    d: ℝ = m * (2.0 ** (BITS - 1))
     for k:ℕ(BITS):
         if r >= d:
             r = r - d
@@ -38,7 +38,7 @@ def bubble_sort(xs: ℝ[n]): ℝ[n]:
 # tutorials/undirected_graph.phyk): atoms are vertices and the
 # edge weight is the bond order
 # (0 = no bond, 1 = single, 2 = double, 3 = triple, 1.5 = aromatic)
-def get_2d_array_num_rows(x: R[m, n]): ℝ:
+def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
     total: ℝ = 0
     temp: ℝ = 0
     for i:
@@ -49,8 +49,7 @@ def get_2d_array_num_rows(x: R[m, n]): ℝ:
 # atomic_num, formal_charge: set once per atom when the molecule is created
 class Molecule():
     adjacency: ℝ[n, n]
-    atomic_num: ℝ[n]
-    formal_charge: ℝ[n]
+    atomic_num, formal_charge: ℝ[n]
     def num_atoms() → ℝ:
         return get_2d_array_num_rows(this.adjacency) * 1.0
     def has_edge(u: ℝ, v: ℝ) → ℝ:
@@ -62,7 +61,7 @@ class Molecule():
         return m[u]
     def add_weighted_edge(u: ℝ, v: ℝ, w: ℝ):
         m: ℝ[n, n] = this.adjacency
-        k: R = get_2d_array_num_rows(m)
+        k: ℝ = get_2d_array_num_rows(m)
         new_adj: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → m[a, b]
         new_adj[u, v] = w
         new_adj[v, u] = w
@@ -83,7 +82,7 @@ def new_molecule(atomic_num: ℝ[n], formal_charge: ℝ[n]): Molecule:
 # number of bonds of atom u (a double bond counts once)
 def degree(g: Molecule, u: ℕ): ℝ:
     m: ℝ[n, n] = g.adjacency
-    k: R = get_2d_array_num_rows(m)
+    k: ℝ = get_2d_array_num_rows(m)
     d: ℝ = 0
     for v : ℕ(k):
         if m[u, v] > 0.0:
@@ -94,7 +93,7 @@ def degree(g: Molecule, u: ℕ): ℝ:
 def hydrogens(g: Molecule, u: ℕ): ℝ:
     m: ℝ[n, n] = g.adjacency
     z: ℝ[n] = g.atomic_num
-    k: R = get_2d_array_num_rows(m)
+    k: ℝ = get_2d_array_num_rows(m)
     h: ℝ = 0
     for v : ℕ(k):
         if m[u, v] > 0.0:
@@ -105,7 +104,7 @@ def hydrogens(g: Molecule, u: ℕ): ℝ:
 # 1 if atom u has an aromatic (order 1.5) bond, else 0
 def aromatic(g: Molecule, u: ℕ): ℝ:
     m: ℝ[n, n] = g.adjacency
-    k: R = get_2d_array_num_rows(m)
+    k: ℝ = get_2d_array_num_rows(m)
     r: ℝ = 0
     for v : ℕ(k):
         if m[u, v] == 1.5:
@@ -118,12 +117,12 @@ def invariants(g: Molecule): ℝ[5, n]:
     m: ℝ[n, n] = g.adjacency
     z: ℝ[n] = g.atomic_num
     c: ℝ[n] = g.formal_charge
-    k: R = get_2d_array_num_rows(m)
+    k: ℝ = get_2d_array_num_rows(m)
     inv: ℝ[5, k] = for i : ℕ(5) → for a : ℕ(k) → a * 0.0
+    inv[0, :] = z
+    inv[2, :] = c
     for a : ℕ(k):
-        inv[0, a] = z[a]
         inv[1, a] = degree(g, a)
-        inv[2, a] = c[a]
         inv[3, a] = hydrogens(g, a)
         inv[4, a] = aromatic(g, a)
     return inv
@@ -132,7 +131,7 @@ def invariants(g: Molecule): ℝ[5, n]:
 # round 0: hash each atom's invariants
 def initial_ids(g: Molecule): ℝ[n]:
     inv: ℝ[5, n] = invariants(g)
-    k: R = get_2d_array_num_rows(g.adjacency)
+    k: ℝ = get_2d_array_num_rows(g.adjacency)
     new_ids: ℝ[k] = for a : ℕ(k) → a * 0.0
     for a : ℕ(k):
         new_ids[a] = hash_list(inv[:, a])
@@ -142,7 +141,7 @@ def initial_ids(g: Molecule): ℝ[n]:
 # neighbour keys 2 * bond * M + id (one number per (bond, id) pair)
 def update_ids(g: Molecule, ids: ℝ[n], r: ℝ): ℝ[n]:
     m: ℝ[n, n] = g.adjacency
-    k: R = get_2d_array_num_rows(m)
+    k: ℝ = get_2d_array_num_rows(m)
     new_ids: ℝ[k] = for a : ℕ(k) → a * 0.0
     keys: ℝ[k] = for a : ℕ(k) → a * 0.0
     for u : ℕ(k):
@@ -163,7 +162,7 @@ def update_ids(g: Molecule, ids: ℝ[n], r: ℝ): ℝ[n]:
 # set bit (id mod N_BITS) for every heavy atom in rounds 0..radius
 def fingerprint(g: Molecule, radius: ℝ): ℝ[N_BITS]:
     z: ℝ[n] = g.atomic_num
-    k: R = get_2d_array_num_rows(g.adjacency)
+    k: ℝ = get_2d_array_num_rows(g.adjacency)
     fp: ℝ[N_BITS] = for b : ℕ(N_BITS) → b * 0.0
     ids: ℝ[n] = initial_ids(g)
     for a : ℕ(k):
@@ -181,11 +180,18 @@ def fingerprint(g: Molecule, radius: ℝ): ℝ[N_BITS]:
 def ecfp(g: Molecule, diameter: ℝ): ℝ[N_BITS]:
     return fingerprint(g, diameter / 2.0)
 
+# sum of the entries of a 1D array
+def get_sum_of_1d_array(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    for i:
+        total += x[i]
+    return total
+
 # Tanimoto similarity of two bit vectors:
 # shared bits / bits set in either (1 = identical, 0 = nothing shared)
 def tanimoto(a: ℝ[n], b: ℝ[n]): ℝ:
-    both: ℝ = sum(a * b)
-    return both / (sum(a) + sum(b) - both)
+    both: ℝ = get_sum_of_1d_array(a * b)
+    return both / (get_sum_of_1d_array(a) + get_sum_of_1d_array(b) - both)
 
 # 1. initialize the atoms
 CH4_atomic_num: ℝ[5] = [6, 1, 1, 1, 1]
@@ -272,9 +278,9 @@ C6H6_ecfp4: ℝ[N_BITS] = ecfp(C6H6, 4)
 C7H8_ecfp4: ℝ[N_BITS] = ecfp(C7H8, 4)
 
 # number of bits set
-sum(CH4_ecfp4)
-sum(C6H6_ecfp4)
-sum(C7H8_ecfp4)
+get_sum_of_1d_array(CH4_ecfp4)
+get_sum_of_1d_array(C6H6_ecfp4)
+get_sum_of_1d_array(C7H8_ecfp4)
 
 # Tanimoto similarity between the fingerprints
 # a molecule compared with itself
