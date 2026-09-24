@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Tuple, Union, cast
-from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, TList, new_dim  # noqa: E501
+from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, TList, TDict, TUnion, new_dim  # noqa: E501
 from physika.utils.ast_utils import ASTNode
 from physika.elf import REGISTRY
 
@@ -351,6 +351,166 @@ def expr_list(node: Any,
         elem_types.append(et)
 
     return TList(tuple(elem_types)), cur
+
+
+def expr_dict(node: Any,
+              ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    Infer the type of dictionary literal ``{k0: v0, ..., kn: vn}``.
+
+    Each key and value is inferred independently All dictionary keys are
+    checked against the declared key type (homogeneous). Values can also
+    be declared as a ``TUnion`` type (heterogeneous).
+
+    Parameters
+    ----------
+    node : ASTNode
+        AST node of the form ``("dict", elements)`` where *elements* is a list
+        of ``(key, value)`` AST expression pairs.
+
+    ctx : ExprContext
+        Current inference context. ``ctx.s`` is threaded through each key and
+        value inference so later expressions see bindings from earlier ones.
+        When ``ctx.type_info`` contains a ``TDict``, its key and value types
+        are used to validate the dictionary contents. Type errors are
+        registered via ``ctx.add_error``.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(TDict(key_type, value_type), updated_s)`` where ``key_type`` is
+        the inferred dictionary key type and ``value_type`` is the inferred
+        value type. If multiple distinct value types are present,
+        ``value_type`` is represented as a ``TUnion``.
+
+    Examples
+    >>> from physika.utils.infer_expr import ExprContext, expr_dict
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext(
+    ...     {}, Substitution(), {}, {}, [].append,
+    ...     TDict(T_REAL, T_REAL)
+    ... )
+    >>> t, _ = expr_dict(
+    ...     ("dict", [
+    ...         (("num", 1), ("num", 2.0)),
+    ...         (("num", 2), ("num", 3.0)),
+    ...     ]),
+    ...     ctx
+    ... )
+    >>> t
+    Dict[ℝ, ℝ]
+    >>> ctx = ExprContext(
+    ...     {}, Substitution(), {}, {}, [].append,
+    ...     TDict(T_REAL, T_COMPLEX)
+    ... )
+    >>> t, _ = expr_dict(
+    ...     ("dict", [
+    ...         (("num", 1), ("num", 2.0)),
+    ...         (("num", 2), ("complex", 3)),
+    ...     ]),
+    ...     ctx
+    ... )
+    >>> t
+    Dict[ℝ, ℝ | ℂ]
+    """
+    # mypy fixes
+    if not isinstance(ctx.type_info, TDict):
+        ctx.add_error("Expected dictionary type information")
+        return None, ctx.s
+
+    from physika.utils.type_checker_utils import unify
+    elements = node[1]
+    if not elements:
+        return ctx.type_info, ctx.s
+
+    # list to store key and value types
+    key_types: list[Type] = []
+    value_types: list[Type] = []
+    cur = ctx.s
+    for e in elements:
+        if isinstance(e, tuple):
+            key_node, value_node = e
+            kt, cur = infer_expr(key_node, ctx.env, cur, ctx.func_env,
+                                 ctx.class_env, ctx.add_error)
+            vt, cur = infer_expr(value_node, ctx.env, cur, ctx.func_env,
+                                 ctx.class_env, ctx.add_error)
+            if kt is not None:
+                key_types.append(kt)
+            if vt is not None:
+                value_types.append(vt)
+
+    # declared key type, passed through ``infer_stmts/stmt_decl``
+    declared_key_type = ctx.type_info.key_type
+
+    key_base = key_types[0]
+
+    for i, kt in enumerate(key_types):
+        if declared_key_type is not None and kt is not None:
+            try:
+                cur = unify(declared_key_type, kt, cur)
+            except TypeError as e:
+                ctx.add_error(
+                    f"Inconsistent dictionary key types at index {i}: {e}")
+
+    # declared value type, passed through ``infer_stmts/stmt_decl``
+    # either scalar or Union of types.
+    declared_value_type = ctx.type_info.value_type
+
+    for i, vt in enumerate(value_types):
+        if vt is None:
+            continue
+
+        if isinstance(declared_value_type, TUnion):
+            allowed = False
+
+            for allowed_type in declared_value_type.types:
+                # unify TTensor type to allow general tensor declarations
+                # e.g :- ℝ[n], ℝ[m]
+                if isinstance(vt, TTensor) and isinstance(
+                        allowed_type, TTensor):
+                    try:
+                        cur = unify(vt, allowed_type, cur)
+                        allowed = True
+                        break
+                    except TypeError:
+                        pass
+                elif vt == allowed_type:
+                    allowed = True
+                    break
+
+            if not allowed:
+                ctx.add_error(
+                    f"Dictionary value at index {i} is not allowed by "
+                    f"declared value type {declared_value_type}")
+
+        elif isinstance(vt, TTensor) and isinstance(declared_value_type,
+                                                    TTensor):
+            try:
+                cur = unify(vt, declared_value_type, cur)
+            except TypeError:
+                ctx.add_error(
+                    f"Dictionary value at index {i} is not allowed by "
+                    f"declared value type {declared_value_type}")
+
+        elif vt != declared_value_type:
+            ctx.add_error(f"Dictionary value at index {i} is not allowed by "
+                          f"declared value type {declared_value_type}")
+
+    # Returns inferred value as unique set of values
+    unique_value_types: list[Type] = []
+    for vt in value_types:
+        if vt is None:
+            continue
+
+        if vt not in unique_value_types:
+            unique_value_types.append(vt)
+
+    if len(unique_value_types) == 1:
+        value_base = unique_value_types[0]
+    else:
+        value_base = TUnion(tuple(unique_value_types))
+
+    return TDict(key_base, value_base), cur
 
 
 def expr_chain_index(node: Any,
@@ -1241,6 +1401,7 @@ EXPR_DISPATCH: dict = {
     "imaginary": expr_imaginary,
     "array": expr_array,
     "list": expr_list,
+    "dict": expr_dict,
     "chain_index": expr_chain_index,
     "slice": expr_slice,
     "add": expr_add_sub,

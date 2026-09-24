@@ -4,8 +4,9 @@ import dataclasses
 
 from physika.utils.types import (TScalar, TTensor, TVar, TDim, TFunc,
                                  TInstance, T_REAL, T_NAT, T_COMPLEX, T_STRING,
-                                 TList, VarCounter, Substitution,
-                                 check_function, check_statement, check_class)
+                                 TList, TDict, TUnion, VarCounter,
+                                 Substitution, check_function, check_statement,
+                                 check_class)
 
 
 def make_fdef(params=None, stmts=None, body=None, return_type=None):
@@ -196,10 +197,51 @@ class TestHMTypes:
             )),
         )
 
+    def test_TDict(self):
+        """
+        TDicts are identified by their key and value types.
+        """
+        assert repr(TDict(T_REAL, T_REAL)) == "Dict[ℝ, ℝ]"
+
+        t1 = TDict(T_REAL, T_COMPLEX)
+        t2 = TDict(T_REAL, T_COMPLEX)
+        t3 = TDict(T_REAL, T_REAL)
+
+        assert repr(t1) == "Dict[ℝ, ℂ]"
+        assert repr(t3) == "Dict[ℝ, ℝ]"
+
+        assert t1 == t2
+        assert t1 != t3
+
+        union = TDict(
+            T_REAL,
+            TUnion((T_REAL, T_COMPLEX)),
+        )
+        assert union.value_type == TUnion((
+            T_REAL,
+            T_COMPLEX,
+        ))
+
+    def test_TUnion(self):
+        """
+        TUnions are identified by the types they contain and
+        display the contained types separated by ``|``.
+        """
+
+        t1 = TUnion((T_REAL, T_COMPLEX))
+        t2 = TUnion((T_REAL, T_COMPLEX))
+        t3 = TUnion((T_REAL, T_NAT))
+
+        assert repr(t1) == "ℝ | ℂ"
+        assert repr(t3) == "ℝ | ℕ"
+
+        assert t1 == t2
+        assert t1 != t3
+
     def test_TFunc(self):
         """
         TFunc is identified by its argument types and return type.
-        Two TFuncs are equal if their arg types and ret type are equal.
+        Two  are equal if their arg types and ret type are equal.
         """
         f1 = TFunc((TScalar("ℝ"), ), TScalar("ℝ"))
         f2 = TFunc((TScalar("ℝ"), ), TScalar("ℝ"))
@@ -560,6 +602,30 @@ class TestCheckFunction:
         check_function("f", fdef, func_env, {}, errors.append)
         assert errors == []
         assert func_env["f"][1] == TList((vec2, vec3))
+
+        # dictionary case, which should preserve the key and value types.
+        errors = []
+
+        fdef = make_fdef(
+            params=[],
+            stmts=[
+                (
+                    "body_decl",
+                    "d",
+                    ("dict_type", "ℝ", "ℝ"),
+                    ("dict", [
+                        (("num", 0), ("num", 5)),
+                        (("num", 1), ("num", 7)),
+                    ]),
+                ),
+            ],
+            body=("var", "d"),
+            return_type=("dict_type", "ℝ", "ℝ"),
+        )
+        func_env = {}
+        check_function("f", fdef, func_env, {}, errors.append)
+        assert errors == []
+        assert func_env["f"][1] == TDict(T_REAL, T_REAL)
 
         # A function without a declared return type does not report an error,
         # instead type is inferred so the type checker can proceed to check the

@@ -374,6 +374,100 @@ Each tuple-unpack node is emitted as a plain Python unpacking assignment (``a, b
 joins its elements with ``", "`` so ``a: ℝ, b: ℝ = 1.0, 2.0`` would get emitted as
 ``a, b = 1.0, 2.0``
 
+
+Dictionary
+~~~~~~~~~~
+
+``DictionaryFeature`` adds dictionary data type in Physika. This ELF provides 2 syntax to define 
+dictionary, along with empty declaration.
+
+
+**Empty dictionary declaration**: This syntax allows empty declarations, where values can later assigned
+through index-assignment (see ``examples/physika_dictionary.phyk`` for more details). It is also required
+to define type while declaring empty dictionary. In below code ``Dict[ℝ, ℝ]`` the first ℝ represents type of keys
+and second ℝ represents type of values.
+
+.. code-block:: text
+
+    empty_dict: Dict[ℝ, ℝ] = {}
+
+**Basic dictionary declaration**: This is a general dictionary declaration syntax.
+
+.. code-block:: text
+
+    simple_dict: Dict[ℝ, ℝ] = {
+        0: 1.6,
+        1: 3.2,
+        2: 5.5
+    }
+
+**Heterogeneous dictionary**: Physika also allows declaring dictionary with different data types for values 
+(note: only for values, keys are homogeneous). `` ℝ | ℂ | ℝ[n]`` gets wrapped as a union which has separate AST
+node, The basic syntax is:
+
+.. code-block:: text
+
+    union_dict: Dict[ℝ, ℝ | ℂ | ℝ[n]] = {
+        0: 1,
+        1: 3j,
+        2: 30,
+        3: [1, 2, 3]
+    }
+
+It is not necessary for a dictionary to contain values of every type specified in the declared value union.
+For example:
+
+.. code-block:: text
+
+    d: Dict[ℝ, ℝ | ℂ] = {
+        0: 1.6,
+        1: 3.2,
+        2: 5.5
+    }
+
+This ``d`` dictionary is valid dictionary even though it initially contains ℝ type values.
+Values can later be updated using any of types specified in declared value union (ℝ | ℂ).
+
+
+When updating dictionary values through indexing (using keys), the data type of new value
+must be compatible with the declared value type. For example:
+
+.. code-block:: text
+
+    d: Dict[ℝ, ℝ | ℝ[n]] = {
+        0: 1.6,
+        1: 3.2,
+        2: 5.5
+    }
+
+    d[2] = [1, 2, 3]
+    print(d)
+
+Here, ``d`` dictionary can be only updated with either ℝ value or ℝ[n] data type values.
+
+
+**Differentiability**: Physika's dictionaries are fully differentiable, The values must be compatible for 
+differentiability, For instance gradients cannot be computed of ℕ type values.
+
+.. code-block:: text
+
+    def scalar_f(x: ℝ): ℝ:
+        return x**2
+    
+    def array_f(x: ℝ[n]): ℝ:
+        return sum(for i:ℕ(n) → x[i]**2)
+
+
+    example_dict: Dict[ℝ, ℝ | ℝ[n]] = {
+        0: 1.0,
+        1: 2.0,
+        2: [1.0, 2.0, 3.0]
+    }
+
+    print(grad(scalar_f, union_dict[0]))
+    print(grad(array_f, union_dict[3]))
+
+
 References
 ----------
 
