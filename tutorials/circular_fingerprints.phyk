@@ -1,0 +1,292 @@
+BITS: ℕ = 32
+
+def modulo(s: ℝ, m: ℝ): ℝ:
+    r: ℝ = s
+    d: ℝ = m * (2.0 ** (BITS - 1))
+    for k:ℕ(BITS):
+        if r >= d:
+            r = r - d
+        d = d / 2.0
+    return r
+
+M: ℝ = 65521.0
+# length of the folded fingerprint bit vector
+N_BITS: ℕ = 2048
+def hash_list(xs: ℝ[n]): ℝ:
+    h: ℝ = 17.0
+    for i : ℕ(len(xs)):
+        h = modulo(h * 31.0 + xs[i], M)
+    return h
+
+# fold one more value into a running hash h
+def hash_step(h: ℝ, x: ℝ): ℝ:
+    return modulo(h * 31.0 + x, M)
+
+# ascending bubble sort (returns a sorted copy)
+def bubble_sort(xs: ℝ[n]): ℝ[n]:
+    k: ℕ = len(xs)
+    ys: ℝ[k] = for a : ℕ(k) → xs[a]
+    for i : ℕ(k):
+        for j : ℕ(k - 1):
+            if ys[j] > ys[j + 1]:
+                t: ℝ = ys[j] + 0.0
+                ys[j] = ys[j + 1]
+                ys[j + 1] = t
+    return ys
+
+# The molecule as an undirected graph (adapted from
+# tutorials/undirected_graph.phyk): atoms are vertices and the
+# edge weight is the bond order
+# (0 = no bond, 1 = single, 2 = double, 3 = triple, 1.5 = aromatic)
+def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+# atomic_num, formal_charge: set once per atom when the molecule is created
+class Molecule():
+    adjacency: ℝ[n, n]
+    atomic_num, formal_charge: ℝ[n]
+    def num_atoms() → ℝ:
+        return get_2d_array_num_rows(this.adjacency) * 1.0
+    def has_edge(u: ℝ, v: ℝ) → ℝ:
+        m: ℝ[n, n] = this.adjacency
+        r: ℝ[n] = m[u]
+        return r[v]
+    def neighbors(u: ℝ) → ℝ[n]:
+        m: ℝ[n, n] = this.adjacency
+        return m[u]
+    def add_weighted_edge(u: ℝ, v: ℝ, w: ℝ):
+        m: ℝ[n, n] = this.adjacency
+        k: ℝ = get_2d_array_num_rows(m)
+        new_adj: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → m[a, b]
+        new_adj[u, v] = w
+        new_adj[v, u] = w
+        this.adjacency = new_adj
+    def add_edge(u: ℝ, v: ℝ):
+        this.add_weighted_edge(u, v, 1.0)
+
+def new_molecule(atomic_num: ℝ[n], formal_charge: ℝ[n]): Molecule:
+    n_atoms: ℕ = len(atomic_num)
+    z: ℝ[n_atoms, n_atoms] = for a : ℕ(n_atoms) → for b : ℕ(n_atoms) → (a + b) * 0.0
+    g: Molecule = Molecule()
+    g.adjacency = z
+    g.atomic_num = atomic_num
+    g.formal_charge = formal_charge
+    return g
+
+# Atom invariants, computed from the atoms and bonds
+# number of bonds of atom u (a double bond counts once)
+def degree(g: Molecule, u: ℕ): ℝ:
+    m: ℝ[n, n] = g.adjacency
+    k: ℝ = get_2d_array_num_rows(m)
+    d: ℝ = 0
+    for v : ℕ(k):
+        if m[u, v] > 0.0:
+            d += 1
+    return d
+
+# number of hydrogens bonded to atom u
+def hydrogens(g: Molecule, u: ℕ): ℝ:
+    m: ℝ[n, n] = g.adjacency
+    z: ℝ[n] = g.atomic_num
+    k: ℝ = get_2d_array_num_rows(m)
+    h: ℝ = 0
+    for v : ℕ(k):
+        if m[u, v] > 0.0:
+            if z[v] == 1.0:
+                h += 1
+    return h
+
+# 1 if atom u has an aromatic (order 1.5) bond, else 0
+def aromatic(g: Molecule, u: ℕ): ℝ:
+    m: ℝ[n, n] = g.adjacency
+    k: ℝ = get_2d_array_num_rows(m)
+    r: ℝ = 0
+    for v : ℕ(k):
+        if m[u, v] == 1.5:
+            r = 1
+    return r
+
+# rows: atomic_num, degree, formal_charge, hydrogens, aromatic
+# one column per atom
+def invariants(g: Molecule): ℝ[5, n]:
+    m: ℝ[n, n] = g.adjacency
+    z: ℝ[n] = g.atomic_num
+    c: ℝ[n] = g.formal_charge
+    k: ℝ = get_2d_array_num_rows(m)
+    inv: ℝ[5, k] = for i : ℕ(5) → for a : ℕ(k) → a * 0.0
+    inv[0, :] = z
+    inv[2, :] = c
+    for a : ℕ(k):
+        inv[1, a] = degree(g, a)
+        inv[3, a] = hydrogens(g, a)
+        inv[4, a] = aromatic(g, a)
+    return inv
+
+# Morgan identifiers and the folded fingerprint
+# round 0: hash each atom's invariants
+def initial_ids(g: Molecule): ℝ[n]:
+    inv: ℝ[5, n] = invariants(g)
+    k: ℝ = get_2d_array_num_rows(g.adjacency)
+    new_ids: ℝ[k] = for a : ℕ(k) → a * 0.0
+    for a : ℕ(k):
+        new_ids[a] = hash_list(inv[:, a])
+    return new_ids
+
+# round r: hash r, the atom's identifier, and its sorted
+# neighbour keys 2 * bond * M + id (one number per (bond, id) pair)
+def update_ids(g: Molecule, ids: ℝ[n], r: ℝ): ℝ[n]:
+    m: ℝ[n, n] = g.adjacency
+    k: ℝ = get_2d_array_num_rows(m)
+    new_ids: ℝ[k] = for a : ℕ(k) → a * 0.0
+    keys: ℝ[k] = for a : ℕ(k) → a * 0.0
+    for u : ℕ(k):
+        for v : ℕ(k):
+            keys[v] = 0.0
+            if m[u, v] > 0.0:
+                keys[v] = 2.0 * m[u, v] * M + ids[v]
+        keys = bubble_sort(keys)
+        h: ℝ = 17.0
+        h = hash_step(h, r)
+        h = hash_step(h, ids[u])
+        for i : ℕ(k):
+            if keys[i] > 0.0:
+                h = hash_step(h, keys[i])
+        new_ids[u] = h
+    return new_ids
+
+# set bit (id mod N_BITS) for every heavy atom in rounds 0..radius
+def fingerprint(g: Molecule, radius: ℝ): ℝ[N_BITS]:
+    z: ℝ[n] = g.atomic_num
+    k: ℝ = get_2d_array_num_rows(g.adjacency)
+    fp: ℝ[N_BITS] = for b : ℕ(N_BITS) → b * 0.0
+    ids: ℝ[n] = initial_ids(g)
+    for a : ℕ(k):
+        if z[a] > 1.0:
+            fp[modulo(ids[a], N_BITS)] = 1.0
+    for r : ℕ(radius):
+        ids = update_ids(g, ids, r + 1.0)
+        for a : ℕ(k):
+            if z[a] > 1.0:
+                fp[modulo(ids[a], N_BITS)] = 1.0
+    return fp
+
+# ECFP_d: extended-connectivity fingerprint of diameter d
+# (ECFP4 = diameter 4 = radius 2, ECFP6 = radius 3)
+def ecfp(g: Molecule, diameter: ℝ): ℝ[N_BITS]:
+    return fingerprint(g, diameter / 2.0)
+
+# sum of the entries of a 1D array
+def get_sum_of_1d_array(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    for i:
+        total += x[i]
+    return total
+
+# Tanimoto similarity of two bit vectors:
+# shared bits / bits set in either (1 = identical, 0 = nothing shared)
+def tanimoto(a: ℝ[n], b: ℝ[n]): ℝ:
+    both: ℝ = get_sum_of_1d_array(a * b)
+    return both / (get_sum_of_1d_array(a) + get_sum_of_1d_array(b) - both)
+
+# 1. initialize the atoms
+CH4_atomic_num: ℝ[5] = [6, 1, 1, 1, 1]
+CH4_formal_charge: ℝ[5] = [0, 0, 0, 0, 0]
+CH4: Molecule = new_molecule(CH4_atomic_num, CH4_formal_charge)
+
+# 2. add the bonds
+CH4.add_edge(0.0, 1.0)
+CH4.add_edge(0.0, 2.0)
+CH4.add_edge(0.0, 3.0)
+CH4.add_edge(0.0, 4.0)
+
+# 3. compute the invariants from the atoms and bonds
+# rows: atomic_num, degree, formal_charge, hydrogens, aromatic
+invariants(CH4)
+
+# 1. initialize the atoms
+C6H6_atomic_num: ℝ[12] = [6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1]
+C6H6_formal_charge: ℝ[12] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+C6H6: Molecule = new_molecule(C6H6_atomic_num, C6H6_formal_charge)
+
+# 2. add the bonds: aromatic ring (bond order 1.5), then the C-H bonds
+C6H6.add_weighted_edge(0.0, 1.0, 1.5)
+C6H6.add_weighted_edge(1.0, 2.0, 1.5)
+C6H6.add_weighted_edge(2.0, 3.0, 1.5)
+C6H6.add_weighted_edge(3.0, 4.0, 1.5)
+C6H6.add_weighted_edge(4.0, 5.0, 1.5)
+C6H6.add_weighted_edge(5.0, 0.0, 1.5)
+C6H6.add_edge(0.0, 6.0)
+C6H6.add_edge(1.0, 7.0)
+C6H6.add_edge(2.0, 8.0)
+C6H6.add_edge(3.0, 9.0)
+C6H6.add_edge(4.0, 10.0)
+C6H6.add_edge(5.0, 11.0)
+
+# 3. compute the invariants from the atoms and bonds
+invariants(C6H6)
+
+# 1. initialize the atoms
+C7H8_atomic_num: ℝ[15] = [6, 6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1]
+C7H8_formal_charge: ℝ[15] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+C7H8: Molecule = new_molecule(C7H8_atomic_num, C7H8_formal_charge)
+
+# 2. add the bonds: aromatic ring, ring-methyl bond, then the C-H bonds
+C7H8.add_weighted_edge(0.0, 1.0, 1.5)
+C7H8.add_weighted_edge(1.0, 2.0, 1.5)
+C7H8.add_weighted_edge(2.0, 3.0, 1.5)
+C7H8.add_weighted_edge(3.0, 4.0, 1.5)
+C7H8.add_weighted_edge(4.0, 5.0, 1.5)
+C7H8.add_weighted_edge(5.0, 0.0, 1.5)
+C7H8.add_edge(0.0, 6.0)
+C7H8.add_edge(1.0, 7.0)
+C7H8.add_edge(2.0, 8.0)
+C7H8.add_edge(3.0, 9.0)
+C7H8.add_edge(4.0, 10.0)
+C7H8.add_edge(5.0, 11.0)
+C7H8.add_edge(6.0, 12.0)
+C7H8.add_edge(6.0, 13.0)
+C7H8.add_edge(6.0, 14.0)
+
+# 3. compute the invariants from the atoms and bonds
+# carbon 0 has lost its hydrogen, and the methyl carbon is not aromatic
+invariants(C7H8)
+
+# Morgan update: each round, an atom's new identifier hashes
+# the round number, its own identifier, and the sorted
+# (bond order, identifier) pairs of its neighbours
+CH4_ids0: ℝ[5] = initial_ids(CH4)
+CH4_ids1: ℝ[5] = update_ids(CH4, CH4_ids0, 1.0)
+CH4_ids2: ℝ[5] = update_ids(CH4, CH4_ids1, 2.0)
+CH4_ids1
+CH4_ids2
+
+C6H6_ids0: ℝ[12] = initial_ids(C6H6)
+C6H6_ids1: ℝ[12] = update_ids(C6H6, C6H6_ids0, 1.0)
+C6H6_ids2: ℝ[12] = update_ids(C6H6, C6H6_ids1, 2.0)
+C6H6_ids1
+C6H6_ids2
+
+# ECFP4: fold every heavy-atom identifier from rounds 0..2
+# into an N_BITS bit vector (bit = id mod N_BITS)
+CH4_ecfp4: ℝ[N_BITS] = ecfp(CH4, 4)
+C6H6_ecfp4: ℝ[N_BITS] = ecfp(C6H6, 4)
+C7H8_ecfp4: ℝ[N_BITS] = ecfp(C7H8, 4)
+
+# number of bits set
+get_sum_of_1d_array(CH4_ecfp4)
+get_sum_of_1d_array(C6H6_ecfp4)
+get_sum_of_1d_array(C7H8_ecfp4)
+
+# Tanimoto similarity between the fingerprints
+# a molecule compared with itself
+tanimoto(C6H6_ecfp4, C6H6_ecfp4)
+# toluene contains benzene's ring environments: 3 of its 12 bits are shared
+tanimoto(C6H6_ecfp4, C7H8_ecfp4)
+# methane shares no environments with either
+tanimoto(CH4_ecfp4, C6H6_ecfp4)
+tanimoto(CH4_ecfp4, C7H8_ecfp4)
