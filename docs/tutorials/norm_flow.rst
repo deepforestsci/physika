@@ -127,8 +127,8 @@ or equivalently, using the inverse form:
 
 Each Jacobian determinant in the product accounts for the local volume change introduced by the corresponding transformation.
 
-Training via Log-Likelihood
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+General Derivation of the Loss in a Normalizing Flow
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Maximum likelihood estimation (MLE)** [Wikipedia_MLE]_ finds the model parameters :math:`\theta` that make the observed data as likely as possible under the model.
 For a dataset :math:`\{x_1, \ldots, x_M\}`, this means choosing :math:`\theta` to maximize the **likelihood** :math:`\prod_{j=1}^{M} p_\theta(x_j)`, where :math:`p_\theta(x_j)` is the probability the model assigns to the :math:`j`-th data point and :math:`\prod` denotes the product over all :math:`M` samples.
@@ -186,6 +186,8 @@ The reparameterization trick sidesteps this by expressing the sample as a determ
 Since :math:`z` is now a smooth function of :math:`\mu` and :math:`\sigma`, gradients flow through :math:`z` to these parameters as with any other computation, without special handling by the user.
 
 A more detailed treatment of the change of variables formula and of flow-based models in general can be found in [DeepGenModels]_ and [Weng2018]_.
+The above derivation is a general formulation of the loss in a normalizing flow, and it applies to any choice of invertible transformations :math:`f_1, \ldots, f_K`.
+This crucial to understand before proceeding to the next section, as we derive the complete loss function for RealNVP in more detail, where we substitute the series of transformations into this general expression.
 
 
 Types of Normalizing Flows
@@ -247,10 +249,10 @@ This is not an exhaustive list, but below are some popular methods.
         .. code-block:: text
 
             def coupling(x: ℝ[d]): ℝ[d]:
-                x1: ℝ[n] = x[:this.n]
-                x2: ℝ[n] = x[this.n:]
-                s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
-                m: ℝ[n] = linear(relu(linear(x1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
+                x1: ℝ[n] = x[:n]
+                x2: ℝ[n] = x[n:]
+                s: ℝ[n] = linear(relu(linear(x1, W1_s, b1_s)), W2_s, b2_s)
+                m: ℝ[n] = linear(relu(linear(x1, W1_m, b1_m)), W2_m, b2_m)
                 return concat(x1, exp(s) * x2 + m)
 
     - Inverse Mapping (:math:`z \to x`):
@@ -263,10 +265,10 @@ This is not an exhaustive list, but below are some popular methods.
         .. code-block:: text
 
             def coupling_inv(y: ℝ[d]): ℝ[d]:
-                y1: ℝ[n] = y[:this.n]
-                y2: ℝ[n] = y[this.n:]
-                s: ℝ[n] = linear(relu(linear(y1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
-                m: ℝ[n] = linear(relu(linear(y1, this.W1_m, this.b1_m)), this.W2_m, this.b2_m)
+                y1: ℝ[n] = y[:n]
+                y2: ℝ[n] = y[n:]
+                s: ℝ[n] = linear(relu(linear(y1, W1_s, b1_s)), W2_s, b2_s)
+                m: ℝ[n] = linear(relu(linear(y1, W1_m, b1_m)), W2_m, b2_m)
                 return concat(y1, (y2 - m) * exp(-s))
 
     The inverse is straightforward: since :math:`x_1 = z_1` is already known, we can evaluate :math:`s(x_1)` and :math:`m(x_1)` and recover :math:`z_2 = (x_2 - m(x_1)) \odot \exp(-s(x_1))` in a single forward pass of the networks, making it easy to compute unlike the planar flow above.
@@ -321,8 +323,8 @@ This is not an exhaustive list, but below are some popular methods.
     .. code-block:: text
 
         def log_det(x: ℝ[d]): ℝ:
-            x1: ℝ[n] = x[:this.n]
-            s: ℝ[n] = linear(relu(linear(x1, this.W1_s, this.b1_s)), this.W2_s, this.b2_s)
+            x1: ℝ[n] = x[:n]
+            s: ℝ[n] = linear(relu(linear(x1, W1_s, b1_s)), W2_s, b2_s)
             return sum(s)
 
     Note that since :math:`s_i` can be any real number (positive or negative), the absolute value is accounted for by the exponential: :math:`e^{s_i} > 0\;\forall\, s_i \in \mathbb{R}`, so the determinant is always positive and the absolute value is no longer needed.
@@ -352,11 +354,13 @@ This is not an exhaustive list, but below are some popular methods.
 
     .. code-block:: text
 
+        def forward_z(x: ℝ[d]): ℝ[d]:
+            return coupling(x)
         def λ(x: ℝ[d]) -> ℝ:
-            z: ℝ[d] = this.forward_z(x)
-            return log_pz(z, this.d) + this.log_det(x)
+            z: ℝ[d] = forward_z(x)
+            return log_pz(z, d) + log_det(x)
         def loss(x: ℝ[784]): ℝ:
-            return -this(x)
+            return -λ(x)
         
     Minimizing :math:`\mathcal{L}` pushes the model to (a) map data points to high-density regions of the base distribution (via the :math:`\log p_Z` term) and (b) learn appropriate per-dimension scaling and shifting (via the :math:`\sum_k \sum_i s_i^{(k)}` term).
 
@@ -366,17 +370,14 @@ This is not an exhaustive list, but below are some popular methods.
     In Physika, sampling operations in flows are differentiable via the `SCG framework <https://physika.readthedocs.io/en/latest/elf.html#id2>`__: continuous distributions use the reparameterization trick, discrete ones use score function estimators.
     Gradients propagate through the full chain of transformations automatically.
 
-Implementing the RealNVP Normalizing Flow in Physika
-------------------------------------------------------
+Training a RealNVP Normalizing Flow in Physika
+----------------------------------------------
 
-The code block below contains the core components of the RealNVP model implemented in Physika as a single class.
+To train the model we need a RealNVP class (shown as a snippet below), which we use to instantiate a RealNVP model allowing us to refer to its methods (eg: ``this.loss``) and parameters (eg: ``this.W1_s``) with ``this.`` representing the instance of the class. 
 The coupling layer is implemented using two simple feedforward neural networks with one hidden layer and ReLU activation function: one for the scale :math:`s` and one for the shift :math:`m`.
 Unlike NICE, no separate rescale layer is needed because scaling is built into the affine coupling layers.
-In the next section, we will show how to train the RealNVP model on a simple image classification task.
-
-
-Note: The code below is for pedagogical purposes.
-Please refer to the next section for the complete standalone implementation for image classification.
+When calling the class (``this(x)``), runs the ``λ`` method, so ``this(x)`` is equivalent to ``λ(x)``. The above sections are implemented as individual methods, to illustrate the derivations in a simple manner.
+The Full Code section contains the complete Physika code, which can be run as-is.
 
 .. code-block:: text
 
@@ -409,18 +410,93 @@ Please refer to the next section for the complete standalone implementation for 
             return this.inverse(z)
         def loss(x: ℝ[784]): ℝ:
             return -this(x)
+        def train(X: ℝ[160, 784], epochs: ℕ, lr: ℝ, len_train: ℝ): ℝ[epochs]:
+            losses: ℝ[epochs] = for i:ℕ(epochs) -> i*0
+            for epoch: ℕ(epochs):
+                for i: ℕ(len_train):
+                    L = this.loss(X[i])
+                    learnable_grads = grad(L, this.learnable_params)
+                    this.update_params(lr, learnable_grads)
+                total = 0
+                for i:ℕ(len_train):
+                    total += this.loss(X[i])
+                epoch_loss = total/len_train
+                losses[epoch] = epoch_loss
+                print(epoch_loss)
+                bits = this.evaluate(epoch_loss, len_train)
+                print(bits)
+            return losses
+        def test(Y: ℝ[40, 784], len_test: ℝ): ℝ:
+            total: ℝ = 0
+            for i:ℕ(len_test):
+                total += this.loss(Y[i])
+            return total / len_test
+        def evaluate(num: ℝ, len: ℝ): ℝ:
+            return num / (this.d * log(2.0)) + 8.0
+        def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+            this.W1_s = this.W1_s - lr * learnable_grads[0]
+            this.b1_s = this.b1_s - lr * learnable_grads[1]
+            this.W2_s = this.W2_s - lr * learnable_grads[2]
+            this.b2_s = this.b2_s - lr * learnable_grads[3]
+            this.W1_m = this.W1_m - lr * learnable_grads[4]
+            this.b1_m = this.b1_m - lr * learnable_grads[5]
+            this.W2_m = this.W2_m - lr * learnable_grads[6]
+            this.b2_m = this.b2_m - lr * learnable_grads[7]
 
-Training a RealNVP Normalizing Flow on the MNIST Dataset
----------------------------------------------------------------------------------
-This is the complete code for training a model on the MNIST dataset using the RealNVP Normalizing Flow.
+In the ``train`` method, the loss is computed for each image, the gradient of the loss with respect to the learnable parameters is computed with ``grad``, and the parameters are updated with a simple gradient descent step.
+For convenient gradient computation ``this.learnable_params`` is a built-in that collects all the parameters of the class that are differentiable, so ``grad`` returns a list of gradients in the same order as the parameters.
+The ``update_params`` method uses simple gradient descent, more sophisticated optimizers can be used as well.
+
+So when training the model the entire training looks like the snippet below, shown is a simplified example on dummy data:
+
+.. code-block:: text
+
+    # dummy data all zeros
+    train_X: ℝ[160, 28, 28] = for i:ℕ(160) -> for j:ℕ(28) -> for k:ℕ(28) -> k*0
+    test_X: ℝ[40, 28, 28] = for i:ℕ(40) -> for j:ℕ(28) -> for k:ℕ(28) -> k*0
+    len_train: ℝ, len_test: ℝ = 160, 40
+
+    # Dimensions
+    d: ℝ, h: ℝ, n: ℝ = 784, 128, 392
+    # He init, near-zero output so coupling starts near identity
+    s1: ℝ, s2: ℝ = sqrt(2.0 / n), sqrt(2.0 / h) * 0.01
+    W1_s, W1_m = for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n), for i:ℕ(h) -> ε: ℝ[n] ~ Normal(0.0, s1, n)
+    b1_s, b1_m = for i:ℕ(h) -> i*0, for i:ℕ(h) -> i*0
+    W2_s, W2_m = for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h), for i:ℕ(n) -> ε: ℝ[h] ~ Normal(0.0, s2, h)
+    b2_s, b2_m = for i:ℕ(n) -> i*0, for i:ℕ(n) -> i*0
+
+    realnvp: RealNVP = RealNVP(W1_s, b1_s, W2_s, b2_s, W1_m, b1_m, W2_m, b2_m, n, d)
+
+    train_flat: ℝ[len_train, d] = for i:ℕ(len_train) -> for j:ℕ(d) -> j*0
+    X: ℝ[160,784] = train_flat
+    Y: ℝ[40,784] = test_flat
+
+    epochs: ℕ = 20
+    lr: ℝ = 0.00015
+    losses: ℝ[epochs] = realnvp.train(X, epochs, lr, len_train)
+    test_loss: ℝ = realnvp.test(Y, len_test)
+    bits: ℝ = realnvp.evaluate(test_loss, len_test)
+    gen_flat: ℝ[d] = realnvp.sample()
+
+
+We also compute bits-per-dimension through the ``evaluate`` method, to measure how well the model can represent some given data. 
+If this goes below 8, the model has learnt a representation of the train data which is better than an image created from pure random noise.
+The ``test`` method lets us compute the loss on the test set, which is useful to check if the model is able to generalize to unseen data.
+The ``sample`` method lets us generate new samples from the model. In this image is a flat vector of size 784, which can be reshaped to a square image.
+
+Dataset
+-------
+
+MNIST is a dataset of handwritten digits, each a :math:`28 \times 28` grayscale image, when these images are flattened or expressed as a 1D vector we get a vector of size :math:`784`.
+``create_dataset`` returns the first ``total_dataset_size`` MNIST digits as a list containing a train an test split, where ``train_test_split`` is the percentage of images to keep in the train split. 
+In our case ``train_test_split = 80, total_dataset_size = 200`` so 160 images in the train split, and 40 in the test split.
 
 .. note::
-   ``create_dataset`` is not a built-in Physika function. To use it,
-   add the following helper to ``physika/runtime.py``:
+   ``create_dataset`` is not a built-in Physika function. To use it, add the following helper to ``physika/runtime.py``:
 
     .. code-block:: python
 
-        def create_dataset(train_test_split = 80, total_dataset_size = 40):
+        def create_dataset(train_test_split = 80, total_dataset_size = 200):
             import torch
             from torchvision import datasets, transforms
 
@@ -465,8 +541,49 @@ This is the complete code for training a model on the MNIST dataset using the Re
             test_data = [X_test, y_test]
             return [train_data, test_data]
 
+Plotting Graphs
+---------------
+Once training is done it is useful to visualize loss curves, as it tells us if the model is training properly. 
+The note below contains the helper to add in ``physika/runtime.py``.
+
+.. note::
+   To plot the training curve and the bits per dimension, add the ``plot_losses_bits_per_dim`` helper to ``physika/runtime.py``:
+
+    .. code-block:: python
+
+        def plot_losses_bits_per_dim(losses):
+            import matplotlib.pyplot as plt
+            import numpy as np
+        
+            bits_per_dim = losses / (784 * np.log(2)) + 8
+            epochs = range(1, len(losses) + 1)
+        
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
+        
+            ax1.plot(epochs, losses.cpu().detach().numpy())
+            ax1.set_xlabel("Epoch")
+            ax1.set_ylabel("Loss")
+            ax1.set_title("RealNVP Normalizing Flow on 160 Samples of MNIST — Training Curve\nLoss by epoch")
+            ax1.set_xticks(epochs)
+        
+            ax2.plot(epochs, bits_per_dim.cpu().detach().numpy())
+            ax2.set_xlabel("Epoch")
+            ax2.set_ylabel("Bits per dim")
+            ax2.set_title("Bits per dim by epoch (lower is better)")
+            ax2.set_xticks(epochs)
+        
+            plt.tight_layout()
+            plt.savefig("realnvp_train_curve.png", dpi=300, bbox_inches="tight")
+            plt.show()
+
 Full Code
 ---------------------------------------------------------------------------------
+
+Here we load 160 train images of MNIST, 40 images for test, train the RealNVP model for 20 epochs, and plot the bits per dimension and train loss.
+We keep the learning rate as ``0.00015``, and hidden size as ``128`` as the hyperparameters. 
+The first line ``physika.seed(0)`` ensures that training runs can be reproduced exactly, without variations across runs. 
+More details on this can be found in the `Sampling documentation <https://physika.readthedocs.io/en/latest/elf.html#random-sampling>`__.
+Additionally, since Normalizing flows only work with continuous distributions, we dequantize the MNIST images to make them continuous by adding some noise sampled from uniform distribution.
 
 .. code-block:: text
 
@@ -552,19 +669,22 @@ Full Code
             return this.inverse(z)
         def loss(x: ℝ[784]): ℝ:
             return -this(x)
-        def train(X: ℝ[160, 784], epochs: ℕ, lr: ℝ, len_train: ℝ):
+        def train(X: ℝ[160, 784], epochs: ℕ, lr: ℝ, len_train: ℝ): ℝ[epochs]:
+            losses: ℝ[epochs] = for i:ℕ(epochs) -> i*0
             for epoch: ℕ(epochs):
                 for i: ℕ(len_train):
                     L = this.loss(X[i])
-                    grads = grad(L, this.params)
-                    this.update_params(lr, grads)
+                    learnable_grads = grad(L, this.learnable_params)
+                    this.update_params(lr, learnable_grads)
                 total = 0
                 for i:ℕ(len_train):
                     total += this.loss(X[i])
                 epoch_loss = total/len_train
+                losses[epoch] = epoch_loss
                 print(epoch_loss)
                 bits = this.evaluate(epoch_loss, len_train)
                 print(bits)
+            return losses
         def test(Y: ℝ[40, 784], len_test: ℝ): ℝ:
             total: ℝ = 0
             for i:ℕ(len_test):
@@ -617,7 +737,8 @@ Full Code
     lr: ℝ = 0.00015
     X: ℝ[160,784] = train_flat
     Y: ℝ[40,784] = test_flat
-    realnvp.train(X, epochs, lr, len_train)
+    losses: ℝ[epochs] = realnvp.train(X, epochs, lr, len_train)
+    plot_losses_bits_per_dim(losses)
 
     # Test
     test_loss: ℝ = realnvp.test(Y, len_test)
@@ -634,7 +755,7 @@ Full Code
 Training plots
 ---------------
 
-After running the code below, you should see the training loss decrease over epochs, indicating that the model is learning to better fit the data distribution.
+After running the code below (~30 mins), you should see the training loss and bits-per-dimension decrease over epochs, indicating that the model is learning to better fit the data distribution.
 
 .. figure:: /_static/tutorial_files/norm_flow/realnvp_train_curve.png
    :alt:
