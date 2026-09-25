@@ -39,9 +39,9 @@ def current_at(V, Capa, Ress, dt, steps):
 
 # === Program ===
 π, ε0 = 3.14159, 8.854e-12
-coulomb_f = F(1, 1, torch.tensor([0, 0, 0], device=DEVICE), torch.tensor([1, 1, 1], device=DEVICE))
+coulomb_f = F(2, 2, torch.tensor([0, 0, 0], device=DEVICE), torch.tensor([1, 1, 1], device=DEVICE))
 print(print(coulomb_f))
-coulomb_e = E(1, torch.tensor([0, 0, 0], device=DEVICE), torch.tensor([1, 1, 1], device=DEVICE))
+coulomb_e = E(2, torch.tensor([0, 0, 0], device=DEVICE), torch.tensor([1, 1, 1], device=DEVICE))
 print(print(coulomb_e))
 Capa, Ress, V0 = 1.0, 10.0, 10.0
 dt = 0.01
