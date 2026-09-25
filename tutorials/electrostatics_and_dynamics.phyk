@@ -1,12 +1,12 @@
 # π: pi
 # ε0: Vacuum Permittivity
-π, ε0: R = 3.14159, 0.000000000008854
+π, ε0: ℝ = 3.14159, 0.000000000008854
 
 # p1: Position 1 in 3d space
 # p2: Position 2 in 3d space
-def dist_3d(p1: R[3], p2: R[3]): R:
-    total: R = 0
-    for i: N(3):
+def dist_3d(p1: ℝ[3], p2: ℝ[3]): ℝ:
+    total: ℝ = 0
+    for i: ℕ(3):
         total += (p1[i] - p2[i])**2
     return total**(1/2)
 
@@ -14,19 +14,19 @@ def dist_3d(p1: R[3], p2: R[3]): R:
 # q2: Charge at position x2
 # x1: Position of the first charge
 # x2: Position where the field/force is evaluated
-def F(q1: R, q2: R, x1: R[3], x2: R[3]): R[3]:
+def F(q1: ℝ, q2: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
     return (1 / (4 * π * ε0)) * (q1 * q2 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-coulomb_f = F(1, 1, [0, 0, 0], [1, 1, 1])
+coulomb_f = F(2, 2, [0, 0, 0], [1, 1, 1])
 print(coulomb_f)
 
 # q1: Charge at position x1
 # x1: Position of the first charge
 # x2: Position where the field/force is evaluated
-def E(q1: R, x1: R[3], x2: R[3]): R[3]:
+def E(q1: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
     return (1 / (4 * π * ε0)) * (q1 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-coulomb_e = E(1, [0, 0, 0], [1, 1, 1])
+coulomb_e = E(2, [0, 0, 0], [1, 1, 1])
 print(coulomb_e)
 
 
@@ -34,31 +34,37 @@ print(coulomb_e)
 # RC Circuit
 # ----------
 
-def dV_dt(V: R, Capa: R, Ress: R): R:
+# Capa: Capacitance C (named Capa because R is an alias for ℝ)
+# Ress: Resistance R (named Ress for the same reason)
+def dV_dt(V: ℝ, Capa: ℝ, Ress: ℝ): ℝ:
     return -V / (Ress * Capa)
 
-def rk4_step(V: R, Capa: R, Ress: R, dt: R): R:
-    k1: R = dV_dt(V, Capa, Ress)
-    k2: R = dV_dt(V + 0.5 * dt * k1, Capa, Ress)
-    k3: R = dV_dt(V + 0.5 * dt * k2, Capa, Ress)
-    k4: R = dV_dt(V + dt * k3, Capa, Ress)
+def rk4_step(V: ℝ, Capa: ℝ, Ress: ℝ, dt: ℝ): ℝ:
+    k1: ℝ = dV_dt(V, Capa, Ress)
+    k2: ℝ = dV_dt(V + 0.5 * dt * k1, Capa, Ress)
+    k3: ℝ = dV_dt(V + 0.5 * dt * k2, Capa, Ress)
+    k4: ℝ = dV_dt(V + dt * k3, Capa, Ress)
     return V + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
-def voltage_at(V: R, Capa: R, Ress: R, dt: R, steps: N): R:
-    for i: N(steps):
+def voltage_at(V: ℝ, Capa: ℝ, Ress: ℝ, dt: ℝ, steps: ℕ): ℝ:
+    for i: ℕ(steps):
         V = rk4_step(V, Capa, Ress, dt)
     return V
- 
-def current_at(V: R, Capa: R, Ress: R, dt: R, steps: N): R:
-    V: R = voltage_at(V, Capa, Ress, dt, steps)
+
+def current_at(V: ℝ, Capa: ℝ, Ress: ℝ, dt: ℝ, steps: ℕ): ℝ:
+    V: ℝ = voltage_at(V, Capa, Ress, dt, steps)
     return V / Ress
 
-Capa, Ress, V0: R = 1.0, 10.0, 10.0
-dt: R = 0.01
-steps: N = 200
+Capa, Ress, V0: ℝ = 1.0, 10.0, 10.0
+dt: ℝ = 0.01
+steps: ℕ = 200
 
-V_final_2: R = voltage_at(V0, Capa, Ress, dt, steps)
-print(V_final_2)
+V_final: ℝ = voltage_at(V0, Capa, Ress, dt, steps)
+print(V_final)
 
-I_final_2: R = current_at(V0, Capa, Ress, dt, steps)
-print(I_final_2)
+I_final: ℝ = current_at(V0, Capa, Ress, dt, steps)
+print(I_final)
+
+# Analytical solution: V(t) = V0 * exp(-t / (R * C))
+V_exact: ℝ = V0 * exp(-dt * steps / (Ress * Capa))
+print(V_exact)

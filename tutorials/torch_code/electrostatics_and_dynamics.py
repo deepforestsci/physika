@@ -46,7 +46,9 @@ print(print(coulomb_e))
 Capa, Ress, V0 = 1.0, 10.0, 10.0
 dt = 0.01
 steps = 200
-V_final_2 = voltage_at(V0, Capa, Ress, dt, steps)
-print(print(V_final_2))
-I_final_2 = current_at(V0, Capa, Ress, dt, steps)
-print(print(I_final_2))
+V_final = voltage_at(V0, Capa, Ress, dt, steps)
+print(print(V_final))
+I_final = current_at(V0, Capa, Ress, dt, steps)
+print(print(I_final))
+V_exact = (V0 * torch.exp((((-dt) * steps) / (Ress * Capa)) if isinstance((((-dt) * steps) / (Ress * Capa)), torch.Tensor) else torch.tensor(float((((-dt) * steps) / (Ress * Capa))))))
+print(print(V_exact))
