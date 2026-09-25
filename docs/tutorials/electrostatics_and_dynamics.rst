@@ -38,7 +38,7 @@ where :math:`\varepsilon_0` is the vacuum permittivity.
     def F(q1: ℝ, q2: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
         return (1 / (4 * π * ε0)) * (q1 * q2 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-    coulomb_f = F(1, 1, [0, 0, 0], [1, 1, 1])
+    coulomb_f = F(2, 2, [0, 0, 0], [1, 1, 1])
     print(coulomb_f)
 
 output:
@@ -65,7 +65,7 @@ The electric field produced by a point charge :math:`q_1` at position
     def E(q1: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
         return (1 / (4 * π * ε0)) * (q1 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-    coulomb_e = E(1, [0, 0, 0], [1, 1, 1])
+    coulomb_e = E(2, [0, 0, 0], [1, 1, 1])
     print(coulomb_e)
 
 Output::
