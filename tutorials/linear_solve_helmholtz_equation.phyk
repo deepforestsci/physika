@@ -101,7 +101,7 @@ def assemble_matrix(k: ℝ, n: ℕ): list:
 
 # importing gaussian_solve function from `tutorials/`, in future gaussian_solve will
 # get imported from stdlib
-from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_cols, get_2d_array_num_rows, get_1d_array_length
+from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_cols, get_2d_array_num_rows, get_1d_array_length, min, max
 
 def solver(k: ℝ, n: ℕ): R[n]:
     results: list = assemble_matrix(k, n)

@@ -1061,3 +1061,35 @@ def detach_grad(x):
     True
     """
     return x.detach().requires_grad_(True)
+
+
+def reshape(x, dim):
+    """
+    Reshaped a tensor with specified dim.
+
+    Parameters
+    ---------
+    x : torch.Tensor
+        Input tensor
+    dim : int or tuple
+        Target shape of tensor.
+
+    Returns
+    -------
+    torch.Tensor
+        reshaped tensor.
+
+    Examples
+    --------
+    >>> x = torch.tensor([1, 2, 3, 4])
+    >>> out = reshape(x, (2, 2))
+    >>> out.shape
+    torch.Size([2, 2])
+    >>> out = reshape(x, 4)
+    >>> out.shape
+    torch.Size([4])
+    """
+    if isinstance(dim, int):
+        dim = (dim, )
+
+    return torch.reshape(x, dim)

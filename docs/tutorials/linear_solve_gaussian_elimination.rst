@@ -135,7 +135,7 @@ that performs Forward elimination:
     # -------------------------
     # Forward elimination
     # -------------------------
-    for i: ℕ(a_row):
+    for i:ℕ(a_row):
         # -------------------------
         # Partial pivoting
         # -------------------------
@@ -143,38 +143,33 @@ that performs Forward elimination:
         for k:ℕ(i + 1, a_row):
             if abs(aug[k, i]) > abs(aug[max_row, i]):
                 max_row = k
+        # ----------------------------------------
+        # Swap max_row with the current i-th row
+        # ----------------------------------------
+        if max_row != i:
+            lo = min(i, max_row)
+            hi = max(i, max_row)
+            rows_above = aug[:lo, :]
+            pivot_row = aug[hi:hi+1, :]
+            rows_between = aug[lo+1:hi, :]
+            current_row = aug[lo:lo+1, :]
+            rows_below = aug[hi+1:, :]
+            aug = concat(
+                rows_above,
+                pivot_row,
+                rows_between,
+                current_row,
+                rows_below,
+            )
         # -------------------------
-        # Swap rows into buffers
+        # Forward elimination
         # -------------------------
-        pivot_row = zero_1d_array(new_col)
-        displaced_row = zero_1d_array(new_col)
-        for c: ℕ(new_col):
-            pivot_row[c] = aug[max_row, c]
-            displaced_row[c] = aug[i, c]
-        # -------------------------
-        # Elimination
-        # -------------------------
-        aug_next = zero_2d_array(a_row, new_col)
-        for row_idx: ℕ(a_row):
-            if row_idx < i:
-                for c: ℕ(new_col):
-                    aug_next[row_idx, c] = aug[row_idx, c]
-            else:
-                if row_idx == i:
-                    for c: ℕ(new_col):
-                        aug_next[row_idx, c] = pivot_row[c]
-                else:
-                    source_row = zero_1d_array(new_col)
-                    if row_idx == max_row:
-                        for c: ℕ(new_col):
-                            source_row[c] = displaced_row[c]
-                    else:
-                        for c: ℕ(new_col):
-                            source_row[c] = aug[row_idx, c]
-                    factor = source_row[i] / pivot_row[i]
-                    for c: ℕ(new_col):
-                        aug_next[row_idx, c] = source_row[c] - factor * pivot_row[c]
-        aug = aug_next
+        pivot_row = aug[i:i+1, :]
+        pivot_value = aug[i, i]
+        rows_below = aug[i+1:, :]
+        elimination_factors = rows_below[:, i:i+1] / pivot_value
+        eliminated_rows = rows_below - elimination_factors * pivot_row
+        aug = concat(aug[:i+1, :], eliminated_rows)
 
 The outer for loop will loop through each row of the augmented matrix ``a_row`` which value is 3.
 
@@ -280,67 +275,62 @@ also after swapping the pivot value also gets updated now which is 3:
     \end{array}\right]
 
 
-Now to do this with Physika code, we are using different approach for row swapping logic, we maintain ``pivot_row`` and ``displaced_row`` variables here.
-``pivot_row`` gets a copy of row 1: ``[3, 1, -1, 2]`` and ``displaced_row`` gets a copy of row 0: ``[1, 2, 1, 8]``, and the original augmented matrix ``aug``
-remains untouched. The reason to keep 2 new variables for row swapping is to avoid in-place operations which Pytorch dont allow for gradients tracking.
+Now to do this with Physika code, we split the augmented matrix into different sections around
+the two rows being swapped. ``pivot_row`` contains the selected ``max_row``, while ``current_row`` contains
+the current i-th row. The remaining rows are kept in their original order. We then concatenate these sections
+with the two rows exchanged.
 
 .. code-block:: text
 
-    # -------------------------
-    # Swap rows into buffers
-    # -------------------------
-    pivot_row = zero_1d_array(new_col)
-    displaced_row = zero_1d_array(new_col)
-    for c: ℕ(new_col):
-        pivot_row[c] = aug[max_row, c]
-        displaced_row[c] = aug[i, c]
+    # ----------------------------------------
+    # Swap max_row with the current i-th row
+    # ----------------------------------------
+    if max_row != i:
+        lo = min(i, max_row)
+        hi = max(i, max_row)
+        rows_above = aug[:lo, :]
+        pivot_row = aug[hi:hi+1, :]
+        rows_between = aug[lo+1:hi, :]
+        current_row = aug[lo:lo+1, :]
+        rows_below = aug[hi+1:, :]
+        aug = concat(
+            rows_above,
+            pivot_row,
+            rows_between,
+            current_row,
+            rows_below,
+        )
+
+Here, ``rows_above`` and ``rows_below`` remain unchanged, while ``pivot_row`` and ``current_row`` are placed in each other's positions.
+
 
 2.3 Elimination
 ***************************
 
-Once the row-swapping is done, we move to the Elimination section where we transform our augmented matrix into upper-triangular form. For this first iteration we will eliminate all the entries below the pivot value to zeros.
+Once the row-swapping is done, we move to the Elimination section where we transform our augmented matrix into upper-triangular form.
+For this first iteration we will eliminate all the entries below the pivot value to zeros.
 
 .. code-block:: text
 
     # -------------------------
-    # Elimination
+    # Forward elimination
     # -------------------------
-    aug_next = zero_2d_array(a_row, new_col)
-    for row_idx: ℕ(a_row):
-        if row_idx < i:
-            for c: ℕ(new_col):
-                aug_next[row_idx, c] = aug[row_idx, c]
-        else:
-            if row_idx == i:
-                for c: ℕ(new_col):
-                    aug_next[row_idx, c] = pivot_row[c]
-            else:
-                source_row = zero_1d_array(new_col)
-                if row_idx == max_row:
-                    for c: ℕ(new_col):
-                        source_row[c] = displaced_row[c]
-                else:
-                    for c: ℕ(new_col):
-                        source_row[c] = aug[row_idx, c]
-                factor = source_row[i] / pivot_row[i]
-                for c: ℕ(new_col):
-                    aug_next[row_idx, c] = source_row[c] - factor * pivot_row[c]
-    aug = aug_next
+    pivot_row = aug[i:i+1, :]
+    pivot_value = aug[i, i]
+    rows_below = aug[i+1:, :]
+    elimination_factors = rows_below[:, i:i+1] / pivot_value
+    eliminated_rows = rows_below - elimination_factors * pivot_row
+    aug = concat(aug[:i+1, :], eliminated_rows)
 
 
-Here we create ``aug_next``, a new matrix with the same shape as ``aug``. 
-We fill it row by row. Rows above the pivot stay the same. The pivot row goes to position ``i``. All other rows get eliminated.
+Here, ``pivot_row`` contains the current pivot row, while rows_below contains all rows below it. We then calculate
+an ``elimination_factor`` for each row based on its value in the pivot column.
+These factors are then used to subtract a multiple of the pivot row from each row below, making the entries below the pivot equal to zero.
+Finally, the unchanged rows above and including the pivot are concatenated with the eliminated_rows to form the updated augmented matrix.
+After repeating this process for each pivot, the augmented matrix is transformed into upper-triangular form.
 
-
-From our previous row-copying step, we have:
-
-.. math::
-
-    \text{pivot_row} = [3, \; 1, \; -1, \; 2]
-    \qquad
-    \text{displaced_row} = [1, \; 2, \; 1, \; 8]
-
-And the current ``aug`` matrix is still:
+Lets do this numerically to understand better:
+From our previous row-swapping step, the augmented matrix is:
 
 .. math::
 
@@ -350,80 +340,47 @@ And the current ``aug`` matrix is still:
     2 & -1 & 1 & 3
     \end{array}\right]
 
-The ``row_idx`` loop goes through each row of ``aug_next``. Here, the pivot element is :math:`\text{pivot_row}[0] = \color{red}{3}`. We handle three cases: rows above the pivot, the pivot row itself, and rows below that need elimination.
+The goal of this step is to make all entries below the pivot :math:`\color{red}{\mathbf{3}}` equal to zero.
 
-**Row 0** (:math:`\text{row_idx} = 0`, this is the pivot position since :math:`i = 0`):
-
-We copy ``pivot_row`` here:
+For the first row below the pivot, the elimination factor is:
 
 .. math::
 
-    \text{aug_next}[0, :] = \text{pivot_row} = [3, \; 1, \; -1, \; 2]
+    \frac{1}{3}
 
-**Row 1** (:math:`\text{row_idx} = 1`, this was the ``max_row``, so we use ``displaced_row`` as ``source_row``):
-
-1. Pick ``source_row``:
-
-   .. math::
-
-       \text{source_row} = \text{displaced_row} = [1, \; 2, \; 1, \; 8]
-
-2. Calculate Factor:
-
-   .. math::
-
-       \text{factor} = \frac{\text{source_row}[0]}{\text{pivot_row}[0]} = \frac{1}{3}
-
-3. Compute new row: :math:`\text{aug_next}[1, c] = \text{source_row}[c] - \text{factor} \times \text{pivot_row}[c]`
-
-   .. math::
-
-      \begin{array}{rcccl}
-      \text{source_row:} & [1, & 2, & 1, & 8] \\
-      - \left(\frac{1}{3} \times \text{pivot_row}\right): & -\left[1, \right. & \frac{1}{3}, & -\frac{1}{3}, & \left. \frac{2}{3}\right] \\[1ex]
-      \hline \\[-1.5ex]
-      \text{aug_next}[1, :]: & [\mathbf{0}, & \mathbf{\frac{5}{3}}, & \mathbf{\frac{4}{3}}, & \mathbf{\frac{22}{3}}]
-      \end{array}
-
-Augmented matrix after Row 1:
+We subtract :math:`\frac{1}{3}` times the first row from the second row:
 
 .. math::
 
-    \left[\begin{array}{ccc|c}
-    \color{red}{\mathbf{3}} & 1 & -1 & 2 \\
-    \color{green}{\mathbf{0}} & \frac{5}{3} & \frac{4}{3} & \frac{22}{3} \\
-    2 & -1 & 1 & 3
-    \end{array}\right]
+    \begin{array}{rcccl}
+    \text{source row:} & [1, & 2, & 1, & 8] \\
+    -\left(\frac{1}{3} \times \text{pivot row}\right): &
+    -[1, & \frac{1}{3}, & -\frac{1}{3}, & \frac{2}{3}] \\[1ex]
+    \hline \\[-1.5ex]
+    \text{new row:} & [\mathbf{0}, & \mathbf{\frac{5}{3}}, &
+    \mathbf{\frac{4}{3}}, & \mathbf{\frac{22}{3}}]
+    \end{array}
 
-**Row 2** (:math:`\text{row_idx} = 2`, this is neither ``i`` nor ``max_row``, so we use ``aug[2, :]`` as ``source_row``):
+For the second row below the pivot, the elimination factor is:
 
-1. Pick ``source_row``:
+.. math::
 
-   .. math::
+    \frac{2}{3}
 
-       \text{source_row} = \text{aug}[2, :] = [2, \; -1, \; 1, \; 3]
+We subtract :math:`\frac{2}{3}` times the first row from the third row:
 
-2. Calculate Factor:
+.. math::
 
-   .. math::
+    \begin{array}{rcccl}
+    \text{source row:} & [2, & -1, & 1, & 3] \\
+    -\left(\frac{2}{3} \times \text{pivot row}\right): &
+    -[2, & \frac{2}{3}, & -\frac{2}{3}, & \frac{4}{3}] \\[1ex]
+    \hline \\[-1.5ex]
+    \text{new row:} & [\mathbf{0}, & \mathbf{-\frac{5}{3}}, &
+    \mathbf{\frac{5}{3}}, & \mathbf{\frac{5}{3}}]
+    \end{array}
 
-       \text{factor} = \frac{\text{source_row}[0]}{\text{pivot_row}[0]} = \frac{2}{3}
-
-3. Compute new row: :math:`\text{aug_next}[2, c] = \text{source_row}[c] - \text{factor} \times \text{pivot_row}[c]`
-
-   .. math::
-
-      \begin{array}{rcccl}
-      \text{source_row:} & [2, & -1, & 1, & 3] \\
-      - \left(\frac{2}{3} \times \text{pivot_row}\right): & -\left[2, \right. & \frac{2}{3}, & -\frac{2}{3}, & \left. \frac{4}{3}\right] \\[1ex]
-      \hline \\[-1.5ex]
-      \text{aug_next}[2, :]: & [\mathbf{0}, & \mathbf{-\frac{5}{3}}, & \mathbf{\frac{5}{3}}, & \mathbf{\frac{5}{3}}]
-      \end{array}
-
-Now after Row 2, ``aug_next`` gets udpated with all the elimination steps which are required.
-We update by ``aug = aug_next`` and discards the old values from ``aug``.
-
-The augmented matrix after the first outer loop iteration looks like this:
+Therefore, after the first elimination step, the augmented matrix becomes:
 
 .. math::
 
@@ -433,9 +390,9 @@ The augmented matrix after the first outer loop iteration looks like this:
     \color{green}{\mathbf{0}} & -\frac{5}{3} & \frac{5}{3} & \frac{5}{3}
     \end{array}\right]
 
-This completes the first iteration of the outer loop ``(i = 0)``. However, our goal is to transform the augmented matrix into upper-triangular form. Therefore,
-the next outer loop will run the second iteration ``(i = 1)``, which will repeat the three core steps: finding the pivot, copying rows into buffers,
-and performing elimination. After all iterations, our augmented matrix will be upper-triangular:
+This completes the first iteration of the outer loop. We then move to the next pivot and repeat the same process, eliminating all entries below it.
+
+After all iterations, the augmented matrix is transformed into upper-triangular form:
 
 .. math::
 
@@ -444,8 +401,6 @@ and performing elimination. After all iterations, our augmented matrix will be u
     0 & \mathbf{\frac{5}{3}} & \frac{4}{3} & \frac{22}{3} \\[1ex]
     0 & 0 & \mathbf{3} & 9
     \end{array}\right]
-
-
 
 
 Step 3 - Back substitution
@@ -559,21 +514,46 @@ We can do this in Physika code by using below code:
     # -------------------------
     # Back substitution
     # -------------------------
-    x: ℝ[a_col] = zero_1d_array(a_col)
-    for i:ℕ(a_col):
+    x = zeros(0)
+    for i:N(a_row):
         idx = a_col - 1 - i
         total = aug[idx, a_col]
-        for j:ℕ(idx + 1, a_row):
-            total = total - aug[idx, j] * x[j]
-        solved_val = total / aug[idx, idx]
-        x_next = zero_1d_array(a_col)
-        for c: ℕ(a_col):
-            if c == idx:
-                x_next[c] = solved_val
-            else:
-                x_next[c] = x[c]
-        x = x_next
+        for j:N(idx+1, a_row):
+            total = total - aug[idx, j] * x[j - idx - 1]
+        val = total / aug[idx, idx]
+        val = reshape(val, 1)
+        x = concat(val, x)
     return x
+
+
+Differentiability
+------------------
+
+
+This implementation is fully differentiable. See the :doc:`1D Helmholtz tutorial <linear_solve_helmholtz_equation>` for a
+complete example using this solver.
+
+
+Efficiency on Larger Matrices
+------------------------------
+
+To evaluate the computational efficiency of this implementation of gaussian elimination, we measure its execution time for matrices of increasing sizes.
+The following table shows the time taken to solve linear systems of different dimensions (approx time).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20
+
+   * - Matrix Size
+     - Time (s)
+   * - 200 × 200
+     - 0.34
+   * - 500 × 500
+     - 2.30
+   * - 1000 × 1000
+     - 11.00
+   * - 2000 × 2000
+     - 56.00
 
 
 
@@ -610,7 +590,6 @@ Full code
             total += 1
         return total
 
-
     def get_2d_array_num_cols(x: ℝ[m, n]): ℝ:
         return get_1d_array_length(x[0])
 
@@ -618,22 +597,34 @@ Full code
         arr: ℝ[n] = for i: ℕ(n) → i
         return arr
 
+    def max(x: ℝ, y: ℝ): ℝ:
+        if x>y:
+            return x
+        else:
+            return y
+
+    def min(x: ℝ, y: ℝ): ℝ:
+        if x<y:
+            return x
+        else:
+            return y
+
 
     # ----------------------------
     # Gaussial solve function
     # ----------------------------
 
-    def gaussian_solve(A: ℝ[m, n], b: ℝ[n]): ℝ[m]:
+
+    def gaussian_solve(A: R[m, n], b: R[n]): R[n]:
         a_row: ℝ = get_2d_array_num_rows(A)
         a_col: ℝ = get_2d_array_num_cols(A)
         # -------------------------
         # Create augmented matrix
         # -------------------------
         new_col: ℝ = a_col + 1
-        aug: ℝ[a_row, new_col] = zero_2d_array(a_row, new_col)
+        aug: ℝ[a_row, new_col] = zeros(a_row, new_col)
         for i:ℕ(a_row):
-            for c:ℕ(a_col):
-                aug[i, c] = A[i, c]
+            aug[i, :a_col] = A[i, :]
             aug[i, a_col] = b[i]
         # -------------------------
         # Forward elimination
@@ -646,57 +637,46 @@ Full code
             for k:ℕ(i + 1, a_row):
                 if abs(aug[k, i]) > abs(aug[max_row, i]):
                     max_row = k
+            # ----------------------------------------
+            # Swap max_row with the current i-th row
+            # ----------------------------------------
+            if max_row != i:
+                lo = min(i, max_row)
+                hi = max(i, max_row)
+                rows_above = aug[:lo, :]
+                pivot_row = aug[hi:hi+1, :]
+                rows_between = aug[lo+1:hi, :]
+                current_row = aug[lo:lo+1, :]
+                rows_below = aug[hi+1:, :]
+                aug = concat(
+                    rows_above,
+                    pivot_row,
+                    rows_between,
+                    current_row,
+                    rows_below,
+                )
             # -------------------------
-            # Swap rows into buffers
+            # Forward elimination
             # -------------------------
-            pivot_row = zero_1d_array(new_col)
-            displaced_row = zero_1d_array(new_col)
-            for c: ℕ(new_col):
-                pivot_row[c] = aug[max_row, c]
-                displaced_row[c] = aug[i, c]
-            # -------------------------
-            # Elimination
-            # -------------------------
-            aug_next = zero_2d_array(a_row, new_col)
-            for row_idx:ℕ(a_row):
-                if row_idx < i:
-                    for c:ℕ(new_col):
-                        aug_next[row_idx, c] = aug[row_idx, c]
-                else:
-                    if row_idx == i:
-                        for c:ℕ(new_col):
-                            aug_next[row_idx, c] = pivot_row[c]
-                    else:
-                        source_row = zero_1d_array(new_col)
-                        if row_idx == max_row:
-                            for c:ℕ(new_col):
-                                source_row[c] = displaced_row[c]
-                        else:
-                            for c:ℕ(new_col):
-                                source_row[c] = aug[row_idx, c]
-                        factor = source_row[i] / pivot_row[i]
-                        for c:ℕ(new_col):
-                            aug_next[row_idx, c] = source_row[c] - factor * pivot_row[c]
-            aug = aug_next
+            pivot_row = aug[i:i+1, :]
+            pivot_value = aug[i, i]
+            rows_below = aug[i+1:, :]
+            elimination_factors = rows_below[:, i:i+1] / pivot_value
+            eliminated_rows = rows_below - elimination_factors * pivot_row
+            aug = concat(aug[:i+1, :], eliminated_rows)
         # -------------------------
         # Back substitution
         # -------------------------
-        x: ℝ[a_col] = zero_1d_array(a_col)
-        for i:ℕ(a_col):
+        x = zeros(0)
+        for i:N(a_row):
             idx = a_col - 1 - i
             total = aug[idx, a_col]
-            for j:ℕ(idx + 1, a_row):
-                total = total - aug[idx, j] * x[j]
-            solved_val = total / aug[idx, idx]
-            x_next = zero_1d_array(a_col)
-            for c: ℕ(a_col):
-                if c == idx:
-                    x_next[c] = solved_val
-                else:
-                    x_next[c] = x[c]
-            x = x_next
+            for j:N(idx+1, a_row):
+                total = total - aug[idx, j] * x[j - idx - 1]
+            val = total / aug[idx, idx]
+            val = reshape(val, 1)
+            x = concat(val, x)
         return x
-
 
 
     A: ℝ[3,3] = [
@@ -707,7 +687,6 @@ Full code
     b: ℝ[3] = [8, 2, 3]
 
     gaussian_solve(A, b)
-
 
 
 References

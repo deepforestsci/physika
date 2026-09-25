@@ -1,5 +1,6 @@
 import torch
-from physika.runtime import (random_complex, compl_mul1d, detach, detach_grad)
+from physika.runtime import (random_complex, compl_mul1d, detach, detach_grad,
+                             reshape)
 from tests.conftest import type_errors, capture_output
 
 
@@ -47,6 +48,31 @@ class TestComplMul1d:
         weights1 = torch.zeros(3, 5, 6, dtype=torch.cfloat)
         out = compl_mul1d(x_ft, weights1)
         assert torch.allclose(out, torch.zeros_like(out))
+
+
+class TestReshape:
+    """
+    Tests for reshape function, (wrapper around torch.reshape).
+    """
+
+    def test_output_shape_with_tuple(self):
+        # tensor is reshaped to the specified dimensions.
+        x = torch.tensor([1, 2, 3, 4])
+        out = reshape(x, (2, 2))
+        assert out.shape == (2, 2)
+
+    def test_output_shape_with_int(self):
+        # single integer dimension is accepted.
+        x = torch.tensor([[1, 2, 3, 4]])
+        out = reshape(x, 4)
+        assert out.shape == (4, )
+
+    def test_values_are_preserved(self):
+        # reshaping preserves the tensor values.
+        x = torch.tensor([1, 2, 3, 4])
+        out = reshape(x, (2, 2))
+        expected = torch.tensor([[1, 2], [3, 4]])
+        assert torch.equal(out, expected)
 
 
 class TestPhysikaPrint:
