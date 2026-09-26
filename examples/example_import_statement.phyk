@@ -65,10 +65,10 @@ r: ℝ[5] = [-1.0, 0.0, 0.5, 1.0, 2.0]
 
 
 # ----------------------------------------------
-# Import from Std
+# Import from stdlib
 # ----------------------------------------------
 
-from Std.linear_solvers import gaussian_solve, get_2d_array_num_cols, get_2d_array_num_rows, get_1d_array_length, zero_2d_array, zero_1d_array
+from std.linear_solvers import gaussian_solve, get_2d_array_num_cols, get_2d_array_num_rows, get_1d_array_length, zero_2d_array, zero_1d_array
 
 A: ℝ[3,3] = [
     [1, 2, 1],
