@@ -11,7 +11,7 @@ from physika.runtime import compute_grad
 import physika
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
-STDLIB_PATH = Path(physika.__file__).resolve().parent / "Std"
+STDLIB_PATH = Path(physika.__file__).resolve().parent / "std"
 
 
 def exec_phyk(stem: str) -> dict:
