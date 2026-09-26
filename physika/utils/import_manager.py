@@ -4,7 +4,7 @@ from pathlib import Path
 from physika.parser import symbol_table
 import physika
 
-STDLIB_PATH = Path(physika.__file__).resolve().parent / "Std"
+STDLIB_PATH = Path(physika.__file__).resolve().parent / "std"
 
 
 def find_module(module_name: str, source_file_path: Path) -> Path:
@@ -40,7 +40,7 @@ def find_module(module_name: str, source_file_path: Path) -> Path:
     # Split module name with `.`
     module_parts = module_name.split(".")
 
-    if module_parts[0] == "Std":
+    if module_parts[0] == "std":
         search_paths = [STDLIB_PATH]
         module_path_str = ".".join(module_parts[1:])
     else:
