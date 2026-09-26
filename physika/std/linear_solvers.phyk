@@ -1,0 +1,115 @@
+# ----------------------------
+# Helper functions
+# ----------------------------
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def zero_2d_array(rows: ℝ, cols:ℝ ): ℝ[m, n]:
+    results: ℝ[rows, cols] = for i:N(rows) -> for j:N(cols) -> j*0
+    return results
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+
+def get_2d_array_num_cols(x: ℝ[m, n]): ℝ:
+    return get_1d_array_length(x[0])
+
+def arange(n: ℕ): ℝ[n]:
+    arr: ℝ[n] = for i: ℕ(n) → i
+    return arr
+
+
+# ----------------------------
+# Gaussial solve function
+# ----------------------------
+
+def gaussian_solve(A: ℝ[m, n], b: ℝ[n]): ℝ[m]:
+    a_row: ℝ = get_2d_array_num_rows(A)
+    a_col: ℝ = get_2d_array_num_cols(A)
+    # -------------------------
+    # Create augmented matrix
+    # -------------------------
+    new_col: ℝ = a_col + 1
+    aug: ℝ[a_row, new_col] = zero_2d_array(a_row, new_col)
+    for i:ℕ(a_row):
+        for c:ℕ(a_col):
+            aug[i, c] = A[i, c]
+        aug[i, a_col] = b[i]
+    # -------------------------
+    # Forward elimination
+    # -------------------------
+    for i:ℕ(a_row):
+        # -------------------------
+        # Partial pivoting
+        # -------------------------
+        max_row = i
+        for k:ℕ(i + 1, a_row):
+            if abs(aug[k, i]) > abs(aug[max_row, i]):
+                max_row = k
+        # -------------------------
+        # Swap rows into buffers
+        # -------------------------
+        pivot_row = zero_1d_array(new_col)
+        displaced_row = zero_1d_array(new_col)
+        for c: ℕ(new_col):
+            pivot_row[c] = aug[max_row, c]
+            displaced_row[c] = aug[i, c]
+        # -------------------------
+        # Elimination
+        # -------------------------
+        aug_next = zero_2d_array(a_row, new_col)
+        for row_idx:ℕ(a_row):
+            if row_idx < i:
+                for c:ℕ(new_col):
+                    aug_next[row_idx, c] = aug[row_idx, c]
+            else:
+                if row_idx == i:
+                    for c:ℕ(new_col):
+                        aug_next[row_idx, c] = pivot_row[c]
+                else:
+                    source_row = zero_1d_array(new_col)
+                    if row_idx == max_row:
+                        for c:ℕ(new_col):
+                            source_row[c] = displaced_row[c]
+                    else:
+                        for c:ℕ(new_col):
+                            source_row[c] = aug[row_idx, c]
+                    factor = source_row[i] / pivot_row[i]
+                    for c:ℕ(new_col):
+                        aug_next[row_idx, c] = source_row[c] - factor * pivot_row[c]
+        aug = aug_next
+    # -------------------------
+    # Back substitution
+    # -------------------------
+    x: ℝ[a_col] = zero_1d_array(a_col)
+    for i:ℕ(a_col):
+        idx = a_col - 1 - i
+        total = aug[idx, a_col]
+        for j:ℕ(idx + 1, a_row):
+            total = total - aug[idx, j] * x[j]
+        solved_val = total / aug[idx, idx]
+        x_next = zero_1d_array(a_col)
+        for c: ℕ(a_col):
+            if c == idx:
+                x_next[c] = solved_val
+            else:
+                x_next[c] = x[c]
+        x = x_next
+    return x
+
