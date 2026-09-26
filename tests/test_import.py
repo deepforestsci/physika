@@ -59,8 +59,8 @@ class TestExampleImportFile:
         assert len(phi) == 5
         assert phi.tolist() == [0.0, 0.0, 1.0, 1.0, 2.0]
 
-    def test_import_from_Std(self, numeric_ns):
-        """Test correctness of Std imports"""
+    def test_import_from_std(self, numeric_ns):
+        """Test correctness of std imports"""
         gaussian_results = numeric_ns["gaussian_results"]
         assert gaussian_results.tolist() == [1.0, 2.0, 3.0]
 
