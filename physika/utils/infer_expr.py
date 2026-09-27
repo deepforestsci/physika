@@ -1337,7 +1337,7 @@ def infer_expr(
     class_env : dict
         Maps class names to their definition dicts (``class_params``,
         ``return_type``, etc), used for constructor call inference.
-    add_error : Callablehttps://github.com/deepforestsci/physika/
+    add_error : Callable
         Error reporting callback (``errors.append``).
 
     Returns
