@@ -1,0 +1,5 @@
+# m: Positive constant controlling the width of the Gaussian wave function.
+# C: Normalization constant, it is choosen such that total probability is 1.
+
+def ψ(x: R[3], t: R): C:
+    return C * exp(-m * ||x||**2 / 2)
