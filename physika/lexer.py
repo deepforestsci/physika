@@ -1,12 +1,12 @@
 import ply.lex as lex
 
 tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
-          "TIMES", "DIVIDE", "INTDIV", "MOD", "MATMUL", "POWER", "EQUALS", "EQEQ",
+          "TIMES", "DIVIDE", "INTDIV", "MATMUL", "POWER", "EQUALS", "EQEQ",
           "NEQ", "LT", "GT", "LEQ", "GEQ", "PLUSEQ", "COLON", "COMMA", "ARROW",
           "LARROW", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE",
           "INDENT", "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS",
           "LAMBDA", "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION",
-          "WALRUS", "FROM", "IMPORT")
+          "WALRUS", "FROM", "IMPORT", "MOD")
 
 reserved = {
     "def": "DEF",

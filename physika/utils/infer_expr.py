@@ -745,8 +745,9 @@ def expr_div(node: Any,
             )
     return broadcast_op(t1, t2), s
 
+
 def expr_mod(node, ctx):
-    from physika.utils.type_checker_utils import unify, type_to_str, broadcast_op  # noqa: E501
+    from physika.utils.type_checker_utils import broadcast_op  # noqa: E501
 
     t1, s = infer_expr(
         node[1],
@@ -773,6 +774,7 @@ def expr_mod(node, ctx):
         t2 = s.apply(t2)
 
     return broadcast_op(t1, t2), s
+
 
 def expr_matmul(node: Any,
                 ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
