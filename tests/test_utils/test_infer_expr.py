@@ -1212,7 +1212,6 @@ class TestExprDiv:
         assert errors[0] == "Shape mismatch in div: ℝ[3] vs ℝ[2]"
 
 
-
 class TestExprMod:
     """
     Tests for ``expr_mod``.
