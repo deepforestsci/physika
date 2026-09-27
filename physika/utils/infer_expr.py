@@ -746,8 +746,47 @@ def expr_div(node: Any,
     return broadcast_op(t1, t2), s
 
 
-def expr_mod(node, ctx):
-    from physika.utils.type_checker_utils import broadcast_op  # noqa: E501
+def expr_mod(node: Any,
+             ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """Infer the result type of modulus ``t1 % t2``.
+
+    Parameters
+    ----------
+    node: ASTNode
+        AST node of the form ``("mod", left_expr, right_expr)``.
+    ctx: ExprContext
+        Current inference context.  ``ctx.s`` is threaded through both
+        operand inferences and updated with any new unification bindings.
+        Shape mismatch errors are registered via ``ctx.add_error``.
+
+    Returns
+    -------
+    tuple[Optional[Type], Substitution]
+        ``(unified_tensor_type, s)`` for tensor % tensor.
+        ``(tensor_type, s)`` for tensor % scalar (broadcast).
+        ``(T_REAL, s)`` for scalar % scalar.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_div, TTensor
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({"x": TTensor(((3, "invariant"),)), "y": TTensor(((3, "invariant"),))}, Substitution(), {}, {}, [].append)
+    >>> t, _= expr_div(("mod", ("var", "x"), ("num", 2.0)), ctx)  # ℝ[3] % ℝ → ℝ[3]
+    >>> t
+    ℝ[3]
+    >>> t, _= expr_div(("mod", ("num", 6.0), ("num", 2.0)), ctx)  # ℝ % ℝ → ℝ
+    >>> t
+    ℝ
+    >>> t, _= expr_div(("mod", ("var", "x"), ("var", "y")), ctx)  # ℝ[3] % ℝ[3] → ℝ[3]
+    >>> t
+    ℝ[3]
+    >>> errors = []
+    >>> ctx2 = ExprContext({"x": TTensor(((3, "invariant"),)), "z": TTensor(((2, "invariant"),))}, Substitution(), {}, {}, errors.append)  # noqa: E501
+    >>> t, _= expr_div(("mod", ("var", "x"), ("var", "z")), ctx2)  # ℝ[3] % ℝ[2] → error
+    >>> errors
+    ['Shape mismatch in div: ℝ[3] vs ℝ[2]']
+    """
+    from physika.utils.type_checker_utils import unify, type_to_str, broadcast_op  # noqa: E501
 
     t1, s = infer_expr(
         node[1],
@@ -772,6 +811,15 @@ def expr_mod(node, ctx):
 
     if t2 is not None:
         t2 = s.apply(t2)
+
+    if isinstance(t1, TTensor) and isinstance(t2, TTensor):
+        try:
+            s = unify(t1, t2, s)
+            t1 = s.apply(t1)
+        except TypeError:
+            ctx.add_error(
+                f"Shape mismatch in div: {type_to_str(t1)} vs {type_to_str(t2)}"  # noqa: E501
+            )
 
     return broadcast_op(t1, t2), s
 
