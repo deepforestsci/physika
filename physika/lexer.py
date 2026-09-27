@@ -1,6 +1,6 @@
 import ply.lex as lex
 
-tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
+tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MODULO", "MINUS",
           "TIMES", "DIVIDE", "INTDIV", "MATMUL", "POWER", "EQUALS", "EQEQ",
           "NEQ", "LT", "GT", "LEQ", "GEQ", "PLUSEQ", "COLON", "COMMA", "ARROW",
           "LARROW", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE",
@@ -27,6 +27,7 @@ t_PLUSEQ = r"\+="
 t_ARROW = r"→|->"
 t_LARROW = r"←"  # unit annotation:  x : ℝ ← [kg, m, s**-2] = expr
 t_PLUS = r"\+"
+t_MODULO = r"\%"
 t_MINUS = r"-"
 t_TIMES = r"\*"
 t_INTDIV = r"//"  # must come before t_DIVIDE so // matches before /
