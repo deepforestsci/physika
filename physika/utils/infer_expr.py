@@ -745,6 +745,34 @@ def expr_div(node: Any,
             )
     return broadcast_op(t1, t2), s
 
+def expr_mod(node, ctx):
+    from physika.utils.type_checker_utils import unify, type_to_str, broadcast_op  # noqa: E501
+
+    t1, s = infer_expr(
+        node[1],
+        ctx.env,
+        ctx.s,
+        ctx.func_env,
+        ctx.class_env,
+        ctx.add_error,
+    )
+
+    t2, s = infer_expr(
+        node[2],
+        ctx.env,
+        s,
+        ctx.func_env,
+        ctx.class_env,
+        ctx.add_error,
+    )
+
+    if t1 is not None:
+        t1 = s.apply(t1)
+
+    if t2 is not None:
+        t2 = s.apply(t2)
+
+    return broadcast_op(t1, t2), s
 
 def expr_matmul(node: Any,
                 ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
@@ -1247,6 +1275,7 @@ EXPR_DISPATCH: dict = {
     "sub": expr_add_sub,
     "mul": expr_mul,
     "div": expr_div,
+    "mod": expr_mod,
     "matmul": expr_matmul,
     "pow": expr_pow,
     "neg": expr_neg,
@@ -1308,7 +1337,7 @@ def infer_expr(
     class_env : dict
         Maps class names to their definition dicts (``class_params``,
         ``return_type``, etc), used for constructor call inference.
-    add_error : Callable
+    add_error : Callablehttps://github.com/deepforestsci/physika/
         Error reporting callback (``errors.append``).
 
     Returns
