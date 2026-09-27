@@ -1159,6 +1159,9 @@ def p_func_expr_plus(p):
     """func_expr : func_expr PLUS func_term"""
     p[0] = ("add", p[1], p[3])
 
+def p_func_expr_modulo(p):
+    """func_expr : func_expr MODULO func_term"""
+    p[0] = ("modulo", p[1], p[3])
 
 def p_func_expr_minus(p):
     """func_expr : func_expr MINUS func_term"""
@@ -1336,6 +1339,9 @@ def p_expr_plus(p):
     # Build AST node instead of immediate evaluation
     p[0] = ("add", p[1], p[3])
 
+def p_expr_modulo(p):
+    """expr : expr MODULO term"""
+    p[0] = ("modulo", p[1], p[3])
 
 def p_expr_minus(p):
     """expr : expr MINUS term"""

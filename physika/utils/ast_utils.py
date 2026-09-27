@@ -16,6 +16,7 @@ from physika.units import infer_unit, unit_to_str, UnitError
 # Tag literals (every valid first element of an AST tuple)
 ExprTag = Literal[
     "add",
+    "modulo",
     "sub",
     "mul",
     "div",
@@ -582,6 +583,11 @@ def ast_to_torch_expr(node: ASTNode,
         left = ast_to_torch_expr(node[1], indent, current_loop_var)
         right = ast_to_torch_expr(node[2], indent, current_loop_var)
         return f"({left} + {right})"
+
+    elif op == "modulo":
+        left = ast_to_torch_expr(node[1], indent, current_loop_var)
+        right = ast_to_torch_expr(node[2], indent, current_loop_var)
+        return f"({left} % {right})"
 
     elif op == "sub":
         left = ast_to_torch_expr(node[1], indent, current_loop_var)
