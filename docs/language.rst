@@ -635,10 +635,10 @@ rules same as ``expr_add_sub``:
   calls ``add_error``::
 
    # x : ℝ[3]
-   # x / 2
+   # x % 2
    expr_mod(("mod",(TTensor(((3, "invariant"),))),("num",2.0)), ctx)  → (ℝ[3], s)
    
-   # 6 / 2
+   # 6 % 2
    expr_mod(("mod",("num",6.0),("num",2.0)), ctx) → (ℝ, s)
 
    # x : ℝ[3]
