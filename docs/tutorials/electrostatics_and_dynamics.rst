@@ -60,10 +60,12 @@ The electric field produced by a point charge :math:`q_1` at position
 
 .. math::
 
-    \mathbf{E}(\mathbf{x}_2) = \frac{\mathbf{F}_{12}}{q_2}
+    \mathbf{E}(\mathbf{x}_2)
     = \frac{1}{4 \pi \varepsilon_0}
     \frac{q_1}{\lVert \mathbf{x}_2 - \mathbf{x}_1 \rVert^2}
     \, \frac{\mathbf{x}_2 - \mathbf{x}_1}{\lVert \mathbf{x}_2 - \mathbf{x}_1 \rVert}
+
+where :math:`\varepsilon_0` is the vacuum permittivity.
 
 .. code:: text
 
