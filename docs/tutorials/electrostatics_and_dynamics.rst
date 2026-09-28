@@ -2,7 +2,12 @@ Electrostatics and Dynamics
 ===========================
 
 In this tutorial we will explore application of physika for conducting simple
-simulations of electrical systems.
+simulations of electrical systems. **Electrostatics** studies charges that are
+stationary and the forces/fields they produce. It is needed to understand
+how capacitors, energy sources and it is the basis of many electrical and
+electronic devices. While **Charge Dynamics** refers to studying how electric
+charges move and change over time due to the influence of electric and magnetic
+fields.
 
 Coulomb's Law
 -------------
