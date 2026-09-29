@@ -49,3 +49,4 @@ snippets.
    elf
    motivation
    cic
+   stdlib
