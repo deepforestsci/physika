@@ -1,5 +1,38 @@
 # m: Positive constant controlling the width of the Gaussian wave function.
 # C: Normalization constant, it is choosen such that total probability is 1.
+# Note: e ** x: where x < -725 causes overflow.
+e: \mathbb{R} = 2.71828
+C: \mathbb{C} = 1 + 1j
+m: R = 0.1
 
-def ψ(x: R[3], t: R): C:
-    return C * exp(-m * ||x||**2 / 2)
+# Wave Function
+def psi(x: R[3], t: R): \mathbb{C}:
+    x_norm_squared = x[0]**2 + x[1]**2 + x[2]**2
+    return C * e ** (-m * x_norm_squared / 2)
+
+print(psi([5, 5, 5], 10))
+
+# Probability Density
+def rho(x: R[3], t: R): \mathbb{R}:
+    value: \mathbb{C} = psi(x, t)
+    return abs(value) ** 2
+
+print(rho([5, 5, 5], 10))
+
+# Position Operator
+def pos(x: R[3], t: R): R[3]:
+    value: \mathbb{C} = psi(x, t)
+    return x * value
+
+print(pos([5, 5, 5], 10))
+
+I: \mathbb{C} = 0 + 1j
+h: R = 6.582 * 10 ** -16
+
+# Momentum
+def mom(x: R[3], t: R): R[3]:
+    value1: \mathbb{C} = psi(x, t)
+    value2: R[3] = grad(value1, x)
+    return -I * h * value2
+
+print(mom([5.0, 5.0, 5.0], 10.0))
