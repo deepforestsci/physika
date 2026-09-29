@@ -4,6 +4,7 @@ from physika.utils.types import (
     T_NAT,
     T_COMPLEX,
     TList,
+    TDict,
     TVar,
     TDim,
     Substitution,
@@ -168,6 +169,21 @@ class TestInferTypeMethod:
         ctx = make_stmt_ctx(env={"v": vec})
         assert ctx.infer_type(("var", "v")) == vec
 
+    def test_dict(self):
+        """Dictionary expressions infer to TDict with key and value types."""
+        ctx = make_stmt_ctx()
+
+        assert ctx.infer_type(
+            (
+                "dict",
+                [
+                    (("num", 1), ("num", 5)),
+                    (("num", 2), ("num", 7)),
+                ],
+            ),
+            type_info=TDict(T_REAL, T_REAL),
+        ) == TDict(T_REAL, T_REAL)
+
     def test_add_expression(self):
         """Addition of two scalars infers to ℝ."""
         ctx = make_stmt_ctx(env={"x": T_REAL})
@@ -233,6 +249,26 @@ class TestStmtBodyDecl:
                 ('array', [('num', 1.0), ('num', 2.0), ('num', 3.0)]))
         stmt_body_decl(stmt, ctx)
         assert ctx.env['v'] == a_type
+        assert errors == []
+
+    def test_dict(self):
+        """Declaring a dictionary inside function body."""
+        errors = []
+        ctx = make_stmt_ctx(errors=errors)
+
+        stmt = (
+            'body_decl',
+            'd',
+            ('dict_type', 'ℝ', 'ℝ'),
+            ('dict', [
+                (('num', 1), ('num', 5)),
+                (('num', 2), ('num', 7)),
+            ]),
+        )
+
+        stmt_body_decl(stmt, ctx)
+
+        assert ctx.env['d'] == TDict(T_REAL, T_REAL)
         assert errors == []
 
     def test_no_declared_type(self):

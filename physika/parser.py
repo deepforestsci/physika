@@ -99,6 +99,18 @@ def p_type_with_unit_dimensionless(p):
     p[0] = ("unit_typed", p[1], [])
 
 
+def p_type_union(p):
+    """type_spec : type_spec PIPE type_spec"""
+    # A union type allows a value to have one of several
+    # specified types:
+    # Parameters:
+    #   p[1] - first type
+    #   p[3] - secon type
+    # Returns:
+    #   ("union", left_type_spec, right_type_spec)
+    p[0] = ("union", p[1], p[3])
+
+
 def p_dimension_list_single(p):
     """dimension_list : dimension_spec"""
     p[0] = [p[1]]

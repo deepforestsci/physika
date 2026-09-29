@@ -10,6 +10,8 @@ from physika.utils.types import (
     T_COMPLEX,
     T_STRING,
     TList,
+    TDict,
+    TUnion,
 )
 from physika.utils.type_checker_utils import (
     from_typespec,
@@ -53,6 +55,15 @@ class TestFromTypespec:
         assert from_typespec("string") == T_STRING
 
         assert from_typespec("list") == TList(())
+
+        assert from_typespec(("dict_type", "ℝ", "ℝ")) == TDict(T_REAL, T_REAL)
+
+        assert from_typespec(("union", "ℝ", "ℕ")) == TUnion((T_REAL, T_NAT), )
+
+        assert from_typespec(("dict_type", "ℝ", ("union", "ℝ", "ℕ"))) == TDict(
+            T_REAL,
+            TUnion((T_REAL, T_NAT)),
+        )
 
         result = from_typespec(("tensor", [(3, "invariant")]))
         assert result == TTensor(((3, "invariant"), ))
