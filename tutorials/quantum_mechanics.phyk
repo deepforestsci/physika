@@ -1,38 +1,60 @@
 # m: Positive constant controlling the width of the Gaussian wave function.
 # C: Normalization constant, it is choosen such that total probability is 1.
 # Note: e ** x: where x < -725 causes overflow.
-e: \mathbb{R} = 2.71828
 C: \mathbb{C} = 1 + 1j
 m: R = 0.1
 
 # Wave Function
-def psi(x: R[3], t: R): \mathbb{C}:
+def psi(x: R[3]): R:
     x_norm_squared = x[0]**2 + x[1]**2 + x[2]**2
-    return C * e ** (-m * x_norm_squared / 2)
+    return C * exp(-m * x_norm_squared / 2)
 
-print(psi([5, 5, 5], 10))
+print(psi([5, 5, 5]))
 
 # Probability Density
-def rho(x: R[3], t: R): \mathbb{R}:
-    value: \mathbb{C} = psi(x, t)
+def rho(x: R[3]): \mathbb{R}:
+    value: \mathbb{C} = psi(x)
     return abs(value) ** 2
 
-print(rho([5, 5, 5], 10))
+print(rho([5, 5, 5]))
 
 # Position Operator
-def pos(x: R[3], t: R): R[3]:
-    value: \mathbb{C} = psi(x, t)
+def pos(x: R[3]): R[3]:
+    value: \mathbb{C} = psi(x)
     return x * value
 
-print(pos([5, 5, 5], 10))
+print(pos([5, 5, 5]))
 
-I: \mathbb{C} = 0 + 1j
-h: R = 6.582 * 10 ** -16
+h: R = 6.582 * (10 ** -16)
 
 # Momentum
-def mom(x: R[3], t: R): R[3]:
-    value1: \mathbb{C} = psi(x, t)
-    value2: R[3] = grad(value1, x)
-    return -I * h * value2
+def mom(x: R[3]): R[3]:
+    value1: \mathbb{R} = psi(x)
+    value1_real: \mathbb{R} = real(value1)
+    value1_imag: \mathbb{R} = imag(value1)
+    value2_real: \mathbb{C}[3] = grad(value1_real, x)
+    value2_imag: \mathbb{C}[3] = grad(value1_imag, x)
+    value2: \mathbb{C}[3] = value2_real + value2_imag * 1j
+    return -1j * h * value2
 
-print(mom([5.0, 5.0, 5.0], 10.0))
+a: R[3] = [5.0, 5.0, 5.0]
+b: R[3] = a ** 2
+grad(b, a)
+
+mom(a)
+
+V = 0.0 # Treating V as a constant
+
+# Hamiltonian
+def ham(x: R[3]): R[3]:
+    mom_square = mom(x) ** 2
+    return mom_square / 2 * m + V * psi(x)
+
+ham(a)
+
+# Schrodinger Equation
+def schrodinger(x: R[3], E: R): R[3]:
+    return ham(x) * psi(x) - E * psi(x)
+
+E: R = 10.0
+schrodinger(a, E)

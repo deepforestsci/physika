@@ -735,6 +735,7 @@ def ast_to_torch_expr(node: ASTNode,
             "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
+            "imag": "torch.imag",
         }
         multi_arg_funcs = {
             "atan2": "torch.atan2",
