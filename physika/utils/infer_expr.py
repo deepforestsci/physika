@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, Tuple, Union, cast
-from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, TList, new_dim  # noqa: E501
+from physika.utils.types import Substitution, Type, TVar, TDim, TTensor, TInstance, TFunc, TScalar, T_NAT, T_REAL, T_COMPLEX, TList, T_STRING, new_dim  # noqa: E501
 from physika.utils.ast_utils import ASTNode
 from physika.elf import REGISTRY
 
@@ -88,6 +88,36 @@ def expr_num(node: Any,
     ℝ
     """
     return T_REAL, ctx.s
+
+
+def expr_string(node: Any,
+                ctx: ExprContext) -> Tuple[Optional[Type], Substitution]:
+    """
+    The type of string literal is always ``String``.
+
+    Parameters
+    ----------
+    node : Tuple
+        AST node of the form ``("string", value)`` where *value* is an
+        ``String``.
+    ctx : ExprContext
+        Current inference context.
+
+    Returns
+    -------
+    tuple[Type, Substitution]
+        Always ``(T_STRING, ctx.s)``.
+
+    Examples
+    --------
+    >>> from physika.utils.infer_expr import ExprContext, expr_string, T_STRING
+    >>> from physika.utils.types import Substitution
+    >>> ctx = ExprContext({}, Substitution(), {}, {}, [].append)
+    >>> t, _= expr_string(("string", "physika"), ctx)
+    >>> t
+    string
+    """
+    return T_STRING, ctx.s
 
 
 def expr_complex(node: Any,
@@ -1236,6 +1266,7 @@ def expr_cond(node, ctx):
 
 EXPR_DISPATCH: dict = {
     "num": expr_num,
+    "string": expr_string,
     "var": expr_var,
     "complex": expr_complex,
     "imaginary": expr_imaginary,
