@@ -50,15 +50,15 @@ def sigma(x: ℝ[a,b]): ℝ[a,b]:
 # Network Definition: 2-layer FCN with custom MSE loss
 # R[3] -> R[3] -> R[3] -> R
 # ------------------------------------------------------------
-class FullyConnectedNetwork(W: ℝ[2,3,3], B: ℝ[2,3,1], w: ℝ[1,3], b: ℝ):
-    def λ(x: ℝ[3, 1]) → ℝ:
+class FullyConnectedNetwork(W: ℝ[m, n, n], B: ℝ[m, n, o], w: ℝ[o, n], b: ℝ):
+    def λ(x: ℝ[n, o]) → ℝ:
         for k:ℕ(0, 2):
             x = sigma(this.W[k] @ x + this.B[k])
         results: ℝ[m, n] = this.w @ x + this.b
         return results[0, 0]
     def loss(y: ℝ, target: ℝ) → ℝ:
         return (y - target) ** 2.0
-    def train(X: ℝ[4, 3, 1], y: ℝ[4], epochs: ℕ, lr: ℝ) → ℝ:
+    def train(X: ℝ[r, n, o], y: ℝ[r], epochs: ℕ, lr: ℝ) → ℝ:
         len_dataset = get_3d_array_depth(X)
         last_loss: R = 0
         for i:ℕ(epochs):
@@ -71,10 +71,10 @@ class FullyConnectedNetwork(W: ℝ[2,3,3], B: ℝ[2,3,1], w: ℝ[1,3], b: ℝ):
                 this.update_params(lr, learnable_grads)
             last_loss = epoch_loss / len_dataset
         return last_loss
-    def evaluate(X: ℝ[4, 3, 1], y: ℝ[4]) → ℝ:
-        x: R = 1.5
-        len_dataset = get_3d_array_depth(X)
-        total_loss = 0
+    def evaluate(X: ℝ[r, n, o], y: ℝ[r]) → ℝ:
+        x: ℝ = 1.5
+        len_dataset: ℝ = get_3d_array_depth(X)
+        total_loss: ℝ = 0
         for j:ℕ(len_dataset):
             pred = this(X[j])
             current_loss = this.loss(pred, y[j])

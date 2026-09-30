@@ -37,20 +37,19 @@ class Vec:
         return this.x * this.x + this.y * this.y
 
 class Particle:
-    pos : ℝ[2]
-    vel : ℝ[2]
+    pos, vel : ℝ[m]
     mass : ℝ
     def kinetic_energy() : ℝ:
         return 0.5 * this.mass * sum(this.vel * this.vel)
-    def step(force : ℝ[2], dt : ℝ) : Particle:
-        acc : ℝ[2] = force * (1.0 / this.mass)
-        new_vel : ℝ[2] = this.vel + acc * dt
-        new_pos : ℝ[2] = this.pos + this.vel * dt
+    def step(force : ℝ[m], dt : ℝ) : Particle:
+        acc : ℝ[m] = force * (1.0 / this.mass)
+        new_vel : ℝ[m] = this.vel + acc * dt
+        new_pos : ℝ[m] = this.pos + this.vel * dt
         return Particle(new_pos, new_vel, this.mass)
 
 # Vec
-a = Vec(3.0, 4.0)
-b = Vec(1.0, 0.0)
+a: Vec = Vec(3.0, 4.0)
+b: Vec = Vec(1.0, 0.0)
 a.x
 a.y
 dot_ab : ℝ = a.dot(b)
