@@ -1,0 +1,116 @@
+# m: Positive constant controlling the width of the Gaussian wave function.
+# C: Normalization constant, it is choosen such that total probability is 1.
+# Note: e ** x: where x < -725 causes overflow.
+m: R = 0.1
+C: \mathbb{R} = (m / 3.14) ** (3/4)
+
+# Wave Function
+def psi(x: R[3]): R:
+    x_norm_squared = x[0]**2 + x[1]**2 + x[2]**2
+    return C * exp(-m * x_norm_squared / 2)
+
+print(psi([5, 5, 5]))
+
+# Probability Density
+def rho(x: R[3]): \mathbb{R}:
+    value: \mathbb{C} = psi(x)
+    return abs(value) ** 2
+
+print(rho([5, 5, 5]))
+
+# Position Operator
+def pos(x: R[3]): R[3]:
+    value: \mathbb{C} = psi(x)
+    return x * value
+
+print(pos([5, 5, 5]))
+
+h: R = 6.582 * (10 ** -16)
+
+# Momentum
+def mom(x: R[3]): R[3]:
+    value1: \mathbb{R} = psi(x)
+    value1_real: \mathbb{R} = real(value1)
+    #value1_imag: \mathbb{R} = imag(value1)
+    value2_real: \mathbb{C}[3] = grad(value1_real, x)
+    #value2_imag: \mathbb{C}[3] = grad(value1_imag, x)
+    #value2: \mathbb{C}[3] = value2_real + value2_imag * 1j
+    return -1j * h * value2_real
+
+a: R[3] = [5.0, 5.0, 5.0]
+b: R[3] = a ** 2
+grad(b, a)
+
+mom(a)
+
+# First partial derivatives of ψ
+def dpsi_dx0(x: R[3]): R:
+    g = grad(psi, x)
+    return g[0]
+
+def dpsi_dx1(x: R[3]): R:
+    g = grad(psi, x)
+    return g[1]
+
+def dpsi_dx2(x: R[3]): R:
+    g = grad(psi, x)
+    return g[2]
+
+# Second Partial Derivative
+def d2psi_dx0dx0(x: R[3]): R:
+    g = grad(dpsi_dx0, x)
+    return g[0]
+
+def lap_psi(x: R[3]): R[3]:
+    g0 = grad(psi, x)
+    return g0
+
+print(000)
+lap_psi(a)
+print(000)
+
+def laplacian_psi_analytic(x: R[3]): R:
+    x2 = x[0]**2 + x[1]**2 + x[2]**2
+    return (-3 * m + (m ** 2) * x2) * psi(x)
+
+laplacian_psi_analytic(a)
+
+V = 0.0 # Treating V as a constant
+
+def ham_analytic(x: R[3]): R:
+    lap = laplacian_psi_analytic(x)
+    kin = -(h ** 2) / (2 * m) * lap
+    pot = V * psi(x)
+    return kin + pot
+
+ham_analytic(a)
+
+
+# Hamiltonian
+def ham(x: R[3]): R[3]:
+    mom_square = mom(x) ** 2
+    return mom_square / 2 * m + V * psi(x)
+
+ham(a)
+
+# Schrodinger Equation
+def schrodinger(x: R[3], E: R): R:
+    return ham_analytic(x) - E * psi(x)
+
+E: R = 10.0
+schrodinger(a, E)
+
+def rk4_step(state: ℝ[3], E: R): ℝ[3]:
+    k1: ℝ = schrodinger(state, E)
+    k2_state: ℝ[3] = state + 0.5 * k1
+    k2: ℝ = schrodinger(k2_state, E)
+    k3_state: ℝ[3] = state + 0.5 * k2
+    k3: ℝ = schrodinger(k3_state, E)
+    k4_state: ℝ[3] = state + k3
+    k4: ℝ = schrodinger(k4_state, E)
+    return state + (1 / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+ITER: N = 10
+for i:ℕ(ITER):
+    a = rk4_step(a, E)
+    print(a)
