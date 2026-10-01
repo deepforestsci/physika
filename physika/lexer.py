@@ -6,7 +6,7 @@ tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
           "LARROW", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE",
           "INDENT", "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS",
           "LAMBDA", "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION",
-          "WALRUS", "FROM", "IMPORT")
+          "WALRUS", "FROM", "IMPORT", "MOD")
 
 reserved = {
     "def": "DEF",
@@ -30,6 +30,7 @@ t_PLUS = r"\+"
 t_MINUS = r"-"
 t_TIMES = r"\*"
 t_INTDIV = r"//"  # must come before t_DIVIDE so // matches before /
+t_MOD = r"\%"
 t_DIVIDE = r"/"
 t_MATMUL = r"@"
 # Comparison operators:

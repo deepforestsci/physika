@@ -626,6 +626,30 @@ rules same as ``expr_add_sub``:
    # shape mismatch error
    expr_div(("div",(TTensor(((3, "invariant"),))),(TTensor(((2, "invariant"),)))), ctx) → (None, s) + "Shape mismatch in div: ℝ[3] vs ℝ[2]"
 
+**expr_mod** (Modulo ``("mod", dividend, divisor)``)
+
+
+- Tensor % Scalar: result has the shape of the dividend.
+- Scalar % Scalar: ``ℝ``.
+- Tensor % Tensor: shapes must match for elementwise division. A mismatch
+  calls ``add_error``::
+
+   # x : ℝ[3]
+   # x % 2
+   expr_mod(("mod",(TTensor(((3, "invariant"),))),("num",2.0)), ctx)  → (ℝ[3], s)
+   
+   # 6 % 2
+   expr_mod(("mod",("num",6.0),("num",2.0)), ctx) → (ℝ, s)
+
+   # x : ℝ[3]
+   # y : ℝ[3]
+   expr_mod(("mod",(TTensor(((3, "invariant"),))),(TTensor(((3, "invariant"),)))), ctx) → (ℝ[3], s)
+
+   # x : ℝ[3]
+   # z : ℝ[2] 
+   # shape mismatch error
+   expr_mod(("mod",(TTensor(((3, "invariant"),))),(TTensor(((2, "invariant"),)))), ctx) → (None, s) + "Shape mismatch in div: ℝ[3] vs ℝ[2]"
+
 **expr_matmul** (Matrix multiplication ``("matmul", left, right)``)
 
 Inner dimensions must match.  Supported rank combinations:
