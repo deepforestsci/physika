@@ -103,6 +103,7 @@ Tutorials
    undirected_graph
    kmeans
    neural_ode
+   electrostatics_and_dynamics
 
 .. toctree::
    :maxdepth: 1
