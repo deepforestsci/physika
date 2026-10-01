@@ -197,16 +197,6 @@ class Molecule(nn.Module):
         v = torch.as_tensor(v, device=DEVICE).float()
         self.add_weighted_edge(u, v, 1.0)
 
-    @property
-    def params(self):
-        return list(self.parameters())
-
-    def update(self, lr, grads):
-        with torch.no_grad():
-            for p, g in zip(self.parameters(), grads):
-                if g is not None:
-                    p -= lr * g
-
 # === Program ===
 BITS = 32
 M = 65521.0
