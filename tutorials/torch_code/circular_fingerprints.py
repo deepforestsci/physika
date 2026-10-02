@@ -7,8 +7,7 @@ from physika.runtime import print
 
 # === Functions ===
 def modulo(s, m):
-    r = s
-    d = (m * (2.0 ** (BITS - 1)))
+    r, d = s, (m * (2.0 ** (BITS - 1)))
     for k in range(int(0), int(BITS)):
         if r >= d:
             r = (r - d)
@@ -36,8 +35,7 @@ def bubble_sort(xs):
     return ys
 
 def get_2d_array_num_rows(x):
-    total = 0
-    temp = 0
+    total, temp = 0, 0
     for i in range(len(x)):
         temp = x[int(i)]
         total = total + 1
@@ -54,8 +52,7 @@ def new_molecule(atomic_num, formal_charge):
 
 def degree(g, u):
     m = g.adjacency
-    k = get_2d_array_num_rows(m)
-    d = 0
+    k, d = get_2d_array_num_rows(m), 0
     for v in range(int(0), int(k)):
         if m[int(u), int(v)] > 0.0:
             d = d + 1
@@ -64,8 +61,7 @@ def degree(g, u):
 def hydrogens(g, u):
     m = g.adjacency
     z = g.atomic_num
-    k = get_2d_array_num_rows(m)
-    h = 0
+    k, h = get_2d_array_num_rows(m), 0
     for v in range(int(0), int(k)):
         if m[int(u), int(v)] > 0.0:
             if z[int(v)] == 1.0:
@@ -74,8 +70,7 @@ def hydrogens(g, u):
 
 def aromatic(g, u):
     m = g.adjacency
-    k = get_2d_array_num_rows(m)
-    r = 0
+    k, r = get_2d_array_num_rows(m), 0
     for v in range(int(0), int(k)):
         if m[int(u), int(v)] == 1.5:
             r = 1
@@ -83,8 +78,7 @@ def aromatic(g, u):
 
 def invariants(g):
     m = g.adjacency
-    z = g.atomic_num
-    c = g.formal_charge
+    z, c = g.atomic_num, g.formal_charge
     k = get_2d_array_num_rows(m)
     inv = torch.stack([torch.stack([(a * 0.0) for _fi_a in range(int(k)) for a in [torch.tensor(float(_fi_a), device=DEVICE)]]) for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     inv[int(0), :] = z
@@ -124,10 +118,9 @@ def update_ids(g, ids, r):
     return new_ids
 
 def fingerprint(g, radius):
-    z = g.atomic_num
+    z, ids = g.atomic_num, initial_ids(g)
     k = get_2d_array_num_rows(g.adjacency)
     fp = torch.stack([(b * 0.0) for _fi_b in range(int(N_BITS)) for b in [torch.tensor(float(_fi_b), device=DEVICE)]])
-    ids = initial_ids(g)
     for a in range(int(0), int(k)):
         if z[int(a)] > 1.0:
             fp[int(modulo(ids[int(a)], N_BITS))] = 1.0

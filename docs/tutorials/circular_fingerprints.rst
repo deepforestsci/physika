@@ -113,8 +113,7 @@ ordering of the atoms:
 
     def degree(g: Molecule, u: ℕ): ℝ:
         m: ℝ[n, n] = g.adjacency
-        k: ℝ = get_2d_array_num_rows(m)
-        d: ℝ = 0
+        k, d: ℝ = get_2d_array_num_rows(m), 0
         for v : ℕ(k):
             if m[u, v] > 0.0:
                 d += 1
@@ -123,8 +122,7 @@ ordering of the atoms:
     def hydrogens(g: Molecule, u: ℕ): ℝ:
         m: ℝ[n, n] = g.adjacency
         z: ℝ[n] = g.atomic_num
-        k: ℝ = get_2d_array_num_rows(m)
-        h: ℝ = 0
+        k, h: ℝ = get_2d_array_num_rows(m), 0
         for v : ℕ(k):
             if m[u, v] > 0.0:
                 if z[v] == 1.0:
@@ -133,8 +131,7 @@ ordering of the atoms:
 
     def aromatic(g: Molecule, u: ℕ): ℝ:
         m: ℝ[n, n] = g.adjacency
-        k: ℝ = get_2d_array_num_rows(m)
-        r: ℝ = 0
+        k, r: ℝ = get_2d_array_num_rows(m), 0
         for v : ℕ(k):
             if m[u, v] == 1.5:
                 r = 1
@@ -142,8 +139,7 @@ ordering of the atoms:
 
     def invariants(g: Molecule): ℝ[5, n]:
         m: ℝ[n, n] = g.adjacency
-        z: ℝ[n] = g.atomic_num
-        c: ℝ[n] = g.formal_charge
+        z, c: ℝ[n] = g.atomic_num, g.formal_charge
         k: ℝ = get_2d_array_num_rows(m)
         inv: ℝ[5, k] = for i : ℕ(5) → for a : ℕ(k) → a * 0.0
         inv[0, :] = z
@@ -244,8 +240,7 @@ atomic/molecular systems.
 
     class Molecule():
         adjacency: ℝ[n, n]
-        atomic_num: ℝ[n]
-        formal_charge: ℝ[n]
+        atomic_num, formal_charge:  ℝ[n]
         def num_atoms() → ℝ:
             return get_2d_array_num_rows(this.adjacency) * 1.0
         def has_edge(u: ℝ, v: ℝ) → ℝ:
@@ -396,8 +391,7 @@ remainder.
 .. code-block:: text
 
   def modulo(s: ℝ, m: ℝ): ℝ:
-      r: ℝ = s
-      d: ℝ = m * (2.0 ** (BITS - 1))
+      r, d: ℝ = s, m * (2.0 ** (BITS - 1))
       for k:ℕ(BITS):
           if r >= d:
               r = r - d
