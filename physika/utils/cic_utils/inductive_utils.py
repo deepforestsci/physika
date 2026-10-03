@@ -981,7 +981,7 @@ def verify_recursor_rules(
         rec_info: "Recursor",
         env: "Environment") -> Optional[str]:
     """
-    Kernel checj that each ``RecursorRule`` in ``rec_info`` reduces to a term
+    Kernel check that each ``RecursorRule`` in ``rec_info`` reduces to a term
     of the type its motive promises for the matching constructor. Returns
     ``None`` if ``rec_info`` is valid for ``decl``, or an error if is found.
 

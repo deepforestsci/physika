@@ -19,7 +19,7 @@ class ConstantInfo:
     type : Expr
         Pi-type (chain of ``ForallE`` nodes)
     value : Optional[Expr]
-        None for axioms. ``body`` Expr for contant
+        None for axioms. ``body`` Expr for constant
         declarations.
 
     Examples
@@ -158,7 +158,7 @@ class Environment:
         True
         """
         if c.name in self.constants:
-            #  every name in ``Environment`` must be unique
+            # every name in ``Environment`` must be unique
             raise ValueError(
                 f"Environment: constant '{c.name}' already registered")
         self.constants[c.name] = c
