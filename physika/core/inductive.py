@@ -22,7 +22,6 @@ class Constructor:
     ,which means ``∀ n: Nat → Nat``. In CIC, we represent ``∀ n: Nat → Nat``
     as as ``Expr`` object ``ForallE("n", nat, nat)``.
 
-successor
 
     Parameters
     ----------
@@ -108,7 +107,7 @@ class Recursor:
     For example, ``Nat`` has two constructors: ``zero`` and ``succ``. So,
     ``Recursor`` for ``Nat`` needs two rules; one for what happens at ``zero``
     , and one for what happens at ``succ``. During elaboration, when there is
-    ``Nat`` type, ``Recursor`` contins the information and rules (as CIC
+    ``Nat`` type, ``Recursor`` contains the information and rules (as CIC
     expressions) and compute with them. This is how addition (``Nat.add``)
     is defined in Physika. Because a proof in CIC is just another term
     (the Curry-Howard correspondence), proving a theorem using a natural number
