@@ -44,11 +44,11 @@ print(print(coulomb_f))
 coulomb_e = E(2, torch.tensor([0, 0, 0], device=DEVICE), torch.tensor([1, 1, 1], device=DEVICE))
 print(print(coulomb_e))
 Capa, Ress, V0 = 1.0, 10.0, 10.0
-dt = 0.01
+Δt = 0.01
 steps = 200
-V_final = voltage_at(V0, Capa, Ress, dt, steps)
+V_final = voltage_at(V0, Capa, Ress, Δt, steps)
 print(print(V_final))
-I_final = current_at(V0, Capa, Ress, dt, steps)
+I_final = current_at(V0, Capa, Ress, Δt, steps)
 print(print(I_final))
-V_exact = (V0 * torch.exp((((-dt) * steps) / (Ress * Capa)) if isinstance((((-dt) * steps) / (Ress * Capa)), torch.Tensor) else torch.tensor(float((((-dt) * steps) / (Ress * Capa))))))
+V_exact = (V0 * torch.exp((((-Δt) * steps) / (Ress * Capa)) if isinstance((((-Δt) * steps) / (Ress * Capa)), torch.Tensor) else torch.tensor(float((((-Δt) * steps) / (Ress * Capa))))))
 print(print(V_exact))
