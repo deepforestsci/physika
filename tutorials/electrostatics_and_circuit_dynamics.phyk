@@ -1,6 +1,6 @@
 # π: pi
 # ε0: Vacuum Permittivity
-π, ε0: ℝ = 3.14159, 0.000000000008854
+π, ε0: ℝ = 3.14159, 8.854e-12
 
 # p1: Position 1 in 3d space
 # p2: Position 2 in 3d space
@@ -17,7 +17,7 @@ def dist_3d(p1: ℝ[3], p2: ℝ[3]): ℝ:
 def F(q1: ℝ, q2: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
     return (1 / (4 * π * ε0)) * (q1 * q2 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-coulomb_f = F(2, 2, [0, 0, 0], [1, 1, 1])
+coulomb_f: ℝ[3] = F(2, 2, [0, 0, 0], [1, 1, 1])
 print(coulomb_f)
 
 # q1: Charge at position x1
@@ -26,7 +26,7 @@ print(coulomb_f)
 def E(q1: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
     return (1 / (4 * π * ε0)) * (q1 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-coulomb_e = E(2, [0, 0, 0], [1, 1, 1])
+coulomb_e: ℝ[3] = E(2, [0, 0, 0], [1, 1, 1])
 print(coulomb_e)
 
 
@@ -56,15 +56,15 @@ def current_at(V: ℝ, Capa: ℝ, Ress: ℝ, dt: ℝ, steps: ℕ): ℝ:
     return V / Ress
 
 Capa, Ress, V0: ℝ = 1.0, 10.0, 10.0
-dt: ℝ = 0.01
+Δt: ℝ = 0.01
 steps: ℕ = 200
 
-V_final: ℝ = voltage_at(V0, Capa, Ress, dt, steps)
+V_final: ℝ = voltage_at(V0, Capa, Ress, Δt, steps)
 print(V_final)
 
-I_final: ℝ = current_at(V0, Capa, Ress, dt, steps)
+I_final: ℝ = current_at(V0, Capa, Ress, Δt, steps)
 print(I_final)
 
-# Analytical solution: V(t) = V0 * exp(-t / (R * C))
-V_exact: ℝ = V0 * exp(-dt * steps / (Ress * Capa))
+# Analytical solution:
+V_exact: ℝ = V0 * exp(-Δt * steps / (Ress * Capa))
 print(V_exact)
