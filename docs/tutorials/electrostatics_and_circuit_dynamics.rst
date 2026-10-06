@@ -1,11 +1,11 @@
-Electrostatics and Dynamics
-===========================
+Electrostatics and Circuit Dynamics
+===================================
 
 In this tutorial we will explore application of physika for conducting simple
 simulations of electrical systems. **Electrostatics** studies charges that are
 stationary and the forces/fields they produce. It is needed to understand
 how capacitors, energy sources and it is the basis of many electrical and
-electronic devices. While **Charge Dynamics** refers to studying how electric
+electronic devices. While **Circuit Dynamics** refers to studying how electric
 charges move and change over time due to the influence of electric and magnetic
 fields.
 
@@ -36,14 +36,12 @@ The force exerted on a point charge :math:`q_2` at position
     \frac{\mathbf{x}_2 - \mathbf{x}_1}
     {\lVert \mathbf{x}_2 - \mathbf{x}_1 \rVert}
 
-where :math:`\varepsilon_0` is the vacuum permittivity.
-
 .. code:: text
 
     def F(q1: ℝ, q2: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
         return (1 / (4 * π * ε0)) * (q1 * q2 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-    coulomb_f = F(2, 2, [0, 0, 0], [1, 1, 1])
+    coulomb_f: ℝ[3] = F(2, 2, [0, 0, 0], [1, 1, 1])
     print(coulomb_f)
 
 output:
@@ -51,6 +49,15 @@ output:
 .. code:: text
 
     [6918773248.0, 6918773248.0, 6918773248.0] ∈ ℝ[3]
+
+.. note::
+
+   **dist_3d** is a function for finding euclidian norm. Implementation
+   details in helper section.
+   
+   :math:`\varepsilon_0` is vacuum permittivity.
+
+   :math:`\pi` is an irrational mathematical constant.
 
 Electric Field
 ~~~~~~~~~~~~~~
@@ -72,10 +79,12 @@ where :math:`\varepsilon_0` is the vacuum permittivity.
     def E(q1: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
         return (1 / (4 * π * ε0)) * (q1 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-    coulomb_e = E(2, [0, 0, 0], [1, 1, 1])
+    coulomb_e: ℝ[3] = E(2, [0, 0, 0], [1, 1, 1])
     print(coulomb_e)
 
-Output::
+Output:
+
+.. code:: text
 
     [3459386624.0, 3459386624.0, 3459386624.0] ∈ ℝ[3]
 
@@ -238,7 +247,7 @@ complete circuit simulation toolkit.
 Full Code
 ---------
 
-.. literalinclude:: ../../tutorials/electrostatics_and_dynamics.phyk
+.. literalinclude:: ../../tutorials/electrostatics_and_circuit_dynamics.phyk
    :language: text
 
 References
