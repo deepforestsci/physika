@@ -1061,3 +1061,158 @@ def detach_grad(x):
     True
     """
     return x.detach().requires_grad_(True)
+
+
+
+def view(x, *shape):
+    return x.view(*shape)
+
+
+def transpose(x, dim0, dim1):
+    return torch.transpose(x, dim0, dim1)
+
+
+def size(x, dim):
+    return x.size(dim)
+
+
+def softmax(input, dim):
+    return torch.softmax(input, dim=dim)
+
+
+
+def relu(x):
+    return torch.relu(x)
+
+
+def causal_mask(seq_len):
+    mask = torch.full(
+        (seq_len, seq_len),
+        float("-inf")
+    )
+    mask = torch.triu(mask, diagonal=1)
+    return mask
+
+
+
+
+
+import re
+import torch
+
+
+# --------------------------------------------------
+# Dataset / tokenizer
+# --------------------------------------------------
+
+_CORPUS = "corpus.txt"
+
+with open(_CORPUS, "r") as f:
+    _sentences = [line.strip() for line in f if line.strip()]
+
+
+def _tokenize(text):
+    return re.findall(r"[\w']+|[.,!?;]|<end>", text)
+
+
+# Add end-of-sentence token
+_sentences = [s + " <end>" for s in _sentences]
+
+
+# Build vocabulary
+_all_tokens = []
+for sentence in _sentences:
+    _all_tokens.extend(_tokenize(sentence))
+
+_vocab = sorted(set(_all_tokens))
+_vocab.append("<pad>")
+_vocab.append("<unk>")
+
+_stoi = {word: i for i, word in enumerate(_vocab)}
+_itos = {i: word for word, i in _stoi.items()}
+
+_PAD_IDX = _stoi["<pad>"]
+_UNK_IDX = _stoi["<unk>"]
+
+_VOCAB_SIZE = len(_vocab)
+
+# Longest tokenized sentence, including <end>
+_MAX_LEN = max(len(_tokenize(s)) for s in _sentences)
+
+
+def encode(text):
+    """Convert text into token IDs."""
+    return [_stoi.get(token, _UNK_IDX) for token in _tokenize(text)]
+
+
+def decode(tokens):
+    """Convert token IDs back into text."""
+    words = []
+
+    for token in tokens:
+        token_id = int(token)
+        word = _itos[token_id]
+
+        if word == "<end>":
+            break
+
+        if word == "<pad>":
+            continue
+
+        words.append(word)
+
+    return " ".join(words)
+
+
+def create_dataset():
+    """
+    Create next-token prediction dataset.
+
+    X contains all tokens except the final token.
+    Y contains all tokens except the first token.
+    """
+
+    seq_len = _MAX_LEN - 1
+
+    X = []
+    Y = []
+
+    for sentence in _sentences:
+        tokens = encode(sentence)
+
+        x = tokens[:-1]
+        y = tokens[1:]
+
+        x += [_PAD_IDX] * (seq_len - len(x))
+        y += [_PAD_IDX] * (seq_len - len(y))
+
+        X.append(x)
+        Y.append(y)
+
+    return (
+        torch.tensor(X, dtype=torch.long),
+        torch.tensor(Y, dtype=torch.long),
+    )
+
+
+def get_vocab_size():
+    return _VOCAB_SIZE
+
+
+def get_max_len():
+    return _MAX_LEN - 1
+
+
+def encode_text(text: str) -> list:
+    """Convert text into token IDs."""
+    return [_stoi[token] for token in text.split() if token in _stoi]
+
+
+def decode_token(token_id: int) -> str:
+    """Convert a token ID back into a token string."""
+    return _itos[token_id]
+
+def to_tensor(tokens: list) -> torch.Tensor:
+    """Convert token IDs into a PyTorch integer tensor."""
+    return torch.tensor(tokens, dtype=torch.long)
+

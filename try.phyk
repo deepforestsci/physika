@@ -1,0 +1,414 @@
+
+
+def rand_3d_array(m: R, n: R, o: R, μ:ℝ): ℝ[m, n, o]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_2d_array(n:ℝ, m:ℝ, μ:ℝ): ℝ[n, m]:
+        return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total, temp: ℝ = 0, 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def argmax(iterable: ℝ[m]): ℕ:
+    idx: ℕ = 0
+    max_val: ℝ = iterable[0]
+    len_iterable: ℕ = get_1d_array_length(iterable)
+    for i:ℕ(1, len_iterable):
+        if iterable[i] > max_val:
+            max_val = iterable[i]
+            idx = i
+    return idx
+
+
+def cross_entropy(logits: ℝ[m], label: N): ℝ:
+    vocab_size: N = size(logits, 0)
+    total: ℝ = 0
+    for i:ℕ(vocab_size):
+        total += exp(logits[i])
+    return -logits[label] + log(total)
+
+
+def cross_entropy_sequence(logits: ℝ[b, n, vocab_size],labels: N[b, n]): ℝ:
+    batch_size: N = size(logits, 0)
+    seq_len: N = size(logits, 1)
+    total_loss: ℝ = 0
+    for i:ℕ(batch_size):
+        for j:ℕ(seq_len):
+            total_loss += cross_entropy(logits[i, j], labels[i, j])
+    return total_loss / (batch_size * seq_len)
+
+
+
+
+class AdamOptimizer1D:
+    lr, beta1, beta2, eps, t: ℝ
+    m, v: ℝ[m]
+    def step(param: ℝ[m], grad: ℝ[m]) → ℝ[m]:
+        this.t = this.t + 1.0
+        this.m = this.beta1 * this.m + (1.0 - this.beta1) * grad
+        this.v = this.beta2 * this.v + (1.0 - this.beta2) * grad**2
+        m_hat: ℝ[m] = this.m / (1.0 - this.beta1**this.t)
+        v_hat: ℝ[m] = this.v / (1.0 - this.beta2**this.t)
+        param_new: ℝ[m] = (
+            param
+            - this.lr * m_hat / (sqrt(v_hat) + this.eps)
+        )
+        return param_new
+
+class AdamOptimizer2D:
+    lr, beta1, beta2, eps, t: ℝ
+    m, v: ℝ[m, n]
+    def step(param: ℝ[m, n], grad: ℝ[m, n]) → ℝ[m, n]:
+        this.t = this.t + 1.0
+        this.m = this.beta1 * this.m + (1.0 - this.beta1) * grad
+        this.v = this.beta2 * this.v + (1.0 - this.beta2) * grad**2
+        m_hat: ℝ[m, n] = this.m / (1.0 - this.beta1**this.t)
+        v_hat: ℝ[m, n] = this.v / (1.0 - this.beta2**this.t)
+        param_new: ℝ[m, n] = (
+            param
+            - this.lr * m_hat / (sqrt(v_hat) + this.eps)
+        )
+        return param_new
+
+class AdamOptimizer3D:
+    lr, beta1, beta2, eps, t: ℝ
+    m, v: ℝ[m, n, o]
+    def step(param: ℝ[m, n, o],grad: ℝ[m, n, o]) → ℝ[m, n, o]:
+        this.t = this.t + 1.0
+        this.m = this.beta1 * this.m + (1.0 - this.beta1) * grad
+        this.v = this.beta2 * this.v + (1.0 - this.beta2) * grad**2
+        m_hat: ℝ[m, n, o] = (this.m / (1.0 - this.beta1**this.t))
+        v_hat: ℝ[m, n, o] = (this.v / (1.0 - this.beta2**this.t))
+        param_new: ℝ[m, n, o] = param - this.lr * m_hat / (sqrt(v_hat) + this.eps)
+        return param_new
+
+
+class Linear3DnoBias:
+    W: R[out, in]
+    opt_W: AdamOptimizer2D
+    def λ(x: R[b, n, in]) → R[b, n, out]:
+        res: R[b, n, out] = x @ transpose(this.W, 0, 1)
+        return res
+    def update_params(learnable_grads: R[m, n]):
+        this.W = this.opt_W.step(this.W, learnable_grads[0])
+
+class Linear3D:
+    W: R[out, in]
+    b: R[out]
+    opt_W: AdamOptimizer2D
+    opt_b: AdamOptimizer1D
+    def λ(x: R[b, n, in]) → R[b, n, out]:
+        out_size: N = size(this.b, 0)
+        bias: R[1, 1, out] = reshape(this.b, 1, 1, out_size)
+        res: R[b, n, out] = x @ transpose(this.W, 0, 1) + bias
+        return res
+    def update_params(learnable_grads: ℝ[m]):
+        this.W = this.opt_W.step(this.W,learnable_grads[0])
+        this.b = this.opt_b.step(this.b,learnable_grads[1])
+
+
+class MultiHeadAttention:
+    d_model, nhead, d_k: N
+    W_q, W_k, W_v, W_o: Linear3DnoBias
+    def λ(x: R[b, n, d_model]) → R[b, n, d_model]:
+        batch_size: N = size(x, 0)
+        seq_len: N = size(x, 1)
+        Q: R[b, n, d_model] = W_q(x)
+        K: R[b, n, d_model] = W_k(x)
+        V: R[b, n, d_model] = W_v(x)
+        Q: R[b, nhead, n, d_k] = transpose(view(Q, batch_size, seq_len, nhead, d_k), 1, 2)
+        K: R[b, nhead, n, d_k] = transpose(view(K, batch_size, seq_len, nhead, d_k), 1, 2)
+        V: R[b, nhead, n, d_k] = transpose(view(V, batch_size, seq_len, nhead, d_k), 1, 2)
+        scores = (Q @ transpose(K, 2, 3)) / sqrt(d_k)
+        scores = scores + causal_mask(seq_len)
+        weights: R[b, nhead, n, n] = softmax(scores, 3)
+        context: R[b, nhead, n, d_k] = weights @ V
+        context: R[b, n, nhead, d_k] = transpose(context, 1, 2)
+        context: R[b, n, d_model] = reshape(context, batch_size, seq_len, d_model)
+        return W_o(context)
+
+
+class LayerNorm:
+    d_model: N
+    γ, β: R[d_model]
+    opt_γ: AdamOptimizer1D
+    opt_β: AdamOptimizer1D
+    def λ(x: R[b, n, d_model]) → R[b, n, d_model]:
+        μ: R[b, n, 1] = mean_keepdim(x, 2)
+        variance: R[b, n, 1] = mean_keepdim((x - μ) * (x - μ), 2)
+        normalized: R[b, n, d_model] = (
+            (x - μ) / sqrt(variance + 1e-5)
+        )
+        γ_expanded: R[1, 1, d_model] = reshape(this.γ, 1, 1, d_model)
+        β_expanded: R[1, 1, d_model] = reshape(this.β, 1, 1, d_model)
+        return normalized * γ_expanded + β_expanded
+    def update_params(learnable_grads: R[m]):
+        this.γ = this.opt_γ.step(this.γ,learnable_grads[0])
+        this.β = this.opt_β.step(this.β,learnable_grads[1])
+
+
+
+class FeedForward:
+    W1, W2: Linear3D
+    def λ(x: R[b, n, d_model]) → R[b, n, d_model]:
+        x = W1(x)
+        x = relu(x)
+        x = W2(x)
+        return x
+    def update_params(learnable_grads: R[m]):
+        W1.update_params(learnable_grads[0])
+        W2.update_params(learnable_grads[1])
+
+
+class TransformerBlock:
+    attention: MultiHeadAttention
+    norm1: LayerNorm
+    ffn: FeedForward
+    norm2: LayerNorm
+    def λ(x: R[b, n, d_model]) → R[b, n, d_model]:
+        x = norm1(x + attention(x))
+        x = norm2(x + ffn(x))
+        return x
+    def update_params(learnable_grads: R[m]):
+        attention.update_params(learnable_grads[0])
+        norm1.update_params(learnable_grads[1])
+        ffn.update_params(learnable_grads[2])
+        norm2.update_params(learnable_grads[3])
+
+
+
+class Embedding:
+    weight: R[vocab_size, d_model]
+    opt_weight: AdamOptimizer2D
+    def λ(x: N[b, n]) → R[b, n, d_model]:
+        batch_size: N = size(x, 0)
+        seq_len: N = size(x, 1)
+        return for i:ℕ(batch_size) → for j:ℕ(seq_len) → this.weight[x[i, j]]
+    def update_params(learnable_grads: R[m, n]):
+        this.weight = this.opt_weight.step(this.weight,learnable_grads[0])
+
+
+class TinyTransformer:
+    embed: Embedding
+    pos_embed: R[1, max_len, d_model]
+    layers: list
+    fc: Linear3D
+    opt_pos_embed: AdamOptimizer3D
+    def λ(x: N[b, n]) → R[b, n, vocab_size]:
+        token_embeddings: R[b, n, d_model] = embed(x)
+        seq_len: N = size(x, 1)
+        position_embeddings: R[1, n, d_model] = pos_embed[:, :seq_len, :]
+        x = token_embeddings + position_embeddings
+        for i:N(len(layers)):
+            layer = layers[i]
+            x = layer(x)
+        return fc(x)
+    def update_params(learnable_grads: R[m]):
+        embed.update_params(learnable_grads[0])
+        this.pos_embed = this.opt_pos_embed.step(this.pos_embed,learnable_grads[1])
+        for i:N(len(layers)):
+            layer = layers[i]
+            layer.update_params(learnable_grads[2][i])
+        fc.update_params(learnable_grads[3])
+    def train(X: N[b, n], Y: N[b, n], epochs: N):
+        for epoch:N(epochs):
+            logits = this(X)
+            loss = cross_entropy_sequence(logits, Y)
+            # ------------------------------------------------
+            # Embedding
+            # ------------------------------------------------
+            embed_grads = grad(loss, this.embed.learnable_params)
+            this.embed.update_params(embed_grads)
+            # ------------------------------------------------
+            # Positional embedding
+            # ------------------------------------------------
+            pos_grads = grad(loss, this.learnable_params)
+            this.pos_embed = this.opt_pos_embed.step(
+                this.pos_embed,
+                pos_grads[0]
+            )
+            # ------------------------------------------------
+            # Final projection
+            # ------------------------------------------------
+            fc_grads = grad(loss, this.fc.learnable_params)
+            this.fc.update_params(fc_grads)
+            print(epoch)
+            print(loss)
+    def predict(prompt: String): String:
+        tokens = encode_text(prompt)
+        x = reshape(to_tensor(tokens), 1, len(tokens))
+        logits = this(x)
+        seq_len: N = size(logits, 1)
+        last_logits = logits[0, seq_len - 1]
+        next_token_id: N = argmax(last_logits)
+        return decode_token(next_token_id)
+
+
+# --------------------------------------------------
+# Model configuration
+# --------------------------------------------------
+
+d_model: N = 128
+nhead: N = 2
+d_k: N = d_model / nhead
+
+max_len: N = 9
+vocab_size: N = 146
+
+
+# --------------------------------------------------
+# Model construction
+# --------------------------------------------------
+
+embed: Embedding = Embedding(
+    rand_2d_array(vocab_size, d_model, 0.02),
+    AdamOptimizer2D(
+        0.001, 0.9, 0.999, 1e-8, 0.0,
+        zeros(vocab_size, d_model),
+        zeros(vocab_size, d_model)
+    )
+)
+
+pos_embed: R[1, max_len, d_model] = rand_3d_array(1, max_len, d_model, 1.0)
+
+opt_pos_embed: AdamOptimizer3D = AdamOptimizer3D(
+    0.001, 0.9, 0.999, 1e-8, 0.0,
+    zeros(1, max_len, d_model),
+    zeros(1, max_len, d_model)
+)
+
+attention: MultiHeadAttention = MultiHeadAttention(
+    d_model,
+    nhead,
+    d_k,
+    Linear3DnoBias(rand_2d_array(d_model, d_model, 0.02), AdamOptimizer2D(0.001,0.9,0.999,1e-8,0.0,zeros(d_model, d_model),zeros(d_model, d_model))),
+    Linear3DnoBias(rand_2d_array(d_model, d_model, 0.02), AdamOptimizer2D(0.001,0.9,0.999,1e-8,0.0,zeros(d_model, d_model),zeros(d_model, d_model))),
+    Linear3DnoBias(rand_2d_array(d_model, d_model, 0.02), AdamOptimizer2D(0.001,0.9,0.999,1e-8,0.0,zeros(d_model, d_model),zeros(d_model, d_model))),
+    Linear3DnoBias(rand_2d_array(d_model, d_model, 0.02), AdamOptimizer2D(0.001,0.9,0.999,1e-8,0.0,zeros(d_model, d_model),zeros(d_model, d_model)))
+)
+
+
+norm1: LayerNorm = LayerNorm(
+    d_model,
+    ones(d_model),
+    zeros(d_model),
+    AdamOptimizer1D(
+        0.001, 0.9, 0.999, 1e-8, 0.0,
+        zeros(d_model),
+        zeros(d_model)
+    ),
+    AdamOptimizer1D(
+        0.001, 0.9, 0.999, 1e-8, 0.0,
+        zeros(d_model),
+        zeros(d_model)
+    )
+)
+
+
+ffn: FeedForward = FeedForward(
+    Linear3D(
+        rand_2d_array(64, d_model, 0.02),
+        zeros(64),
+        AdamOptimizer2D(
+            0.001, 0.9, 0.999, 1e-8, 0.0,
+            zeros(64, d_model),
+            zeros(64, d_model)
+        ),
+        AdamOptimizer1D(
+            0.001, 0.9, 0.999, 1e-8, 0.0,
+            zeros(64),
+            zeros(64)
+        )
+    ),
+    Linear3D(
+        rand_2d_array(d_model, 64, 0.02),
+        zeros(d_model),
+        AdamOptimizer2D(
+            0.001, 0.9, 0.999, 1e-8, 0.0,
+            zeros(d_model, 64),
+            zeros(d_model, 64)
+        ),
+        AdamOptimizer1D(
+            0.001, 0.9, 0.999, 1e-8, 0.0,
+            zeros(d_model),
+            zeros(d_model)
+        )
+    )
+)
+
+
+norm2: LayerNorm = LayerNorm(
+    d_model,
+    ones(d_model),
+    zeros(d_model),
+    AdamOptimizer1D(
+        0.001, 0.9, 0.999, 1e-8, 0.0,
+        zeros(d_model),
+        zeros(d_model)
+    ),
+    AdamOptimizer1D(
+        0.001, 0.9, 0.999, 1e-8, 0.0,
+        zeros(d_model),
+        zeros(d_model)
+    )
+)
+
+
+block1: TransformerBlock = TransformerBlock(attention, norm1, ffn, norm2)
+block2: TransformerBlock = TransformerBlock(attention, norm1, ffn, norm2)
+block3: TransformerBlock = TransformerBlock(attention, norm1, ffn, norm2)
+
+layers: list = [block1, block2, block3]
+
+
+fc: Linear3D = Linear3D(
+    rand_2d_array(vocab_size, d_model, 0.02),
+    zeros(vocab_size),
+    AdamOptimizer2D(
+        0.001, 0.9, 0.999, 1e-8, 0.0,
+        zeros(vocab_size, d_model),
+        zeros(vocab_size, d_model)
+    ),
+    AdamOptimizer1D(
+        0.001, 0.9, 0.999, 1e-8, 0.0,
+        zeros(vocab_size),
+        zeros(vocab_size)
+    )
+)
+
+
+
+model: TinyTransformer = TinyTransformer(
+    embed,
+    pos_embed,
+    layers,
+    fc,
+    opt_pos_embed
+)
+
+
+vocab_size: N = get_vocab_size()
+max_len: N = get_max_len()
+
+
+dataset = create_dataset()
+X = dataset[0]
+Y = dataset[1]
+
+
+
+
+
+
+epochs: N = 200
+model.train(X, Y, epochs)
+
+
+model.predict("I like")
+model.predict("birds fly")
+model.predict("we see")
+model.predict("bees make")

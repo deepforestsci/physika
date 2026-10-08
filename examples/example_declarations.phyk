@@ -7,16 +7,16 @@ r_mathbb : \mathbb{R} = 2.5
 r_macro : \R = 1.5
 r_ascii : R = 0.5
 
-r_unicode
-r_mathbb
-r_macro
-r_ascii
+print(r_unicode)
+print(r_mathbb)
+print(r_macro)
+print(r_ascii)
 
 r_vector : ℝ[3] = [1.0, 2.0, 3.0]
 r_matrix : ℝ[2, 2] = [[1.0, 2.0], [3.0, 4.0]]
 
-r_vector
-r_matrix
+print(r_vector)
+print(r_matrix)
 
 
 # -----------------------
@@ -28,13 +28,13 @@ z_mathbb : \mathbb{Z} = -4
 z_macro : \Z = 7
 z_ascii : Z = 42
 
-z_unicode
-z_mathbb
-z_macro
-z_ascii
+print(z_unicode)
+print(z_mathbb)
+print(z_macro)
+print(z_ascii)
 
 z_vector : ℤ[3] = [1, 2, 3]
-z_vector
+print(z_vector)
 
 
 # -----------------------
@@ -46,13 +46,13 @@ n_mathbb : \mathbb{N} = 8
 n_macro : \N = 3
 n_ascii : N = 1
 
-n_unicode
-n_mathbb
-n_macro
-n_ascii
+print(n_unicode)
+print(n_mathbb)
+print(n_macro)
+print(n_ascii)
 
 n_vector : ℕ[4] = [0, 1, 2, 3]
-n_vector
+print(n_vector)
 
 
 # -----------------------
@@ -62,8 +62,18 @@ n_vector
 c_unicode : ℂ = 3 + 1j
 c_mathbb : \mathbb{C} = 5 + 3j
 
-c_unicode
-c_mathbb
+print(c_unicode)
+print(c_mathbb)
 
 c_vector : ℂ[2] = [1 + 2j, 3 + 4j]
-c_vector
+print(c_vector)
+
+
+
+# -----------------------
+# string type (String)
+# notations: String
+# -----------------------
+
+name: String = "physika"
+print(name)
