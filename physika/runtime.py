@@ -341,27 +341,26 @@ def compute_grad(
         return result
 
     if callable(f):
-        # Evaluate f on a fresh leaf so the tape is always clean.
-        if isinstance(x, torch.Tensor) and x.dim() > 0:
+        if isinstance(x, torch.Tensor) and x.requires_grad:
+            x_leaf = x
+        elif isinstance(x, torch.Tensor):
             x_leaf = x.detach().clone().float().requires_grad_(True)
         else:
-            x_val = x.item() if isinstance(x, torch.Tensor) else float(x)
-            x_leaf = torch.tensor(x_val, requires_grad=True)
+            x_leaf = torch.tensor(float(x), requires_grad=True)
+
         out = f(x_leaf)
+
         if not isinstance(out, torch.Tensor):
             out = torch.tensor(float(out))
+
         if out.dim() == 0 or out.numel() == 1:
-            # Scalar output
-            (grad, ) = torch.autograd.grad(out, x_leaf)
-            return grad.detach()
-        else:
-            # Vector/tensor output (f: ℝ -> ℝ[n,...])
-            # return Jacobian df/dx
-            x_tensor = x_leaf.detach().float()
-            jac = torch.func.jacrev(f)(
-                x_tensor
-            )  # jacrev allows one backward pass per output row, vectorised over rows (vmap)  # noqa
-            return jac.detach()
+            (grad,) = torch.autograd.grad(
+                out,
+                x_leaf,
+                create_graph=True,
+                retain_graph=True,
+            )
+            return grad
     else:
         # f(x) was already evaluated with x as a requires_grad leaf.
         # Call autograd.grad directly on the pre-built graph.
