@@ -20,7 +20,7 @@ def spring_pendulum(x: ℝ[4]): ℝ[4]:
 # ------------------------------------------------------------
 class RK4:
     dt: ℝ
-    def λ(x: ℝ[4]) → ℝ[4]:
+    def λ(x: ℝ[m]) → ℝ[m]:
         k1 = spring_pendulum(x)
         k2 = spring_pendulum(x + 0.5 * dt * k1)
         k3 = spring_pendulum(x + 0.5 * dt * k2)

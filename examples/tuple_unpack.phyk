@@ -139,9 +139,9 @@ b
 c
 d
 
-class Tensors(a: ℝ[3], b: ℝ[3]):
-    def sum_parts() → ℝ[3]:
-        x: ℝ[3], y: ℝ[3] = this.a, this.b
+class Tensors(a: ℝ[m], b: ℝ[m]):
+    def sum_parts() → ℝ[m]:
+        x: ℝ[m], y: ℝ[m] = this.a, this.b
         return x + y
 
 class Vec2(x: ℝ, y: ℝ):

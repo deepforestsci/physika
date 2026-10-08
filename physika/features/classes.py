@@ -1294,6 +1294,7 @@ class ClassFeature(ELF):
             >>> t
             ('scalar',)
             """
+            from physika.utils.type_checker_utils import unify
             _, obj_expr, method_name, args = node
 
             obj_type, s = infer_expr(obj_expr, env, s, func_env, class_env,
@@ -1333,7 +1334,11 @@ class ClassFeature(ELF):
                                 # skip if inferred type is unknown
                                 if expected_type is None:
                                     continue
-                                if arg_type != expected_type:
+
+                                # unify arg_type and expected_type
+                                try:
+                                    s = unify(expected_type, arg_type, s)
+                                except TypeError:
                                     add_error(
                                         f"Method '{obj_type.class_name}.{method_name}' "
                                         f"parameter '{pname}': expected "

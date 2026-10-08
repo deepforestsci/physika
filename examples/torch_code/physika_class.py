@@ -8,11 +8,11 @@ from physika.runtime import compute_grad
 
 # === Functions ===
 def ke_wrt_vel(vel):
-    particle = Particle(pos0, vel, 1.0)
-    return particle.kinetic_energy()
+    particle2d = Particle2d(pos0, vel, 1.0)
+    return particle2d.kinetic_energy()
 
 def ke_vy(vy):
-    p = Particle(pos0, torch.stack([torch.as_tensor(1.0), torch.as_tensor(vy)]), 2.0)
+    p = Particle2d(pos0, torch.stack([torch.as_tensor(1.0), torch.as_tensor(vy)]), 2.0)
     return p.kinetic_energy()
 
 def norm_sq_wrt_x(x):
@@ -56,7 +56,7 @@ class Vec(nn.Module):
         this = self
         return ((self.x * self.x) + (self.y * self.y))
 
-class Particle(nn.Module):
+class Particle2d(nn.Module):
     def __init__(self, pos, vel, mass):
         super().__init__()
         self.pos = torch.as_tensor(pos).float()
@@ -74,7 +74,7 @@ class Particle(nn.Module):
         acc = (force * (1.0 / self.mass))
         new_vel = (self.vel + (acc * dt))
         new_pos = (self.pos + (self.vel * dt))
-        return Particle(new_pos, new_vel, self.mass)
+        return Particle2d(new_pos, new_vel, self.mass)
 
 class A(nn.Module):
     def __init__(self, x):
@@ -102,8 +102,8 @@ obj_example_class = ExampleClass().to(DEVICE)
 print(obj_example_class.class_method())
 obj_scalar_class = ScalarClass(3.0).to(DEVICE)
 print(obj_scalar_class.return_member_variable())
-a = Vec(3.0, 4.0)
-b = Vec(1.0, 0.0)
+a = Vec(3.0, 4.0).to(DEVICE)
+b = Vec(1.0, 0.0).to(DEVICE)
 print(a.x)
 print(a.y)
 dot_ab = a.dot(b)
@@ -114,7 +114,7 @@ print(c.y)
 pos0 = torch.tensor([0.0, 10.0], device=DEVICE)
 vel0 = torch.tensor([1.0, 0.0], device=DEVICE)
 gravity = torch.tensor([0.0, (-9.81)], device=DEVICE)
-p = Particle(pos0, vel0, 9.0)
+p = Particle2d(pos0, vel0, 9.0)
 ke0 = p.kinetic_energy()
 print(ke0)
 p1 = p.step(gravity, 0.5)
