@@ -354,13 +354,21 @@ def compute_grad(
             out = torch.tensor(float(out))
 
         if out.dim() == 0 or out.numel() == 1:
-            (grad,) = torch.autograd.grad(
+            (grad, ) = torch.autograd.grad(
                 out,
                 x_leaf,
                 create_graph=True,
                 retain_graph=True,
             )
             return grad
+        else:
+            # Vector/tensor output (f: ℝ -> ℝ[n,...])
+            # return Jacobian df/dx
+            x_tensor = x_leaf.detach().float()
+            jac = torch.func.jacrev(f)(
+                x_tensor
+            )  # jacrev allows one backward pass per output row, vectorised over rows (vmap)  # noqa
+            return jac.detach()
     else:
         # f(x) was already evaluated with x as a requires_grad leaf.
         # Call autograd.grad directly on the pre-built graph.
