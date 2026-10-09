@@ -654,7 +654,7 @@ Step 3: The Product
 ~~~~~~~~~~~~~~~~~~~
 
 The key distinction of MACE from TFNs is the efficient construction of higher-order features from the output of the interaction block. This is achieved by forming tensor products of the features and then
-decomposing them into something that transforms in a known way (the B-features :math:`B_{i,\eta_\nu k LM}`). This creates features that contain angular information between the neighbors [Thomas2018]_.
+decomposing them into something that transforms in a known way (the B-features :math:`B_{i,\eta_\nu k LM}`). This creates features that contain angular information between the neighbors [TFN2018]_.
 
 The message of atom :math:`i` can be written as a sum over its neighbors, taken one, two, up to :math:`\nu` at a time:
 
@@ -1983,7 +1983,7 @@ References
 
 .. [Batatia2022Design] Batatia, I., Batzner, S., Kovács, D. P., Musaelian, A., Simm, G. N. C., Drautz, R., Ortner, C., Kozinsky, B., & Csányi, G. (2022). *The Design Space of E(3)-Equivariant Atom-Centered Interatomic Potentials*. arXiv:2205.06643. https://arxiv.org/abs/2205.06643
 
-.. [Thomas2018] Thomas, N., Smidt, T., Kearnes, S., Yang, L., Li, L., Kohlhoff, K., & Riley, P. (2018). *Tensor Field Networks: Rotation- and Translation-Equivariant Neural Networks for 3D Point Clouds*. arXiv:1802.08219. https://arxiv.org/abs/1802.08219
+.. [TFN2018] Thomas, N., Smidt, T., Kearnes, S., Yang, L., Li, L., Kohlhoff, K., & Riley, P. (2018). *Tensor Field Networks: Rotation- and Translation-Equivariant Neural Networks for 3D Point Clouds*. arXiv:1802.08219. https://arxiv.org/abs/1802.08219
 
 .. [PhysikaTFN] Physika documentation. *Tensor Field Networks*. https://physika.readthedocs.io/en/latest/tutorials/tfn_tutorial.html
 
