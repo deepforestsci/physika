@@ -106,6 +106,12 @@ Tutorials
 
 .. toctree::
    :maxdepth: 1
+   :caption: Electronics and Electrical Systems
+
+   electrostatics_and_circuit_dynamics
+
+.. toctree::
+   :maxdepth: 1
    :caption: Numerical solvers
 
    linear_solve_gaussian_elimination
