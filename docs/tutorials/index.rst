@@ -63,6 +63,7 @@ Tutorials
    quantum_SHO
    HCl_morse_oscillator
    simpledft
+   quantum_mechanics
 
 .. toctree::
    :maxdepth: 1
