@@ -1,0 +1,641 @@
+# MACE: Higher-Order Equivariant Message Passing
+
+# Dataset
+num_train: ℕ = 8
+num_test: ℕ = 4
+
+train_positions: ℝ[num_train, 3, 3] = [
+    [[0.0000, 0.0000, 0.0000], [1.3035, 0.1210, -0.0361], [0.0387, 1.0143, -0.0409]],
+    [[0.0000, 0.0000, 0.0000], [0.5566, 0.1041, -1.2624], [-0.4404, 0.7846, 0.8458]],
+    [[0.0000, 0.0000, 0.0000], [-0.9748, 0.9579, 0.2162], [0.8859, 0.0659, -0.3090]],
+    [[0.0000, 0.0000, 0.0000], [-0.6634, 0.3849, -0.4699], [-0.2285, -0.3502, 1.2694]],
+    [[0.0000, 0.0000, 0.0000], [-0.8672, -0.2552, -1.0005], [-0.2882, 0.8669, 0.9533]],
+    [[0.0000, 0.0000, 0.0000], [0.9919, -0.2859, -0.1822], [-0.5818, 1.0325, -0.0912]],
+    [[0.0000, 0.0000, 0.0000], [1.0513, -0.3912, 0.6070], [0.2607, 0.9788, -0.3458]],
+    [[0.0000, 0.0000, 0.0000], [1.1268, -0.4287, -0.8342], [0.0260, 1.3507, -0.4679]]
+]
+train_energies: ℝ[num_train] = [-12.4103, -10.7186, -11.8415, -12.2896, -10.8181, -12.6558, -12.6144, -9.8413]
+
+test_positions: ℝ[num_test, 3, 3] = [
+    [[0.0000, 0.0000, 0.0000], [1.1014, 0.3095, 0.1934], [-0.4569, 1.3549, -0.1436]],
+    [[0.0000, 0.0000, 0.0000], [0.6110, -0.8965, -0.6491], [0.5299, 0.6870, 0.5715]],
+    [[0.0000, 0.0000, 0.0000], [1.2824, 0.0804, -0.2181], [-0.5724, 1.4111, -0.2409]],
+    [[0.0000, 0.0000, 0.0000], [-0.6127, 0.4966, 0.8616], [0.4113, -1.2876, 0.3875]]
+]
+test_energies: ℝ[num_test] = [-11.3831, -12.5956, -10.0866, -11.4604]
+
+# Scale and Shift
+energy_mean: ℝ = sum(train_energies) / num_train
+energy_std: ℝ = sqrt(sum((train_energies - energy_mean) * (train_energies - energy_mean)) / num_train)
+
+# Step 0: The Molecule as a Graph
+r_cut: ℝ = 2.0
+atomic_numbers: ℝ[3] = [8.0, 1.0, 1.0]
+z_table: ℝ[2] = [1.0, 8.0]
+
+def one_hot(numbers: ℝ[n], table: ℝ[s]): ℝ[n, s]:
+    num_atoms: ℕ, num_species: ℕ = len(numbers), len(table)
+    encoding: ℝ[num_atoms, num_species] = zeros(num_atoms, num_species)
+    for atom:ℕ(num_atoms):
+        for species:ℕ(num_species):
+            if numbers[atom] == table[species]:
+                encoding[atom, species] = 1.0
+    return encoding
+
+def neighbor_search(positions: ℝ[n, 3], cutoff: ℝ): ℝ[2, m]:
+    num_atoms: ℕ = len(positions)
+    vector: ℝ[3] = zeros(3)
+    distance: ℝ = 0.0
+    num_edges: ℕ = 0
+    for sender:ℕ(num_atoms):
+        for receiver:ℕ(num_atoms):
+            vector = positions[receiver] - positions[sender]
+            distance = sqrt(sum(vector * vector))
+            if distance > 0.0:
+                if distance < cutoff:
+                    num_edges += 1
+    edge_index: ℝ[2, num_edges] = zeros(2, num_edges)
+    edge: ℕ = 0
+    for sender:ℕ(num_atoms):
+        for receiver:ℕ(num_atoms):
+            vector = positions[receiver] - positions[sender]
+            distance = sqrt(sum(vector * vector))
+            if distance > 0.0:
+                if distance < cutoff:
+                    edge_index[:, edge] = [sender, receiver]
+                    edge += 1
+    return edge_index
+
+positions: ℝ[3, 3] = train_positions[0]
+node_attrs: ℝ[3, 2] = one_hot(atomic_numbers, z_table)
+edge_index: ℝ[2, 6] = neighbor_search(positions, r_cut)
+
+print(positions)
+print(node_attrs)
+print(edge_index)
+
+def count_edges(edge_index: ℝ[2, e]): ℕ:
+    total: ℕ = 0
+    for edge:ℕ(len(edge_index[0])):
+        sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        if sender != receiver:
+            total += 1
+    return total
+
+def batch_edge_index(batch: ℝ[s, 3, 3]): ℝ[s, 2, 6]:
+    num_samples: ℕ = len(batch)
+    result: ℝ[num_samples, 2, 6] = zeros(num_samples, 2, 6)
+    num_edges: ℕ = 0
+    for i:ℕ(num_samples):
+        edges = neighbor_search(batch[i], r_cut)
+        num_edges = len(edges[0])
+        result[i, :, 0:num_edges] = edges
+    return result
+
+train_edge_index: ℝ[num_train, 2, 6] = batch_edge_index(train_positions)
+test_edge_index: ℝ[num_test, 2, 6] = batch_edge_index(test_positions)
+
+# Step 1: Embeddings
+num_elements: ℝ = 2
+num_channels: ℝ = 8
+# sampled from a normal distribution
+w_embed: ℝ[2, 8] = for z:ℕ(num_elements) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+
+def node_embedding(node_attrs: ℝ[n, s], w: ℝ[s, k]): ℝ[n, k]:
+    return (node_attrs @ w) / sqrt(num_elements)
+
+# Radial features
+π: ℝ = 3.141592653589793
+num_bessel: ℝ = 8
+p_env: ℝ = 6.0
+
+def edge_vectors(positions: ℝ[n, 3], edge_index: ℝ[2, e]): ℝ[e, 3]:
+    num_edges: ℕ = len(edge_index[0])
+    vectors: ℝ[num_edges, 3] = zeros(num_edges, 3)
+    for edge:ℕ(num_edges):
+        sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        vectors[edge] = positions[receiver] - positions[sender]
+    return vectors
+
+def edge_lengths(vectors: ℝ[e, 3]): ℝ[e]:
+    num_edges: ℕ = len(vectors)
+    lengths: ℝ[num_edges] = zeros(num_edges)
+    for edge:ℕ(num_edges):
+        lengths[edge] = sqrt(sum(vectors[edge] * vectors[edge]))
+    return lengths
+
+def radial_embedding(lengths: ℝ[e]): ℝ[e, b]:
+    num_edges: ℕ = len(lengths)
+    edge_feats: ℝ[num_edges, num_bessel] = zeros(num_edges, num_bessel)
+    f_cut: ℝ = 0.0
+    for edge:ℕ(num_edges):
+        r: ℝ, x: ℝ = lengths[edge], lengths[edge] / r_cut
+        if x < 1.0:
+            f_cut = 1.0 - (p_env + 1.0) * (p_env + 2.0) / 2.0 * x ** p_env + p_env * (p_env + 2.0) * x ** (p_env + 1.0) - p_env * (p_env + 1.0) / 2.0 * x ** (p_env + 2.0)
+            for n:ℕ(num_bessel):
+                edge_feats[edge, n] = sqrt(2.0 / r_cut) * sin((n + 1.0) * π * r / r_cut) / r * f_cut
+    return edge_feats
+
+vectors: ℝ[6, 3] = edge_vectors(positions, edge_index)
+lengths: ℝ[6] = edge_lengths(vectors)
+edge_feats: ℝ[6, 8] = radial_embedding(lengths)
+
+# Angular features
+def Y0(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 1]:
+    num_edges: ℕ = len(lengths)
+    results: ℝ[num_edges, 1] = zeros(num_edges, 1)
+    for edge:ℕ(num_edges):
+        results[edge, 0] = 1.0
+    return results
+
+def Y1(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 3]:
+    num_edges: ℕ = len(lengths)
+    results: ℝ[num_edges, 3] = zeros(num_edges, 3)
+    for edge:ℕ(num_edges):
+        x: ℝ, y: ℝ, z: ℝ = vectors[edge] / lengths[edge]
+        results[edge] = [sqrt(3.0) * x, sqrt(3.0) * y, sqrt(3.0) * z]
+    return results
+
+def Y2(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 5]:
+    num_edges: ℕ = len(lengths)
+    results: ℝ[num_edges, 5] = zeros(num_edges, 5)
+    for edge:ℕ(num_edges):
+        x: ℝ, y: ℝ, z: ℝ = vectors[edge] / lengths[edge]
+        results[edge] = [sqrt(15.0) * x * z, sqrt(15.0) * x * y, sqrt(5.0) * (y * y - 0.5 * (x * x + z * z)), sqrt(15.0) * y * z, sqrt(15.0) / 2.0 * (z * z - x * x)]
+    return results
+
+def spherical_harmonics(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 9]:
+    num_edges: ℕ = len(lengths)
+    edge_attrs: ℝ[e, 9] = zeros(num_edges, 9)
+    edge_attrs[:, 0:1] = Y0(vectors, lengths)
+    edge_attrs[:, 1:4] = Y1(vectors, lengths)
+    edge_attrs[:, 4:9] = Y2(vectors, lengths)
+    return edge_attrs
+
+edge_attrs: ℝ[6, 9] = spherical_harmonics(vectors, lengths)
+
+print(edge_feats)
+print(edge_attrs)
+
+# Precompute features for forward pass
+def batch_edge_feats(batch: ℝ[s, 3, 3], edge_indices: ℝ[s, 2, 6]): ℝ[s, 6, 8]:
+    num_samples: ℕ = len(batch)
+    result: ℝ[num_samples, 6, 8] = zeros(num_samples, 6, 8)
+    num_edges: ℕ = 0
+    for i:ℕ(num_samples):
+        num_edges = count_edges(edge_indices[i])
+        vecs = edge_vectors(batch[i], edge_indices[i, :, 0:num_edges])
+        result[i, 0:num_edges, :] = radial_embedding(edge_lengths(vecs))
+    return result
+
+def batch_edge_attrs(batch: ℝ[s, 3, 3], edge_indices: ℝ[s, 2, 6]): ℝ[s, 6, 9]:
+    num_samples: ℕ = len(batch)
+    result: ℝ[num_samples, 6, 9] = zeros(num_samples, 6, 9)
+    num_edges: ℕ = 0
+    for i:ℕ(num_samples):
+        num_edges = count_edges(edge_indices[i])
+        vecs = edge_vectors(batch[i], edge_indices[i, :, 0:num_edges])
+        result[i, 0:num_edges, :] = spherical_harmonics(vecs, edge_lengths(vecs))
+    return result
+
+train_edge_feats: ℝ[num_train, 6, 8] = batch_edge_feats(train_positions, train_edge_index)
+test_edge_feats: ℝ[num_test, 6, 8] = batch_edge_feats(test_positions, test_edge_index)
+train_edge_attrs: ℝ[num_train, 6, 9] = batch_edge_attrs(train_positions, train_edge_index)
+test_edge_attrs: ℝ[num_test, 6, 9] = batch_edge_attrs(test_positions, test_edge_index)
+
+# Step 2: The Interaction Block
+# sampled from a normal distribution
+w_up: ℝ[8, 8] = for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+
+def linear_up(node_feats: ℝ[n, k], w: ℝ[k, k]): ℝ[n, k]:
+    num_atoms: ℕ = len(node_feats)
+    node_feats_up: ℝ[num_atoms, num_channels] = zeros(num_atoms, num_channels)
+    for atom:ℕ(num_atoms):
+        for channel:ℕ(num_channels):
+            node_feats_up[atom, channel] = sum(node_feats[atom] * w[:, channel]) / sqrt(num_channels)
+    return node_feats_up
+
+# Activation function
+silu_norm: ℝ = 1.679176792
+
+def silu(x: ℝ[e, h]): ℝ[e, h]:
+    return silu_norm * x / (1.0 + exp(-x))
+
+# Radial network
+radial_hidden: ℝ = 64
+
+# sampled from a normal distribution
+w_r1: ℝ[8, 64] = for a:ℕ(num_bessel) -> row: ℝ[64] ~ Normal(0.0, 1.0, 64)
+w_r2: ℝ[64, 64] = for a:ℕ(radial_hidden) -> row: ℝ[64] ~ Normal(0.0, 1.0, 64)
+w_r3: ℝ[64, 64] = for a:ℕ(radial_hidden) -> row: ℝ[64] ~ Normal(0.0, 1.0, 64)
+w_r4: ℝ[64, 24] = for a:ℕ(radial_hidden) -> row: ℝ[24] ~ Normal(0.0, 1.0, 24)
+
+def radial_mlp(edge_feats: ℝ[e, b], w1: ℝ[b, h], w2: ℝ[h, h], w3: ℝ[h, h], w4: ℝ[h, o]): ℝ[e, o]:
+    h1: ℝ[e, h] = silu(edge_feats @ w1 / sqrt(num_bessel))
+    h2: ℝ[e, h] = silu(h1 @ w2 / sqrt(radial_hidden))
+    h3: ℝ[e, h] = silu(h2 @ w3 / sqrt(radial_hidden))
+    return h3 @ w4 / sqrt(radial_hidden)
+
+# The one-particle basis
+def tensor_product_reduce(cg: ℝ[d1, d2, d3], a: ℝ[d1], b: ℝ[d2], dim1: ℕ, dim2: ℕ, dim3: ℕ): ℝ[d3]:
+    results: ℝ[dim3] = zeros(dim3)
+    acc: ℝ = 0.0
+    for k:ℕ(dim3):
+        acc = 0.0
+        for i:ℕ(dim1):
+            for j:ℕ(dim2):
+                acc += cg[i, j, k] * a[i] * b[j]
+        results[k] = acc
+    return results
+
+cg_000: ℝ[1, 1, 1] = [[[1.0]]]
+cg_101: ℝ[3, 1, 3] = [
+    [[1.0, 0.0, 0.0]],
+    [[0.0, 1.0, 0.0]],
+    [[0.0, 0.0, 1.0]]
+]
+cg_202: ℝ[5, 1, 5] = [
+    [[1.0, 0.0, 0.0, 0.0, 0.0]],
+    [[0.0, 1.0, 0.0, 0.0, 0.0]],
+    [[0.0, 0.0, 1.0, 0.0, 0.0]],
+    [[0.0, 0.0, 0.0, 1.0, 0.0]],
+    [[0.0, 0.0, 0.0, 0.0, 1.0]]
+]
+
+def conv_tp(node_feats_up: ℝ[n, k], edge_attrs: ℝ[e, 9], tp_weights: ℝ[e, t], edge_index: ℝ[2, e]): ℝ[e, k, 9]:
+    num_edges: ℕ = len(edge_attrs)
+    mji: ℝ[num_edges, num_channels, 9] = zeros(num_edges, num_channels, 9)
+    for edge:ℕ(num_edges):
+        sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        for channel:ℕ(num_channels):
+            h: ℝ[1] = [node_feats_up[sender, channel]]
+            mji[edge, channel, 0:1] = tp_weights[edge, channel] * tensor_product_reduce(cg_000, edge_attrs[edge, 0:1], h, 1, 1, 1)
+            mji[edge, channel, 1:4] = tp_weights[edge, num_channels + channel] * tensor_product_reduce(cg_101, edge_attrs[edge, 1:4], h, 3, 1, 3)
+            mji[edge, channel, 4:9] = tp_weights[edge, 2 * num_channels + channel] * tensor_product_reduce(cg_202, edge_attrs[edge, 4:9], h, 5, 1, 5)
+    return mji
+
+# Message Passing
+avg_num_neighbors: ℝ = 2.0
+
+# sampled from a normal distribution
+w_0: ℝ[8, 8] = for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+w_1: ℝ[8, 8] = for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+w_2: ℝ[8, 8] = for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+
+def neighbor_sum(mji: ℝ[e, k, 9], edge_index: ℝ[2, e], num_atoms: ℕ): ℝ[num_atoms, k, 9]:
+    num_edges: ℕ = len(mji)
+    message: ℝ[num_atoms, num_channels, 9] = zeros(num_atoms, num_channels, 9)
+    for edge:ℕ(num_edges):
+        sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        message[receiver] = message[receiver] + mji[edge]
+    return message
+
+def linear(message: ℝ[n, k, 9], w0: ℝ[k, k], w1: ℝ[k, k], w2: ℝ[k, k]): ℝ[n, k, 9]:
+    num_atoms: ℕ = len(message)
+    out: ℝ[num_atoms, num_channels, 9] = zeros(num_atoms, num_channels, 9)
+    for atom:ℕ(num_atoms):
+        out[atom, :, 0:1] = w0 @ message[atom, :, 0:1] / sqrt(num_channels)
+        out[atom, :, 1:4] = w1 @ message[atom, :, 1:4] / sqrt(num_channels)
+        out[atom, :, 4:9] = w2 @ message[atom, :, 4:9] / sqrt(num_channels)
+    return out / avg_num_neighbors
+
+# Step 3: The Product
+cg_110: ℝ[3, 3, 1] = [
+    [[0.577350], [0.0], [0.0]],
+    [[0.0], [0.577350], [0.0]],
+    [[0.0], [0.0], [0.577350]]
+]
+cg_220: ℝ[5, 5, 1] = [
+    [[0.447214], [0.0], [0.0], [0.0], [0.0]],
+    [[0.0], [0.447214], [0.0], [0.0], [0.0]],
+    [[0.0], [0.0], [0.447214], [0.0], [0.0]],
+    [[0.0], [0.0], [0.0], [0.447214], [0.0]],
+    [[0.0], [0.0], [0.0], [0.0], [0.447214]]
+]
+cg_011: ℝ[1, 3, 3] = [
+    [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+]
+cg_121: ℝ[3, 5, 3] = [
+    [[0.0, 0.0, 0.547723], [0.0, 0.547723, 0.0], [-0.316228, 0.0, 0.0], [0.0, 0.0, 0.0], [-0.547723, 0.0, 0.0]],
+    [[0.0, 0.0, 0.0], [0.547723, 0.0, 0.0], [0.0, 0.632456, 0.0], [0.0, 0.0, 0.547723], [0.0, 0.0, 0.0]],
+    [[0.547723, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, -0.316228], [0.0, 0.547723, 0.0], [0.0, 0.0, 0.547723]]
+]
+
+def B_features_L0(A: ℝ[n, k, 9]): ℝ[n, k, 4]:
+    num_atoms: ℕ = len(A)
+    B0: ℝ[num_atoms, num_channels, 4] = zeros(num_atoms, num_channels, 4)
+    for atom:ℕ(num_atoms):
+        for channel:ℕ(num_channels):
+            a0: ℝ[1], a1: ℝ[3], a2: ℝ[5] = A[atom, channel, 0:1], A[atom, channel, 1:4], A[atom, channel, 4:9]
+            B0[atom, channel, 0:1] = a0
+            B0[atom, channel, 1:2] = tensor_product_reduce(cg_000, a0, a0, 1, 1, 1)
+            B0[atom, channel, 2:3] = tensor_product_reduce(cg_110, a1, a1, 3, 3, 1)
+            B0[atom, channel, 3:4] = tensor_product_reduce(cg_220, a2, a2, 5, 5, 1)
+    return B0
+
+def B_features_L1(A: ℝ[n, k, 9]): ℝ[n, k, 3, 3]:
+    num_atoms: ℕ = len(A)
+    B1: ℝ[num_atoms, num_channels, 3, 3] = zeros(num_atoms, num_channels, 3, 3)
+    for atom:ℕ(num_atoms):
+        for channel:ℕ(num_channels):
+            a0: ℝ[1], a1: ℝ[3], a2: ℝ[5] = A[atom, channel, 0:1], A[atom, channel, 1:4], A[atom, channel, 4:9]
+            B1[atom, channel, 0] = a1
+            B1[atom, channel, 1] = tensor_product_reduce(cg_011, a0, a1, 1, 3, 3)
+            B1[atom, channel, 2] = tensor_product_reduce(cg_121, a1, a2, 3, 5, 3)
+    return B1
+
+# Weighting the paths
+# sampled from a normal distribution
+w_prod0: ℝ[2, 4, 8] = for z:ℕ(num_elements) -> for q:ℕ(4) -> row: ℝ[8] ~ Normal(0.0, 0.25, 8)
+w_prod1: ℝ[2, 3, 8] = for z:ℕ(num_elements) -> for q:ℕ(3) -> row: ℝ[8] ~ Normal(0.0, 0.333, 8)
+
+def weighted_sum(B0: ℝ[n, k, 4], B1: ℝ[n, k, 3, 3], node_attrs: ℝ[n, s], wp0: ℝ[s, 4, k], wp1: ℝ[s, 3, k]): ℝ[n, k, 4]:
+    num_atoms: ℕ = len(B0)
+    m: ℝ[num_atoms, num_channels, 4] = zeros(num_atoms, num_channels, 4)
+    for atom:ℕ(num_atoms):
+        w0: ℝ[4, 8], w1: ℝ[3, 8] = zeros(4, 8), zeros(3, 8)
+        for z:ℕ(num_elements):
+            w0 = w0 + node_attrs[atom, z] * wp0[z]
+            w1 = w1 + node_attrs[atom, z] * wp1[z]
+        for channel:ℕ(num_channels):
+            m[atom, channel, 0:1] = [sum(w0[:, channel] * B0[atom, channel])]
+            m[atom, channel, 1:4] = w1[:, channel] @ B1[atom, channel]
+    return m
+
+# Updating the node features
+# sampled from a normal distribution
+w_sc: ℝ[8, 2, 8] = for c:ℕ(num_channels) -> for z:ℕ(num_elements) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+w_p0: ℝ[8, 8] = for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+w_p1: ℝ[8, 8] = for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+
+def skip_tp(node_feats: ℝ[n, k], node_attrs: ℝ[n, s], w: ℝ[k, s, k]): ℝ[n, k]:
+    num_atoms: ℕ = len(node_feats)
+    sc: ℝ[num_atoms, num_channels] = zeros(num_atoms, num_channels)
+    acc: ℝ = 0.0
+    for atom:ℕ(num_atoms):
+        for channel:ℕ(num_channels):
+            acc = 0.0
+            for z:ℕ(num_elements):
+                acc += node_attrs[atom, z] * sum(node_feats[atom] * w[:, z, channel])
+            sc[atom, channel] = acc / sqrt(num_channels * num_elements)
+    return sc
+
+def node_update(m: ℝ[n, k, 4], sc: ℝ[n, k], wp0: ℝ[k, k], wp1: ℝ[k, k]): ℝ[n, k, 4]:
+    num_atoms: ℕ = len(m)
+    node_feats1: ℝ[num_atoms, num_channels, 4] = zeros(num_atoms, num_channels, 4)
+    for atom:ℕ(num_atoms):
+        for channel:ℕ(num_channels):
+            node_feats1[atom, channel, 0] = sum(wp0[channel] * m[atom, :, 0]) / sqrt(num_channels) + sc[atom, channel]
+        node_feats1[atom, :, 1:4] = wp1 @ m[atom, :, 1:4] / sqrt(num_channels)
+    return node_feats1
+
+# Step 4: The Readout
+# sampled from a normal distribution
+w_readout: ℝ[8] ~ Normal(0.0, 1.0, 8)
+
+def readout(node_feats: ℝ[n, k, 4], w: ℝ[k]): ℝ[n]:
+    num_atoms: ℕ = len(node_feats)
+    node_energies: ℝ[num_atoms] = zeros(num_atoms)
+    for atom:ℕ(num_atoms):
+        node_energies[atom] = sum(w * node_feats[atom, :, 0]) / sqrt(num_channels)
+    return node_energies
+
+# Step 5: Repeating the Layer
+# sampled from a normal distribution
+w2_up0: ℝ[8, 8] = for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+w2_up1: ℝ[8, 8] = for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+
+def linear_up2(node_feats: ℝ[n, k, 4], w0: ℝ[k, k], w1: ℝ[k, k]): ℝ[n, k, 4]:
+    num_atoms: ℕ = len(node_feats)
+    node_feats_up: ℝ[num_atoms, num_channels, 4] = zeros(num_atoms, num_channels, 4)
+    for atom:ℕ(num_atoms):
+        for channel:ℕ(num_channels):
+            node_feats_up[atom, channel, 0] = sum(node_feats[atom, :, 0] * w0[:, channel]) / sqrt(num_channels)
+            node_feats_up[atom, channel, 1:4] = w1[:, channel] @ node_feats[atom, :, 1:4] / sqrt(num_channels)
+    return node_feats_up
+
+# Radial weights
+# sampled from a normal distribution
+w2_r1: ℝ[8, 64] = for a:ℕ(num_bessel) -> row: ℝ[64] ~ Normal(0.0, 1.0, 64)
+w2_r2: ℝ[64, 64] = for a:ℕ(radial_hidden) -> row: ℝ[64] ~ Normal(0.0, 1.0, 64)
+w2_r3: ℝ[64, 64] = for a:ℕ(radial_hidden) -> row: ℝ[64] ~ Normal(0.0, 1.0, 64)
+w2_r4: ℝ[64, 56] = for a:ℕ(radial_hidden) -> row: ℝ[56] ~ Normal(0.0, 1.0, 56)
+
+def radial_mlp2(edge_feats: ℝ[e, b], w1: ℝ[b, h], w2: ℝ[h, h], w3: ℝ[h, h], w4: ℝ[h, o2]): ℝ[e, o2]:
+    h1: ℝ[e, h] = silu(edge_feats @ w1 / sqrt(num_bessel))
+    h2: ℝ[e, h] = silu(h1 @ w2 / sqrt(radial_hidden))
+    h3: ℝ[e, h] = silu(h2 @ w3 / sqrt(radial_hidden))
+    return h3 @ w4 / sqrt(radial_hidden)
+
+# One-particle basis (7 paths)
+cg_022: ℝ[1, 5, 5] = [
+    [[1.0, 0.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 0.0, 1.0]]
+]
+cg_112: ℝ[3, 3, 5] = [
+    [[0.0, 0.0, -0.408248, 0.0, -0.707107], [0.0, 0.707107, 0.0, 0.0, 0.0], [0.707107, 0.0, 0.0, 0.0, 0.0]],
+    [[0.0, 0.707107, 0.0, 0.0, 0.0], [0.0, 0.0, 0.816497, 0.0, 0.0], [0.0, 0.0, 0.0, 0.707107, 0.0]],
+    [[0.707107, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.707107, 0.0], [0.0, 0.0, -0.408248, 0.0, 0.707107]]
+]
+
+def conv_tp2(node_feats_up: ℝ[n, k, 4], edge_attrs: ℝ[e, 9], tp_weights: ℝ[e, t2], edge_index: ℝ[2, e]): ℝ[e, k, 21]:
+    num_edges: ℕ = len(edge_attrs)
+    mji: ℝ[num_edges, num_channels, 21] = zeros(num_edges, num_channels, 21)
+    for edge:ℕ(num_edges):
+        sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        y0: ℝ[1], y1: ℝ[3], y2: ℝ[5] = edge_attrs[edge, 0:1], edge_attrs[edge, 1:4], edge_attrs[edge, 4:9]
+        for channel:ℕ(num_channels):
+            h0: ℝ[1], h1: ℝ[3] = [node_feats_up[sender, channel, 0]], node_feats_up[sender, channel, 1:4]
+            mji[edge, channel, 0:1] = tp_weights[edge, channel] * tensor_product_reduce(cg_000, h0, y0, 1, 1, 1)
+            mji[edge, channel, 1:2] = tp_weights[edge, num_channels + channel] * tensor_product_reduce(cg_110, h1, y1, 3, 3, 1)
+            mji[edge, channel, 2:5] = tp_weights[edge, 2 * num_channels + channel] * tensor_product_reduce(cg_011, h0, y1, 1, 3, 3)
+            mji[edge, channel, 5:8] = tp_weights[edge, 3 * num_channels + channel] * tensor_product_reduce(cg_101, h1, y0, 3, 1, 3)
+            mji[edge, channel, 8:11] = tp_weights[edge, 4 * num_channels + channel] * tensor_product_reduce(cg_121, h1, y2, 3, 5, 3)
+            mji[edge, channel, 11:16] = tp_weights[edge, 5 * num_channels + channel] * tensor_product_reduce(cg_022, h0, y2, 1, 5, 5)
+            mji[edge, channel, 16:21] = tp_weights[edge, 6 * num_channels + channel] * tensor_product_reduce(cg_112, h1, y1, 3, 3, 5)
+    return mji
+
+# Message Passing (second layer)
+# sampled from a normal distribution
+w2_msg: ℝ[7, 8, 8] = for p:ℕ(7) -> for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+
+def neighbor_sum2(mji: ℝ[e, k, 21], edge_index: ℝ[2, e], num_atoms: ℕ): ℝ[num_atoms, k, 21]:
+    num_edges: ℕ = len(mji)
+    summed: ℝ[num_atoms, num_channels, 21] = zeros(num_atoms, num_channels, 21)
+    for edge:ℕ(num_edges):
+        sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        summed[receiver] = summed[receiver] + mji[edge]
+    return summed
+
+def linear2(summed: ℝ[n, k, 21], w: ℝ[7, k, k]): ℝ[n, k, 9]:
+    num_atoms: ℕ = len(summed)
+    message: ℝ[num_atoms, num_channels, 9] = zeros(num_atoms, num_channels, 9)
+    for atom:ℕ(num_atoms):
+        message[atom, :, 0:1] = (w[0] @ summed[atom, :, 0:1] + w[1] @ summed[atom, :, 1:2]) / sqrt(2.0 * num_channels)
+        message[atom, :, 1:4] = (w[2] @ summed[atom, :, 2:5] + w[3] @ summed[atom, :, 5:8] + w[4] @ summed[atom, :, 8:11]) / sqrt(3.0 * num_channels)
+        message[atom, :, 4:9] = (w[5] @ summed[atom, :, 11:16] + w[6] @ summed[atom, :, 16:21]) / sqrt(2.0 * num_channels)
+    return message / avg_num_neighbors
+
+# Product and update
+# sampled from a normal distribution
+w2_prod0: ℝ[2, 4, 8] = for z:ℕ(num_elements) -> for q:ℕ(4) -> row: ℝ[8] ~ Normal(0.0, 0.25, 8)
+
+def weighted_sum2(B0: ℝ[n, k, 4], node_attrs: ℝ[n, s], wp: ℝ[s, 4, k]): ℝ[n, k]:
+    num_atoms: ℕ = len(B0)
+    m: ℝ[num_atoms, num_channels] = zeros(num_atoms, num_channels)
+    w0: ℝ[4, 8] = zeros(4, 8)
+    for atom:ℕ(num_atoms):
+        w0 = zeros(4, 8)
+        for z:ℕ(num_elements):
+            w0 = w0 + node_attrs[atom, z] * wp[z]
+        for channel:ℕ(num_channels):
+            m[atom, channel] = sum(w0[:, channel] * B0[atom, channel])
+    return m
+
+# sampled from a normal distribution
+w2_sc: ℝ[8, 2, 8] = for c:ℕ(num_channels) -> for z:ℕ(num_elements) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+w2_p: ℝ[8, 8] = for c:ℕ(num_channels) -> row: ℝ[8] ~ Normal(0.0, 1.0, 8)
+
+def node_update2(m: ℝ[n, k], sc: ℝ[n, k], wp: ℝ[k, k]): ℝ[n, k]:
+    num_atoms: ℕ = len(m)
+    node_feats: ℝ[num_atoms, num_channels] = zeros(num_atoms, num_channels)
+    for atom:ℕ(num_atoms):
+        for channel:ℕ(num_channels):
+            node_feats[atom, channel] = sum(wp[channel] * m[atom]) / sqrt(num_channels) + sc[atom, channel]
+    return node_feats
+
+# Readout and total energy
+# sampled from a normal distribution
+w2_ro1: ℝ[8, 16] = for a:ℕ(num_channels) -> row: ℝ[16] ~ Normal(0.0, 1.0, 16)
+w2_ro2: ℝ[16] ~ Normal(0.0, 1.0, 16)
+
+def readout2(node_feats: ℝ[n, k], w1: ℝ[k, 16], w2: ℝ[16]): ℝ[n]:
+    num_atoms: ℕ = len(node_feats)
+    hidden: ℝ[num_atoms, 16] = silu(node_feats @ w1 / sqrt(num_channels))
+    node_energies: ℝ[num_atoms] = zeros(num_atoms)
+    for atom:ℕ(num_atoms):
+        node_energies[atom] = sum(hidden[atom] * w2) / sqrt(16.0)
+    return node_energies
+
+# Define Loss
+def mse(pred: ℝ, target: ℝ): ℝ:
+    diff: ℝ = pred - target
+    result: ℝ = diff * diff
+    return result
+
+# Model Definition
+class MACEModel(w_embed: ℝ[2, 8], w_up: ℝ[8, 8], w_r1: ℝ[8, 64], w_r2: ℝ[64, 64], w_r3: ℝ[64, 64], w_r4: ℝ[64, 24],
+                w_0: ℝ[8, 8], w_1: ℝ[8, 8], w_2: ℝ[8, 8], w_prod0: ℝ[2, 4, 8], w_prod1: ℝ[2, 3, 8],
+                w_sc: ℝ[8, 2, 8], w_p0: ℝ[8, 8], w_p1: ℝ[8, 8], w_readout: ℝ[8],
+                w2_up0: ℝ[8, 8], w2_up1: ℝ[8, 8], w2_r1: ℝ[8, 64], w2_r2: ℝ[64, 64], w2_r3: ℝ[64, 64], w2_r4: ℝ[64, 56],
+                w2_msg: ℝ[7, 8, 8], w2_prod0: ℝ[2, 4, 8], w2_sc: ℝ[8, 2, 8], w2_p: ℝ[8, 8], w2_ro1: ℝ[8, 16], w2_ro2: ℝ[16]):
+    def λ(node_attrs: ℝ[3, 2], edge_index: ℝ[2, 6], edge_feats: ℝ[6, 8], edge_attrs: ℝ[6, 9]) → ℝ:
+        node_feats0: ℝ[3, 8] = node_embedding(node_attrs, this.w_embed)
+        node_feats_up: ℝ[3, 8] = linear_up(node_feats0, this.w_up)
+        tp_weights: ℝ[6, 24] = radial_mlp(edge_feats, this.w_r1, this.w_r2, this.w_r3, this.w_r4)
+        mji: ℝ[6, 8, 9] = conv_tp(node_feats_up, edge_attrs, tp_weights, edge_index)
+        message: ℝ[3, 8, 9] = linear(neighbor_sum(mji, edge_index, 3), this.w_0, this.w_1, this.w_2)
+        B0: ℝ[3, 8, 4] = B_features_L0(message)
+        B1: ℝ[3, 8, 3, 3] = B_features_L1(message)
+        m: ℝ[3, 8, 4] = weighted_sum(B0, B1, node_attrs, this.w_prod0, this.w_prod1)
+        sc: ℝ[3, 8] = skip_tp(node_feats0, node_attrs, this.w_sc)
+        node_feats1: ℝ[3, 8, 4] = node_update(m, sc, this.w_p0, this.w_p1)
+        node_energies: ℝ[3] = readout(node_feats1, this.w_readout)
+        node_feats_up2: ℝ[3, 8, 4] = linear_up2(node_feats1, this.w2_up0, this.w2_up1)
+        tp_weights2: ℝ[6, 56] = radial_mlp2(edge_feats, this.w2_r1, this.w2_r2, this.w2_r3, this.w2_r4)
+        mji2: ℝ[6, 8, 21] = conv_tp2(node_feats_up2, edge_attrs, tp_weights2, edge_index)
+        message2: ℝ[3, 8, 9] = linear2(neighbor_sum2(mji2, edge_index, 3), this.w2_msg)
+        B0_2: ℝ[3, 8, 4] = B_features_L0(message2)
+        m2: ℝ[3, 8] = weighted_sum2(B0_2, node_attrs, this.w2_prod0)
+        sc2: ℝ[3, 8] = skip_tp(node_feats1[:, :, 0], node_attrs, this.w2_sc)
+        node_feats2: ℝ[3, 8] = node_update2(m2, sc2, this.w2_p)
+        node_energies2: ℝ[3] = readout2(node_feats2, this.w2_ro1, this.w2_ro2)
+        energy: ℝ = sum(node_energies) + sum(node_energies2)
+        return energy
+    def loss_sample(sample: ℕ) → ℝ:
+        pred: ℝ = this(node_attrs, train_edge_index[sample], train_edge_feats[sample], train_edge_attrs[sample])
+        target: ℝ = (train_energies[sample] - energy_mean) / energy_std
+        result: ℝ = mse(pred, target)
+        return result
+    def error_sample(sample: ℕ) → ℝ:
+        scaled: ℝ = this(node_attrs, test_edge_index[sample], test_edge_feats[sample], test_edge_attrs[sample])
+        result: ℝ = energy_mean + energy_std * scaled - test_energies[sample]
+        return result
+    def train(epochs: ℕ, lr: ℝ) → ℝ:
+        last_loss: ℝ = 0
+        current_loss: ℝ = 0
+        for epoch:ℕ(epochs):
+            for sample:ℕ(num_train):
+                for rep:ℕ(1):
+                    current_loss = this.loss_sample(sample)
+                    learnable_grads = grad(current_loss, this.learnable_params)
+                    this.update_params(lr, learnable_grads)
+                    last_loss = current_loss
+        return last_loss
+    def evaluate() → ℝ:
+        total_error: ℝ = 0
+        current_error: ℝ = 0
+        for sample:ℕ(num_test):
+            for rep:ℕ(1):
+                current_error = this.error_sample(sample)
+                total_error = total_error + current_error * current_error
+        result: ℝ = sqrt(total_error / num_test)
+        return result
+    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+        this.w_embed = this.w_embed - lr * learnable_grads[0]
+        this.w_up = this.w_up - lr * learnable_grads[1]
+        this.w_r1 = this.w_r1 - lr * learnable_grads[2]
+        this.w_r2 = this.w_r2 - lr * learnable_grads[3]
+        this.w_r3 = this.w_r3 - lr * learnable_grads[4]
+        this.w_r4 = this.w_r4 - lr * learnable_grads[5]
+        this.w_0 = this.w_0 - lr * learnable_grads[6]
+        this.w_1 = this.w_1 - lr * learnable_grads[7]
+        this.w_2 = this.w_2 - lr * learnable_grads[8]
+        this.w_prod0 = this.w_prod0 - lr * learnable_grads[9]
+        this.w_prod1 = this.w_prod1 - lr * learnable_grads[10]
+        this.w_sc = this.w_sc - lr * learnable_grads[11]
+        this.w_p0 = this.w_p0 - lr * learnable_grads[12]
+        this.w_p1 = this.w_p1 - lr * learnable_grads[13]
+        this.w_readout = this.w_readout - lr * learnable_grads[14]
+        this.w2_up0 = this.w2_up0 - lr * learnable_grads[15]
+        this.w2_up1 = this.w2_up1 - lr * learnable_grads[16]
+        this.w2_r1 = this.w2_r1 - lr * learnable_grads[17]
+        this.w2_r2 = this.w2_r2 - lr * learnable_grads[18]
+        this.w2_r3 = this.w2_r3 - lr * learnable_grads[19]
+        this.w2_r4 = this.w2_r4 - lr * learnable_grads[20]
+        this.w2_msg = this.w2_msg - lr * learnable_grads[21]
+        this.w2_prod0 = this.w2_prod0 - lr * learnable_grads[22]
+        this.w2_sc = this.w2_sc - lr * learnable_grads[23]
+        this.w2_p = this.w2_p - lr * learnable_grads[24]
+        this.w2_ro1 = this.w2_ro1 - lr * learnable_grads[25]
+        this.w2_ro2 = this.w2_ro2 - lr * learnable_grads[26]
+
+# Main Program:
+mace_object: MACEModel = MACEModel(w_embed, w_up, w_r1, w_r2, w_r3, w_r4,
+                                   w_0, w_1, w_2, w_prod0, w_prod1,
+                                   w_sc, w_p0, w_p1, w_readout,
+                                   w2_up0, w2_up1, w2_r1, w2_r2, w2_r3, w2_r4,
+                                   w2_msg, w2_prod0, w2_sc, w2_p, w2_ro1, w2_ro2)
+
+example_energy: ℝ = mace_object(node_attrs, edge_index, edge_feats, edge_attrs)
+print(example_energy)
+
+lr: ℝ = 0.05
+# ------------------------------------------------------------------
+# set epoch value to 100, here we have set it to 1 to just test 
+# physika code through tests/test_tutorials.py
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+rmse_before: ℝ = mace_object.evaluate()
+print(rmse_before)
+
+final_loss: ℝ = mace_object.train(epochs, lr)
+print(final_loss)
+
+rmse_after: ℝ = mace_object.evaluate()
+print(rmse_after)
+
+test_predictions: ℝ[num_test] = zeros(num_test)
+for sample:ℕ(num_test):
+    test_predictions[sample] = test_energies[sample] + mace_object.error_sample(sample)
+print(test_predictions)

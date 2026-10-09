@@ -96,6 +96,7 @@ Tutorials
    cnn_tutorial
    gcn_tutorial
    tfn_tutorial
+   mace_tutorial
    fft_tutorial
    fourier_neural_operator
    2d_pde_parameter_estimation
