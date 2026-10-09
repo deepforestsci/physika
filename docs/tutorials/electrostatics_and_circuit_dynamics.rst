@@ -88,10 +88,69 @@ Output:
 
     [3459386624.0, 3459386624.0, 3459386624.0] ∈ ℝ[3]
 
+Sum of Electric field on a point due to multiple charges
+--------------------------------------------------------
+
+Consider a collection of :math:`N` particles each of which has charge
+:math:`q_i` and is located at location :math:`x_i`. These particles create an
+electric field :math:`E` which extends throughout the system. We can measure
+its combined effect using:
+
+.. math::
+
+   \vec{E}_{\mathrm{total}}(\vec{x}_2)
+   =
+   \sum_{i=1}^{n}
+   \frac{q_i}{4\pi\varepsilon_0}
+   \frac{\vec{x}_2-\vec{x}_i}
+   {\|\vec{x}_2-\vec{x}_i\|^3}
+
+Where:
+
+- :math:`n` is the number of source charges.
+- :math:`q_i` is the i-th source charge.
+- :math:`x_i` is the position of the i-th source charge.
+- :math:`x_2` is the observation point.
+- :math:`E_total` is the net electric field, obtained by summing the contributions from all n charges.
+
+.. code:: text
+
+    def E_n(n: ℝ, q: ℝ[n], x: ℝ[n, 3], x2: ℝ[3]): ℝ[3]:
+        total: ℝ[3] = [0.0, 0.0, 0.0]
+        for i: ℕ(n):
+            total += E(q[i], x[i], x2)
+        return total
+
+    n: ℝ = 10
+    q: ℝ[3] = sample_normal1D(n)
+    x: ℝ[3, 3] = sample_normal3D(n)
+
+    coulomb_e_n: ℝ[3] = E_n(n, q, x, [1, 1, 1])
+    print(coulomb_e_n)
+
+
+
+
+
 Change in Electric Field w.r.t Position
 ---------------------------------------
 
+The derivative of Electric field w.r.t. positon describes how the electric field
+changes spacially as the observation point moves. As the electric field is a
+vector, its derivative w.r.t. 3-dimensional position vector is a 3x3 jacobian
+matrix. Its entries represent the rate of change of electric field with respect
+to each of the directional componenets.
 
+.. math::
+
+   \nabla \vec{E} =
+   \begin{bmatrix}
+   \frac{\partial E_x}{\partial x} & \frac{\partial E_x}{\partial y} & \frac{\partial E_x}{\partial z} \\
+   \frac{\partial E_y}{\partial x} & \frac{\partial E_y}{\partial y} & \frac{\partial E_y}{\partial z} \\
+   \frac{\partial E_z}{\partial x} & \frac{\partial E_z}{\partial y} & \frac{\partial E_z}{\partial z}
+   \end{bmatrix}
+
+Where, :math:`E_x`, :math:`E_y` and :math:`E_z` are electric field componenets in the respective directions.
 
 .. code:: text
 
