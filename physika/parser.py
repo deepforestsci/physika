@@ -721,6 +721,21 @@ def p_func_loop_body_multi(p):
     p[0] = p[1] + ([p[2]] if p[2] else [])
 
 
+def p_func_loop_stmt_decl(p):
+    """func_loop_stmt : ID COLON type_spec EQUALS func_expr NEWLINE"""
+    # Declaration inside a function loop body
+    # Example:
+    # for i:
+    #   curr: ℝ = arr[i]
+    # Parameters:
+    #   p[1] - variable name
+    #   p[3] - data type
+    #   p[5] - right hand side expression
+    # Returns:
+    #   ("loop_decl", name, type_spec, rhs)
+    p[0] = ("loop_decl", p[1], p[3], p[5])
+
+
 def p_func_loop_stmt_assign(p):
     """func_loop_stmt : ID EQUALS func_expr NEWLINE"""
     # Assignment inside a loop body
@@ -1024,6 +1039,21 @@ def p_for_body_empty(p):
 def p_for_body_multi(p):
     """for_body : for_body for_statement"""
     p[0] = p[1] + ([p[2]] if p[2] is not None else [])
+
+
+def p_for_statement_decl(p):
+    """for_statement : ID COLON type_spec EQUALS func_expr NEWLINE"""
+    # Declaration inside a loop body
+    # Example:
+    # for i:
+    #   curr: ℝ = arr[i]
+    # Parameters:
+    #   p[1] - variable name
+    #   p[3] - data type
+    #   p[5] - right hand side expression
+    # Returns:
+    #   ("for_decl", name, type_spec, rhs)
+    p[0] = ("for_decl", p[1], p[3], p[5])
 
 
 def p_for_statement_assign(p):

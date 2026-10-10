@@ -30,23 +30,23 @@ class HamiltonianNet(W1: ℝ[M,N], b1: ℝ[M,1], W2: ℝ[1,M], b2: ℝ):
         return [dh_dp, dh_dq]
     def train(train_X: ℝ[8, 2, 1], train_y: ℝ[8, 2], epochs: ℕ, lr: R) → ℝ:
         for epoch:ℕ(epochs):
-            loss = 0
+            loss: ℝ = 0
             for i:ℕ(8)
-                state = train_X[i]
-                target = train_y[i]
-                prediction = this(state)
-                loss = mse_loss(prediction, target)
-                learnable_grads = grad(loss, this.learnable_params)
+                state: ℝ[2, 1] = train_X[i]
+                target: ℝ[2, 1] = train_y[i]
+                prediction: ℝ[2] = this(state)
+                loss: ℝ = mse_loss(prediction, target)
+                learnable_grads: ℝ[4] = grad(loss, this.learnable_params)
                 this.update_params(lr, learnable_grads)
         return loss
     def evaluate(X: ℝ[8,2,1], y: ℝ[8,2]) → ℝ:
         total_loss: ℝ = 0
         for j:ℕ(8):
-            pred = this(X[j])
-            current_loss = mse_loss(pred, y[j])
-            total_loss = total_loss + current_loss
+            pred: ℝ[2] = this(X[j])
+            current_loss: ℝ = mse_loss(pred, y[j])
+            total_loss: ℝ = total_loss + current_loss
         return total_loss / 8
-    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+    def update_params(lr: ℝ, learnable_grads: ℝ[4]):
         this.W1 = this.W1 - lr * learnable_grads[0]
         this.b1 = this.b1 - lr * learnable_grads[1]
         this.W2 = this.W2 - lr * learnable_grads[2]

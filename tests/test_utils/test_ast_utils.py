@@ -494,6 +494,7 @@ class TestEmitBodyIfElseStmts:
 class TestEmitForStmts:
     """
     Test suite for `emit_for_stmts` handling of for loop statements, including:
+    - `for_decl`
     - `for_assign`
     - `for_pluseq`
     - `for_call`
@@ -501,6 +502,26 @@ class TestEmitForStmts:
     Physika AST statements, and that the `indent_level` arg correctly controls
     the indentation of
     """
+
+    def test_for_decl(self):
+        """
+        Checks that `for_decl` statements produce correct code lines,
+        and have correct indentation.
+        """
+        stmt_decl = ("for_decl", "z", "ℝ", ("add", ("var", "x"), ("num", 1)))
+        assert emit_for_stmts([stmt_decl], 4) == ["    z = (x + 1)"]
+
+        # Declaration inside a loop should preserve loop-variable expressions
+        stmt_decl = ("for_decl", "curr", "ℝ", ("var", "arr"))
+        assert emit_for_stmts([stmt_decl], 4) == ["    curr = arr"]
+
+        # Custom indentation
+        stmt_decl = ("for_decl", "z", "ℝ", ("num", 0.0))
+        assert emit_for_stmts([stmt_decl], 8) == ["        z = 0.0"]
+
+        # Zero indentation
+        stmt_decl = ("for_decl", "z", "ℝ", ("num", 1.0))
+        assert emit_for_stmts([stmt_decl], 0) == ["z = 1.0"]
 
     def test_for_assign(self):
         """
@@ -578,6 +599,12 @@ class TestEmitFuncLoopBody:
     body statements tags and the ``loop_var`` argument of the imaginary
     token ``i``.
     """
+
+    def test_loop_decl(self):
+        """Verify ``loop_decl`` emits a correct declaration line."""
+        stmts = [("loop_decl", "cur", "ℝ", ("mul", ("var", "x"), ("num", 2)))]
+        assert _run_emit_loop_body(stmts,
+                                   loop_var="k") == ["    cur = (x * 2)"]
 
     def test_loop_assign(self):
         """Verify ``loop_assign`` emits a plain assignment line."""

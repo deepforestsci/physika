@@ -104,7 +104,7 @@ dot
 def get_last(arr : ℝ[n]): ℝ:
     cur : ℝ = 0
     for i:
-        cur = arr[i]
+        cur: ℝ = arr[i]
     return cur
 vals : ℝ[5] = [3, 1, 4, 1, 5]
 get_last(vals)
@@ -395,7 +395,7 @@ normed
 def get_array_length(x: ℝ[m]): ℝ:
     total: ℝ = 0
     for i:
-        curr = x[i]
+        curr: ℝ = x[i]
         total += 1
     return total
 
@@ -403,7 +403,7 @@ def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
     total: ℝ = 0
     temp: ℝ = 0
     for i:
-        temp = x[i]
+        temp: ℝ = x[i]
         total += 1
     return total
 
