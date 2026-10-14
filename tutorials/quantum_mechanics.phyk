@@ -52,9 +52,11 @@ mom(0.001) * 1e10
 def dpsi_dx(x: R): R:
     return grad(norm_psi(x), x)
 
-# Second derivative
+# Second derivative: central difference of the autodiff first derivative
+delta: R = 1e-3
+
 def d2psi_dx2(x: R): R:
-    return grad(dpsi_dx(x), x)
+    return (dpsi_dx(x + delta) - dpsi_dx(x - delta)) / (2 * delta)
 
 # Potential energy
 def V(x: R): R:

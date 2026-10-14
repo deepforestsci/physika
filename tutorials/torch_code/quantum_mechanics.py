@@ -34,7 +34,7 @@ def dpsi_dx(x):
     return compute_grad(lambda _dx: norm_psi(_dx), x)
 
 def d2psi_dx2(x):
-    return compute_grad(lambda _dx: dpsi_dx(_dx), x)
+    return ((dpsi_dx((x + delta)) - dpsi_dx((x - delta))) / (2 * delta))
 
 def V(x):
     return 0.0
@@ -58,6 +58,7 @@ print((total * dx))
 print(rho(0.01))
 h = 6.582e-16
 print((mom(0.001) * 10000000000.0))
+delta = 0.001
 m = 5.6856e-32
 print(hamiltonian(0.001))
 energy_numerator = 0.0
