@@ -35,7 +35,7 @@ class HamiltonianNet(nn.Module):
         dh_grad = compute_grad(h, x)
         dh_dp = dh_grad[int(1), int(0)]
         dh_dq = (-dh_grad[int(0), int(0)])
-        return torch.stack([torch.as_tensor(dh_dp), torch.as_tensor(dh_dq)])
+        return torch.stack([torch.stack([torch.as_tensor(dh_dp, dtype=torch.get_default_dtype(), device=DEVICE)]), torch.stack([torch.as_tensor(dh_dq, dtype=torch.get_default_dtype(), device=DEVICE)])])
 
     def train(self, train_X, train_y, epochs, lr):
         this = self
