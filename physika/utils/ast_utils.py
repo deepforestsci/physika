@@ -735,6 +735,7 @@ def ast_to_torch_expr(node: ASTNode,
             "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
+            "floor": "torch.floor",
         }
         multi_arg_funcs = {
             "atan2": "torch.atan2",
@@ -748,11 +749,17 @@ def ast_to_torch_expr(node: ASTNode,
             "zeros": "torch.zeros",
             "rfft": "torch.fft.rfft",
             "irfft": "torch.fft.irfft",
-            "gelu": "torch.nn.functional.gelu"
+            "gelu": "torch.nn.functional.gelu",
+            "gt": "torch.gt",
+            "le": "torch.le",
+            "arange": "torch.arange",
+            "mod": "torch.remainder",
+            "mask_select": "torch.masked_select",
         }
         list_arg_funcs = {
             "concat": "torch.cat",
         }
+
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
 
