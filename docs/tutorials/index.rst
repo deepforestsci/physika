@@ -88,6 +88,7 @@ Tutorials
    :caption: Electrochemistry
 
    single_particle_model
+   doyle_fuller_newman
 
 .. toctree::
    :maxdepth: 1

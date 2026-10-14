@@ -1,0 +1,88 @@
+# Conservative cell-centred finite volumes. All operators are assembled here,
+# in Physika, then applied with vectorized matrix products in model callbacks.
+
+def arithmetic_matrix(width: ℝ[m], n: ℕ): ℝ[u,v]:
+    result: ℝ[n+1,n] = zeros(n+1, n)
+    result[0,0] = 1.5
+    result[0,1] = -0.5
+    result[n,n-1] = 1.5
+    result[n,n-2] = -0.5
+    for k:ℕ(1, n):
+        result[k,k-1] = width[k] / (width[k-1]+width[k])
+        result[k,k] = width[k-1] / (width[k-1]+width[k])
+    return result
+
+def harmonic_matrix(width: ℝ[m], n: ℕ): ℝ[u,v]:
+    result: ℝ[n+1,n] = zeros(n+1, n)
+    result[0,0] = 1.0
+    result[n,n-1] = 1.0
+    for k:ℕ(1, n):
+        result[k,k-1] = width[k-1] / (width[k-1]+width[k])
+        result[k,k] = width[k] / (width[k-1]+width[k])
+    return result
+
+def matrix_vector(weights: ℝ[u,v], c: ℝ[m], n: ℕ): ℝ[w]:
+    return for k:ℕ(n) -> sum(weights[k]*c)
+
+def harmonic_edges(c: ℝ[m], weights: ℝ[u,v], n: ℕ): ℝ[w]:
+    result: ℝ[n+1] = 1.0 / matrix_vector(weights, 1.0/c, n+1)
+    result[0] = 1.5*c[0] - 0.5*c[1]
+    result[n] = 1.5*c[n-1] - 0.5*c[n-2]
+    return result
+
+def particle_matrix(nx: ℕ, nr: ℕ, radius: ℝ, diffusivity: ℝ): ℝ[u,v]:
+    size: ℕ = nx*nr
+    result: ℝ[size,size] = zeros(size, size)
+    dr: ℝ = radius / nr
+    volume: ℝ = 0.0
+    coeff: ℝ = 0.0
+    for k:ℕ(nx):
+        for q:ℕ(nr):
+            volume = ((q+1)**3-q**3)*dr**3/3.0
+            if q > 0:
+                coeff = diffusivity*(q*dr)**2 / (dr*volume)
+                result[k*nr+q,k*nr+q-1] = coeff
+                result[k*nr+q,k*nr+q] = result[k*nr+q,k*nr+q] - coeff
+            if q < nr-1:
+                coeff = diffusivity*((q+1)*dr)**2 / (dr*volume)
+                result[k*nr+q,k*nr+q+1] = coeff
+                result[k*nr+q,k*nr+q] = result[k*nr+q,k*nr+q] - coeff
+    return result
+
+def particle_source(nx: ℕ, nr: ℕ, radius: ℝ, faraday: ℝ): ℝ[u,v]:
+    size: ℕ = nx*nr
+    result: ℝ[size,nx] = zeros(size, nx)
+    volume: ℝ = (nr**3-(nr-1)**3)*(radius/nr)**3 / 3.0
+    for k:ℕ(nx):
+        result[k*nr+nr-1,k] = -radius**2 / (faraday*volume)
+    return result
+
+def surface_matrix(nx: ℕ, nr: ℕ): ℝ[u,v]:
+    size: ℕ = nx*nr
+    result: ℝ[nx,size] = zeros(nx, size)
+    for k:ℕ(nx):
+        result[k,k*nr+nr-1] = 1.5
+        result[k,k*nr+nr-2] = -0.5
+    return result
+
+def particle_inventory(nx: ℕ, nr: ℕ, radius: ℝ, width: ℝ, active: ℝ): ℝ[m]:
+    size: ℕ = nx*nr
+    result: ℝ[size] = zeros(size)
+    for k:ℕ(nx):
+        for q:ℕ(nr):
+            result[k*nr+q] = active*width*((q+1)**3-q**3) / nr**3
+    return result
+
+# Form flux differences before dividing by cell width.
+def gradient_values(c: ℝ[m], width: ℝ[m], n: ℕ): ℝ[w]:
+    left: ℝ[n-1] = c[0:n-1]
+    right: ℝ[n-1] = c[1:n]
+    wl: ℝ[n-1] = width[0:n-1]
+    wr: ℝ[n-1] = width[1:n]
+    internal: ℝ[n-1] = 2.0*(right-left)/(wl+wr)
+    return concat([0.0], internal, [0.0])
+
+def divergence_values(flux: ℝ[m], width: ℝ[n], n: ℕ): ℝ[w]:
+    left: ℝ[n] = flux[0:n]
+    right: ℝ[n] = flux[1:n+1]
+    return (right-left)/width

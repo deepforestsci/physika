@@ -1,0 +1,487 @@
+# BE/BDF2 and an implicit discrete adjoint for the mission tutorial.
+# Caller globals describe one fixed cell. theta and phase power are explicit.
+# The existing battery-local Gaussian solver supplies every linear solve.
+newton_tolerance: ℝ = 2e-6
+
+state_correction_tolerance: ℝ = 5e-6
+algebraic_tolerance: ℝ = 2e-3
+relative_tolerance: ℝ = 1e-4
+absolute_tolerance: ℝ = 1e-6
+
+def max_norm(v: ℝ[m], n: ℕ): ℝ:
+    result: ℝ = 0.0
+    for k:ℕ(n):
+        if abs(v[k]) > result:
+            result = abs(v[k])
+    return result
+
+# NaN comparisons are false; infinities exceed the magnitude bound below.
+def finite_values(v: ℝ[m], n: ℕ): ℝ:
+    valid: ℝ = 1.0
+    for k:ℕ(n):
+        if abs(v[k]) <= 3.402823466e38:
+            valid = valid
+        else:
+            valid = 0.0
+    return valid
+
+def initial_residual(u: ℝ[na], x: ℝ[nd], t: ℝ, theta: ℝ[n_parameters], power: ℝ): ℝ[na]:
+    return algebraic_residual(x,u*z_scale,theta,power)
+
+def initial_jacobian(u: ℝ[na], x: ℝ[nd], t: ℝ, theta: ℝ[n_parameters], power: ℝ): ℝ[na,na]:
+    # The runtime already returns a Jacobian; state its matrix shape here
+    # because the current grad type inference reports only the input shape.
+    shape: list = [na,na]
+    return reshape(grad(initial_residual(u,x,t,theta,power),u),shape)
+
+# Pack the state, a success flag, and the number of Newton corrections.
+def consistent_potentials(x: ℝ[nd], guess: ℝ[na], t: ℝ, theta: ℝ[n_parameters], power: ℝ): ℝ[na+2]:
+    tolerance: ℝ = newton_tolerance
+    last_iteration: ℕ = 20
+    u: ℝ[na] = guess/z_scale
+    active: ℝ = 1.0
+    success: ℝ = 0.0
+    iterations: ℝ = 0.0
+    alpha: ℝ = 1.0
+    found: ℝ = 0.0
+    r: ℝ[na] = zeros(na)
+    trial: ℝ[na] = zeros(na)
+    delta: ℝ[na] = zeros(na)
+    J: ℝ[na,na] = zeros(na,na)
+    rnorm: ℝ = 0.0
+    for iteration:ℕ(21):
+        if active > 0.0:
+            r = initial_residual(u,x,t,theta,power)
+            if finite_values(r,na) > 0.0:
+                rnorm = max_norm(r,na)
+                if rnorm <= tolerance:
+                    success = 1.0
+                    active = 0.0
+                else:
+                    if iteration < last_iteration:
+                        J = initial_jacobian(u,x,t,theta,power)
+                        iterations = iterations+1.0
+                        delta = gaussian_solve(J,-r)
+                        if finite_values(delta,na) > 0.0:
+                            alpha = 1.0
+                            found = 0.0
+                            for search:ℕ(16):
+                                if found < 1.0:
+                                    trial = initial_residual(u+alpha*delta,x,t,theta,power)
+                                    if finite_values(trial,na) > 0.0:
+                                        if max_norm(trial,na) < rnorm:
+                                            found = 1.0
+                                    if found < 1.0:
+                                        alpha = alpha*0.5
+                            if found > 0.0:
+                                u = u+alpha*delta
+                            else:
+                                active = 0.0
+                        else:
+                            active = 0.0
+            else:
+                active = 0.0
+    return concat(u*z_scale,[success,iterations])
+
+def step_residual(u: ℝ[nb], a: ℝ[nd], history: ℝ[nd], t: ℝ, h: ℝ, alpha: ℝ, theta: ℝ[n_parameters], power: ℝ): ℝ[nb]:
+    y: ℝ[nb] = u*solver_scale
+    increment: ℝ[nd] = y[0:nd]
+    z: ℝ[na] = y[nd:nb]
+    x: ℝ[nd] = a+increment
+    return concat((alpha*increment+history-h*dfn_rhs(t+h,x,z,theta))/x_scale, algebraic_residual(x,z,theta,power))
+
+def step_jacobian(u: ℝ[nb], a: ℝ[nd], history: ℝ[nd], t: ℝ, h: ℝ, alpha: ℝ, theta: ℝ[n_parameters], power: ℝ): ℝ[nb,nb]:
+    shape: list = [nb,nb]
+    return reshape(grad(step_residual(u,a,history,t,h,alpha,theta,power),u),shape)
+
+def step_newton(a: ℝ[nd], b: ℝ[na], history: ℝ[nd], t: ℝ, h: ℝ, alpha: ℝ, theta: ℝ[n_parameters], power: ℝ): ℝ[nb+2]:
+    tolerance: ℝ = newton_tolerance
+    state_tolerance: ℝ = state_correction_tolerance
+    last_iteration: ℕ = 20
+    u: ℝ[nb] = concat(zeros(nd),b)/solver_scale
+    active: ℝ = 1.0
+    success: ℝ = 0.0
+    iterations: ℝ = 0.0
+    r: ℝ[nb] = zeros(nb)
+    delta: ℝ[nb] = zeros(nb)
+    defect: ℝ[nb] = zeros(nb)
+    tangent: ℝ[nb] = zeros(nb)
+    J: ℝ[nb,nb] = zeros(nb,nb)
+    rnorm: ℝ = 0.0
+    gnorm: ℝ = 0.0
+    correction: ℝ = 0.0
+    for iteration:ℕ(21):
+        if active > 0.0:
+            r = step_residual(u,a,history,t,h,alpha,theta,power)
+            if finite_values(r,nb) > 0.0:
+                rnorm = max_norm(r,nb)
+                if rnorm <= tolerance:
+                    success = 1.0
+                    active = 0.0
+                else:
+                    if iteration < last_iteration:
+                        J = step_jacobian(u,a,history,t,h,alpha,theta,power)
+                        iterations = iterations+1.0
+                        delta = gaussian_solve(J,-r)
+                        if finite_values(delta,nb) > 0.0:
+                            gnorm = max_norm(r[nd:nb],na)
+                            correction = max_norm(delta[0:nd],nd)
+                            if gnorm <= tolerance:
+                                if correction > state_tolerance:
+                                    defect = concat(r[0:nd],zeros(na))
+                                    tangent = gaussian_solve(J,-defect)
+                                    if finite_values(tangent,nb) > 0.0:
+                                        correction = max_norm(tangent[0:nd],nd)
+                                    else:
+                                        active = 0.0
+                                if correction <= state_tolerance:
+                                    success = 1.0
+                                    active = 0.0
+                            if active > 0.0:
+                                u = u+delta
+                        else:
+                            active = 0.0
+            else:
+                active = 0.0
+    return concat(u*solver_scale,[success,iterations])
+
+def bdf_step(t: ℝ, a: ℝ[nd], b: ℝ[na], h: ℝ, previous: ℝ[nd], previous_h: ℝ, started: ℝ, theta: ℝ[n_parameters], power: ℝ): ℝ[nb+2]:
+    alpha: ℝ = 1.0
+    ratio: ℝ = 0.0
+    history: ℝ[nd] = zeros(nd)
+    if started > 0.0:
+        ratio = h/previous_h
+        alpha = (1.0+2.0*ratio)/(1.0+ratio)
+        history = ratio**2/(1.0+ratio)*(previous-a)
+    result: ℝ[nb+2] = step_newton(a,b,history,t,h,alpha,theta,power)
+    return concat(a+result[0:nd],result[nd:nb],result[nb:nb+2])
+
+def step_factor(error: ℝ): ℝ:
+    factor: ℝ = 2.0
+    if error > 0.03:
+        factor = 1.6
+    if error > 0.2:
+        factor = 1.2
+    if error > 0.7:
+        factor = 0.95
+    return factor
+
+def attempt_step(t: ℝ, x: ℝ[nd], z: ℝ[na], h: ℝ, previous: ℝ[nd], previous_h: ℝ, started: ℝ, theta: ℝ[n_parameters], power: ℝ): ℝ[nb+3]:
+    full: ℝ[nb+2] = bdf_step(t,x,z,h,previous,previous_h,started,theta,power)
+    half: ℝ[nb+2] = zeros(nb+2)
+    small: ℝ[nb+2] = zeros(nb+2)
+    success: ℝ = 0.0
+    error: ℝ = 2.0
+    count: ℝ = full[nb+1]
+    a: ℝ[nd] = full[0:nd]
+    b: ℝ[na] = full[nd:nb]
+    magnitude: ℝ[nd] = zeros(nd)
+    weight: ℝ[nd] = zeros(nd)
+    divisor: ℝ = 1.0
+    if full[nb] > 0.0:
+        half = bdf_step(t,x,z,h/2.0,previous,previous_h,started,theta,power)
+        count = count+half[nb+1]
+        if half[nb] > 0.0:
+            small = bdf_step(t+h/2.0,half[0:nd],half[nd:nb],h/2.0,x,h/2.0,1.0,theta,power)
+            count = count+small[nb+1]
+            if small[nb] > 0.0:
+                magnitude = 0.5*(abs(a/x_scale)+abs(x/x_scale)+abs(abs(a/x_scale)-abs(x/x_scale)))
+                weight = absolute_tolerance+relative_tolerance*magnitude
+                if started > 0.0:
+                    divisor = 3.0
+                error = sqrt(sum(((a-small[0:nd])/x_scale/(divisor*weight))**2)/nd)
+                if error <= 1.0:
+                    success = 1.0
+    return concat(a,b,[success,error,count])
+
+# [alpha, coefficient of previous state, coefficient of older state].
+def bdf_coefficients(h: ℝ, previous_h: ℝ, started: ℝ): ℝ[3]:
+    ratio: ℝ = 0.0
+    gamma: ℝ = 0.0
+    alpha: ℝ = 1.0
+    if started > 0.0:
+        ratio = h/previous_h
+        gamma = ratio**2/(1.0+ratio)
+        alpha = (1.0+2.0*ratio)/(1.0+ratio)
+    return [alpha,alpha+gamma,gamma]
+
+# Tape row zero: count, success, accepted/rejected steps, Newton corrections.
+# Each subsequent row: [t,h,alpha,beta,gamma,power,physical x,physical z].
+# h=0 rows are initial consistency or a phase transition, with continuous x.
+def adaptive_mission(theta: ℝ[n_parameters], limit: ℝ): ℝ[max_nodes,tape_columns]:
+    output: ℝ[max_nodes,tape_columns] = zeros(max_nodes,tape_columns)
+    x: ℝ[nd] = x0
+    z: ℝ[na] = z0
+    previous: ℝ[nd] = x0
+    initial: ℝ[na+2] = consistent_potentials(x,z,0.0,theta,30.0)
+    result: ℝ[nb+3] = zeros(nb+3)
+    coefficients: ℝ[3] = [1.0,1.0,0.0]
+    saved: ℕ = 1
+    live: ℝ = initial[na]
+    status: ℝ = -1.0
+    t: ℝ = 0.0
+    stop: ℝ = 0.0
+    power: ℝ = 30.0
+    h: ℝ = 0.1
+    hh: ℝ = 0.1
+    previous_h: ℝ = 0.1
+    started: ℝ = 0.0
+    accepted: ℝ = 0.0
+    rejected: ℝ = 0.0
+    corrections: ℝ = initial[na+1]
+    retries: ℕ = 0
+    q_increment: ℝ = 0.0
+    q_sum: ℝ = 0.0
+    q_compensation: ℝ = 0.0
+    q_addend: ℝ = 0.0
+    q_total: ℝ = 0.0
+    z = initial[0:na]
+    output[1,0:6] = [0.0,0.0,1.0,1.0,0.0,30.0]
+    output[1,6:tape_columns] = concat(x,z)
+    for phase:ℕ(3):
+        if live > 0.0:
+            power = phase_power(phase)
+            stop = phase_end(phase)
+            if 1.0*phase > 0.0:
+                initial = consistent_potentials(x,z,t,theta,power)
+                corrections = corrections+initial[na+1]
+                live = initial[na]
+                if live > 0.0:
+                    saved = saved+1
+                    z = initial[0:na]
+                    output[saved,0:6] = [t,0.0,1.0,1.0,0.0,power]
+                    output[saved,6:tape_columns] = concat(x,z)
+            h = 0.1
+            previous_h = 0.1
+            previous = x
+            started = 0.0
+            q_increment = 0.0
+            retries = 0
+            for attempt:ℕ(3000):
+                if live > 0.0:
+                    if t < stop:
+                        hh = h
+                        if hh > limit:
+                            hh = limit
+                        if hh > stop-t:
+                            hh = stop-t
+                        if hh < 1e-9:
+                            live = 0.0
+                            status = -2.0
+                        if live > 0.0:
+                            result = attempt_step(t,x,z,hh,previous,previous_h,started,theta,power)
+                            corrections = corrections+result[nb+2]
+                            if result[nb] > 0.0:
+                                if 1.0*saved < max_nodes-1:
+                                    coefficients = bdf_coefficients(hh,previous_h,started)
+                                    saved = saved+1
+                                    t = t+hh
+                                    output[saved,0:6] = concat([t,hh],coefficients,[power])
+                                    previous = x
+                                    x = detach(result[0:nd])
+                                    z = detach(result[nd:nb])
+                                    # The capacity equation is linear and does
+                                    # not feed back into the cell. Solve its
+                                    # increment recurrence and use Kahan's sum
+                                    # to preserve small mission-charge changes.
+                                    q_increment = (hh*z[nv]/3600.0+coefficients[2]*q_increment)/coefficients[0]
+                                    q_addend = q_increment-q_compensation
+                                    q_total = q_sum+q_addend
+                                    q_compensation = (q_total-q_sum)-q_addend
+                                    q_sum = q_total
+                                    x[nd-1] = q_sum
+                                    output[saved,6:tape_columns] = concat(x,z)
+                                    previous_h = hh
+                                    started = 1.0
+                                    accepted = accepted+1.0
+                                    retries = 0
+                                    h = hh*step_factor(result[nb+1])
+                                else:
+                                    live = 0.0
+                                    status = -4.0
+                            else:
+                                rejected = rejected+1.0
+                                retries = retries+1
+                                h = hh/2.0
+                            if retries > 15:
+                                live = 0.0
+                                status = -3.0
+            if t < stop:
+                live = 0.0
+                if status == -1.0:
+                    status = -5.0
+    if live > 0.0:
+        status = 1.0
+    output[0,0:5] = [saved,status,accepted,rejected,corrections]
+    return output
+
+# Optimization always uses these recorded coefficients; there is no derivative
+# of the step controller. Re-solving the baseline on this grid makes the same
+# stored coefficient values define every objective and gradient.
+def replay_mission(theta: ℝ[n_parameters], grid: ℝ[max_nodes,tape_columns]): ℝ[max_nodes,tape_columns]:
+    output: ℝ[max_nodes,tape_columns] = zeros(max_nodes,tape_columns)
+    output[:,0:6] = grid[:,0:6]
+    x: ℝ[nd] = x0
+    z: ℝ[na] = z0
+    older: ℝ[nd] = x0
+    history: ℝ[nd] = zeros(nd)
+    initial: ℝ[na+2] = consistent_potentials(x,z,0.0,theta,grid[1,5])
+    result: ℝ[nb+2] = zeros(nb+2)
+    live: ℝ = initial[na]
+    corrections: ℝ = initial[na+1]
+    accepted: ℝ = 0.0
+    completed: ℕ = 1
+    h: ℝ = 0.0
+    alpha: ℝ = 1.0
+    gamma: ℝ = 0.0
+    q_increment: ℝ = 0.0
+    q_sum: ℝ = 0.0
+    q_compensation: ℝ = 0.0
+    q_addend: ℝ = 0.0
+    q_total: ℝ = 0.0
+    if grid[0,1] < 1.0:
+        live = 0.0
+    z = initial[0:na]
+    output[1,6:tape_columns] = concat(x,z)
+    for node:ℕ(2,grid[0,0]+1.0):
+        if live > 0.0:
+            h = grid[node,1]
+            if h == 0.0:
+                initial = consistent_potentials(x,z,grid[node,0],theta,grid[node,5])
+                corrections = corrections+initial[na+1]
+                live = initial[na]
+                z = initial[0:na]
+                q_increment = 0.0
+            else:
+                alpha = grid[node,2]
+                gamma = grid[node,4]
+                history = gamma*(older-x)
+                history[nd-1] = -gamma*q_increment
+                result = step_newton(x,z,history,grid[node-1,0],h,alpha,theta,grid[node,5])
+                corrections = corrections+result[nb+1]
+                live = result[nb]
+                older = x
+                x = detach(x+result[0:nd])
+                z = detach(result[nd:nb])
+                if live > 0.0:
+                    q_increment = (h*z[nv]/3600.0+gamma*q_increment)/alpha
+                    q_addend = q_increment-q_compensation
+                    q_total = q_sum+q_addend
+                    q_compensation = (q_total-q_sum)-q_addend
+                    q_sum = q_total
+                    x[nd-1] = q_sum
+                    accepted = accepted+1.0
+            if live > 0.0:
+                completed = node
+                output[node,6:tape_columns] = concat(x,z)
+    output[0,0] = completed
+    output[0,1] = live
+    output[0,2] = accepted
+    output[0,3] = 0.0
+    output[0,4] = corrections
+    return output
+
+# Split every positive step in two and recompute BDF coefficients. Keep the
+# zero-time transition nodes and restart with BE after each one.
+def refine_grid(grid: ℝ[max_nodes,tape_columns]): ℝ[max_nodes,tape_columns]:
+    output: ℝ[max_nodes,tape_columns] = zeros(max_nodes,tape_columns)
+    output[1,:] = grid[1,:]
+    saved: ℕ = 1
+    h: ℝ = 0.0
+    previous_h: ℝ = 0.1
+    started: ℝ = 0.0
+    coefficients: ℝ[3] = [1.0,1.0,0.0]
+    live: ℝ = grid[0,1]
+    time: ℝ = 0.0
+    for node:ℕ(2,grid[0,0]+1.0):
+        if live > 0.0:
+            if grid[node,1] == 0.0:
+                if 1.0*saved < max_nodes-1:
+                    saved = saved+1
+                    output[saved,0:6] = grid[node,0:6]
+                    started = 0.0
+                else:
+                    live = 0.0
+            else:
+                h = grid[node,1]/2.0
+                for half:ℕ(2):
+                    if 1.0*saved < max_nodes-1:
+                        coefficients = bdf_coefficients(h,previous_h,started)
+                        saved = saved+1
+                        time = grid[node,0]-h
+                        if 1.0*half > 0.0:
+                            time = grid[node,0]
+                        output[saved,0:6] = concat([time,h],coefficients,[grid[node,5]])
+                        started = 1.0
+                        previous_h = h
+                    else:
+                        live = 0.0
+    output[0,0] = saved
+    output[0,1] = live
+    return output
+
+def residual_contraction(theta: ℝ[n_parameters], multiplier: ℝ[nb], u: ℝ[nb], a: ℝ[nd], history: ℝ[nd], t: ℝ, h: ℝ, alpha: ℝ, power: ℝ): ℝ:
+    return multiplier @ step_residual(u,a,history,t,h,alpha,theta,power)
+
+# Reverse the converged implicit equations. Translation by the previous state
+# makes the Newton increment Jacobian equal to the independently scaled current
+# state Jacobian. Its history blocks are -beta*Id and +gamma*Id.
+# Output: [13 gradient entries, success, number of transposed solves].
+def mission_adjoint(theta: ℝ[n_parameters], tape: ℝ[max_nodes,tape_columns], groups: ℝ[8], penalized: ℝ): ℝ[n_parameters+2]:
+    output: ℝ[n_parameters+2] = zeros(n_parameters+2)
+    rhs: ℝ[max_nodes,nb] = zeros(max_nodes,nb)
+    weights: ℝ[6] = penalized*2.0*penalty_weight*maximum(groups[0:6],0.0)
+    path_active: ℝ = sum(weights)
+    last: ℝ = tape[0,0]
+    node: ℝ = last
+    u: ℝ[nb] = zeros(nb)
+    scaled_state: ℝ[nb] = zeros(nb)
+    a: ℝ[nd] = x0
+    history: ℝ[nd] = zeros(nd)
+    w: ℝ[nb] = zeros(nb)
+    multiplier: ℝ[nb] = zeros(nb)
+    J: ℝ[nb,nb] = zeros(nb,nb)
+    transposed: ℝ[nb,nb] = zeros(nb,nb)
+    gradient: ℝ[n_parameters] = penalized*grad(budget_penalty(theta),theta)
+    live: ℝ = tape[0,1]
+    h: ℝ = 0.0
+    alpha: ℝ = 1.0
+    gamma: ℝ = 0.0
+    power: ℝ = 30.0
+    rhs[last,nd-1] = 1.0+penalized*2.0*penalty_weight*max(groups[6],0.0)
+    for backward:ℕ(last):
+        if live > 0.0:
+            node = last-backward
+            w = tape[node,6:tape_columns]
+            a = x0
+            history = zeros(nd)
+            h = tape[node,1]
+            alpha = tape[node,2]
+            gamma = tape[node,4]
+            power = tape[node,5]
+            if node > 1.0:
+                a = tape[node-1,6:6+nd]
+            if gamma > 0.0:
+                history = gamma*(tape[node-2,6:6+nd]-a)
+            u = concat(w[0:nd]-a,w[nd:nb])/solver_scale
+            if path_active > 0.0:
+                scaled_state = w/solver_scale
+                rhs[node,:] = rhs[node,:]+grad(local_penalty(scaled_state,groups,weights),scaled_state)
+            J = step_jacobian(u,a,history,tape[node,0]-h,h,alpha,theta,power)
+            for column:ℕ(nb):
+                transposed[column,:] = J[:,column]
+            multiplier = detach(gaussian_solve(transposed,rhs[node,:]))
+            if finite_values(multiplier,nb) > 0.0:
+                gradient = gradient-grad(residual_contraction(theta,multiplier,u,a,history,tape[node,0]-h,h,alpha,power),theta)
+                output[n_parameters+1] = output[n_parameters+1]+1.0
+                if node > 1.0:
+                    rhs[node-1,0:nd] = rhs[node-1,0:nd]+tape[node,3]*multiplier[0:nd]
+                if gamma > 0.0:
+                    rhs[node-2,0:nd] = rhs[node-2,0:nd]-gamma*multiplier[0:nd]
+            else:
+                live = 0.0
+    if finite_values(gradient,n_parameters) < 1.0:
+        live = 0.0
+    output[0:n_parameters] = gradient
+    output[n_parameters] = live
+    return output
