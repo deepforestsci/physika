@@ -1,7 +1,7 @@
 from physika.elf import ELF
 from typing import Callable, Optional, Tuple
 from physika.utils.types import (Substitution, Type, TVar, TDim, T_REAL,
-                                 TTensor, TList)
+                                 TTensor, TList, TDict)
 from physika.utils.type_checker_utils import get_tensor_shape, unify_dim, make_tensor  # noqa
 
 
@@ -548,7 +548,8 @@ class IndexingandSlicing(ELF):
             if shape is None:
                 # Only report an error when arr_t is a non-tensor type.
                 # TVar / TDim means the type is still unknown.
-                if arr_t is not None and not isinstance(arr_t, (TVar, TDim)):
+                if arr_t is not None and not isinstance(
+                        arr_t, (TVar, TDim, TDict)):
                     add_error(f"Cannot index scalar '{arr_name}'")
                 return None, s
 

@@ -7,6 +7,8 @@ from physika.utils.types import (
     T_NAT,
     T_COMPLEX,
     TList,
+    TDict,
+    TUnion,
     Substitution,
 )
 from physika.utils.infer_expr import (
@@ -17,6 +19,7 @@ from physika.utils.infer_expr import (
     expr_var,
     expr_array,
     expr_list,
+    expr_dict,
     expr_chain_index,
     expr_slice,
     expr_add_sub,
@@ -622,6 +625,145 @@ class TestExprList:
                 y_type,
             )),
         ))
+
+
+class TestExprDict:
+    """Tests for ``expr_dict``."""
+
+    def test_dict(self):
+        """dictionary must infer to its key and value types."""
+        ctx = make_ctx()
+        ctx.type_info = TDict(T_REAL, T_REAL)
+
+        node = (
+            "dict",
+            [
+                (("num", 1), ("num", 5)),
+                (("num", 2), ("num", 7)),
+            ],
+        )
+
+        t, _ = expr_dict(node, ctx)
+
+        assert t == TDict(T_REAL, T_REAL)
+
+    def test_dict_union_values(self):
+        """different value types must infer to a union value type."""
+        ctx = make_ctx()
+        ctx.type_info = TDict(
+            T_REAL,
+            TUnion((T_REAL, T_COMPLEX)),
+        )
+
+        node = (
+            "dict",
+            [
+                (("num", 1), ("num", 5)),
+                (("num", 2), ("complex", 3j)),
+            ],
+        )
+
+        t, _ = expr_dict(node, ctx)
+
+        assert t == TDict(
+            T_REAL,
+            TUnion((T_REAL, T_COMPLEX)),
+        )
+
+    def test_dict_declared_union(self):
+        """values must be accepted when they belong to the declared union."""
+        ctx = make_ctx()
+        ctx.type_info = TDict(
+            T_REAL,
+            TUnion((T_REAL, T_COMPLEX)),
+        )
+
+        node = (
+            "dict",
+            [
+                (("num", 1), ("num", 5)),
+                (("num", 2), ("complex", 3j)),
+            ],
+        )
+
+        t, _ = expr_dict(node, ctx)
+
+        assert t == TDict(
+            T_REAL,
+            TUnion((T_REAL, T_COMPLEX)),
+        )
+
+    def test_dict_inconsistent_value_type(self):
+        """value outside the declared union must produce an error."""
+        errors = []
+        ctx = make_ctx()
+        ctx.type_info = TDict(
+            T_REAL,
+            TUnion((T_REAL, T_NAT)),
+        )
+        ctx.add_error = errors.append
+
+        node = (
+            "dict",
+            [
+                (("num", 1), ("num", 5)),
+                (("num", 2), ("complex", 3j)),
+            ],
+        )
+
+        t, _ = expr_dict(node, ctx)
+
+        assert t == TDict(
+            T_REAL,
+            TUnion((T_REAL, T_COMPLEX)),
+        )
+        assert len(errors) == 1
+
+    def test_dict_substitution_unchanged(self):
+        """
+        substitution dict does not contain new bindings.
+        """
+        existing = Substitution({"α0": T_NAT})
+        ctx = make_ctx(s=existing)
+        ctx.type_info = TDict(T_REAL, T_REAL)
+
+        node = (
+            "dict",
+            [
+                (("num", 1), ("num", 5)),
+                (("num", 2), ("num", 7)),
+            ],
+        )
+
+        _, s_out = expr_dict(node, ctx)
+
+        assert s_out == existing
+
+    def test_dict_env_context(self):
+        """expr_dict infers types with a non-empty environment."""
+        ctx = make_ctx(env={
+            "x": T_REAL,
+            "z": T_COMPLEX,
+        })
+        ctx.type_info = TDict(
+            T_REAL,
+            TUnion((T_REAL, T_COMPLEX)),
+        )
+
+        node = (
+            "dict",
+            [
+                (("var", "x"), ("num", 5)),
+                (("num", 2), ("var", "z")),
+            ],
+        )
+
+        t, _ = expr_dict(node, ctx)
+
+        assert t == TDict(
+            T_REAL,
+            TUnion((T_REAL, T_COMPLEX)),
+        )
 
 
 class TestExprChainIndex:

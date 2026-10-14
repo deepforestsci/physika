@@ -3,8 +3,10 @@ from physika.features.classes import ClassFeature
 from physika.features.randomness import RandomnessFeature
 from physika.features.tuple_unpack import TupleUnpackFeature
 from physika.features.indexing_and_slicing import IndexingandSlicing
+from physika.features.dictionary import DictionaryFeature
 
 REGISTRY.register(ClassFeature())
 REGISTRY.register(RandomnessFeature())
 REGISTRY.register(TupleUnpackFeature())
 REGISTRY.register(IndexingandSlicing())
+REGISTRY.register(DictionaryFeature())
