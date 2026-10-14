@@ -17,7 +17,7 @@ print_separator: bool = False
 # PARSER
 precedence = (
     ("left", "PLUS", "MINUS"),
-    ("left", "TIMES", "DIVIDE"),
+    ("left", "TIMES", "DIVIDE", "MOD"),
     ("left", "MATMUL"),
     ("right", "POWER"),
     (
@@ -1160,6 +1160,11 @@ def p_func_expr_plus(p):
     p[0] = ("add", p[1], p[3])
 
 
+def p_func_expr_modulo(p):
+    """func_expr : func_expr MOD func_term"""
+    p[0] = ("mod", p[1], p[3])
+
+
 def p_func_expr_minus(p):
     """func_expr : func_expr MINUS func_term"""
     p[0] = ("sub", p[1], p[3])
@@ -1174,6 +1179,7 @@ def p_func_term_times(p):
     """func_term : func_term TIMES func_power
                  | func_term DIVIDE func_power
                  | func_term INTDIV func_power
+                 | func_term MOD func_power
                  | func_term MATMUL func_power"""
     if p[2] == "*":
         p[0] = ("mul", p[1], p[3])
@@ -1181,6 +1187,8 @@ def p_func_term_times(p):
         p[0] = ("div", p[1], p[3])
     elif p[2] == "//":
         p[0] = ("intdiv", p[1], p[3])
+    elif p[2] == "%":
+        p[0] = ("mod", p[1], p[3])
     else:  # @
         p[0] = ("matmul", p[1], p[3])
 
@@ -1337,6 +1345,11 @@ def p_expr_plus(p):
     p[0] = ("add", p[1], p[3])
 
 
+def p_expr_modulo(p):
+    """expr : expr MOD term"""
+    p[0] = ("modulo", p[1], p[3])
+
+
 def p_expr_minus(p):
     """expr : expr MINUS term"""
     p[0] = ("sub", p[1], p[3])
@@ -1350,6 +1363,7 @@ def p_expr_term(p):
 def p_term_binop(p):
     """term : term TIMES factor
             | term DIVIDE factor
+            | term MOD factor
             | term MATMUL factor
             | term POWER factor"""
     # Binary operations using ``*``, ``/``, ``@`` and ``**`` symbols, all
@@ -1366,6 +1380,8 @@ def p_term_binop(p):
         p[0] = ("mul", p[1], p[3])
     elif p[2] == "/":
         p[0] = ("div", p[1], p[3])
+    elif p[2] == "%":
+        p[0] = ("mod", p[1], p[3])
     elif p[2] == "**":
         p[0] = ("pow", p[1], p[3])
     else:  # @

@@ -22,6 +22,7 @@ from physika.utils.infer_expr import (
     expr_add_sub,
     expr_mul,
     expr_div,
+    expr_mod,
     expr_matmul,
     expr_pow,
     expr_neg,
@@ -1207,6 +1208,53 @@ class TestExprDiv:
         },
                        errors=errors)
         expr_div(("div", ("var", "x"), ("var", "z")), ctx)
+        assert len(errors) == 1
+        assert errors[0] == "Shape mismatch in div: ℝ[3] vs ℝ[2]"
+
+
+class TestExprMod:
+    """
+    Tests for ``expr_mod``.
+    """
+
+    def test_mod_op(self):
+        """ℝ / ℝ → ℝ."""
+        ctx = make_ctx()
+        t, _ = expr_mod(("mod", ("num", 6.0), ("num", 2.0)), ctx)
+        assert t == T_REAL
+
+        # ℝ[3] / ℝ → ℝ[3]
+        ctx = make_ctx(env={"x": TTensor(((3, "invariant"), ))})
+        t, _ = expr_mod(("mod", ("var", "x"), ("num", 2.0)), ctx)
+        assert t == TTensor(((3, "invariant"), ))
+
+        # ℝ[4] / ℝ[4] → ℝ[4]  (elementwise)
+        ctx = make_ctx(
+            env={
+                "x": TTensor(((4, "invariant"), )),
+                "y": TTensor(((4, "invariant"), )),
+            })
+        t, _ = expr_mod(("mod", ("var", "x"), ("var", "y")), ctx)
+        assert t == TTensor(((4, "invariant"), ))
+
+        # ℝ[2,3] / ℝ[2,3] → ℝ[2,3]
+        ctx = make_ctx(
+            env={
+                "A": TTensor(((2, "invariant"), (3, "invariant"))),
+                "B": TTensor(((2, "invariant"), (3, "invariant"))),
+            })
+        t, _ = expr_mod(("mod", ("var", "A"), ("var", "B")), ctx)
+        assert t == TTensor(((2, "invariant"), (3, "invariant")))
+
+    def test_tensor_div_tensor_different_shape(self):
+        """ℝ[3] / ℝ[2] reports error."""
+        errors = []
+        ctx = make_ctx(env={
+            "x": TTensor(((3, "invariant"), )),
+            "z": TTensor(((2, "invariant"), )),
+        },
+                       errors=errors)
+        expr_mod(("mod", ("var", "x"), ("var", "z")), ctx)
         assert len(errors) == 1
         assert errors[0] == "Shape mismatch in div: ℝ[3] vs ℝ[2]"
 

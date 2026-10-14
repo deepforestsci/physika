@@ -19,6 +19,7 @@ ExprTag = Literal[
     "sub",
     "mul",
     "div",
+    "mod",
     "pow",
     "matmul",  # binary arithmetic
     "neg",  # unary arithmetic
@@ -597,6 +598,11 @@ def ast_to_torch_expr(node: ASTNode,
         left = ast_to_torch_expr(node[1], indent, current_loop_var)
         right = ast_to_torch_expr(node[2], indent, current_loop_var)
         return f"({left} / {right})"
+
+    elif op == "mod":
+        left = ast_to_torch_expr(node[1], indent, current_loop_var)
+        right = ast_to_torch_expr(node[2], indent, current_loop_var)
+        return f"({left} % {right})"
 
     elif op == "matmul":
         left = ast_to_torch_expr(node[1], indent, current_loop_var)
