@@ -104,6 +104,7 @@ Tutorials
    undirected_graph
    kmeans
    neural_ode
+   circular_fingerprints
 
 .. toctree::
    :maxdepth: 1
