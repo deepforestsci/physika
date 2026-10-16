@@ -1,0 +1,331 @@
+# Dummy weights: every weight is set to 1/128 so the tutorial runs without the released MACE-MP-0 model.
+water_positions: ℝ[3, 3] = [[0.0000, 0.0000, 0.0000], [1.3035, 0.1210, -0.0361], [0.0387, 1.0143, -0.0409]]
+water_numbers: ℝ[3] = [8.0, 1.0, 1.0]
+
+methane_positions: ℝ[5, 3] = [
+    [0.000, 0.000, 0.000], [0.629, 0.629, 0.629], [-0.629, -0.629, 0.629],
+    [-0.629, 0.629, -0.629], [0.629, -0.629, -0.629]
+]
+methane_numbers: ℝ[5] = [6.0, 1.0, 1.0, 1.0, 1.0]
+
+formaldehyde_positions: ℝ[4, 3] = [[0.000, 0.000, 0.000], [0.000, 0.000, 1.205], [0.000, 0.940, -0.587], [0.000, -0.940, -0.587]]
+formaldehyde_numbers: ℝ[4] = [6.0, 8.0, 1.0, 1.0]
+
+reference_energies: ℝ[3] = [-12.602195, -23.842101, -21.815578]
+
+scale: ℝ, shift: ℝ = 0.8041538754478097, 0.16409696359187365
+
+z_table: ℝ[89] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0, 25.0, 26.0, 27.0, 28.0, 29.0, 30.0, 31.0, 32.0, 33.0, 34.0, 35.0, 36.0, 37.0, 38.0, 39.0, 40.0, 41.0, 42.0, 43.0, 44.0, 45.0, 46.0, 47.0, 48.0, 49.0, 50.0, 51.0, 52.0, 53.0, 54.0, 55.0, 56.0, 57.0, 58.0, 59.0, 60.0, 61.0, 62.0, 63.0, 64.0, 65.0, 66.0, 67.0, 68.0, 69.0, 70.0, 71.0, 72.0, 73.0, 74.0, 75.0, 76.0, 77.0, 78.0, 79.0, 80.0, 81.0, 82.0, 83.0, 84.0, 85.0, 86.0, 87.0, 88.0, 89.0]
+r_cut: ℝ = 6.0
+
+def one_hot(numbers: ℝ[n], table: ℝ[s]): ℝ[n, s]:
+    num_atoms: ℕ, num_species: ℕ = len(numbers), len(table)
+    encoding: ℝ[num_atoms, num_species] = zeros(num_atoms, num_species)
+    for atom:ℕ(num_atoms):
+        for species:ℕ(num_species):
+            if numbers[atom] == table[species]:
+                encoding[atom, species] = 1.0
+    return encoding
+
+def neighbor_search(positions: ℝ[n, 3], cutoff: ℝ): ℝ[2, m]:
+    num_atoms: ℕ = len(positions)
+    vector: ℝ[3], distance: ℝ = zeros(3), 0.0
+    num_edges: ℕ = 0
+    for sender:ℕ(num_atoms):
+        for receiver:ℕ(num_atoms):
+            vector = positions[receiver] - positions[sender]
+            distance = sqrt(sum(vector * vector))
+            if distance > 0.0:
+                if distance < cutoff:
+                    num_edges += 1
+    edge_index: ℝ[2, num_edges] = zeros(2, num_edges)
+    edge: ℕ = 0
+    for sender:ℕ(num_atoms):
+        for receiver:ℕ(num_atoms):
+            vector = positions[receiver] - positions[sender]
+            distance = sqrt(sum(vector * vector))
+            if distance > 0.0:
+                if distance < cutoff:
+                    edge_index[:, edge] = [sender, receiver]
+                    edge += 1
+    return edge_index
+
+positions: ℝ[3, 3] = water_positions
+node_attrs: ℝ[3, 89] = one_hot(water_numbers, z_table)
+edge_index: ℝ[2, 6] = neighbor_search(positions, r_cut)
+
+print(positions)
+print(edge_index)
+
+num_elements: ℝ, num_channels: ℝ = 89, 128
+w_embed = exp(zeros(89, 128)) / 128.0
+
+def node_embedding(node_attrs: ℝ[n, s], w: ℝ[s, k]): ℝ[n, k]:
+    return (node_attrs @ w) / sqrt(num_elements)
+
+π: ℝ, num_bessel: ℝ, p_env: ℝ = 3.141592653589793, 10, 5.0
+
+def edge_vectors(positions: ℝ[n, 3], edge_index: ℝ[2, e]): ℝ[e, 3]:
+    num_edges: ℕ = len(edge_index[0])
+    vectors: ℝ[num_edges, 3] = zeros(num_edges, 3)
+    for edge:ℕ(num_edges):
+        sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        vectors[edge] = positions[receiver] - positions[sender]
+    return vectors
+
+def edge_lengths(vectors: ℝ[e, 3]): ℝ[e]:
+    x, y, z = vectors[:, 0], vectors[:, 1], vectors[:, 2]
+    return sqrt(x * x + y * y + z * z)
+
+def radial_embedding(lengths: ℝ[e]): ℝ[e, b]:
+    num_edges: ℕ = len(lengths)
+    edge_feats: ℝ[num_edges, num_bessel] = zeros(num_edges, num_bessel)
+    x = lengths / r_cut
+    f_cut = 1.0 - (p_env + 1.0) * (p_env + 2.0) / 2.0 * x ** p_env + p_env * (p_env + 2.0) * x ** (p_env + 1.0) - p_env * (p_env + 1.0) / 2.0 * x ** (p_env + 2.0)
+    for n:ℕ(num_bessel):
+        edge_feats[:, n] = sqrt(2.0 / r_cut) * sin((n + 1.0) * π * lengths / r_cut) / lengths * f_cut
+    return edge_feats
+
+vectors: ℝ[6, 3] = edge_vectors(positions, edge_index)
+lengths: ℝ[6] = edge_lengths(vectors)
+edge_feats: ℝ[6, 10] = radial_embedding(lengths)
+
+def Y0(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 1]:
+    num_edges: ℕ = len(lengths)
+    results: ℝ[num_edges, 1] = zeros(num_edges, 1)
+    results[:, 0] = 1.0
+    return results
+
+def Y1(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 3]:
+    num_edges: ℕ = len(lengths)
+    results: ℝ[num_edges, 3] = zeros(num_edges, 3)
+    x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
+    results[:, 0] = sqrt(3.0) * x
+    results[:, 1] = sqrt(3.0) * y
+    results[:, 2] = sqrt(3.0) * z
+    return results
+
+def Y2(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 5]:
+    num_edges: ℕ = len(lengths)
+    results: ℝ[num_edges, 5] = zeros(num_edges, 5)
+    x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
+    results[:, 0] = sqrt(15.0) * x * z
+    results[:, 1] = sqrt(15.0) * x * y
+    results[:, 2] = sqrt(5.0) * (y * y - 0.5 * (x * x + z * z))
+    results[:, 3] = sqrt(15.0) * y * z
+    results[:, 4] = sqrt(15.0) / 2.0 * (z * z - x * x)
+    return results
+
+def Y3(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 7]:
+    num_edges: ℕ = len(lengths)
+    results: ℝ[num_edges, 7] = zeros(num_edges, 7)
+    x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
+    results[:, 0] = sqrt(35.0 / 8.0) * (3.0 * x * z * z - x * x * x)
+    results[:, 1] = sqrt(105.0) * x * y * z
+    results[:, 2] = sqrt(21.0 / 8.0) * x * (4.0 * y * y - x * x - z * z)
+    results[:, 3] = sqrt(7.0) / 2.0 * y * (2.0 * y * y - 3.0 * x * x - 3.0 * z * z)
+    results[:, 4] = sqrt(21.0 / 8.0) * z * (4.0 * y * y - x * x - z * z)
+    results[:, 5] = sqrt(105.0) / 2.0 * y * (z * z - x * x)
+    results[:, 6] = sqrt(35.0 / 8.0) * (z * z * z - 3.0 * x * x * z)
+    return results
+
+def spherical_harmonics(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 16]:
+    num_edges: ℕ = len(lengths)
+    edge_attrs: ℝ[e, 16] = zeros(num_edges, 16)
+    edge_attrs[:, 0:1] = Y0(vectors, lengths)
+    edge_attrs[:, 1:4] = Y1(vectors, lengths)
+    edge_attrs[:, 4:9] = Y2(vectors, lengths)
+    edge_attrs[:, 9:16] = Y3(vectors, lengths)
+    return edge_attrs
+
+edge_attrs: ℝ[6, 16] = spherical_harmonics(vectors, lengths)
+
+print(edge_feats)
+print(edge_attrs)
+
+w_up = exp(zeros(128, 128)) / 128.0
+
+def linear_up(node_feats: ℝ[n, k], w: ℝ[k, k]): ℝ[n, k]:
+    return node_feats @ w / sqrt(num_channels)
+
+silu_norm: ℝ = 1.679176792
+
+def silu(x: ℝ[e, h]): ℝ[e, h]:
+    return silu_norm * x / (1.0 + exp(-x))
+
+radial_hidden: ℝ = 64
+
+w_r1 = exp(zeros(10, 64)) / 128.0
+w_r2 = exp(zeros(64, 64)) / 128.0
+w_r3 = exp(zeros(64, 64)) / 128.0
+w_r4 = exp(zeros(64, 512)) / 128.0
+
+def radial_mlp(edge_feats: ℝ[e, b], w1: ℝ[b, h], w2: ℝ[h, h], w3: ℝ[h, h], w4: ℝ[h, o]): ℝ[e, o]:
+    h1: ℝ[e, h] = silu(edge_feats @ w1 / sqrt(num_bessel))
+    h2: ℝ[e, h] = silu(h1 @ w2 / sqrt(radial_hidden))
+    h3: ℝ[e, h] = silu(h2 @ w3 / sqrt(radial_hidden))
+    return h3 @ w4 / sqrt(radial_hidden)
+
+def conv_tp(node_feats_up: ℝ[n, k], edge_attrs: ℝ[e, 16], tp_weights: ℝ[e, t], edge_index: ℝ[2, e]): ℝ[e, k, 16]:
+    num_edges: ℕ = len(edge_attrs)
+    mji: ℝ[num_edges, num_channels, 16] = zeros(num_edges, num_channels, 16)
+    for edge:ℕ(num_edges):
+        sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        h = node_feats_up[sender]
+        s0, s1, s2, s3 = h * tp_weights[edge, 0:128], h * tp_weights[edge, 128:256], h * tp_weights[edge, 256:384], h * tp_weights[edge, 384:512]
+        mji[edge, :, 0] = s0 * edge_attrs[edge, 0]
+        for m:ℕ(3):
+            mji[edge, :, 1 + m] = s1 * edge_attrs[edge, 1 + m]
+        for m:ℕ(5):
+            mji[edge, :, 4 + m] = s2 * edge_attrs[edge, 4 + m]
+        for m:ℕ(7):
+            mji[edge, :, 9 + m] = s3 * edge_attrs[edge, 9 + m]
+    return mji
+
+avg_num_neighbors: ℝ = 61.964672446250916
+
+w_0 = exp(zeros(128, 128)) / 128.0
+w_1 = exp(zeros(128, 128)) / 128.0
+w_2 = exp(zeros(128, 128)) / 128.0
+w_3 = exp(zeros(128, 128)) / 128.0
+
+def neighbor_sum(mji: ℝ[e, k, 16], edge_index: ℝ[2, e], num_atoms: ℕ): ℝ[num_atoms, k, 16]:
+    num_edges: ℕ = len(mji)
+    message: ℝ[num_atoms, num_channels, 16] = zeros(num_atoms, num_channels, 16)
+    for edge:ℕ(num_edges):
+        sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        message[receiver] = message[receiver] + mji[edge]
+    return message
+
+def linear(message: ℝ[n, k, 16], w0: ℝ[k, k], w1: ℝ[k, k], w2: ℝ[k, k], w3: ℝ[k, k]): ℝ[n, k, 16]:
+    num_atoms: ℕ = len(message)
+    out: ℝ[num_atoms, num_channels, 16] = zeros(num_atoms, num_channels, 16)
+    out[:, :, 0:1] = w0 @ message[:, :, 0:1] / sqrt(num_channels)
+    out[:, :, 1:4] = w1 @ message[:, :, 1:4] / sqrt(num_channels)
+    out[:, :, 4:9] = w2 @ message[:, :, 4:9] / sqrt(num_channels)
+    out[:, :, 9:16] = w3 @ message[:, :, 9:16] / sqrt(num_channels)
+    return out / avg_num_neighbors
+
+U1 = exp(zeros(16, 1)) / 128.0
+U2 = exp(zeros(16, 16, 4)) / 128.0
+U3 = exp(zeros(16, 16, 16, 23)) / 128.0
+
+def B_features_1(A: ℝ[n, k, 16], U: ℝ[16, 1]): ℝ[n, k, 1]:
+    num_atoms: ℕ = len(A)
+    B1: ℝ[num_atoms, num_channels, 1] = zeros(num_atoms, num_channels, 1)
+    for atom:ℕ(num_atoms):
+        B1[atom] = A[atom] @ U
+    return B1
+
+def B_features_2(A: ℝ[n, k, 16], U: ℝ[16, 16, 4]): ℝ[n, k, 4]:
+    num_atoms: ℕ = len(A)
+    B2: ℝ[num_atoms, num_channels, 4] = zeros(num_atoms, num_channels, 4)
+    for atom:ℕ(num_atoms):
+        for i:ℕ(16):
+            M = A[atom] @ U[i]
+            for p:ℕ(4):
+                B2[atom, :, p] = B2[atom, :, p] + A[atom, :, i] * M[:, p]
+    return B2
+
+def B_features_3(A: ℝ[n, k, 16], U: ℝ[16, 16, 16, 23]): ℝ[n, k, 23]:
+    num_atoms: ℕ = len(A)
+    B3: ℝ[num_atoms, num_channels, 23] = zeros(num_atoms, num_channels, 23)
+    for atom:ℕ(num_atoms):
+        for i:ℕ(16):
+            for j:ℕ(16):
+                M = A[atom] @ U[i, j]
+                for p:ℕ(23):
+                    B3[atom, :, p] = B3[atom, :, p] + A[atom, :, i] * A[atom, :, j] * M[:, p]
+    return B3
+
+w_prod1 = exp(zeros(89, 1, 128)) / 128.0
+w_prod2 = exp(zeros(89, 4, 128)) / 128.0
+w_prod3 = exp(zeros(89, 23, 128)) / 128.0
+
+def weighted_sum(B1: ℝ[n, k, 1], B2: ℝ[n, k, 4], B3: ℝ[n, k, 23], node_attrs: ℝ[n, s], wp1: ℝ[s, 1, k], wp2: ℝ[s, 4, k], wp3: ℝ[s, 23, k]): ℝ[n, k]:
+    num_atoms: ℕ = len(B1)
+    m: ℝ[num_atoms, num_channels] = zeros(num_atoms, num_channels)
+    m = m + (node_attrs @ wp1[:, 0, :]) * B1[:, :, 0]
+    for p:ℕ(4):
+        m = m + (node_attrs @ wp2[:, p, :]) * B2[:, :, p]
+    for p:ℕ(23):
+        m = m + (node_attrs @ wp3[:, p, :]) * B3[:, :, p]
+    return m
+
+w_sc = exp(zeros(128, 89, 128)) / 128.0
+w_p = exp(zeros(128, 128)) / 128.0
+
+def skip_tp(node_feats: ℝ[n, k], node_attrs: ℝ[n, s], w: ℝ[k, s, k]): ℝ[n, k]:
+    num_atoms: ℕ = len(node_feats)
+    sc: ℝ[num_atoms, num_channels] = zeros(num_atoms, num_channels)
+    for atom:ℕ(num_atoms):
+        for z:ℕ(num_elements):
+            if node_attrs[atom, z] == 1.0:
+                sc[atom] = node_feats[atom] @ w[:, z, :] / sqrt(num_channels * num_elements)
+    return sc
+
+def node_update(m: ℝ[n, k], sc: ℝ[n, k], wp: ℝ[k, k]): ℝ[n, k]:
+    return m @ wp / sqrt(num_channels) + sc
+
+w_readout = exp(zeros(128, 1)) / 128.0
+
+def readout(node_feats: ℝ[n, k], w: ℝ[k, 1]): ℝ[n, 1]:
+    return node_feats @ w / sqrt(num_channels)
+
+def mace_layer(node_feats: ℝ[n, k], node_attrs: ℝ[n, s], edge_feats: ℝ[e, b], edge_attrs: ℝ[e, 16], edge_index: ℝ[2, e], w_up: ℝ[k, k], w_r1: ℝ[b, h], w_r2: ℝ[h, h], w_r3: ℝ[h, h], w_r4: ℝ[h, o], w_0: ℝ[k, k], w_1: ℝ[k, k], w_2: ℝ[k, k], w_3: ℝ[k, k], w_prod1: ℝ[s, 1, k], w_prod2: ℝ[s, 4, k], w_prod3: ℝ[s, 23, k], w_sc: ℝ[k, s, k], w_p: ℝ[k, k]): ℝ[n, k]:
+    num_atoms: ℕ = len(node_feats)
+    node_feats_up = linear_up(node_feats, w_up)
+    tp_weights = radial_mlp(edge_feats, w_r1, w_r2, w_r3, w_r4)
+    mji = conv_tp(node_feats_up, edge_attrs, tp_weights, edge_index)
+    message = linear(neighbor_sum(mji, edge_index, num_atoms), w_0, w_1, w_2, w_3)
+    m = weighted_sum(B_features_1(message, U1), B_features_2(message, U2), B_features_3(message, U3), node_attrs, w_prod1, w_prod2, w_prod3)
+    sc = skip_tp(node_feats, node_attrs, w_sc)
+    return node_update(m, sc, w_p)
+
+w2_up = exp(zeros(128, 128)) / 128.0
+w2_r1 = exp(zeros(10, 64)) / 128.0
+w2_r2 = exp(zeros(64, 64)) / 128.0
+w2_r3 = exp(zeros(64, 64)) / 128.0
+w2_r4 = exp(zeros(64, 512)) / 128.0
+w2_0 = exp(zeros(128, 128)) / 128.0
+w2_1 = exp(zeros(128, 128)) / 128.0
+w2_2 = exp(zeros(128, 128)) / 128.0
+w2_3 = exp(zeros(128, 128)) / 128.0
+w2_prod1 = exp(zeros(89, 1, 128)) / 128.0
+w2_prod2 = exp(zeros(89, 4, 128)) / 128.0
+w2_prod3 = exp(zeros(89, 23, 128)) / 128.0
+w2_sc = exp(zeros(128, 89, 128)) / 128.0
+w2_p = exp(zeros(128, 128)) / 128.0
+
+w2_ro1 = exp(zeros(128, 16)) / 128.0
+w2_ro2 = exp(zeros(16, 1)) / 128.0
+atomic_energies = exp(zeros(89, 1)) / 128.0
+
+def readout2(node_feats: ℝ[n, k], w1: ℝ[k, 16], w2: ℝ[16, 1]): ℝ[n, 1]:
+    hidden: ℝ[n, 16] = silu(node_feats @ w1 / sqrt(num_channels))
+    return hidden @ w2 / sqrt(16.0)
+
+def mace_energy(positions: ℝ[n, 3], numbers: ℝ[n]): ℝ:
+    num_atoms: ℕ = len(positions)
+    node_attrs: ℝ[num_atoms, 89] = one_hot(numbers, z_table)
+    edge_index = neighbor_search(positions, r_cut)
+    vectors = edge_vectors(positions, edge_index)
+    lengths = edge_lengths(vectors)
+    edge_feats, edge_attrs = radial_embedding(lengths), spherical_harmonics(vectors, lengths)
+    node_feats0 = node_embedding(node_attrs, w_embed)
+    node_feats1 = mace_layer(node_feats0, node_attrs, edge_feats, edge_attrs, edge_index, w_up, w_r1, w_r2, w_r3, w_r4, w_0, w_1, w_2, w_3, w_prod1, w_prod2, w_prod3, w_sc, w_p)
+    node_energies = readout(node_feats1, w_readout)
+    node_feats2 = mace_layer(node_feats1, node_attrs, edge_feats, edge_attrs, edge_index, w2_up, w2_r1, w2_r2, w2_r3, w2_r4, w2_0, w2_1, w2_2, w2_3, w2_prod1, w2_prod2, w2_prod3, w2_sc, w2_p)
+    node_energies2 = readout2(node_feats2, w2_ro1, w2_ro2)
+    atom_energies = node_attrs @ atomic_energies
+    energy: ℝ = sum(atom_energies) + scale * (sum(node_energies) + sum(node_energies2)) + shift * num_atoms
+    return energy
+
+water_energy: ℝ = mace_energy(water_positions, water_numbers)
+methane_energy: ℝ = mace_energy(methane_positions, methane_numbers)
+formaldehyde_energy: ℝ = mace_energy(formaldehyde_positions, formaldehyde_numbers)
+
+predictions: ℝ[3] = [water_energy, methane_energy, formaldehyde_energy]
+print(predictions)
+print(reference_energies)
+print(predictions - reference_energies)
