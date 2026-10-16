@@ -11,7 +11,7 @@ class Conv1d(nn.Module):
         super().__init__()
         self.W = nn.Parameter(torch.as_tensor(W))
         self.b = nn.Parameter(torch.as_tensor(b))
-        self.learnable_params = [self.W, self.b]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self
@@ -34,7 +34,7 @@ class MLP(nn.Module):
         self.b1 = nn.Parameter(torch.as_tensor(b1))
         self.W2 = nn.Parameter(torch.as_tensor(W2))
         self.b2 = nn.Parameter(torch.as_tensor(b2))
-        self.learnable_params = [self.W1, self.b1, self.W2, self.b2]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self
@@ -63,7 +63,7 @@ class SpectralConv(nn.Module):
         self.in_ch = int(in_ch)
         self.out_ch = int(out_ch)
         self.modes = int(modes)
-        self.learnable_params = [self.weights1]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self
@@ -97,7 +97,7 @@ class FNO1d(nn.Module):
         self.add_module('w2', w2)
         self.add_module('w3', w3)
         self.add_module('q', q)
-        self.learnable_params = []
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self

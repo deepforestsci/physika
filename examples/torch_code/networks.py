@@ -43,7 +43,7 @@ class OneLayerNet(nn.Module):
         self.c0 = nn.Parameter(torch.as_tensor(c0))
         self.w1 = nn.Parameter(torch.as_tensor(w1))
         self.b1 = nn.Parameter(torch.as_tensor(b1))
-        self.learnable_params = [self.W0, self.c0, self.w1, self.b1]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self
@@ -66,7 +66,7 @@ class FullyConnectedNetwork(nn.Module):
         self.w = nn.Parameter(torch.as_tensor(w))
         self.b = nn.Parameter(torch.as_tensor(b))
         self.n = int(n)
-        self.learnable_params = [self.W, self.B, self.w, self.b]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self

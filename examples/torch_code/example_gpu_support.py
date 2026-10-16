@@ -10,7 +10,7 @@ class MatrixMultiply(nn.Module):
     def __init__(self, x):
         super().__init__()
         self.x = nn.Parameter(torch.as_tensor(x))
-        self.learnable_params = [self.x]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, A, B):
         this = self

@@ -37,7 +37,7 @@ class NeuralFluxLimiter(nn.Module):
         self.m_b = nn.Parameter(torch.as_tensor(m_b))
         self.v_b = nn.Parameter(torch.as_tensor(v_b))
         self.t_adam = nn.Parameter(torch.as_tensor(t_adam))
-        self.learnable_params = [self.θ, self.b2, self.m_θ, self.v_θ, self.m_b, self.v_b, self.t_adam]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, r):
         this = self

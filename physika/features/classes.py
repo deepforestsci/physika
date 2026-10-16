@@ -449,8 +449,8 @@ def generate_class(
             if is_learnable(ptype) or (
                 isinstance(ptype, tuple) and ptype[0] == "tensor")
         ]
-        params_list = ", ".join(f"self.{p}" for p in learnable_names)
-        class_lines.append(f"        self.learnable_params = [{params_list}]")
+        class_lines.append(
+            "        self.learnable_params = list(self.parameters())")
         class_def["learnable_params"] = learnable_names
 
     # Fields should not be learnable (register_buffer)

@@ -66,7 +66,7 @@ class RealNVP(nn.Module):
         self.b2_m = nn.Parameter(torch.as_tensor(b2_m))
         self.n = int(n)
         self.d = int(d)
-        self.learnable_params = [self.W1_s, self.b1_s, self.W2_s, self.b2_s, self.W1_m, self.b1_m, self.W2_m, self.b2_m]
+        self.learnable_params = list(self.parameters())
 
     def coupling(self, x):
         this = self
