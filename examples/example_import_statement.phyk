@@ -40,15 +40,15 @@ class_value
 from example_tensors import v
 
 for i:N(3):
-    if v[i] > 2:
-        v[i] = v[i]*2
+    if v[i, 0] > 2:
+        v[i, 0] = v[i, 0]*2
 
 v
 
 def f_x(x: ℝ): ℝ:
     return x**2
 
-grad_f_x: ℝ = grad(f_x, v[2])
+grad_f_x: ℝ = grad(f_x, v[2, 0])
 grad_f_x
 
 

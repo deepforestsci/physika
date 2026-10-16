@@ -1,5 +1,7 @@
 from pathlib import Path
-from physika.utils.import_manager import find_module, resolve_imports
+from physika.utils.import_manager import (find_module,
+                                          collect_func_dependencies,
+                                          resolve_imports)
 from physika.parser import symbol_table
 from physika.lexer import lexer
 
@@ -46,7 +48,7 @@ class TestExampleImportFile:
         """Test import array and perform operations"""
         v = numeric_ns["v"]
         grad_f_x = numeric_ns["grad_f_x"]
-        assert v.tolist() == [1.0, 2.0, 6.0]
+        assert v.tolist() == [[1.0], [2.0], [6.0]]
         assert grad_f_x == 12
 
     def test_import_from_different_directory(self, numeric_ns):
@@ -95,6 +97,47 @@ class TestImportManager:
 
         assert module_path.name == "factorial.phyk"
         assert module_path.exists()
+
+    def test_collect_func_dependencies(self):
+        """
+        collect_func_dependencies should return the requested function
+        and all the dependent functions.
+
+        physika program to generate this ``module_symbols``
+        ```
+        def dependent_f(x: R): R:
+            return x**2
+
+        def square_f(x: R): R:
+            return dependent_f(x)
+        ```
+        """
+        module_symbols = {
+            "dependent_f": {
+                "type": "function",
+                "value": {
+                    "params": [("x", "ℝ")],
+                    "return_type": "ℝ",
+                    "body": ("pow", ("var", "x"), ("num", 2)),
+                    "has_loop": False,
+                    "statements": [],
+                },
+            },
+            "square_f": {
+                "type": "function",
+                "value": {
+                    "params": [("x", "ℝ")],
+                    "return_type": "ℝ",
+                    "body": ("call", "dependent_f", [("var", "x")]),
+                    "has_loop": False,
+                    "statements": [],
+                },
+            },
+        }
+        # square_f depends on dependent_f
+        deps = collect_func_dependencies("square_f", module_symbols, set())
+        assert "square_f" in deps
+        assert "dependent_f" in deps
 
     def test_resolve_imports(self):
         """
