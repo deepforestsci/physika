@@ -7,8 +7,7 @@ from physika.runtime import print
 
 # === Functions ===
 def get_1d_array_length(x):
-    total = 0
-    temp = 0
+    total, temp = 0, 0
     for i in range(len(x)):
         temp = x[int(i)]
         total = total + 1
@@ -97,14 +96,9 @@ class FullyConnectedNetwork(nn.Module):
     def update_params(self, lr, learnable_grads):
         this = self
         lr = torch.as_tensor(lr, device=DEVICE).float()
-        with torch.no_grad():
-            self.W.copy_((self.W - (lr * learnable_grads[int(0)])))
-        with torch.no_grad():
-            self.B.copy_((self.B - (lr * learnable_grads[int(1)])))
-        with torch.no_grad():
-            self.w.copy_((self.w - (lr * learnable_grads[int(2)])))
-        with torch.no_grad():
-            self.b.copy_((self.b - (lr * learnable_grads[int(3)])))
+        len_learnable_params = get_1d_array_length(self.learnable_params)
+        for idx in range(int(0), int(len_learnable_params)):
+            self.learnable_params[int(idx)] = (self.learnable_params[int(idx)] - (lr * learnable_grads[int(idx)]))
 
 # === Program ===
 X = torch.tensor([[[1.0], [0.0], [0.0]], [[0.0], [1.0], [0.0]], [[0.0], [0.0], [1.0]], [[1.0], [1.0], [1.0]]], device=DEVICE)

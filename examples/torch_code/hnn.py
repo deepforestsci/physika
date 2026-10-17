@@ -6,6 +6,13 @@ from physika.runtime import DEVICE
 from physika.runtime import print
 
 # === Functions ===
+def get_1d_array_length(x):
+    total, temp = 0, 0
+    for i in range(len(x)):
+        temp = x[int(i)]
+        total = total + 1
+    return total
+
 def tanh(x):
     return ((torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) - torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))) / (torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) + torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))))
 
@@ -67,14 +74,9 @@ class HamiltonianNet(nn.Module):
     def update_params(self, lr, learnable_grads):
         this = self
         lr = torch.as_tensor(lr, device=DEVICE).float()
-        with torch.no_grad():
-            self.W1.copy_((self.W1 - (lr * learnable_grads[int(0)])))
-        with torch.no_grad():
-            self.b1.copy_((self.b1 - (lr * learnable_grads[int(1)])))
-        with torch.no_grad():
-            self.W2.copy_((self.W2 - (lr * learnable_grads[int(2)])))
-        with torch.no_grad():
-            self.b2.copy_((self.b2 - (lr * learnable_grads[int(3)])))
+        len_learnable_params = get_1d_array_length(self.learnable_params)
+        for idx in range(int(0), int(len_learnable_params)):
+            self.learnable_params[int(idx)] = (self.learnable_params[int(idx)] - (lr * learnable_grads[int(idx)]))
 
 # === Program ===
 X = torch.tensor([[[0.0], [1.0]], [[1.0], [0.0]], [[0.0], [(-1.0)]], [[(-1.0)], [0.0]], [[0.5], [0.5]], [[(-0.5)], [(-0.5)]], [[0.7], [(-0.7)]], [[(-0.7)], [0.7]]], device=DEVICE)
