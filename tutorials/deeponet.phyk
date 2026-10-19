@@ -1,0 +1,147 @@
+physika.seed(0)
+from tutorials.linear_solve_gaussian_elimination import gaussian_solve
+
+def σ(a: ℝ[ra, rb]): ℝ[ra, rb]:
+    return (a + abs(a)) * 0.5
+
+def chol(K: ℝ[nn, nn], nn: ℕ): ℝ[nn, nn]:
+    L: ℝ[nn, nn] = zeros(nn, nn)
+    for j:ℕ(nn):
+        d: ℝ = K[j, j]
+        for q:ℕ(j):
+            d = d - L[j, q]**2
+        L[j, j] = sqrt(d)
+        cnt = nn - j - 1
+        for t:ℕ(cnt):
+            o: ℝ = K[j + 1 + t, j]
+            for q:ℕ(j):
+                o = o - L[j + 1 + t, q] * L[j, q]
+            L[j + 1 + t, j] = o / L[j, j]
+    return L
+
+class DeepONet(ξ: ℝ[m, n], θ: ℝ[1, n], c: ℝ[n, p], cb: ℝ[1, p], w1: ℝ[2, q], ζ1: ℝ[1, q], w2: ℝ[q, q], ζ2: ℝ[1, q], w3: ℝ[q, p], ζ3: ℝ[1, p], b0: ℝ[1]):
+    def branch(u: ℝ[1, m]): ℝ[1, p]:
+        return σ(u @ this.ξ + this.θ) @ this.c + this.cb
+    def trunk(y: ℝ[1, 2]): ℝ[1, p]:
+        h1: ℝ[1, q] = σ(y @ this.w1 + this.ζ1)
+        h2: ℝ[1, q] = σ(h1 @ this.w2 + this.ζ2)
+        return σ(h2 @ this.w3 + this.ζ3)
+    def λ(u: ℝ[1, m], y: ℝ[1, 2]) -> ℝ:
+        bk: ℝ[1, p] = this.branch(u)
+        tk: ℝ[1, p] = this.trunk(y)
+        return sum(bk[0] * tk[0]) + this.b0[0]
+    def loss(u: ℝ[1, m], y: ℝ[1, 2], target: ℝ): ℝ:
+        err: ℝ = target - this(u, y)
+        return err * err
+    def train(U: ℝ[50, m], Y: ℝ[50, 2], S: ℝ[50], epochs: ℕ, lr: ℝ, count: ℝ): ℝ[epochs]:
+        losses: ℝ[epochs] = zeros(epochs)
+        for epoch:ℕ(epochs):
+            total = 0
+            for i:ℕ(count):
+                x: ℝ[1, m] = [U[i]]
+                y: ℝ[1, 2] = [Y[i]]
+                ls = this.loss(x, y, S[i])
+                learnable_grads = grad(ls, this.learnable_params)
+                this.update_params(lr, learnable_grads)
+                total += this.loss(x, y, S[i])
+            epoch_loss = total/count
+            losses[epoch] = epoch_loss
+            print(epoch_loss)
+        return losses
+    def update_params(lr: ℝ, learnable_grads: ℝ[g]):
+        this.ξ = this.ξ - lr * learnable_grads[0]
+        this.θ = this.θ - lr * learnable_grads[1]
+        this.c = this.c - lr * learnable_grads[2]
+        this.cb = this.cb - lr * learnable_grads[3]
+        this.w1 = this.w1 - lr * learnable_grads[4]
+        this.ζ1 = this.ζ1 - lr * learnable_grads[5]
+        this.w2 = this.w2 - lr * learnable_grads[6]
+        this.ζ2 = this.ζ2 - lr * learnable_grads[7]
+        this.w3 = this.w3 - lr * learnable_grads[8]
+        this.ζ3 = this.ζ3 - lr * learnable_grads[9]
+        this.b0 = this.b0 - lr * learnable_grads[10]
+
+class GRF(L: ℝ[m, m], B: ℝ[m, m], C: ℝ[m, m], U: ℝ[N, m], Y: ℝ[N, 2], S: ℝ[N], m: ℕ, nt: ℕ, N: ℕ, dt: ℝ, dx: ℝ, rk: ℝ):
+    def field_of(u: ℝ[m]): ℝ[nt, m]:
+        sn: ℝ[m] = zeros(m)
+        field: ℝ[nt, m] = zeros(nt, m)
+        last: ℝ = this.m - 1
+        steps: ℝ = this.nt - 1
+        for n2:ℕ(steps):
+            rhs: ℝ[m] = this.C @ sn + this.dt * (this.rk * sn * sn + u)
+            rhs[0] = 0.0
+            rhs[last] = 0.0
+            sn = gaussian_solve(this.B, rhs)
+            field[n2 + 1, :] = sn
+        return field
+    def fill(a: ℝ, u: ℝ[m], field: ℝ[nt, m]): ℝ:
+        for qx:ℕ(5):
+            for qt:ℕ(5):
+                this.U[a*25 + qx*5 + qt, :] = u
+                this.Y[a*25 + qx*5 + qt, 0] = qx*20 * this.dx
+                this.Y[a*25 + qx*5 + qt, 1] = qt*20 * this.dt
+                this.S[a*25 + qx*5 + qt] = field[qt*20, qx*20]
+        return 0.0
+    def generate(Z: ℝ[nu, m], nu: ℝ): ℝ:
+        for a:ℕ(nu):
+            u: ℝ[m] = this.L @ Z[a]
+            field: ℝ[nt, m] = this.field_of(u)
+            this.fill(a, u, field)
+        return 0.0
+
+m: ℝ, n: ℝ, p: ℝ, q: ℝ = 100, 100, 100, 100
+D: ℝ, k: ℝ, l: ℝ, nt: ℝ = 0.01, 0.01, 0.2, 100
+dx: ℝ, dt: ℝ = 1.0 / (m - 1), 1.0 / nt
+r: ℝ = D * dt / dx**2
+sh: ℝ, sy: ℝ = sqrt(2.0 / m), sqrt(2.0 / 2.0)
+
+ξ: ℝ[m, n] = for i:ℕ(m) -> ε: ℝ[n] ~ Normal(0.0, sh, n)
+θ: ℝ[1, n] = zeros(1, n)
+c: ℝ[n, p] = for i:ℕ(n) -> ε: ℝ[p] ~ Normal(0.0, sh, p)
+cb: ℝ[1, p] = zeros(1, p)
+w1: ℝ[2, q] = for i:ℕ(2) -> ε: ℝ[q] ~ Normal(0.0, sy, q)
+ζ1: ℝ[1, q] = zeros(1, q)
+w2: ℝ[q, q] = for i:ℕ(q) -> ε: ℝ[q] ~ Normal(0.0, sh, q)
+ζ2: ℝ[1, q] = zeros(1, q)
+w3: ℝ[q, p] = for i:ℕ(q) -> ε: ℝ[p] ~ Normal(0.0, sh, p)
+ζ3: ℝ[1, p] = zeros(1, p)
+b0: ℝ[1] = [0.0]
+
+deeponet: DeepONet = DeepONet(ξ, θ, c, cb, w1, ζ1, w2, ζ2, w3, ζ3, b0)
+print(DEVICE)
+
+x: ℝ[m] = for i:ℕ(m) -> i * dx
+K: ℝ[m, m] = for i:ℕ(m) -> for j:ℕ(m) -> exp(-(x[i] - x[j])**2 / (2.0 * l**2))
+for i:ℕ(m):
+    K[i, i] = K[i, i] + 0.000001
+L: ℝ[m, m] = chol(K, m)
+
+B: ℝ[m, m] = zeros(m, m)
+C: ℝ[m, m] = zeros(m, m)
+mb: ℝ = m - 2
+for t:ℕ(mb):
+    B[t+1, t] = -0.5 * r
+    B[t+1, t+1] = 1.0 + r
+    B[t+1, t+2] = -0.5 * r
+    C[t+1, t] = 0.5 * r
+    C[t+1, t+1] = 1.0 - r
+    C[t+1, t+2] = 0.5 * r
+B[0, 0] = 1.0
+B[m-1, m-1] = 1.0
+
+num_u: ℝ, N: ℝ = 2, 50
+U: ℝ[N, m] = zeros(N, m)
+Y: ℝ[N, 2] = zeros(N, 2)
+S: ℝ[N] = zeros(N)
+Z: ℝ[num_u, m] = for i:ℕ(num_u) -> ε: ℝ[m] ~ Normal(0.0, 1.0, m)
+
+grf: GRF = GRF(L, B, C, U, Y, S, m, nt, N, dt, dx, k)
+done: ℝ = grf.generate(Z, num_u)
+
+epochs: ℕ = 1
+lr: ℝ = 0.001
+losses: ℝ[epochs] = deeponet.train(grf.U, grf.Y, grf.S, epochs, lr, N)
+print(losses[-1])
+x0: ℝ[1, m] = [grf.U[0]]
+y0: ℝ[1, 2] = [grf.Y[0]]
+print(deeponet(x0, y0))
