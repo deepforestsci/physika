@@ -1061,3 +1061,315 @@ def detach_grad(x):
     True
     """
     return x.detach().requires_grad_(True)
+
+
+
+def view(x, *shape):
+    return x.view(*shape)
+
+
+def transpose(x, dim0, dim1):
+    return torch.transpose(x, dim0, dim1)
+
+
+def size(x, dim):
+    return x.size(dim)
+
+
+def softmax(input, dim):
+    return torch.softmax(input, dim=dim)
+
+
+
+def relu(x):
+    return torch.relu(x)
+
+
+def causal_mask(seq_len):
+    mask = torch.triu(
+        torch.ones(seq_len, seq_len, device=DEVICE),
+        diagonal=1,
+    )
+    return mask.masked_fill(mask == 1, float("-inf"))
+
+
+
+def shape(x):
+    return x.shape
+
+def to_tensor(tokens: list) -> torch.Tensor:
+    """Convert token IDs into a PyTorch integer tensor."""
+    return torch.tensor(tokens, dtype=torch.long)
+
+
+
+def save_model(model, name: str):
+    import os
+    path = os.path.abspath(f"{name}.pth")
+    torch.save(model.state_dict(), path)
+    print(f"Model saved to: {path}")
+
+def load_model(model, name: str):
+    model.load_state_dict(torch.load(f"{name}.pth", map_location="cpu", weights_only=True))
+    return model
+
+
+
+
+
+import re
+import torch
+
+
+# --------------------------------------------------
+# Dataset / tokenizer
+# --------------------------------------------------
+
+_CORPUS = "corpus.txt"
+
+with open(_CORPUS, "r") as f:
+    _sentences = [line.strip() for line in f if line.strip()]
+
+
+def _tokenize(text):
+    return re.findall(r"[\w']+|[.,!?;]|<end>", text)
+
+
+# Add end-of-sentence token
+_sentences = [s + " <end>" for s in _sentences]
+
+
+# Build vocabulary
+_all_tokens = []
+for sentence in _sentences:
+    _all_tokens.extend(_tokenize(sentence))
+
+_vocab = sorted(set(_all_tokens))
+_vocab.append("<pad>")
+_vocab.append("<unk>")
+
+_stoi = {word: i for i, word in enumerate(_vocab)}
+_itos = {i: word for word, i in _stoi.items()}
+
+_PAD_IDX = _stoi["<pad>"]
+_UNK_IDX = _stoi["<unk>"]
+
+_VOCAB_SIZE = len(_vocab)
+
+# Longest tokenized sentence, including <end>
+_MAX_LEN = max(len(_tokenize(s)) for s in _sentences)
+
+
+
+
+def encode(text):
+    """Convert text into token IDs."""
+    return [_stoi.get(token, _UNK_IDX) for token in _tokenize(text)]
+
+
+def decode(tokens):
+    """Convert token IDs back into text."""
+    words = []
+
+    for token in tokens:
+        token_id = int(token)
+        word = _itos[token_id]
+
+        if word == "<end>":
+            break
+
+        if word == "<pad>":
+            continue
+
+        words.append(word)
+
+    return " ".join(words)
+
+
+def create_dataset():
+    """
+    Create next-token prediction dataset.
+
+    X contains all tokens except the final token.
+    Y contains all tokens except the first token.
+    """
+
+    seq_len = _MAX_LEN - 1
+
+    X = []
+    Y = []
+
+    for sentence in _sentences:
+        tokens = encode(sentence)
+
+        x = tokens[:-1]
+        y = tokens[1:]
+
+        x += [_PAD_IDX] * (seq_len - len(x))
+        y += [_PAD_IDX] * (seq_len - len(y))
+
+        X.append(x)
+        Y.append(y)
+
+    return (
+        torch.tensor(X, dtype=torch.long),
+        torch.tensor(Y, dtype=torch.long),
+    )
+
+
+def get_vocab_size():
+    return _VOCAB_SIZE
+
+
+def get_max_len():
+    return _MAX_LEN - 1
+
+
+def encode_text(text: str) -> list:
+    """Convert text into token IDs."""
+    return encode(text)
+
+
+def decode_token(token_id: int) -> str:
+    """Convert a token ID back into a token string."""
+    return _itos[token_id]
+
+
+
+
+def model_predict_tokens(model, prompt, max_tokens):
+    generated = encode_text(prompt)
+
+    if len(generated) == 0:
+        return ""
+
+    # Respect the model's positional-embedding capacity.
+    num_tokens = min(max_tokens, _MAX_LEN - len(generated))
+    if num_tokens <= 0:
+        return decode(generated)
+
+    end_token_id = 1
+
+    with torch.no_grad():
+        for _ in range(num_tokens):
+            x = torch.tensor(
+                generated, dtype=torch.long
+            ).reshape(1, -1)
+
+            logits = model(x)
+            next_token_id = int(torch.argmax(logits[0, -1]).item())
+
+            if next_token_id == end_token_id:
+                break
+
+            generated.append(next_token_id)
+
+    return decode(generated)
+
+
+# import torch
+# from tokenizers import Tokenizer
+
+# CORPUS_FILE = "corpus.txt"
+# TOKENIZER_FILE = "shakespeare_tokenizer.json"
+# CONTEXT_LEN = 64
+
+# tokenizer = Tokenizer.from_file(TOKENIZER_FILE)
+
+# PAD_ID = tokenizer.token_to_id("<pad>")
+# UNK_ID = tokenizer.token_to_id("<unk>")
+# END_ID = tokenizer.token_to_id("<end>")
+# VOCAB_SIZE = tokenizer.get_vocab_size()
+
+
+# def encode(text):
+#     return tokenizer.encode(text).ids
+
+
+# def decode(ids):
+#     ids = [int(i) for i in ids]
+#     if END_ID in ids:
+#         ids = ids[:ids.index(END_ID)]
+#     ids = [i for i in ids if i != PAD_ID]
+#     return tokenizer.decode(ids)
+
+
+# def get_vocab_size():
+#     return VOCAB_SIZE
+
+
+# def get_max_len():
+#     return CONTEXT_LEN
+
+
+# def get_end_id():
+#     return END_ID
+
+
+# def encode_text(text: str) -> list:
+#     return encode(text)
+
+
+# def decode_token(token_id: int) -> str:
+#     return tokenizer.id_to_token(int(token_id))
+
+
+# def create_dataset():
+#     with open(CORPUS_FILE, "r", encoding="utf-8") as f:
+#         text = f.read()
+
+#     tokens = encode(text) + [END_ID]
+#     X, Y = [], []
+
+#     for start in range(0, len(tokens) - 1, CONTEXT_LEN):
+#         chunk = tokens[start:start + CONTEXT_LEN + 1]
+
+#         if len(chunk) < 2:
+#             continue
+
+#         x = chunk[:-1]
+#         y = chunk[1:]
+
+#         # Pad inputs and targets to a fixed context length.
+#         pad_len = CONTEXT_LEN - len(x)
+#         x += [PAD_ID] * pad_len
+#         y += [PAD_ID] * pad_len
+
+#         X.append(x)
+#         Y.append(y)
+
+#     return (
+#         torch.tensor(X, dtype=torch.long),
+#         torch.tensor(Y, dtype=torch.long),
+#     )
+
+
+# def model_predict_tokens(model, prompt, max_tokens):
+#     generated = encode_text(prompt)
+
+#     if not generated:
+#         return ""
+
+#     num_tokens = min(max_tokens, get_max_len() - len(generated))
+#     if num_tokens <= 0:
+#         return decode(generated)
+
+#     end_token_id = get_end_id()
+
+#     with torch.no_grad():
+#         for _ in range(num_tokens):
+#             x = torch.tensor(
+#                 generated, dtype=torch.long
+#             ).reshape(1, -1)
+
+#             logits = model(x)
+#             next_token_id = int(
+#                 torch.argmax(logits[0, -1]).item()
+#             )
+
+#             if next_token_id == end_token_id:
+#                 break
+
+#             generated.append(next_token_id)
+
+#     return decode(generated)

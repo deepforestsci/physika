@@ -4,6 +4,9 @@ from typing import Any, Collection, Optional, Callable
 from physika.elf import ELF
 
 
+
+
+
 def is_learnable(type_spec: str) -> bool:
     """
     Helper functions that returns True for "ℝ" and "ℝ[n]" types that should
@@ -421,7 +424,6 @@ def generate_class(
 
     # Constructor params
     for pname, ptype in constructor_params:
-
         # Checks pname is an instance of a Physika class
         if isinstance(ptype, tuple) and ptype[0] == "struct_type":
             class_lines.append(f"        self.add_module('{pname}', {pname})")
@@ -437,6 +439,12 @@ def generate_class(
                     f"        self.{pname} = torch.as_tensor({pname}).float()")
         elif ptype == "ℕ":
             class_lines.append(f"        self.{pname} = int({pname})")
+
+        elif ptype == "list":
+            class_lines.append(
+                f"        self.{pname} = nn.ModuleList({pname}) if any(isinstance(i, nn.Module) for i in {pname}) else list({pname})"
+            )
+
         else:
             class_lines.append(
                 f"        self.{pname} = torch.as_tensor({pname}).float() "
@@ -449,8 +457,8 @@ def generate_class(
             if is_learnable(ptype) or (
                 isinstance(ptype, tuple) and ptype[0] == "tensor")
         ]
-        params_list = ", ".join(f"self.{p}" for p in learnable_names)
-        class_lines.append(f"        self.learnable_params = [{params_list}]")
+        class_lines.append(
+            "        self.learnable_params = list(self.parameters())")
         class_def["learnable_params"] = learnable_names
 
     # Fields should not be learnable (register_buffer)

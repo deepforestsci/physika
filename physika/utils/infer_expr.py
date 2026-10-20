@@ -351,7 +351,6 @@ def expr_list(node: Any,
             et, cur = infer_expr(e, ctx.env, cur, ctx.func_env, ctx.class_env,
                                  ctx.add_error)
         elem_types.append(et)
-
     return TList(tuple(elem_types)), cur
 
 
