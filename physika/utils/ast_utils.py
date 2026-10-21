@@ -771,11 +771,10 @@ def ast_to_torch_expr(node: ASTNode,
             else:
                 shape = f"({', '.join(dims)})"
             return f"torch.reshape({x}, {shape})"
-        
+
         elif func_name == "shape":
             x = arg_strs[0]
             return f"{x}.shape"
-
 
         elif func_name in multi_arg_funcs:
             return f"{multi_arg_funcs[func_name]}({', '.join(arg_strs)})"
