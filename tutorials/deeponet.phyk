@@ -62,37 +62,45 @@ class DeepONet(ξ: ℝ[m, n], θ: ℝ[1, n], c: ℝ[n, p], cb: ℝ[1, p], w1: �
         this.b0 = this.b0 - lr * learnable_grads[10]
 
 class GRF(L: ℝ[m, m], B: ℝ[m, m], C: ℝ[m, m], U: ℝ[Ns, m], Y: ℝ[Ns, 2], S: ℝ[Ns], m: ℕ, nt: ℕ, Ns: ℕ, dt: ℝ, dx: ℝ, rk: ℝ):
+    def reaction(s: ℝ[m], u: ℝ[m]): ℝ[m]:
+        return this.rk * s * s + u
     def field_of(u: ℝ[m]): ℝ[nt, m]:
         sn: ℝ[m] = zeros(m)
         field: ℝ[nt, m] = zeros(nt, m)
         last: ℝ = this.m - 1
         steps: ℝ = this.nt - 1
         for n2:ℕ(steps):
-            rhs: ℝ[m] = this.C @ sn + this.dt * (this.rk * sn * sn + u)
+            # Crank–Nicolson step:   B·sⁿ⁺¹ = C·sⁿ + dt·(k·sⁿ² + u)
+            rhs: ℝ[m] = this.C @ sn + this.dt * this.reaction(sn, u)
             rhs[0] = 0.0
             rhs[last] = 0.0
             sn = gaussian_solve(this.B, rhs)
             field[n2 + 1, :] = sn
         return field
-    def fill(a: ℝ, u: ℝ[m], field: ℝ[nt, m]): ℝ:
+    def fill(a: ℝ, u: ℝ[m], field: ℝ[nt, m], P: ℕ): ℝ:
+        # Draw P RANDOM observation points (x, t) ∈ [0,1]² for this solution s,
+        # as in the paper (P random points per s), instead of a fixed subgrid.
         lU: ℝ[Ns, m] = this.U
         lY: ℝ[Ns, 2] = this.Y
         lS: ℝ[Ns] = this.S
-        for qx:ℕ(5):
-            for qt:ℕ(5):
-                lU[a*25 + qx*5 + qt, :] = u
-                lY[a*25 + qx*5 + qt, 0] = qx*20 * this.dx
-                lY[a*25 + qx*5 + qt, 1] = qt*20 * this.dt
-                lS[a*25 + qx*5 + qt] = field[qt*20, qx*20]
+        xs: ℝ[P] ~ Uniform(0.0, 1.0, P)
+        ts: ℝ[P] ~ Uniform(0.0, 1.0, P)
+        for j:ℕ(P):
+            xc: ℝ = xs[j]
+            tc: ℝ = ts[j]
+            lU[a*P + j, :] = u
+            lY[a*P + j, 0] = xc
+            lY[a*P + j, 1] = tc
+            lS[a*P + j] = field[tc * (this.nt - 1), xc * (this.m - 1)]
         this.U = lU
         this.Y = lY
         this.S = lS
         return 0.0
-    def generate(Zs: ℝ[nu, m], nu: ℝ): ℝ:
+    def generate(Zs: ℝ[nu, m], nu: ℝ, P: ℕ): ℝ:
         for a:ℕ(nu):
             u: ℝ[m] = this.L @ Zs[a]
             field: ℝ[nt, m] = this.field_of(u)
-            this.fill(a, u, field)
+            this.fill(a, u, field, P)
         return 0.0
 
 m: ℝ, n: ℝ, p: ℝ, q: ℝ = 100, 100, 100, 100
@@ -123,27 +131,29 @@ for i:ℕ(m):
     K[i, i] = K[i, i] + 0.0001
 L: ℝ[m, m] = chol(K, m)
 
-B: ℝ[m, m] = zeros(m, m)
-C: ℝ[m, m] = zeros(m, m)
+Lap: ℝ[m, m] = zeros(m, m)
 mb: ℝ = m - 2
 for t:ℕ(mb):
-    B[t+1, t] = -0.5 * r
-    B[t+1, t+1] = 1.0 + r
-    B[t+1, t+2] = -0.5 * r
-    C[t+1, t] = 0.5 * r
-    C[t+1, t+1] = 1.0 - r
-    C[t+1, t+2] = 0.5 * r
+    Lap[t+1, t] = 1.0
+    Lap[t+1, t+1] = -2.0
+    Lap[t+1, t+2] = 1.0
+Id: ℝ[m, m] = zeros(m, m)
+for i:ℕ(m):
+    Id[i, i] = 1.0
+B: ℝ[m, m] = Id - 0.5 * r * Lap
+C: ℝ[m, m] = Id + 0.5 * r * Lap
 B[0, 0] = 1.0
 B[m-1, m-1] = 1.0
 
 num_u: ℝ, Ns: ℝ = 2, 50
+P: ℕ = 25
 U: ℝ[Ns, m] = zeros(Ns, m)
 Y: ℝ[Ns, 2] = zeros(Ns, 2)
 S: ℝ[Ns] = zeros(Ns)
 Zs: ℝ[num_u, m] = for i:ℕ(num_u) -> ε: ℝ[m] ~ Normal(0.0, 1.0, m)
 
 grf: GRF = GRF(L, B, C, U, Y, S, m, nt, Ns, dt, dx, k)
-done: ℝ = grf.generate(Zs, num_u)
+done: ℝ = grf.generate(Zs, num_u, P)
 
 epochs: ℕ = 1
 lr: ℝ = 0.001
