@@ -1,0 +1,77 @@
+# 2D shallow water: q_t + F(q)_x + G(q)_y = 0 on a periodic unit square.
+# q = [h, hu, hv]: depth and depth-integrated momenta; u, v are velocities.
+# This depth-averaged, flat-bed model omits viscosity and external forcing.
+# It is a reduced model, not a full 3D flow or a reproduction of Silvestri's scheme.
+# All quantities are dimensionless; the reference depth H and gravity g are 1.
+# q[k, i, j] stores component k in cell (i, j). For each component field,
+# axis 0 is x and axis 1 is y; roll(w, -1, axis) selects the next periodic cell.
+
+# At each positive face, use max(a_left, a_right) = (a + b + |a - b|) / 2.
+def face_speed(a: ℝ[m, n], axis: ℕ): ℝ[m, n]:
+    neighbor: ℝ[m, n] = roll(a, -1, axis)
+    return 0.5 * (a + neighbor + abs(a - neighbor))
+
+# For one conserved component w, f and flux_y are its x and y physical fluxes.
+# Rusanov flux: F_face = (f_left + f_right) / 2 - a_face * (w_right - w_left) / 2.
+# Piecewise-constant states give first-order spatial accuracy and numerical diffusion.
+# Shared face fluxes cancel between adjacent cells in the negative divergence.
+def divergence(w: ℝ[m, n], f: ℝ[m, n], flux_y: ℝ[m, n],
+               ax: ℝ[m, n], ay: ℝ[m, n], dx: ℝ, dy: ℝ): ℝ[m, n]:
+    F: ℝ[m, n] = 0.5 * (f + roll(f, -1, 0))
+    G: ℝ[m, n] = 0.5 * (flux_y + roll(flux_y, -1, 1))
+    F: ℝ[m, n] = F - 0.5 * ax * (roll(w, -1, 0) - w)
+    G: ℝ[m, n] = G - 0.5 * ay * (roll(w, -1, 1) - w)
+    return -(F - roll(F, 1, 0)) / dx - (G - roll(G, 1, 1)) / dy
+
+# q_t = L(q), with physical fluxes
+#   F = [hu, hu * u + g * h² / 2, hu * v],
+#   G = [hv, hv * u, hv * v + g * h² / 2].
+# Recompute velocities and gravity-wave speed c from this stage's entire state.
+# The divisions and square root require h > 0; there is no dry-bed treatment.
+def rhs(q: ℝ[3, m, n], g: ℝ, dx: ℝ, dy: ℝ): ℝ[3, m, n]:
+    h, hu, hv: ℝ[m, n] = q[0], q[1], q[2]
+    u, v: ℝ[m, n] = hu / h, hv / h
+    c: ℝ[m, n] = sqrt(g * h)
+    ax: ℝ[m, n] = face_speed(abs(u) + c, 0)
+    ay: ℝ[m, n] = face_speed(abs(v) + c, 1)
+    pressure: ℝ[m, n] = 0.5 * g * h * h
+    dh, dhu, dhv: ℝ[m, n] = divergence(h, hu, hv, ax, ay, dx, dy), divergence(
+        hu, hu * u + pressure, hv * u, ax, ay, dx, dy), divergence(
+        hv, hu * v, hv * v + pressure, ax, ay, dx, dy)
+    return [dh, dhu, dhv]
+
+# SSPRK(3,3): three coupled stages, third-order in time for the semidiscrete ODE.
+def rk3_step(q: ℝ[3, m, n], g: ℝ, dx: ℝ, dy: ℝ, Δt: ℝ): ℝ[3, m, n]:
+    q1: ℝ[3, m, n] = q + Δt * rhs(q, g, dx, dy)
+    q2: ℝ[3, m, n] = 0.75 * q + 0.25 * (q1 + Δt * rhs(q1, g, dx, dy))
+    q_next: ℝ[3, m, n] = q / 3.0 + (2.0 / 3.0) * (q2 + Δt * rhs(q2, g, dx, dy))
+    return q_next
+
+# Start at rest with a smooth periodic bump, sampled at cell centers.
+def initial_state(Nx: ℕ, Ny: ℕ, H: ℝ, amplitude: ℝ): ℝ[3, Nx, Ny]:
+    x: ℝ[Nx] = for i:ℕ(Nx) -> (i + 0.5) / Nx
+    y: ℝ[Ny] = for j:ℕ(Ny) -> (j + 0.5) / Ny
+    pi: ℝ = 3.141592653589793
+    bump: ℝ[Nx, Ny] = for i:ℕ(Nx) -> for j:ℕ(Ny) -> exp(
+        (cos(2 * pi * (x[i] - 0.5)) + cos(2 * pi * (y[j] - 0.5)) - 2.0) / 0.12)
+    h: ℝ[Nx, Ny] = H + amplitude * bump
+    zero: ℝ[Nx, Ny] = 0.0 * h
+    return [h, zero, zero]
+
+Nx: ℕ = 24
+Ny: ℕ = 24
+H, g: ℝ = 1.0, 1.0
+dx, dy: ℝ = 1.0 / Nx, 1.0 / Ny
+# Fixed step for this small bump. The 2D Courant number is
+# Δt * (max(|u| + c) / dx + max(|v| + c) / dy), with maxima over cells.
+# Check it and h > 0 at every stage when changing the setup; neither is enforced here.
+Δt: ℝ = 0.003
+steps: ℕ = 40
+initial: ℝ[3, Nx, Ny] = initial_state(Nx, Ny, H, 0.05)
+final: ℝ[3, Nx, Ny] = initial
+for step:ℕ(steps):
+    final = rk3_step(final, g, dx, dy, Δt)
+
+# Periodic flux cancellation conserves mean depth, up to floating-point roundoff.
+mean_depth_change: ℝ = mean(final[0] - initial[0])
+mean_depth_change
