@@ -1,12 +1,14 @@
 Recurrent Neural networks (RNNs)
 ================================
 
-In this tutorial, we will implmenet a simple RNN model from scratch in physika.
+The complete code, including parameter estimation, is provided in the appendix ~\ref{app:schrodinger_equation}
 
-Recurrent Neural networks are type of models which are designed to process sequential data, 
-such as text, speech and time series, where the order of elements is important. Unlike Fully connected
-networks which process inputs independently, RNNs utilize recurrent connections, where the output of a neuron
+In this tutorial, we will implement a simple RNN model from scratch in physika.
+Recurrent Neural networks are models that are designed to process sequential data,
+such as text, speech, and time series, where the order of elements is important. Unlike fully connected
+networks, which process inputs independently, RNNs utilize recurrent connections, where the output of a neuron
 at one time step is fed back as input to the network at the next time step
+
 
 .. figure:: /_static/tutorial_files/rnn/rnn_cell.png
    :alt: rnn architecture
@@ -24,14 +26,14 @@ to learn from past inputs. [RNN_Wikipedia]_, [RNN_JakeTae]_
 Dataset
 --------
 
-For this tutorial we are using dataset from pytorch's RNN tutorial [RNN_PyTorch]_, we can also use this 
+For this tutorial, we are using a dataset from PyTorch's RNN tutorial [RNN_PyTorch]_, we can also use this
 shell script directly to download the dataset
 
 .. code-block:: console
 
     !curl -O https://download.pytorch.org/tutorial/data.zip; unzip data.zip
 
-Once the dataset gets downloaded add the below python script into ``physika/runtime.py`` file:
+Once the dataset gets downloaded, add the below python script into ``physika/runtime.py`` file:
 
 .. code-block:: python
 
@@ -91,8 +93,9 @@ Once the dataset gets downloaded add the below python script into ``physika/runt
         test_dataset = dataset[split_idx:]
         return [train_dataset, test_dataset]
 
-``lang2label`` is dictionary where keys are language classes (as indices) and its labels are represents as tensor in keys.
-Therefore we have total 18 different classes of different languages and each class has names in form of strings
+``lang2label`` is a dictionary where keys are language classes (as indices) and its labels are represents as tensors in keys.
+Therefore, we have a total of 18 different classes of different languages, and each class has names in the form of strings.
+
 
 .. code-block:: text
 
@@ -134,11 +137,14 @@ After that we create ``char2idx`` which represents vocabulory as:
         ';': 56, '-': 57, "'": 58
     }
 
-so in total we have 59 distinct characters each represented as its unique index, We then merge all
+
+So, in total, we have 59 distinct characters, each represented as its unique index. We then merge all.
 names and its class label in ``tensor_names`` and ``target_langs`` respectively which then gets split
 into ``train_dataset`` and ``test_dataset``.
 
-Here is how the input tensor (name) and label (class) is represented for training:
+Here is how the input tensor (name) and label (class) are represented for training:
+
+
 
 .. code-block:: text
 
@@ -228,7 +234,7 @@ Defining the RNN model
 ----------------------
 
 Before defining the RNN class itself, we first need Linear layers. The RNN class
-uses linear layers to transform input and hidden state into next hidden state and 
+uses linear layers to transform the input and hidden state into the next hidden state and 
 next output.
 
 Linear layer
@@ -263,8 +269,8 @@ we can define this as:
 RNN class
 ~~~~~~~~~~~~
 
-In our RNN class we are using 2 ``Linear`` layers. We call first one as ``in2hidden`` which transforms
-input into next hidden state and we call second one as ``in2outpu`` which transforms input into
+In our RNN class, we are using 2 ``Linear`` layers. We call the first one ``in2hidden`` which transforms.
+input into the next hidden state, and we call the second one ``in2output``, which transforms input into
 output (prediction).
 
 
@@ -306,7 +312,7 @@ At each timestep, the RNN receives two pieces of information:
 
 we concatenate them into single vector called as ``combined`` which first gets passed into ``in2hidden`` linear layer
 to generated next hidden state and then same ``combined`` gets passed into ``in2output`` which gives us
-model's prediction. while ``init_hidden`` is used to generate the inital hidden state.
+model's prediction. while ``init_hidden`` is used to generate the initial hidden state.
 
 We can visualize this architecture as:
 
@@ -323,7 +329,7 @@ We can visualize this architecture as:
 Training loop
 ~~~~~~~~~~~~~
 
-Since this is the character level model, in our training loop we will loop over each character at a time.
+Since this is a character level model, in our training loop we will loop over each character at a time.
 At each timestep, the model takes the current character and the previous hidden state, and produces a prediction for the class and
 the next hidden state.
 
@@ -347,7 +353,7 @@ In Physika, we define the loss as:
         return -logits[label] + log(total)
 
 The loss is then used to compute gradients for the model parameters, which
-are updated using Adam optimizer.
+are updated using the Adam optimizer.
 
 Here is how the train function looks like:
 
