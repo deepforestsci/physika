@@ -270,17 +270,22 @@ output (prediction).
 
 .. code-block:: text
 
-    class RNN:
-        hidden_size: ℕ
-        in2hidden: Linear
-        in2output: Linear
-        def λ(x: ℝ[input_size], hidden_state: ℝ[hidden_size]) → ℝ[m], ℝ[n]:
-            combined: ℝ[input_size + hidden_size] = concat(x, hidden_state)
-            hidden: ℝ[hidden_size] = σ(in2hidden(combined))
-            output: ℝ[output_size] = in2output(combined)
-            return output, hidden
-        def init_hidden(): ℝ[m]:
-            return zeros(this.hidden_size)
+    class RNN(H: ℕ, in2hidden: Linear, in2output: Linear):
+        def λ(X: ℝ[B, T, I]) → ℝ[B, T, O]:
+            dims = shape(X)
+            B: ℕ = dims[0]
+            T: ℕ = dims[1]
+            out: ℝ[B, T, O] = zeros(B, T, O)
+            for i:ℕ(B):
+                hidden_state: ℝ[H] = this.init_hidden()
+                for t:ℕ(T):
+                    x: ℝ[I] = X[i, t]
+                    combined: ℝ[I + H] = concat(x, hidden_state)
+                    hidden_state: ℝ[H] = σ(in2hidden(combined))
+                    out[i, t] = in2output(hidden_state)
+            return out
+        def init_hidden(): ℝ[m]:    
+            return zeros(this.H)
 
 
 Here ``σ`` is our sigmoid activation function defined as:
@@ -291,7 +296,7 @@ Here ``σ`` is our sigmoid activation function defined as:
         n: ℝ = get_1d_array_length(x)
         result: ℝ[a] = zeros(n)
         for i:ℕ(n):
-            result[i] = 1.0 / (1.0 + exp(0.0 - x[i]))
+            result[i] = 1.0 / (1.0 + exp(-x[i]))
         return result
 
 At each timestep, the RNN receives two pieces of information:
@@ -348,27 +353,26 @@ Here is how the train function looks like:
 
 .. code-block:: text
 
-    def train(lr: ℝ, epochs: ℕ): ℝ:
+    def train(epochs: ℕ): ℝ:
         for epoch:ℕ(epochs):
             print(epoch)
             epoch_loss: ℝ = 0
             for idx:ℕ(train_dataset_len):
                 sample = train_dataset[idx]
-                name: ℝ[m, 1, 59] = sample[0]
-                target: ℝ[m] = sample[1]
-                hidden_state: ℝ[hidden_size] = this.init_hidden()
-                for i:ℕ(len(name)):
-                    x: ℝ[59] = name[i, 0]
-                    pred: ℝ[18] = this(x, hidden_state)
-                    output: ℝ[59] = pred[0]
-                    hidden_state: ℝ[hidden_size] = pred[1]
+                name = sample[0]
+                dims = shape(name)
+                T: ℕ = dims[0]
+                name: ℝ[1, T, I] = reshape(sample[0], 1, T, I)
+                target: ℕ = sample[1]
+                out: ℝ[1, T, O] = this(name)
+                output: ℝ[O] = out[0, T - 1]
                 loss: ℝ = cross_entropy(output, target)
                 epoch_loss += detach(loss)
-                grad_in2hidden: ℝ[2] = grad(loss, this.in2hidden.learnable_params)
-                grad_in2output: ℝ[2] = grad(loss, this.in2output.learnable_params)
+                grad_in2hidden = grad(loss, this.in2hidden.learnable_params)
+                grad_in2output = grad(loss, this.in2output.learnable_params)
                 this.in2hidden.update_params(grad_in2hidden)
                 this.in2output.update_params(grad_in2output)
-            epoch_loss = epoch_loss / train_dataset_len
+            epoch_loss: ℝ = epoch_loss / train_dataset_len
             print(epoch_loss)
         return loss
 
@@ -403,21 +407,19 @@ and here is the complete evaluate function:
 
 .. code-block:: text
 
-    def evaluate(): ℝ:
+    def evaluate() → ℝ:
         correct: ℝ = 0
-        for idx:ℕ(test_dataset_len):
+        for idx: ℕ(test_dataset_len):
             sample = test_dataset[idx]
-            name: ℝ[m, 1, 59] = sample[0]
-            target: ℝ[m] = sample[1]
-            hidden_state: ℝ[hidden_size] = this.init_hidden()
-            for i:ℕ(len(name)):
-                x: ℝ[59] = name[i, 0]
-                pred: ℝ[18] = this(x, hidden_state)
-                output: ℝ[59] = pred[0]
-                hidden_state: ℝ[hidden_size] = pred[1]
+            name = sample[0]
+            dims = shape(name)
+            T: ℕ = dims[0]
+            name: ℝ[1, T, I] = reshape(name, 1, T, 59)
+            target: ℕ = sample[1]
+            out: ℝ[1, T, O] = this(name)
+            output: ℝ[O] = out[0, T - 1]
             predicted: ℝ = argmax(output)
-            target_idx: ℝ = target[0]
-            if predicted == target_idx:
+            if predicted == target:
                 correct += 1
         return correct / test_dataset_len
 
@@ -446,7 +448,7 @@ Full code
         n: ℝ = get_1d_array_length(x)
         result: ℝ[a] = zeros(n)
         for i:ℕ(n):
-            result[i] = 1.0 / (1.0 + exp(0.0 - x[i]))
+            result[i] = 1.0 / (1.0 + exp(-x[i]))
         return result
 
     def argmax(iterable: R[m]): R:
@@ -501,6 +503,11 @@ Full code
             )
             return param_new
 
+    def cross_entropy(logits: ℝ[m], label: N): ℝ:
+        total: ℝ = 0
+        for i:ℕ(18):
+            total += exp(logits[i])
+        return -logits[label] + log(total)
 
     class Linear:
         W: ℝ[out_features, in_features]
@@ -518,64 +525,66 @@ Full code
             this.W = this.adam_W.step(this.W,learnable_grads[0])
             this.b = this.adam_b.step(this.b,learnable_grads[1])
 
+    # I -> Input feature size (vocab)
+    # O -> output class size
+    # H -> hidden size (used in hidden state)
+
+    I: ℝ = 59
+    O: ℝ = 18
+    H: ℕ = 128
 
 
-    def cross_entropy(logits: ℝ[m], label: N): ℝ:
-        total: ℝ = 0
-        for i:ℕ(18):
-            total += exp(logits[i])
-        return -logits[label] + log(total)
-
-
-    class RNN:
-        hidden_size: ℕ
-        in2hidden: Linear
-        in2output: Linear
-        def λ(x: ℝ[input_size], hidden_state: ℝ[hidden_size]) → ℝ[m], ℝ[n]:
-            combined: ℝ[input_size + hidden_size] = concat(x, hidden_state)
-            hidden: ℝ[hidden_size] = σ(in2hidden(combined))
-            output: ℝ[output_size] = in2output(combined)
-            return output, hidden
-        def init_hidden(): ℝ[m]:
-            return zeros(this.hidden_size)
+    class RNN(H: ℕ, in2hidden: Linear, in2output: Linear):
+        def λ(X: ℝ[B, T, I]) → ℝ[B, T, O]:
+            dims = shape(X)
+            B: ℕ = dims[0]
+            T: ℕ = dims[1]
+            out: ℝ[B, T, O] = zeros(B, T, O)
+            for i:ℕ(B):
+                hidden_state: ℝ[H] = this.init_hidden()
+                for t:ℕ(T):
+                    x: ℝ[I] = X[i, t]
+                    combined: ℝ[I + H] = concat(x, hidden_state)
+                    hidden_state: ℝ[H] = σ(in2hidden(combined))
+                    out[i, t] = in2output(hidden_state)
+            return out
+        def init_hidden(): ℝ[m]:    
+            return zeros(this.H)
         def train(epochs: ℕ): ℝ:
             for epoch:ℕ(epochs):
                 print(epoch)
                 epoch_loss: ℝ = 0
                 for idx:ℕ(train_dataset_len):
                     sample = train_dataset[idx]
-                    name: ℝ[m, 1, 59] = sample[0]
-                    target: ℝ[m] = sample[1]
-                    hidden_state: ℝ[hidden_size] = this.init_hidden()
-                    for i:ℕ(len(name)):
-                        x: ℝ[59] = name[i, 0]
-                        pred: ℝ[18] = this(x, hidden_state)
-                        output: ℝ[59] = pred[0]
-                        hidden_state: ℝ[hidden_size] = pred[1]
+                    name = sample[0]
+                    dims = shape(name)
+                    T: ℕ = dims[0]
+                    name: ℝ[1, T, I] = reshape(sample[0], 1, T, I)
+                    target: ℕ = sample[1]
+                    out: ℝ[1, T, O] = this(name)
+                    output: ℝ[O] = out[0, T - 1]
                     loss: ℝ = cross_entropy(output, target)
                     epoch_loss += detach(loss)
-                    grad_in2hidden: ℝ[2] = grad(loss, this.in2hidden.learnable_params)
-                    grad_in2output: ℝ[2] = grad(loss, this.in2output.learnable_params)
+                    grad_in2hidden = grad(loss, this.in2hidden.learnable_params)
+                    grad_in2output = grad(loss, this.in2output.learnable_params)
                     this.in2hidden.update_params(grad_in2hidden)
                     this.in2output.update_params(grad_in2output)
-                epoch_loss = epoch_loss / train_dataset_len
+                epoch_loss: ℝ = epoch_loss / train_dataset_len
                 print(epoch_loss)
             return loss
-        def evaluate(): ℝ:
+        def evaluate() → ℝ:
             correct: ℝ = 0
-            for idx:ℕ(test_dataset_len):
+            for idx: ℕ(test_dataset_len):
                 sample = test_dataset[idx]
-                name: ℝ[m, 1, 59] = sample[0]
-                target: ℝ[m] = sample[1]
-                hidden_state: ℝ[hidden_size] = this.init_hidden()
-                for i:ℕ(len(name)):
-                    x: ℝ[59] = name[i, 0]
-                    pred: ℝ[18] = this(x, hidden_state)
-                    output: ℝ[59] = pred[0]
-                    hidden_state: ℝ[hidden_size] = pred[1]
+                name = sample[0]
+                dims = shape(name)
+                T: ℕ = dims[0]
+                name: ℝ[1, T, I] = reshape(name, 1, T, 59)
+                target: ℕ = sample[1]
+                out: ℝ[1, T, O] = this(name)
+                output: ℝ[O] = out[0, T - 1]
                 predicted: ℝ = argmax(output)
-                target_idx: ℝ = target[0]
-                if predicted == target_idx:
+                if predicted == target:
                     correct += 1
             return correct / test_dataset_len
 
@@ -590,25 +599,24 @@ Full code
     # weights for RNN
     # --------------------
 
-    W1: ℝ[hidden_size, input_size+hidden_size] = rand_2d_array(hidden_size, input_size+hidden_size, 0.01)
-    b1: ℝ[hidden_size] = rand_array(hidden_size)
+    W1: ℝ[H, I+H] = rand_2d_array(H, I+H, 0.01)
+    b1: ℝ[H] = rand_array(H)
 
-    W2: ℝ[output_size, input_size+hidden_size] = rand_2d_array(output_size, input_size+hidden_size, 0.01)
-    b2: ℝ[output_size] = rand_array(output_size)
+    W2: ℝ[O, H] = rand_2d_array(O, H, 0.01)
+    b2: ℝ[O] = rand_array(O)
 
     lr: ℝ = 0.001
 
-    adam_W1: AdamOptimizer2D = AdamOptimizer2D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(hidden_size, input_size + hidden_size), zeros(hidden_size, input_size + hidden_size))
-    adam_b1: AdamOptimizer1D = AdamOptimizer1D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(hidden_size), zeros(hidden_size))
-    adam_W2: AdamOptimizer2D = AdamOptimizer2D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(output_size, input_size + hidden_size), zeros(output_size, input_size + hidden_size))
-    adam_b2: AdamOptimizer1D = AdamOptimizer1D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(output_size), zeros(output_size) )
+    adam_W1: AdamOptimizer2D = AdamOptimizer2D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(H, I + H), zeros(H, I + H))
+    adam_b1: AdamOptimizer1D = AdamOptimizer1D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(H), zeros(H))
+    adam_W2: AdamOptimizer2D = AdamOptimizer2D(lr, 0.9, 0.999, 1e-8, 0.0,zeros(O, H),zeros(O, H))
+    adam_b2: AdamOptimizer1D = AdamOptimizer1D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(O), zeros(O) )
 
 
     in2hidden: Linear = Linear(W1, b1, adam_W1, adam_b1)
     in2output: Linear = Linear(W2, b2, adam_W2, adam_b2)
 
-    rnn: RNN = RNN(hidden_size, in2hidden, in2output)
-
+    rnn: RNN = RNN(H, in2hidden, in2output)
 
     epochs: ℕ = 10
 
