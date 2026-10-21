@@ -294,7 +294,7 @@ output (prediction).
             return zeros(this.H)
 
 
-Here ``σ`` is our sigmoid activation function defined as:
+Here ``σ`` is our sigmoid activation function defined as: [Sigmoid_Wikipedia]_
 
 .. code-block:: text
 
@@ -643,6 +643,9 @@ References
 
 .. [RNN_Murf] Murf AI. *Recurrent Neural Network (RNN)*.
    https://murf.ai/ai-glossary/recurrent-neural-network
+
+.. [Sigmoid_Wikipedia] Wikipedia. *Sigmoid function*.
+   https://en.wikipedia.org/wiki/Sigmoid_function
 
 .. [RNN_JakeTae] Jake Tae. *PyTorch RNN*.
    https://jaketae.github.io/study/pytorch-rnn/
