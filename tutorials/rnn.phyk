@@ -1,0 +1,195 @@
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total, temp: ℝ = 0, 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def rand_2d_array(n:ℝ, m:ℝ, μ:ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_array(x: ℝ): ℝ[m]:
+    t ~ 𝒩(0, 1, x)
+    return t
+
+def σ(x: ℝ[a]): ℝ[a]:
+    n: ℝ = get_1d_array_length(x)
+    result: ℝ[a] = zeros(n)
+    for i:ℕ(n):
+        result[i] = 1.0 / (1.0 + exp(-x[i]))
+    return result
+
+def argmax(iterable: R[m]): R:
+    idx: ℝ = 0
+    max_val: ℝ = iterable[0]
+    len_iterable: ℝ = get_1d_array_length(iterable)
+    for i:ℕ(1, len_iterable):
+        if iterable[i] > max_val:
+            max_val = iterable[i]
+            idx = i
+    return idx
+
+
+#dataset = create_dataset(0.9)
+#train_dataset = dataset[0]
+#test_dataset = dataset[1]
+
+#train_dataset_len = get_1d_array_length(train_dataset)
+#test_dataset_len = get_1d_array_length(test_dataset)
+#print(train_dataset_len)
+#print(test_dataset_len)
+
+train_dataset_len = 162
+test_dataset_len = 18
+
+class AdamOptimizer2D:
+    lr, beta1, beta2, eps, t: ℝ
+    m, v: ℝ[m, n]
+    def step(param: ℝ[m, n], grad: ℝ[m, n]) → ℝ[m, n]:
+        this.t = this.t + 1.0
+        this.m = this.beta1 * this.m + (1.0 - this.beta1) * grad
+        this.v = this.beta2 * this.v + (1.0 - this.beta2) * grad**2
+        m_hat: ℝ[m, n] = this.m / (1.0 - this.beta1**this.t)
+        v_hat: ℝ[m, n] = this.v / (1.0 - this.beta2**this.t)
+        param_new: ℝ[m, n] = (
+            param
+            - this.lr * m_hat / (sqrt(v_hat) + this.eps)
+        )
+        return param_new
+
+
+class AdamOptimizer1D:
+    lr, beta1, beta2, eps, t: ℝ
+    m, v: ℝ[m]
+    def step(param: ℝ[m], grad: ℝ[m]) → ℝ[m]:
+        this.t = this.t + 1.0
+        this.m = this.beta1 * this.m + (1.0 - this.beta1) * grad
+        this.v = this.beta2 * this.v + (1.0 - this.beta2) * grad**2
+        m_hat: ℝ[m] = this.m / (1.0 - this.beta1**this.t)
+        v_hat: ℝ[m] = this.v / (1.0 - this.beta2**this.t)
+        param_new: ℝ[m] = (
+            param
+            - this.lr * m_hat / (sqrt(v_hat) + this.eps)
+        )
+        return param_new
+
+def cross_entropy(logits: ℝ[m], label: N): ℝ:
+    total: ℝ = 0
+    for i:ℕ(18):
+        total += exp(logits[i])
+    return -logits[label] + log(total)
+
+
+class Linear:
+    W: ℝ[out_features, in_features]
+    b: ℝ[out_features]
+    adam_W: AdamOptimizer2D
+    adam_b: AdamOptimizer1D
+    def λ(x: ℝ[in_features]) → ℝ[out_features]:
+        in_features: ℝ = get_1d_array_length(x)
+        col: ℝ[in_features, 1] = zeros(in_features, 1)
+        col[:, 0] = x
+        res: ℝ[out_features, 1] = W @ col
+        out = res[:, 0] + b
+        return out
+    def update_params(learnable_grads: ℝ[m]):
+        this.W = this.adam_W.step(this.W,learnable_grads[0])
+        this.b = this.adam_b.step(this.b,learnable_grads[1])
+
+# I -> Input feature size (vocab)
+# O -> output class size
+# H -> hidden size (used in hidden state)
+
+I: ℝ = 59
+O: ℝ = 18
+H: ℕ = 128
+
+
+class RNN(H: ℕ, in2hidden: Linear, in2output: Linear):
+    def λ(X: ℝ[B, T, I]) → ℝ[B, T, O]:
+        dims = shape(X)
+        B: ℕ = dims[0]
+        T: ℕ = dims[1]
+        out: ℝ[B, T, O] = zeros(B, T, O)
+        for i:ℕ(B):
+            hidden_state: ℝ[H] = this.init_hidden()
+            for t:ℕ(T):
+                x: ℝ[I] = X[i, t]
+                combined: ℝ[I + H] = concat(x, hidden_state)
+                hidden_state: ℝ[H] = σ(in2hidden(combined))
+                out[i, t] = in2output(hidden_state)
+        return out
+    def init_hidden(): ℝ[m]:    
+        return zeros(this.H)
+    def train(epochs: ℕ): ℝ:
+        for epoch:ℕ(epochs):
+            print(epoch)
+            epoch_loss: ℝ = 0
+            for idx:ℕ(train_dataset_len):
+                sample = train_dataset[idx]
+                name = sample[0]
+                dims = shape(name)
+                T: ℕ = dims[0]
+                name: ℝ[1, T, I] = reshape(sample[0], 1, T, I)
+                target: ℕ = sample[1]
+                out: ℝ[1, T, O] = this(name)
+                output: ℝ[O] = out[0, T - 1]
+                loss: ℝ = cross_entropy(output, target)
+                epoch_loss += detach(loss)
+                grad_in2hidden = grad(loss, this.in2hidden.learnable_params)
+                grad_in2output = grad(loss, this.in2output.learnable_params)
+                this.in2hidden.update_params(grad_in2hidden)
+                this.in2output.update_params(grad_in2output)
+            epoch_loss: ℝ = epoch_loss / train_dataset_len
+            print(epoch_loss)
+        return loss
+    def evaluate() → ℝ:
+        correct: ℝ = 0
+        for idx: ℕ(test_dataset_len):
+            sample = test_dataset[idx]
+            name = sample[0]
+            dims = shape(name)
+            T: ℕ = dims[0]
+            name: ℝ[1, T, I] = reshape(name, 1, T, 59)
+            target: ℕ = sample[1]
+            out: ℝ[1, T, O] = this(name)
+            output: ℝ[O] = out[0, T - 1]
+            predicted: ℝ = argmax(output)
+            if predicted == target:
+                correct += 1
+        return correct / test_dataset_len
+
+
+# --------------------
+# weights for RNN
+# --------------------
+
+W1: ℝ[H, I+H] = rand_2d_array(H, I+H, 0.01)
+b1: ℝ[H] = rand_array(H)
+
+W2: ℝ[O, H] = rand_2d_array(O, H, 0.01)
+b2: ℝ[O] = rand_array(O)
+
+lr: ℝ = 0.001
+
+adam_W1: AdamOptimizer2D = AdamOptimizer2D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(H, I + H), zeros(H, I + H))
+adam_b1: AdamOptimizer1D = AdamOptimizer1D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(H), zeros(H))
+adam_W2: AdamOptimizer2D = AdamOptimizer2D(lr, 0.9, 0.999, 1e-8, 0.0,zeros(O, H),zeros(O, H))
+adam_b2: AdamOptimizer1D = AdamOptimizer1D(lr, 0.9, 0.999, 1e-8, 0.0, zeros(O), zeros(O) )
+
+
+in2hidden: Linear = Linear(W1, b1, adam_W1, adam_b1)
+in2output: Linear = Linear(W2, b2, adam_W2, adam_b2)
+
+rnn: RNN = RNN(H, in2hidden, in2output)
+
+sample_input: ℝ[1, 7, I] = for i : ℕ(1) → for j : ℕ(7) → ε : ℝ[I] ~ Normal(2.0, 0.5, I)
+fwd_pass: ℝ[1, 7, O] = rnn(sample_input)
+
+
+#epochs: ℕ = 10
+#loss: ℝ = rnn.train(epochs)
+#print(loss)
+
+#accuracy: ℝ = rnn.evaluate()
+#print(accuracy)
