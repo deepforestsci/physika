@@ -763,12 +763,19 @@ def ast_to_torch_expr(node: ASTNode,
                     f"device=DEVICE)")
 
         elif func_name == "reshape":
-            # tensor node
             x = arg_strs[0]
-            # dim node
-            dim = arg_strs[1]
-            return (f"torch.reshape({x}, "
-                    f"({dim},) if isinstance({dim}, int) else {dim})")
+            dims = arg_strs[1:]
+            if len(dims) == 1:
+                dim = dims[0]
+                shape = f"({dim},) if isinstance({dim}, int) else {dim}"
+            else:
+                shape = f"({', '.join(dims)})"
+            return f"torch.reshape({x}, {shape})"
+        
+        elif func_name == "shape":
+            x = arg_strs[0]
+            return f"{x}.shape"
+
 
         elif func_name in multi_arg_funcs:
             return f"{multi_arg_funcs[func_name]}({', '.join(arg_strs)})"
