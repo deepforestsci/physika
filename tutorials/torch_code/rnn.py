@@ -192,11 +192,19 @@ class RNN(nn.Module):
         return (correct / test_dataset_len)
 
 # === Program ===
-train_dataset_len = 162
-test_dataset_len = 18
 I = 59
 O = 18
 H = 128
+sample1 = torch.stack([torch.stack([torch.distributions.Normal(2.0, 0.5).rsample((int(I),)) for _fi_j in range(int(1)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(7)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+sample2 = torch.stack([torch.stack([torch.distributions.Normal(2.0, 0.5).rsample((int(I),)) for _fi_j in range(int(1)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(5)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+sample3 = torch.stack([torch.stack([torch.distributions.Normal(2.0, 0.5).rsample((int(I),)) for _fi_j in range(int(1)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(6)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+target1 = 0
+target2 = 1
+target3 = 2
+train_dataset = [[sample1, target1], [sample2, target2], [sample3, target3]]
+test_dataset = [[sample1, target1], [sample2, target2], [sample3, target3]]
+train_dataset_len = 3
+test_dataset_len = 3
 W1 = rand_2d_array(H, (I + H), 0.01)
 b1 = rand_array(H)
 W2 = rand_2d_array(O, H, 0.01)
@@ -211,3 +219,8 @@ in2output = Linear(W2, b2, adam_W2, adam_b2).to(DEVICE)
 rnn = RNN(H, in2hidden, in2output).to(DEVICE)
 sample_input = torch.stack([torch.stack([torch.distributions.Normal(2.0, 0.5).rsample((int(I),)) for _fi_j in range(int(7)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(1)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 fwd_pass = rnn(sample_input)
+epochs = 1
+loss = rnn.train(epochs)
+print(print(loss))
+accuracy = rnn.evaluate()
+print(print(accuracy))

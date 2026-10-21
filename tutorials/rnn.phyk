@@ -30,6 +30,18 @@ def argmax(iterable: R[m]): R:
     return idx
 
 
+# I -> Input feature size (vocab)
+# O -> output class size
+# H -> hidden size (used in hidden state)
+
+I: ℝ = 59
+O: ℝ = 18
+H: ℕ = 128
+
+
+# -------------------------------------------------------------------
+# This code block is used with runtime function ``create_dataset``
+# -------------------------------------------------------------------
 #dataset = create_dataset(0.9)
 #train_dataset = dataset[0]
 #test_dataset = dataset[1]
@@ -39,8 +51,34 @@ def argmax(iterable: R[m]): R:
 #print(train_dataset_len)
 #print(test_dataset_len)
 
-train_dataset_len = 162
-test_dataset_len = 18
+# -------------------------------------------------------------------
+# To run RNN code on CI, we use dummy dataset as
+# -------------------------------------------------------------------
+
+
+sample1: ℝ[7, 1, I] = for i: ℕ(7) → for j: ℕ(1) → ε: ℝ[I] ~ Normal(2.0, 0.5, I)
+sample2: ℝ[5, 1, I] = for i: ℕ(5) → for j: ℕ(1) → ε: ℝ[I] ~ Normal(2.0, 0.5, I)
+sample3: ℝ[6, 1, I] = for i: ℕ(6) → for j: ℕ(1) → ε: ℝ[I] ~ Normal(2.0, 0.5, I)
+
+target1: ℕ = 0
+target2: ℕ = 1
+target3: ℕ = 2
+
+train_dataset: list = [
+    [sample1, target1],
+    [sample2, target2],
+    [sample3, target3]
+]
+
+test_dataset: list = [
+    [sample1, target1],
+    [sample2, target2],
+    [sample3, target3]
+]
+
+train_dataset_len: ℝ = 3
+test_dataset_len: ℝ = 3
+
 
 class AdamOptimizer2D:
     lr, beta1, beta2, eps, t: ℝ
@@ -95,14 +133,6 @@ class Linear:
     def update_params(learnable_grads: ℝ[m]):
         this.W = this.adam_W.step(this.W,learnable_grads[0])
         this.b = this.adam_b.step(this.b,learnable_grads[1])
-
-# I -> Input feature size (vocab)
-# O -> output class size
-# H -> hidden size (used in hidden state)
-
-I: ℝ = 59
-O: ℝ = 18
-H: ℕ = 128
 
 
 class RNN(H: ℕ, in2hidden: Linear, in2output: Linear):
@@ -183,13 +213,19 @@ in2output: Linear = Linear(W2, b2, adam_W2, adam_b2)
 
 rnn: RNN = RNN(H, in2hidden, in2output)
 
+# -------------------------------------------------------------------
+# forward pass with dummy input
+# -------------------------------------------------------------------
 sample_input: ℝ[1, 7, I] = for i : ℕ(1) → for j : ℕ(7) → ε : ℝ[I] ~ Normal(2.0, 0.5, I)
 fwd_pass: ℝ[1, 7, O] = rnn(sample_input)
 
 
-#epochs: ℕ = 10
-#loss: ℝ = rnn.train(epochs)
-#print(loss)
+# -------------------------------------------------------------------
+# epoch is set to be 1 for CI purposes
+# -------------------------------------------------------------------
+epochs: ℕ = 1
+loss: ℝ = rnn.train(epochs)
+print(loss)
 
-#accuracy: ℝ = rnn.evaluate()
-#print(accuracy)
+accuracy: ℝ = rnn.evaluate()
+print(accuracy)
