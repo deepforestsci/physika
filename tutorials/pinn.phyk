@@ -1,0 +1,174 @@
+physika.seed(0)
+
+def tanh(a: ℝ[p,q]): ℝ[p,q]:
+    num: ℝ[p,q] = exp(a) - exp(-a)
+    denom: ℝ[p,q] = exp(a) + exp(-a)
+    return num / denom
+
+def lbfgs(g: ℝ[n], S: ℝ[m,n], Y: ℝ[m,n], c: ℝ, m: ℕ, n: ℕ): ℝ[n]:
+    α: ℝ[m] = for i:ℕ(m) → i*0
+    q: ℝ[n] = g
+    for p:ℕ(c):
+        ix = m-1-p
+        ρ = 1.0 / (Y[ix] @ S[ix])
+        α[ix] = ρ * (S[ix] @ q)
+        q = q - α[ix] * Y[ix]
+    γ: ℝ = 1.0
+    if c > 0:
+        j = m-1
+        γ = (S[j] @ Y[j]) / (Y[j] @ Y[j])
+    z: ℝ[n] = γ * q
+    for p:ℕ(c):
+        ix = m-c+p
+        ρ = 1.0 / (Y[ix] @ S[ix])
+        β = ρ * (Y[ix] @ z)
+        z = z + S[ix] * (α[ix] - β)
+    return -z
+
+def pushrow(M: ℝ[m,n], row: ℝ[n], m: ℕ): ℝ[m,n]:
+    Mn: ℝ[m,n] = M
+    for j:ℕ(m-1):
+        Mn[j,:] = Mn[j+1,:]
+    Mn[m-1,:] = row
+    return Mn
+
+def mat(θ: ℝ[p], off: ℕ, r: ℕ, c: ℕ): ℝ[r,c]:
+    return for i:ℕ(r) -> θ[off + i*c : off + (i+1)*c]
+
+def row(θ: ℝ[p], off: ℕ, L: ℕ): ℝ[1,L]:
+    return [θ[off:off+L]]
+
+def squeeze(W1: ℝ[2,H], b1: ℝ[1,H], W2: ℝ[H,1], b2: ℝ[1,1], H: ℕ, n: ℕ): ℝ[n]:
+    v: ℝ[n] = for i:ℕ(n) -> i*0
+    v[0:H] = W1[0]
+    v[H:2*H] = W1[1]
+    v[2*H:3*H] = b1[0]
+    v[3*H:4*H] = W2[:,0]
+    v[4*H:4*H+1] = b2[0]
+    return v
+
+def linear(x: ℝ[1,li], W: ℝ[li,lo], b: ℝ[1,lo]): ℝ[1,lo]:
+    return x @ W + b
+
+def rand2d(ra: ℝ, rb: ℝ, σ: ℝ): ℝ[ra,rb]:
+    return for i:ℕ(ra) -> ε: ℝ[rb] ~ Normal(0.0, σ, rb)
+
+def zeros2d(za: ℝ, zb: ℝ): ℝ[za,zb]:
+    return for i:ℕ(za) -> for j:ℕ(zb) -> j*0.0
+
+class Net(H: ℕ):
+    def apply(θ: ℝ[n], t: ℝ, x: ℝ) -> ℝ:
+        h = this.H
+        wt: ℝ[1,H] = [θ[0 : h]]
+        wx: ℝ[1,H] = [θ[h : 2*h]]
+        b1: ℝ[1,H] = [θ[2*h : 3*h]]
+        w2: ℝ[H] = θ[3*h : 4*h]
+        hid: ℝ[1,H] = tanh(t * wt + x * wx + b1)
+        out: ℝ = sum(hid[0] * w2) + θ[4*h]
+        return out
+
+class PINN(net: Net, θ: ℝ[n], m: ℕ, n: ℕ):
+    S: ℝ[m,n]
+    Y: ℝ[m,n]
+    θp: ℝ[n]
+    gp: ℝ[n]
+    step: ℝ
+    def u(t: ℝ, x: ℝ): ℝ:
+        return this.net.apply(this.θ, t, x)
+    def f(t: ℝ, x: ℝ): ℝ:
+        uu: ℝ = this.u(t, x)
+        u_t: ℝ = grad(uu, t)
+        u_x: ℝ = grad(uu, x)
+        u_xx: ℝ = grad(u_x, x)
+        return u_t + uu * u_x - (0.01 / 3.14159265) * u_xx
+    def λ(t: ℝ, x: ℝ) -> ℝ:
+        return this.u(t, x)
+    def predict(t: ℝ, Xg: ℝ[10]): ℝ[10]:
+        out: ℝ[10] = for i:ℕ(10) -> i*0.0
+        for i:ℕ(10):
+            out[i] = this.u(t, Xg[i])
+        return out
+    def loss(Tu: ℝ[10], Xu: ℝ[10], Uu: ℝ[10], Tf: ℝ[10], Xf: ℝ[10]): ℝ:
+        mse_u: ℝ = 0.0
+        for i:ℕ(10):
+            r = this.u(Tu[i], Xu[i]) - Uu[i]
+            mse_u += r * r
+        mse_f: ℝ = 0.0
+        for i:ℕ(10):
+            fi = this.f(Tf[i], Xf[i])
+            mse_f += fi * fi
+        return mse_u / 10.0 + mse_f / 10.0
+    def update_params(lr: ℝ, learnable_grads: ℝ[1, n]):
+        g: ℝ[n] = learnable_grads[0]
+        θ: ℝ[n] = this.learnable_params[0]
+        this.S = pushrow(this.S, θ - this.θp, this.m)
+        this.Y = pushrow(this.Y, g - this.gp, this.m)
+        c = this.step
+        if c > this.m * 1.0:
+            c = this.m * 1.0
+        d: ℝ[n] = lbfgs(g, this.S, this.Y, c, this.m, this.n)
+        this.θp = θ
+        this.gp = g
+        this.θ = θ + lr * d
+        this.step = this.step + 1.0
+    def train(Tu: ℝ[10], Xu: ℝ[10], Uu: ℝ[10], Tf: ℝ[10], Xf: ℝ[10], epochs: ℕ, lr: ℝ): ℝ[epochs]:
+        this.S = zeros2d(this.m, this.n)
+        this.Y = zeros2d(this.m, this.n)
+        this.θp = for i:ℕ(this.n) -> i*0.0
+        this.gp = for i:ℕ(this.n) -> i*0.0
+        this.step = this.step * 0.0
+        losses: ℝ[epochs] = for i:ℕ(epochs) -> i*0
+        for epoch:ℕ(epochs):
+            L = this.loss(Tu, Xu, Uu, Tf, Xf)
+            learnable_grads = grad(L, this.learnable_params)
+            this.update_params(lr, learnable_grads)
+            epoch_loss = this.loss(Tu, Xu, Uu, Tf, Xf)
+            losses[epoch] = epoch_loss
+            print(epoch_loss)
+        return losses
+
+H: ℝ = 32
+n: ℝ = 4*H + 1
+m: ℕ = 10
+lr: ℝ = 1.0
+s1: ℝ = sqrt(2.0 / (2.0 + H))
+s2: ℝ = sqrt(2.0 / (H + 1.0))
+W1: ℝ[2,H] = rand2d(2, H, s1)
+b1: ℝ[1,H] = zeros2d(1, H)
+W2: ℝ[H,1] = rand2d(H, 1, s2)
+b2: ℝ[1,1] = zeros2d(1, 1)
+θ0: ℝ[n] = squeeze(W1, b1, W2, b2, H, n)
+net: Net = Net(H)
+pinn: PINN = PINN(net, θ0, m, n)
+print(DEVICE)
+
+Ni: ℝ = 6
+Nb: ℝ = 2
+Tu: ℝ[10] = for i:ℕ(10) -> i*0.0
+Xu: ℝ[10] = for i:ℕ(10) -> i*0.0
+Uu: ℝ[10] = for i:ℕ(10) -> i*0.0
+for j:ℕ(Ni):
+    xj = -1.0 + 2.0 * j / (Ni - 1)
+    Xu[j] = xj
+    Uu[j] = -sin(3.14159265 * xj)
+for k:ℕ(Nb):
+    tk = k / (Nb - 1)
+    Tu[Ni + k] = tk
+    Xu[Ni + k] = -1.0
+    Tu[Ni + Nb + k] = tk
+    Xu[Ni + Nb + k] = 1.0
+Tf: ℝ[10] ~ 𝒰(0.0, 1.0, 10)
+Xf: ℝ[10] ~ 𝒰(-1.0, 1.0, 10)
+
+epochs: ℕ = 1
+losses: ℝ[epochs] = pinn.train(Tu, Xu, Uu, Tf, Xf, epochs, lr)
+
+Xg: ℝ[10] = for i:ℕ(10) -> -1.0 + 2.0 * i / 9
+pred25: ℝ[10] = pinn.predict(0.25, Xg)
+pred50: ℝ[10] = pinn.predict(0.50, Xg)
+pred75: ℝ[10] = pinn.predict(0.75, Xg)
+# exact reference + plotting live in runtime.py, commented for CI
+# exact25: ℝ[10] = burgers_exact(0.25, Xg)
+# exact50: ℝ[10] = burgers_exact(0.50, Xg)
+# exact75: ℝ[10] = burgers_exact(0.75, Xg)
+# plot_snapshots(Xg, pred25, pred50, pred75, exact25, exact50, exact75)
