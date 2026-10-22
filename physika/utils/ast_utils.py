@@ -735,6 +735,7 @@ def ast_to_torch_expr(node: ASTNode,
             "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
+            "relu": "torch.relu"
         }
         multi_arg_funcs = {
             "atan2": "torch.atan2",
@@ -748,7 +749,9 @@ def ast_to_torch_expr(node: ASTNode,
             "zeros": "torch.zeros",
             "rfft": "torch.fft.rfft",
             "irfft": "torch.fft.irfft",
-            "gelu": "torch.nn.functional.gelu"
+            "gelu": "torch.nn.functional.gelu",
+            "softmax": "torch.softmax",
+            "to_tensor": "torch.tensor"
         }
         list_arg_funcs = {
             "concat": "torch.cat",
@@ -762,13 +765,43 @@ def ast_to_torch_expr(node: ASTNode,
                     f"{', '.join(f'int({a})' for a in arg_strs)}, "
                     f"device=DEVICE)")
 
+        elif func_name == "ones":
+            # Shape args must be ints
+            return (f"torch.ones("
+                    f"{', '.join(f'int({a})' for a in arg_strs)}, "
+                    f"device=DEVICE)")
+
         elif func_name == "reshape":
             # tensor node
             x = arg_strs[0]
-            # dim node
+            dims = arg_strs[1:]
+            if len(dims) == 1:
+                dim = dims[0]
+                shape = f"({dim},) if isinstance({dim}, int) else {dim}"
+            else:
+                shape = f"({', '.join(dims)})"
+            return f"torch.reshape({x}, {shape})"
+
+        elif func_name == "mean_keepdim":
+            x = arg_strs[0]
             dim = arg_strs[1]
-            return (f"torch.reshape({x}, "
-                    f"({dim},) if isinstance({dim}, int) else {dim})")
+            return f"torch.mean({x}, dim={dim}, keepdim=True)"
+
+        elif func_name == "view":
+            x = arg_strs[0]
+            shape = ", ".join(arg_strs[1:])
+            return f"{x}.view({shape})"
+
+        elif func_name == "transpose":
+            x = arg_strs[0]
+            dim0 = arg_strs[1]
+            dim1 = arg_strs[2]
+            return f"torch.transpose({x}, {dim0}, {dim1})"
+
+        elif func_name == "size":
+            x = arg_strs[0]
+            dim = arg_strs[1]
+            return f"{x}.size({dim})"
 
         elif func_name in multi_arg_funcs:
             return f"{multi_arg_funcs[func_name]}({', '.join(arg_strs)})"

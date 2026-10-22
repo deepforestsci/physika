@@ -1,5 +1,5 @@
-Transformers
-============
+Tiny Transformers
+=================
 
 
 In this tutorial we implement a decoder only Transformer architecture in Physika. [Vaswani2017]_ [ZeroEntropyDecoderOnly]_
