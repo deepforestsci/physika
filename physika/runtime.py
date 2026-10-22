@@ -1061,3 +1061,35 @@ def detach_grad(x):
     True
     """
     return x.detach().requires_grad_(True)
+
+
+def causal_mask(seq_len):
+    """
+    Create a causal attention mask for a sequence.
+
+    Parameters
+    ----------
+    seq_len: int
+        Length of the input sequence.
+
+    Returns
+    -------
+    torch.Tensor
+        A tensor of shape (seq_len, seq_len), where future
+        positions are filled with negative infinity and the
+        diagonal and past positions are zero.
+
+    Examples
+    --------
+    >>> from physika.runtime import causal_mask
+    >>> mask = causal_mask(3)
+    >>> mask
+    tensor([[0., -inf, -inf],
+            [0., 0., -inf],
+            [0., 0., 0.]])
+    """
+    mask = torch.triu(
+        torch.ones(seq_len, seq_len, device=DEVICE),
+        diagonal=1,
+    )
+    return mask.masked_fill(mask == 1, float("-inf"))
