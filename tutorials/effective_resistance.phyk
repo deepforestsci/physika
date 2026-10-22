@@ -1,0 +1,235 @@
+# ==================================================================
+# Resistance between any two points of a resistor network
+# ==================================================================
+#
+# A circuit made of resistors is a weighted graph: every junction is a
+# node (numbered 0, 1, ..., n-1) and resistor k joins the two nodes
+# edges[k, 0] and edges[k, 1] with resistance Rs[k] (in Ω).
+#
+# Kirchhoff's current law together with Ohm's law at every node i:
+#     Σ_j (v_i - v_j) / R_ij = I_i
+# or, in matrix form, G v = I where
+#     G : conductance matrix (the weighted graph Laplacian)
+#     v : node voltages
+#     I : current injected into each node
+#
+# Recipe for the effective resistance R_ab between nodes a and b:
+#     1. Push a 1 A test current into node a and draw it out of node b.
+#     2. Ground node b (v_b = 0). G alone is singular because only
+#        voltage differences matter, grounding one node fixes that.
+#     3. Solve G v = I for the node voltages.
+#     4. Ohm's law: R_ab = (v_a - v_b) / 1 A.
+#
+# Note: R is an alias for ℝ in Physika, so resistances are named Rs.
+
+# ----------------------------
+# Helper functions
+# ----------------------------
+
+def num_rows(x: ℝ[m, n]): ℕ:
+    total: ℕ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def identity(size: ℕ): ℝ[size, size]:
+    eye: ℝ[size, size] = zeros(size, size)
+    for i: ℕ(size):
+        eye[i, i] = 1.0
+    return eye
+
+# ----------------------------
+# Conductance matrix
+# ----------------------------
+
+# n_nodes: Number of nodes (junctions) in the circuit
+# edges: Pair of nodes joined by each resistor
+# Rs: Resistance of each resistor
+# Resistor k with conductance g = 1 / Rs[k] between nodes u and v adds
+#     +g to G[u, u] and G[v, v]
+#     -g to G[u, v] and G[v, u]
+def conductance_matrix(n_nodes: ℕ, edges: ℝ[m, 2], Rs: ℝ[m]): ℝ[n, n]:
+    G: ℝ[n_nodes, n_nodes] = zeros(n_nodes, n_nodes)
+    n_edges: ℕ = num_rows(edges)
+    for k: ℕ(n_edges):
+        u = edges[k, 0]
+        v = edges[k, 1]
+        g = 1.0 / Rs[k]
+        G[u, u] = G[u, u] + g
+        G[v, v] = G[v, v] + g
+        G[u, v] = G[u, v] - g
+        G[v, u] = G[v, u] - g
+    return G
+
+# ----------------------------
+# Linear solver
+# ----------------------------
+
+# Gauss-Jordan elimination for A x = b.
+# Step k divides the pivot row by its pivot and removes column k from
+# every other row. Both are done at once by the rank-one update
+#     M <- M - c ⊗ r,   r = M[k, :] / M[k, k],   c = M[:, k] - e_k
+# so after the last step M is the identity and x holds the solution.
+# Every step builds new arrays instead of editing M in place, which
+# keeps the solver differentiable with grad().
+# No pivoting is needed: the grounded conductance matrix of a
+# connected circuit is symmetric positive definite.
+def gauss_jordan_solve(A: ℝ[n, n], b: ℝ[n]): ℝ[n]:
+    size: ℕ = num_rows(A)
+    eye: ℝ[size, size] = identity(size)
+    M: ℝ[n, n] = A
+    x: ℝ[n] = b
+    for k: ℕ(size):
+        pivot = M[k, k]
+        r = for j: ℕ(size) → M[k, j] / pivot
+        r_x = x[k] / pivot
+        c = for i: ℕ(size) → M[i, k] - eye[i, k]
+        M = for i: ℕ(size) → for j: ℕ(size) → M[i, j] - c[i] * r[j]
+        x = for i: ℕ(size) → x[i] - c[i] * r_x
+    return x
+
+# ----------------------------
+# Effective resistance
+# ----------------------------
+
+# Node voltages when 1 A enters at node a and leaves at grounded node b.
+# Grounding b replaces its row and column of G by those of the identity
+# (v_b = 0), and the test current is injected at a.
+def node_voltages(n_nodes: ℕ, edges: ℝ[m, 2], Rs: ℝ[m], a: ℕ, b: ℕ): ℝ[n]:
+    G: ℝ[n_nodes, n_nodes] = conductance_matrix(n_nodes, edges, Rs)
+    eye: ℝ[n_nodes, n_nodes] = identity(n_nodes)
+    e_a: ℝ[n_nodes] = eye[a]
+    e_b: ℝ[n_nodes] = eye[b]
+    G_ground: ℝ[n_nodes, n_nodes] = for i: ℕ(n_nodes) → for j: ℕ(n_nodes) → G[i, j] * (1.0 - e_b[i]) * (1.0 - e_b[j]) + e_b[i] * e_b[j]
+    I_in: ℝ[n_nodes] = for i: ℕ(n_nodes) → e_a[i] * (1.0 - e_b[i])
+    return gauss_jordan_solve(G_ground, I_in)
+
+# Resistance between nodes a and b: R_ab = (v_a - v_b) / 1 A
+def effective_resistance(n_nodes: ℕ, edges: ℝ[m, 2], Rs: ℝ[m], a: ℕ, b: ℕ): ℝ:
+    v: ℝ[n_nodes] = node_voltages(n_nodes, edges, Rs, a, b)
+    return v[a] - v[b]
+
+# Resistance between every pair of nodes (symmetric, zero diagonal)
+def resistance_matrix(n_nodes: ℕ, edges: ℝ[m, 2], Rs: ℝ[m]): ℝ[n, n]:
+    R_eff: ℝ[n_nodes, n_nodes] = zeros(n_nodes, n_nodes)
+    for a: ℕ(n_nodes):
+        for b: ℕ(a + 1, n_nodes):
+            r_ab = effective_resistance(n_nodes, edges, Rs, a, b)
+            R_eff[a, b] = r_ab
+            R_eff[b, a] = r_ab
+    return R_eff
+
+# Current through each resistor (from edges[k, 0] to edges[k, 1]) when
+# 1 A flows from node a to node b
+def branch_currents(n_nodes: ℕ, edges: ℝ[m, 2], Rs: ℝ[m], a: ℕ, b: ℕ): ℝ[m]:
+    v: ℝ[n_nodes] = node_voltages(n_nodes, edges, Rs, a, b)
+    n_edges: ℕ = num_rows(edges)
+    currents: ℝ[n_edges] = for k: ℕ(n_edges) → (v[edges[k, 0]] - v[edges[k, 1]]) / Rs[k]
+    return currents
+
+# ------------------------------------------------------------------
+# Example 1: Series and parallel resistors
+# ------------------------------------------------------------------
+
+# 1 Ω, 2 Ω and 3 Ω in series along 0 - 1 - 2 - 3
+# Expected: 1 + 2 + 3 = 6 Ω
+series_edges: ℝ[3, 2] = [[0, 1], [1, 2], [2, 3]]
+series_Rs: ℝ[3] = [1.0, 2.0, 3.0]
+R_series: ℝ = effective_resistance(4, series_edges, series_Rs, 0, 3)
+print(R_series)
+
+# 2 Ω and 3 Ω in parallel between nodes 0 and 1
+# Expected: 2 * 3 / (2 + 3) = 1.2 Ω
+parallel_edges: ℝ[2, 2] = [[0, 1], [0, 1]]
+parallel_Rs: ℝ[2] = [2.0, 3.0]
+R_parallel: ℝ = effective_resistance(2, parallel_edges, parallel_Rs, 0, 1)
+print(R_parallel)
+
+# ------------------------------------------------------------------
+# Example 2: Wheatstone bridge
+# ------------------------------------------------------------------
+#
+#              A (0)
+#             /     \
+#         R1 /       \ R2
+#           /    R5   \
+#       C (1) ------- D (2)
+#           \         /
+#         R3 \       / R4
+#             \     /
+#              B (3)
+#
+# The bridge is not a series/parallel combination, but the same recipe
+# still works.
+bridge_edges: ℝ[5, 2] = [[0, 1], [0, 2], [1, 3], [2, 3], [1, 2]]
+
+# Balanced bridge (R1 / R3 = R2 / R4): no current flows through R5, so
+# R_AB = (R1 + R3) || (R2 + R4) = 3 * 6 / (3 + 6) = 2 Ω
+balanced_Rs: ℝ[5] = [1.0, 2.0, 2.0, 4.0, 5.0]
+R_balanced: ℝ = effective_resistance(4, bridge_edges, balanced_Rs, 0, 3)
+print(R_balanced)
+I_balanced: ℝ[5] = branch_currents(4, bridge_edges, balanced_Rs, 0, 3)
+print(I_balanced)
+
+# Unbalanced bridge. The closed-form Wheatstone result
+#     R_AB = (R1 R2 (R3 + R4) + R3 R4 (R1 + R2) + R5 (R1 + R3) (R2 + R4))
+#            / ((R1 + R2) (R3 + R4) + R5 (R1 + R2 + R3 + R4))
+# gives 170 / 71 ≈ 2.3944 Ω
+unbalanced_Rs: ℝ[5] = [1.0, 2.0, 3.0, 4.0, 5.0]
+R_unbalanced: ℝ = effective_resistance(4, bridge_edges, unbalanced_Rs, 0, 3)
+print(R_unbalanced)
+
+# ------------------------------------------------------------------
+# Example 3: Cube of twelve 1 Ω resistors
+# ------------------------------------------------------------------
+#
+#        7 -------- 6
+#       /|         /|
+#      4 -------- 5 |
+#      | |        | |
+#      | 3 -------|-2
+#      |/         |/
+#      0 -------- 1
+#
+# Classic results:
+#     along an edge          (0, 1): 7/12 Ω ≈ 0.5833 Ω
+#     across a face diagonal (0, 2): 3/4  Ω = 0.75   Ω
+#     across the body        (0, 6): 5/6  Ω ≈ 0.8333 Ω
+cube_edges: ℝ[12, 2] = [
+    [0, 1], [1, 2], [2, 3], [3, 0],
+    [4, 5], [5, 6], [6, 7], [7, 4],
+    [0, 4], [1, 5], [2, 6], [3, 7]
+]
+cube_Rs: ℝ[12] = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+R_edge: ℝ = effective_resistance(8, cube_edges, cube_Rs, 0, 1)
+R_face: ℝ = effective_resistance(8, cube_edges, cube_Rs, 0, 2)
+R_body: ℝ = effective_resistance(8, cube_edges, cube_Rs, 0, 6)
+print(R_edge)
+print(R_face)
+print(R_body)
+
+# Resistance between any two corners of the cube
+R_cube: ℝ[8, 8] = resistance_matrix(8, cube_edges, cube_Rs)
+print(R_cube)
+
+# ------------------------------------------------------------------
+# Sensitivity of R_ab to each resistor with grad()
+# ------------------------------------------------------------------
+#
+# The solver is differentiable, so grad() gives ∂R_ab / ∂Rs[k].
+# Physics predicts ∂R_ab / ∂Rs[k] = I_k², the squared current through
+# resistor k when 1 A flows from a to b (Rayleigh's monotonicity law:
+# making any resistor larger can never lower R_ab).
+
+# Unbalanced bridge: gradient matches the squared branch currents
+dR_unbalanced: ℝ[5] = grad(effective_resistance(4, bridge_edges, unbalanced_Rs, 0, 3), unbalanced_Rs)
+print(dR_unbalanced)
+I_unbalanced: ℝ[5] = branch_currents(4, bridge_edges, unbalanced_Rs, 0, 3)
+print(I_unbalanced * I_unbalanced)
+
+# Balanced bridge: no current in R5, so changing R5 has no effect
+dR_balanced: ℝ[5] = grad(effective_resistance(4, bridge_edges, balanced_Rs, 0, 3), balanced_Rs)
+print(dR_balanced)
