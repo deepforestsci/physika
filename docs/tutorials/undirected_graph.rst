@@ -32,8 +32,8 @@ ways:
   ``v`` (``1.0`` for a plain unweighted edge);
 - A method that changes edges builds a copy of the matrix, updates the copy
   and stores it back in ``this.adjacency``;
-- Adding a vertex changes the matrix shape, and so the graph's type
-  (``ℝ[n, n]`` → ``ℝ[n+1, n+1]``). A method cannot do that to its own
+- Adding a vertex changes the matrix shape, and so the graph's type changes
+  from ``ℝ[n, n]`` to ``ℝ[n+1, n+1]``. A method cannot do that to its own
   ``this``, so ``add_vertex_adjacency`` returns the larger matrix and a new
   ``UndirectedGraph`` is built from it.
 
@@ -103,7 +103,7 @@ Function summary
    * - ``sq_degree_sum_of(x, s)``
      - Returns :math:`\sum_i (s\,\text{row\_sum}(x_i))^2` for a square matrix. ``sq_degree_sum`` calls it so the vertex count is a size parameter the CIC checker can use.
    * - ``add_vertex_adjacency(x)``
-     - Returns a ``ℝ[k+1, k+1]`` matrix with ``x`` copied into the top-left block and a zero row and column added, i.e. the adjacency with one extra isolated vertex.
+     - Returns a ``ℝ[k+1, k+1]`` matrix with ``x`` copied into the top-left block and a zero row and column added.
  
 ``sq_degree_sum(s)`` sums the squared weighted degree of every vertex:
 
