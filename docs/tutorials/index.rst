@@ -107,6 +107,7 @@ Tutorials
    kmeans
    neural_ode
    vae_mnist
+   tiny_transformers
 
 .. toctree::
    :maxdepth: 1
