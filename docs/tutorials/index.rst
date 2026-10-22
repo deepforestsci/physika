@@ -46,7 +46,11 @@ Tutorials
 
    sir
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Electrical Systems & Circuit Dynamics
 
+   electrostatics_and_circuit_dynamics
 
 .. toctree::
    :maxdepth: 1
@@ -102,7 +106,6 @@ Tutorials
    undirected_graph
    kmeans
    neural_ode
-   electrostatics_and_dynamics
 
 .. toctree::
    :maxdepth: 1

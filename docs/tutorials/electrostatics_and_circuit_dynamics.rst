@@ -1,5 +1,5 @@
-Electrostatics and Dynamics
-===========================
+Electrostatics and Circuit Dynamics
+===================================
 
 In this tutorial we will explore application of physika for conducting simple
 simulations of electrical systems. **Electrostatics** studies charges that are
@@ -43,7 +43,7 @@ where :math:`\varepsilon_0` is the vacuum permittivity.
     def F(q1: ℝ, q2: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
         return (1 / (4 * π * ε0)) * (q1 * q2 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-    coulomb_f = F(2, 2, [0, 0, 0], [1, 1, 1])
+    coulomb_f: ℝ[3] = F(2, 2, [0, 0, 0], [1, 1, 1])
     print(coulomb_f)
 
 output:
@@ -65,19 +65,26 @@ The electric field produced by a point charge :math:`q_1` at position
     \frac{q_1}{\lVert \mathbf{x}_2 - \mathbf{x}_1 \rVert^2}
     \, \frac{\mathbf{x}_2 - \mathbf{x}_1}{\lVert \mathbf{x}_2 - \mathbf{x}_1 \rVert}
 
-where :math:`\varepsilon_0` is the vacuum permittivity.
-
 .. code:: text
 
     def E(q1: ℝ, x1: ℝ[3], x2: ℝ[3]): ℝ[3]:
         return (1 / (4 * π * ε0)) * (q1 / dist_3d(x1, x2)**2) * ((x2 - x1) / dist_3d(x1, x2))
 
-    coulomb_e = E(2, [0, 0, 0], [1, 1, 1])
+    coulomb_e: ℝ[3] = E(2, [0, 0, 0], [1, 1, 1])
     print(coulomb_e)
 
-Output::
+Output:
+
+.. code:: text
 
     [3459386624.0, 3459386624.0, 3459386624.0] ∈ ℝ[3]
+
+where :math:`\varepsilon_0` is the vacuum permittivity and :math:`\pi` is a
+irrational scientific constant which is ratio of circumference on diameter.
+
+.. code:: text
+
+    π, ε0: ℝ = 3.14159, 0.000000000008854
 
 Simulating an RC Circuit
 ------------------------
@@ -105,8 +112,8 @@ where :math:`\tau = R C` is the time constant of the circuit.
 
 .. code:: text
 
-    def dV_dt(V: ℝ, Capa: ℝ, Ress: ℝ): ℝ:
-        return -V / (Ress * Capa)
+    def ΔV_Δt(V: ℝ, Capacitance: ℝ, Ressistance: ℝ): ℝ:
+        return -V / (Ressistance * Capacitance)
 
 Time Integration with RK4
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -130,11 +137,11 @@ and combines them as a weighted average:
 
 .. code:: text
 
-    def rk4_step(V: ℝ, Capa: ℝ, Ress: ℝ, dt: ℝ): ℝ:
-        k1: ℝ = dV_dt(V, Capa, Ress)
-        k2: ℝ = dV_dt(V + 0.5 * dt * k1, Capa, Ress)
-        k3: ℝ = dV_dt(V + 0.5 * dt * k2, Capa, Ress)
-        k4: ℝ = dV_dt(V + dt * k3, Capa, Ress)
+    def rk4_step(V: ℝ, Capacitance: ℝ, Ressistance: ℝ, dt: ℝ): ℝ:
+        k1: ℝ = dV_dt(V, Capacitance, Ressistance)
+        k2: ℝ = dV_dt(V + 0.5 * dt * k1, Capacitance, Ressistance)
+        k3: ℝ = dV_dt(V + 0.5 * dt * k2, Capacitance, Ressistance)
+        k4: ℝ = dV_dt(V + dt * k3, Capacitance, Ressistance)
         return V + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
 Running the Simulation
@@ -146,14 +153,14 @@ voltage across all the given timesteps. Then we use ``current_at``,
 
 .. code:: text
 
-    def voltage_at(V: ℝ, Capa: ℝ, Ress: ℝ, dt: ℝ, steps: ℕ): ℝ:
+    def voltage_at(V: ℝ, Capacitance: ℝ, Ressistance: ℝ, Δt: ℝ, steps: ℕ): ℝ:
         for i: ℕ(steps):
-            V = rk4_step(V, Capa, Ress, dt)
+            V = rk4_step(V, Capacitance, Ressistance, Δt)
         return V
 
-    def current_at(V: ℝ, Capa: ℝ, Ress: ℝ, dt: ℝ, steps: ℕ): ℝ:
-        V: ℝ = voltage_at(V, Capa, Ress, dt, steps)
-        return V / Ress
+    def current_at(V: ℝ, Capacitance: ℝ, Ressistance: ℝ, Δt: ℝ, steps: ℕ): ℝ:
+        V: ℝ = voltage_at(V, Capacitance, Ressistance, Δt, steps)
+        return V / Ressistance
 
 Here, we take a 1 F capacitor charged to 10 V and discharge it through a 10 Ω
 resistor, so the time consant is :math:`\tau = RC = 10` s. With
@@ -162,14 +169,14 @@ which is :math:`0.2\tau`.
 
 .. code:: text
 
-    Capa, Ress, V0: ℝ = 1.0, 10.0, 10.0
-    dt: ℝ = 0.01
+    Capacitance, Ressistance, V0: ℝ = 1.0, 10.0, 10.0
+    Δt: ℝ = 0.01
     steps: ℕ = 200
 
-    V_final: ℝ = voltage_at(V0, Capa, Ress, dt, steps)
+    V_final: ℝ = voltage_at(V0, Capacitance, Ressistance, Δt, steps)
     print(V_final)
 
-    I_final: ℝ = current_at(V0, Capa, Ress, dt, steps)
+    I_final: ℝ = current_at(V0, Capacitance, Ressistance, Δt, steps)
     print(I_final)
 
 Output::
@@ -194,7 +201,7 @@ result:
 
 .. code:: text
 
-    V_exact: ℝ = V0 * exp(-dt * steps / (Ress * Capa))
+    V_exact: ℝ = V0 * exp(-Δt * steps / (Ressistance * Capacitance))
     print(V_exact)
 
 Output::
