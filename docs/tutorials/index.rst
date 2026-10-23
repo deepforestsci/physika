@@ -105,6 +105,7 @@ Tutorials
    undirected_graph
    kmeans
    neural_ode
+   tiny_transformers
 
 .. toctree::
    :maxdepth: 1
