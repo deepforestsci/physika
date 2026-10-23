@@ -2,81 +2,55 @@
 # Nodal analysis of a resistive circuit
 #
 # Nodes are numbered 1..num_nodes, node 0 is ground.
+# nodes lists the node numbers [1, 2, ..., num_nodes].
 # Each resistor row is       [node1, node2, resistance]
 # Each current source row is [node1, node2, current], current flows node1 -> node2
 #
 # Builds the conductance matrix G and the current vector I, then solves
-# G V = I with Gaussian elimination (partial pivoting).
+# G V = I with Gauss-Jordan elimination.
 # =====================================================================
 
-def zeros_1d(n: ℕ): ℝ[n]:
-    return for i: ℕ(n) -> i * 0.0
+# 1 if a == b, 0 otherwise
+def delta(a: ℝ, b: ℝ): ℝ:
+    if a == b:
+        return 1.0
+    else:
+        return 0.0
 
-def zeros_2d(n: ℕ): ℝ[n, n]:
-    return for i: ℕ(n) -> for j: ℕ(n) -> i * 0.0
+# Entry of the incidence matrix for a branch n1 -> n2 at a given node:
+# +1 if the branch leaves the node, -1 if it enters it, 0 otherwise.
+# Ground (node 0) never matches, so it drops out of the system.
+def incidence(n1: ℝ, n2: ℝ, node: ℝ): ℝ:
+    return delta(n1, node) - delta(n2, node)
 
-# Conductance matrix
-def conductance_matrix(num_nodes: ℕ, resistors: ℝ[k, 3], num_resistors: ℕ): ℝ[num_nodes, num_nodes]:
-    G: ℝ[num_nodes, num_nodes] = zeros_2d(num_nodes)
-    n1: ℝ = 0.0
-    n2: ℝ = 0.0
-    g: ℝ = 0.0
-    for r: ℕ(num_resistors):
-        n1 = resistors[r, 0]
-        n2 = resistors[r, 1]
-        g = 1.0 / resistors[r, 2]
-        if n1 != 0.0:
-            G[n1 - 1, n1 - 1] += g
-        if n2 != 0.0:
-            G[n2 - 1, n2 - 1] += g
-        # both nodes are non-ground
-        if n1 != 0.0:
-            if n2 != 0.0:
-                G[n1 - 1, n2 - 1] = G[n1 - 1, n2 - 1] - g
-                G[n2 - 1, n1 - 1] = G[n2 - 1, n1 - 1] - g
-    return G
+# Conductance matrix G = Aᵀ diag(1 / R) A, where A is the incidence matrix
+def conductance_matrix(num_nodes: ℕ, nodes: ℝ[num_nodes], num_resistors: ℕ, resistors: ℝ[num_resistors, 3]): ℝ[num_nodes, num_nodes]:
+    return for p: ℕ(num_nodes) -> for q: ℕ(num_nodes) -> sum(for r: ℕ(num_resistors) -> incidence(resistors[r, 0], resistors[r, 1], nodes[p]) * incidence(resistors[r, 0], resistors[r, 1], nodes[q]) / resistors[r, 2])
 
-# Current vector
-def current_vector(num_nodes: ℕ, sources: ℝ[k, 3], num_sources: ℕ): ℝ[num_nodes]:
-    I: ℝ[num_nodes] = zeros_1d(num_nodes)
-    n1: ℝ = 0.0
-    n2: ℝ = 0.0
-    current: ℝ = 0.0
-    for s: ℕ(num_sources):
-        n1 = sources[s, 0]
-        n2 = sources[s, 1]
-        current = sources[s, 2]
-        # current leaves n1
-        if n1 != 0.0:
-            I[n1 - 1] = I[n1 - 1] - current
-        # current enters n2
-        if n2 != 0.0:
-            I[n2 - 1] += current
-    return I
-
-def eye(n: ℕ): ℝ[n, n]:
-    E: ℝ[n, n] = zeros_2d(n)
-    for i: ℕ(n):
-        E[i, i] = 1.0
-    return E
+# Current vector: current leaves node1 and enters node2
+def current_vector(num_nodes: ℕ, nodes: ℝ[num_nodes], num_sources: ℕ, sources: ℝ[num_sources, 3]): ℝ[num_nodes]:
+    return for p: ℕ(num_nodes) -> sum(for s: ℕ(num_sources) -> 0.0 - incidence(sources[s, 0], sources[s, 1], nodes[p]) * sources[s, 2])
 
 # Solve A x = b by Gauss-Jordan elimination.
+# rows holds distinct labels for the rows, delta(rows[p], rows[c]) is the
+# identity matrix entry at (p, c).
 # Every step builds a new A and b instead of updating them in place, so
 # autograd can differentiate the solution with respect to A and b.
 # No pivoting: a conductance matrix of a grounded circuit is symmetric
 # positive definite, so the pivots A[c, c] never vanish.
-def linear_solve(n: ℕ, A: ℝ[n, n], b: ℝ[n]): ℝ[n]:
-    E: ℝ[n, n] = eye(n)
+def linear_solve(n: ℕ, rows: ℝ[n], A: ℝ[n, n], b: ℝ[n]): ℝ[n]:
     for c: ℕ(n):
-        b = for i: ℕ(n) -> b[i] - (A[i, c] - E[i, c]) * b[c] / A[c, c]
-        A = for i: ℕ(n) -> for j: ℕ(n) -> A[i, j] - (A[i, c] - E[i, c]) * A[c, j] / A[c, c]
+        b = for p: ℕ(n) -> b[p] - (A[p, c] - delta(rows[p], rows[c])) * b[c] / A[c, c]
+        A = for p: ℕ(n) -> for q: ℕ(n) -> A[p, q] - (A[p, c] - delta(rows[p], rows[c])) * A[c, q] / A[c, c]
     return b
 
-def nodal_analysis(num_nodes: ℕ, resistors: ℝ[k, 3], num_resistors: ℕ, sources: ℝ[m, 3], num_sources: ℕ): ℝ[num_nodes]:
-    G: ℝ[num_nodes, num_nodes] = conductance_matrix(num_nodes, resistors, num_resistors)
-    I: ℝ[num_nodes] = current_vector(num_nodes, sources, num_sources)
-    return linear_solve(num_nodes, G, I)
+def nodal_analysis(num_nodes: ℕ, nodes: ℝ[num_nodes], num_resistors: ℕ, resistors: ℝ[num_resistors, 3], num_sources: ℕ, sources: ℝ[num_sources, 3]): ℝ[num_nodes]:
+    G: ℝ[num_nodes, num_nodes] = conductance_matrix(num_nodes, nodes, num_resistors, resistors)
+    I: ℝ[num_nodes] = current_vector(num_nodes, nodes, num_sources, sources)
+    return linear_solve(num_nodes, nodes, G, I)
 
+
+nodes: ℝ[2] = [1, 2]
 
 resistors: ℝ[3, 3] = [
     [1, 2, 1000],
@@ -90,7 +64,7 @@ current_sources: ℝ[2, 3] = [
     [0, 2, 0.001]
 ]
 
-voltages: ℝ[2] = nodal_analysis(2, resistors, 3, current_sources, 2)
+voltages: ℝ[2] = nodal_analysis(2, nodes, 3, resistors, 2, current_sources)
 voltages
 
 
@@ -98,20 +72,30 @@ voltages
 # Differentiable circuit analysis
 # =====================================================================
 
-# V1 of the circuit above as a function of its three resistances
-def v1_of(Rs: ℝ[3]): ℝ:
+# V1 of the circuit above as a function of its three resistances.
+# The resistances are written into res by indexed assignment, an array
+# literal holding them would detach them from autograd.
+def v1_of(R12: ℝ, R10: ℝ, R20: ℝ): ℝ:
     res: ℝ[3, 3] = [
-        [1, 2, Rs[0]],
-        [1, 0, Rs[1]],
-        [2, 0, Rs[2]]
+        [1, 2, 0.0],
+        [1, 0, 0.0],
+        [2, 0, 0.0]
     ]
-    v: ℝ[2] = nodal_analysis(2, res, 3, current_sources, 2)
+    res[0, 2] = R12
+    res[1, 2] = R10
+    res[2, 2] = R20
+    v: ℝ[2] = nodal_analysis(2, nodes, 3, res, 2, current_sources)
     return v[0]
 
-Rs: ℝ[3] = [1000.0, 1000.0, 1000.0]
+R12: ℝ = 1000.0
+R10: ℝ = 1000.0
+R20: ℝ = 1000.0
 
 # Sensitivities dV1/dR_k, in volts per ohm
-sensitivities: ℝ[3] = grad(v1_of(Rs), Rs)
+dV1_dR12: ℝ = grad(v1_of(R12, R10, R20), R12)
+dV1_dR10: ℝ = grad(v1_of(R12, R10, R20), R10)
+dV1_dR20: ℝ = grad(v1_of(R12, R10, R20), R20)
+sensitivities: ℝ[3] = [dV1_dR12, dV1_dR10, dV1_dR20]
 sensitivities
 
 # ---------------------------------------------------------------------
@@ -125,9 +109,10 @@ def v1_of_r3(R3: ℝ): ℝ:
     res: ℝ[3, 3] = [
         [1, 2, 1000.0],
         [1, 0, 1000.0],
-        [2, 0, R3]
+        [2, 0, 0.0]
     ]
-    v: ℝ[2] = nodal_analysis(2, res, 3, current_sources, 2)
+    res[2, 2] = R3
+    v: ℝ[2] = nodal_analysis(2, nodes, 3, res, 2, current_sources)
     return v[0]
 
 R3: ℝ = 1000.0
