@@ -7,118 +7,97 @@ from physika.runtime import print
 from physika.runtime import compute_grad
 
 # === Functions ===
-def get_sum_of_1d_array(x):
-    total = 0
-    for i in range(len(x)):
-        total = total + x[int(i)]
-    return total
+def num_rows(x, k=None):
+    if k is None:
+        k = int(x.shape[0])
+    return k
 
-def get_2d_array_num_rows(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
+def row_sum(x, k=None):
+    if k is None:
+        k = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(x[int(i)]) for i in range(int(k))]).float())
 
-def empty_graph(n_vertices):
-    z = torch.stack([torch.stack([((a + b) * 0.0) for _fi_b in range(int(n_vertices)) for b in [torch.tensor(float(_fi_b), device=DEVICE)]]) for _fi_a in range(int(n_vertices)) for a in [torch.tensor(float(_fi_a), device=DEVICE)]])
-    g = UndirectedGraph()
-    g.adjacency = z
-    return g
+def zeros_like(x, k=None):
+    if k is None:
+        k = int(x.shape[0])
+    return torch.stack([torch.as_tensor((0.0 * x[int(i)])) for i in range(int(k))]).float()
+
+def append(x, value, m=None):
+    if m is None:
+        m = int(x.shape[0])
+    return torch.cat([x, torch.stack([torch.as_tensor(value)])])
+
+def sq_degree_sum_of(x, s, k=None):
+    if k is None:
+        k = int(x.shape[0])
+    return torch.sum(torch.stack([torch.as_tensor(((s * row_sum(x[int(i)], k)) * (s * row_sum(x[int(i)], k)))) for i in range(int(k))]).float())
+
+def add_vertex_adjacency(x, k=None):
+    if k is None:
+        k = int(x.shape[0])
+    padded = torch.stack([torch.as_tensor(append(x[int(i)], 0.0, k)) for i in range(int(k))])
+    zero_row = zeros_like(padded[int(0)], ((lambda ih: ([ih := (ih + 1) for k in range(int(0))], ih)[1])(k) + 1))
+    return torch.cat([padded, torch.stack([torch.as_tensor(zero_row)])])
 
 # === Classes ===
 class UndirectedGraph(nn.Module):
-    def __init__(self, ):
+    def __init__(self, adjacency):
         super().__init__()
-        self.adjacency = None
+        self.adjacency = torch.as_tensor(adjacency).float()
 
     def num_vertices(self):
         this = self
-        return (get_2d_array_num_rows(self.adjacency) * 1.0)
+        return num_rows(self.adjacency)
 
     def has_edge(self, u, v):
         this = self
-        u = torch.as_tensor(u, device=DEVICE).float()
-        v = torch.as_tensor(v, device=DEVICE).float()
         m = self.adjacency
-        r = m[int(u)]
-        return r[int(v)]
+        return m[int(u), int(v)]
+
+    def neighbors(self, u):
+        this = self
+        m = self.adjacency
+        return m[int(u)]
 
     def degree(self, u):
         this = self
-        u = torch.as_tensor(u, device=DEVICE).float()
         m = self.adjacency
-        r = m[int(u)]
-        return get_sum_of_1d_array(r)
+        return row_sum(m[int(u)])
 
     def sq_degree_sum(self, s):
         this = self
         s = torch.as_tensor(s, device=DEVICE).float()
-        m = self.adjacency
-        k = get_2d_array_num_rows(m)
-        acc = 0
-        for i in range(int(0), int(k)):
-            d = 0
-            for j in range(int(0), int(k)):
-                d = d + (s * m[int(i), int(j)])
-            acc = acc + (d * d)
-        return acc
-
-    def neighbors(self, u):
-        this = self
-        u = torch.as_tensor(u, device=DEVICE).float()
-        m = self.adjacency
-        return m[int(u)]
+        return sq_degree_sum_of(self.adjacency, s)
 
     def add_weighted_edge(self, u, v, w):
         this = self
-        u = torch.as_tensor(u, device=DEVICE).float()
-        v = torch.as_tensor(v, device=DEVICE).float()
         w = torch.as_tensor(w, device=DEVICE).float()
         m = self.adjacency
-        k = get_2d_array_num_rows(m)
-        new_adj = torch.stack([torch.stack([m[int(a), int(b)] for _fi_b in range(int(k)) for b in [torch.tensor(float(_fi_b), device=DEVICE)]]) for _fi_a in range(int(k)) for a in [torch.tensor(float(_fi_a), device=DEVICE)]])
+        new_adj = torch.stack([(m[int(a)] + 0.0) for _fi_a in range(int(num_rows(m))) for a in [torch.tensor(float(_fi_a), device=DEVICE)]])
         new_adj[int(u), int(v)] = w
         new_adj[int(v), int(u)] = w
-        self.adjacency = new_adj
+        with torch.no_grad():
+            self.adjacency.copy_(new_adj)
 
     def add_edge(self, u, v):
         this = self
-        u = torch.as_tensor(u, device=DEVICE).float()
-        v = torch.as_tensor(v, device=DEVICE).float()
         self.add_weighted_edge(u, v, 1.0)
 
-    def grow_adjacency(self, new_n):
-        this = self
-        old = self.adjacency
-        result = torch.stack([torch.stack([((a + b) * 0.0) for _fi_b in range(int(new_n)) for b in [torch.tensor(float(_fi_b), device=DEVICE)]]) for _fi_a in range(int(new_n)) for a in [torch.tensor(float(_fi_a), device=DEVICE)]])
-        m = get_2d_array_num_rows(old)
-        for a in range(int(0), int(m)):
-            for b in range(int(0), int(m)):
-                result[int(a), int(b)] = old[int(a), int(b)]
-        return result
-
-    def add_vertex(self, new_n):
-        this = self
-        self.adjacency = self.grow_adjacency(new_n)
-
 # === Program ===
-n0 = 3
-g = empty_graph(n0)
+empty3 = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=DEVICE)
+g = UndirectedGraph(empty3)
 print(g.num_vertices())
-print(g.add_edge(0.0, 1.0))
-print(g.add_edge(1.0, 2.0))
-print(g.neighbors(1.0))
-print(g.degree(1.0))
-print(g.has_edge(0.0, 2.0))
-n3 = 4
-print(g.add_vertex(n3))
-print(g.add_edge(2.0, 3.0))
-print(g.degree(3.0))
-wg = empty_graph(3)
-print(wg.add_weighted_edge(0.0, 1.0, 2.0))
-print(wg.add_weighted_edge(1.0, 2.0, 3.0))
+print(g.add_edge(0, 1))
+print(g.add_edge(1, 2))
+print(g.neighbors(1))
+print(g.degree(1))
+print(g.has_edge(0, 2))
+g = UndirectedGraph(add_vertex_adjacency(g.adjacency, 3))
+print(g.add_edge(2, 3))
+print(g.degree(3))
+wg = UndirectedGraph(empty3)
+print(wg.add_weighted_edge(0, 1, 2.0))
+print(wg.add_weighted_edge(1, 2, 3.0))
 s0 = torch.tensor(1.0, requires_grad=True)
 print(wg.sq_degree_sum(s0))
 print(compute_grad(wg.sq_degree_sum(s0), s0))
