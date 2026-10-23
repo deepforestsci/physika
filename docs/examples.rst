@@ -84,6 +84,9 @@ Dependent types
 .. literalinclude:: ../examples/dep_types.phyk
    :language: text
 
+.. literalinclude:: ../examples/dep_types_branches.phyk
+   :language: text
+
 Dimensional analysis
 ~~~~~~~~~~~~~~~~~~~~
 .. literalinclude:: ../examples/units_basic.phyk

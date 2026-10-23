@@ -263,6 +263,22 @@ class TestElabBodyIf:
         assert env["x"] is not x_fv
         assert ctrl is None
 
+    def test_returning_branch_becomes_an_ite_return(self):
+        """
+        A branch that returns has no value to merge, so the statement
+        becomes an ``ite`` over the rest of the body instead of vanishing.
+        """
+        elab = Elab(Environment())
+        cond = ("cond_lt", ("num", 1.0), ("num", 2.0))
+        inner_cond = ("cond_lt", ("num", 3.0), ("num", 4.0))
+        inner = ("body_if_else_return", inner_cond, ("num", 1.0), ("num", 0.0))
+        stmt = ("body_if", cond, [inner])
+        _, _, _, _, ctrl = elab_body_if(stmt, 0, [stmt], ("num", 0.0), None,
+                                        {}, elab, [], {}, [], "f")
+        assert ctrl[0] == "return"
+        head, _ = get_app_fn_args(ctrl[1][0])
+        assert head == Const("Real.ite", ())
+
 
 class TestElabBodyIfReturn:
     """
