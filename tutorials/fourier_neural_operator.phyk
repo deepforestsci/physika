@@ -1,10 +1,14 @@
+def rand_2d_array(n:N, m:N, μ:ℝ): ℝ[n, m]:
+        return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+
+
 class Conv1d(W: ℝ[out, in], b: ℝ[out, 1]):
     def λ(x: ℝ[in, n]) -> ℝ[out, n]:
         z: ℝ[out, n] = this.W @ x + this.b
         return z
-    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
-        this.W = this.W - lr * learnable_grads[0]
-        this.b = this.b - lr * learnable_grads[1]
+    def update_params(lr: ℝ, grad_W: ℝ[out, in], grad_b: ℝ[out, 1]):
+        this.W = this.W - lr * grad_W
+        this.b = this.b - lr * grad_b
 
 
 class MLP(W1: ℝ[mid, in],  b1: ℝ[mid, 1], W2: ℝ[out, mid], b2: ℝ[out, 1]):
@@ -13,11 +17,12 @@ class MLP(W1: ℝ[mid, in],  b1: ℝ[mid, 1], W2: ℝ[out, mid], b2: ℝ[out, 1]
         a1: ℝ[mid, n] = gelu(z1)
         z2: ℝ[out, n] = this.W2 @ a1 + this.b2
         return z2
-    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
-        this.W1 = this.W1 - lr * learnable_grads[0]
-        this.b1 = this.b1 - lr * learnable_grads[1]
-        this.W2 = this.W2 - lr * learnable_grads[2]
-        this.b2 = this.b2 - lr * learnable_grads[3]
+    def update_params(lr: ℝ, grad_W1: ℝ[mid, in], grad_b1: ℝ[mid, 1],
+                      grad_W2: ℝ[out, mid], grad_b2: ℝ[out, 1]):
+        this.W1 = this.W1 - lr * grad_W1
+        this.b1 = this.b1 - lr * grad_b1
+        this.W2 = this.W2 - lr * grad_W2
+        this.b2 = this.b2 - lr * grad_b2
 
 
 class SpectralConv(weights1: ℂ[in_ch, out_ch, modes], in_ch: ℕ, out_ch: ℕ, modes: ℕ):
@@ -27,8 +32,8 @@ class SpectralConv(weights1: ℂ[in_ch, out_ch, modes], in_ch: ℕ, out_ch: ℕ,
         out_ft: ℂ[out_ch, modes] = compl_mul1d(x_ft, self.weights1)
         results: ℂ[out_ch, n] = irfft(out_ft, len(x[0]))
         return results
-    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
-        this.weights1 = this.weights1 - lr * learnable_grads[0]
+    def update_params(lr: ℝ, grad_weights1: ℂ[in_ch, out_ch, modes]):
+        this.weights1 = this.weights1 - lr * grad_weights1
 
 
 width: ℕ = 16
@@ -37,42 +42,18 @@ modes: ℕ = 8
 
 class FNO1d:
     p: Conv1d
-    conv0: SpectralConv
-    conv1: SpectralConv
-    conv2: SpectralConv
-    conv3: SpectralConv
-    mlp0: MLP
-    mlp1: MLP
-    mlp2: MLP
-    mlp3: MLP
-    w0: Conv1d
-    w1: Conv1d
-    w2: Conv1d
-    w3: Conv1d
+    conv0, conv1, conv2, conv3: SpectralConv
+    mlp0, mlp1, mlp2, mlp3: MLP
+    w0, w1, w2, w3: Conv1d
     q: MLP
     def λ(x: R[1, n]) -> R[1, n]:
         # Lifting
         x: ℝ[width, n] = p(x)
-        # Layer 1
-        x1: ℝ[width, n] = conv0(x)
-        x1: ℝ[width, n] = mlp0(x1)
-        x2: ℝ[width, n] = w0(x)
-        x: ℝ[width, n] = gelu(x1 + x2)
-        # Layer 2
-        x1: ℝ[width, n] = conv1(x)
-        x1: ℝ[width, n] = mlp1(x1)
-        x2: ℝ[width, n] = w1(x)
-        x: ℝ[width, n] = gelu(x1 + x2)
-        # Layer 3
-        x1: ℝ[width, n] = conv2(x)
-        x1: ℝ[width, n] = mlp2(x1)
-        x2: ℝ[width, n] = w2(x)
-        x: ℝ[width, n] = gelu(x1 + x2)
-        # Layer 4
-        x1: ℝ[width, n] = conv3(x)
-        x1: ℝ[width, n] = mlp3(x1)
-        x2: ℝ[width, n] = w3(x)
-        x: ℝ[width, n] = x1 + x2
+        # Layers
+        x: ℝ[width, n] = gelu(mlp0(conv0(x)) + w0(x))
+        x: ℝ[width, n] = gelu(mlp1(conv1(x)) + w1(x))
+        x: ℝ[width, n] = gelu(mlp2(conv2(x)) + w2(x))
+        x: ℝ[width, n] = mlp3(conv3(x)) + w3(x)
         # Projection
         x: ℝ[1, n] = q(x)
         return x
@@ -81,44 +62,33 @@ class FNO1d:
         return mean(diff**2)
     def train(X: ℝ[m, 1, n], y: ℝ[m, 1, n], epochs: ℕ, lr: ℝ) -> ℝ:
         len_dataset = len(X)
-        for i:ℕ(epochs):
+        for idx:ℕ(epochs):
+            print(idx)
             epoch_loss = 0
             for j:ℕ(len_dataset):
                 pred = this(X[j])
                 current_loss = this.loss(pred, y[j])
                 epoch_loss = epoch_loss + current_loss
-                # ------------------------------------------------
-                # Calculate gradients
-                # ------------------------------------------------
-                dp = grad(current_loss, this.p.learnable_params)
-                dconv0 = grad(current_loss, this.conv0.learnable_params)
-                dconv1 = grad(current_loss, this.conv1.learnable_params)
-                dconv2 = grad(current_loss, this.conv2.learnable_params)
-                dconv3 = grad(current_loss, this.conv3.learnable_params)
-                dmlp0 = grad(current_loss, this.mlp0.learnable_params)
-                dmlp1 = grad(current_loss, this.mlp1.learnable_params)
-                dmlp2 = grad(current_loss, this.mlp2.learnable_params)
-                dmlp3 = grad(current_loss, this.mlp3.learnable_params)
-                dw0 = grad(current_loss, this.w0.learnable_params)
-                dw1 = grad(current_loss, this.w1.learnable_params)
-                dw2 = grad(current_loss, this.w2.learnable_params)
-                dw3 = grad(current_loss, this.w3.learnable_params)
-                dq = grad(current_loss, this.q.learnable_params)
-                # ------------------------------------------------
-                # update parameters
-                # ------------------------------------------------
-                this.p.update_params(lr, dp)
-                this.conv0.update_params(lr, dconv0)
-                this.conv1.update_params(lr, dconv1)
-                this.conv2.update_params(lr, dconv2)
-                this.conv3.update_params(lr, dconv3)
-                this.mlp0.update_params(lr, dmlp0)
-                this.mlp1.update_params(lr, dmlp1)
-                this.mlp2.update_params(lr, dmlp2)
-                this.mlp3.update_params(lr, dmlp3)
-                this.q.update_params(lr, dq)
+                learnable_grads = grad(current_loss, this.learnable_params)
+                this.update_params(lr, learnable_grads)
             last_loss = epoch_loss / len_dataset
+            print(last_loss)
         return last_loss
+    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+        this.p.update_params(lr, learnable_grads[0], learnable_grads[1])
+        this.conv0.update_params(lr, learnable_grads[2])
+        this.conv1.update_params(lr, learnable_grads[3])
+        this.conv2.update_params(lr, learnable_grads[4])
+        this.conv3.update_params(lr, learnable_grads[5])
+        this.mlp0.update_params(lr, learnable_grads[6], learnable_grads[7], learnable_grads[8], learnable_grads[9])
+        this.mlp1.update_params(lr, learnable_grads[10], learnable_grads[11], learnable_grads[12], learnable_grads[13])
+        this.mlp2.update_params(lr, learnable_grads[14], learnable_grads[15], learnable_grads[16], learnable_grads[17])
+        this.mlp3.update_params(lr, learnable_grads[18], learnable_grads[19], learnable_grads[20], learnable_grads[21])
+        this.w0.update_params(lr, learnable_grads[22], learnable_grads[23])
+        this.w1.update_params(lr, learnable_grads[24], learnable_grads[25])
+        this.w2.update_params(lr, learnable_grads[26], learnable_grads[27])
+        this.w3.update_params(lr, learnable_grads[28], learnable_grads[29])
+        this.q.update_params(lr, learnable_grads[30], learnable_grads[31], learnable_grads[32], learnable_grads[33])
 
 
 # --------------------------------------------------------
@@ -130,10 +100,10 @@ class FNO1d:
 # Lifting layer / Encoder (P)
 # --------------------------------------------------------
 
-Wp: ℝ[width, 1] = for i:ℕ(width) -> ε: ℝ[1] ~ Normal(0.0, 0.1, 1)
-Bp: ℝ[width, 1] = for i:ℕ(width) -> ε: ℝ[1] ~ Normal(0.0, 0.1, 1)
+Wp: ℝ[width, 1] = rand_2d_array(width, 1, 0.1)
+Bp: ℝ[width, 1] = rand_2d_array(width, 1, 0.1)
 
-p = Conv1d(Wp, Bp)
+p: Conv1d = Conv1d(Wp, Bp)
 
 
 # --------------------------------------------------------
@@ -155,8 +125,8 @@ conv3: SpectralConv = SpectralConv(weights3, width, width, modes)
 # Local bypass path (W) — pointwise residual connection
 # --------------------------------------------------------
 
-Ww0: ℝ[width, width] = for i:ℕ(width) -> ε: ℝ[width] ~ Normal(0.0, 0.1, width)
-Bw0: ℝ[width, 1] = for i:ℕ(width) -> ε: ℝ[1] ~ Normal(0.0, 0.1, 1)
+Ww0: ℝ[width, width] = rand_2d_array(width, width, 0.1)
+Bw0: ℝ[width, 1] = rand_2d_array(width, 1, 0.1)
 
 w0: Conv1d = Conv1d(Ww0, Bw0)
 w1: Conv1d = Conv1d(Ww0, Bw0)
@@ -167,9 +137,9 @@ w3: Conv1d = Conv1d(Ww0, Bw0)
 # MLP blocks (applied after each SpectralConv)
 # --------------------------------------------------------
 
-W1: ℝ[width, width] = for i:ℕ(width) -> ε: ℝ[width] ~ Normal(0.0, 0.1, width)
+W1: ℝ[width, width] = rand_2d_array(width, width, 0.1)
 b1: ℝ[width,1] = zeros(width, 1)
-W2: ℝ[width, width] = for i:ℕ(width) -> ε: ℝ[width] ~ Normal(0.0, 0.1, width)
+W2: ℝ[width, width] = rand_2d_array(width, width, 0.1)
 b2: ℝ[width,1] = zeros(width, 1)
 
 
@@ -184,12 +154,12 @@ mlp3: MLP = MLP(W1, b1, W2, b2)
 # --------------------------------------------------------
 
 q_width: N = 2 * width
-Wq1: ℝ[q_width, width] = for i:ℕ(q_width) -> ε: ℝ[width] ~ Normal(0.0, 0.1, width)
+Wq1: ℝ[q_width, width] = rand_2d_array(q_width, width, 0.1)
 bq1: ℝ[q_width,1] = zeros(q_width, 1)
-Wq2: ℝ[1, q_width] = for i:ℕ(1) -> ε: ℝ[q_width] ~ Normal(0.0, 0.1, q_width)
+Wq2: ℝ[1, q_width] = rand_2d_array(1, q_width, 0.1)
 bq2: ℝ[1,1] = zeros(1, 1)
 
-q = MLP(Wq1, bq1, Wq2, bq2)
+q: MLP = MLP(Wq1, bq1, Wq2, bq2)
 
 
 
@@ -226,7 +196,7 @@ fno_obj: FNO1d = FNO1d(p, conv0, conv1, conv2, conv3, mlp0, mlp1, mlp2, mlp3, w0
 
 epochs: ℕ = 1
 loss: ℝ = fno_obj.train(train_X, train_y, epochs, 0.0001)
-loss
+print(loss)
 
 
 #test_idx: ℕ = 5
