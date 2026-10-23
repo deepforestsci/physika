@@ -1,0 +1,199 @@
+# Basic Doyle-Fuller-Newman model, Chen2020, isothermal prescribed current.
+# Run the forward solve with: physika tutorials/doyle_fuller_newman.phyk
+# Fixed demonstration: five cells per coordinate, 5 A discharge to 2.5 V.
+nx_n: ℕ = 5
+nx_s: ℕ = 5
+nx_p: ℕ = 5
+nr_n: ℕ = 5
+nr_p: ℕ = 5
+current_nominal: ℝ = 5.0
+
+from tutorials.battery.chen2020 import faraday, gas_constant, temperature, length_n, length_s, length_p, area, radius_n, radius_p, diffusivity_n, diffusivity_p, sigma_n, sigma_p, porosity_n, porosity_s, porosity_p, active_n, active_p, cmax_n, cmax_p, initial_n, initial_p, initial_e, t_plus, minimum, maximum, softplus, sinh, tanh, ocp_barrier, ocp_n, ocp_p, exchange_n, exchange_p, electrolyte_diffusivity, electrolyte_conductivity
+from tutorials.battery.finite_volume import arithmetic_matrix, harmonic_matrix, matrix_vector, harmonic_edges, particle_matrix, particle_source, surface_matrix, particle_inventory, gradient_values, divergence_values
+
+ns_n: ℕ = nx_n*nr_n
+ns_p: ℕ = nx_p*nr_p
+ne: ℕ = nx_n+nx_s+nx_p
+nd: ℕ = ns_n+ns_p+ne+1
+na: ℕ = nx_n+nx_p+ne
+length_total: ℝ = length_n+length_s+length_p
+a_n: ℝ = 3.0*active_n/radius_n
+a_p: ℝ = 3.0*active_p/radius_p
+
+width_n: ℝ[nx_n] = for k:ℕ(nx_n) -> length_n/nx_n + 0.0*k
+width_s: ℝ[nx_s] = for k:ℕ(nx_s) -> length_s/nx_s + 0.0*k
+width_p: ℝ[nx_p] = for k:ℕ(nx_p) -> length_p/nx_p + 0.0*k
+width: ℝ[ne] = concat(width_n, width_s, width_p)
+eps_n: ℝ[nx_n] = for k:ℕ(nx_n) -> porosity_n + 0.0*k
+eps_s: ℝ[nx_s] = for k:ℕ(nx_s) -> porosity_s + 0.0*k
+eps_p: ℝ[nx_p] = for k:ℕ(nx_p) -> porosity_p + 0.0*k
+eps: ℝ[ne] = concat(eps_n, eps_s, eps_p)
+transport: ℝ[ne] = eps**1.5
+separator_zero: ℝ[nx_s] = zeros(nx_s)
+
+A_e: ℝ[ne+1,ne] = arithmetic_matrix(width, ne)
+H_e: ℝ[ne+1,ne] = harmonic_matrix(width, ne)
+positive_boundary: ℝ[nx_p+1] = zeros(nx_p+1)
+positive_boundary[nx_p] = 1.0
+K_n: ℝ[ns_n,ns_n] = particle_matrix(nx_n, nr_n, radius_n, diffusivity_n)
+K_p: ℝ[ns_p,ns_p] = particle_matrix(nx_p, nr_p, radius_p, diffusivity_p)
+B_n: ℝ[ns_n,nx_n] = particle_source(nx_n, nr_n, radius_n, faraday)
+B_p: ℝ[ns_p,nx_p] = particle_source(nx_p, nr_p, radius_p, faraday)
+S_n: ℝ[nx_n,ns_n] = surface_matrix(nx_n, nr_n)
+S_p: ℝ[nx_p,ns_p] = surface_matrix(nx_p, nr_p)
+
+cn0: ℝ[ns_n] = for k:ℕ(ns_n) -> initial_n + 0.0*k
+cp0: ℝ[ns_p] = for k:ℕ(ns_p) -> initial_p + 0.0*k
+ce0: ℝ[ne] = for k:ℕ(ne) -> initial_e + 0.0*k
+x0: ℝ[nd] = concat(cn0, cp0, ce0, [0.0])
+# Constant equilibrium/kinetic reference offsets condition the nonlinear solve without changing
+# the equations. Physical phi_sn=z_n, phi_sp=ref_p+z_p, phi_e=ref_e+z_e.
+un0: ℝ[1] = ocp_n([initial_n/cmax_n])
+u_n_initial: ℝ = un0[0]
+up0: ℝ[1] = ocp_p([initial_p/cmax_p])
+u_p_initial: ℝ = up0[0]
+i0n_ref: ℝ[1] = exchange_n([initial_e], [initial_n])
+i0p_ref: ℝ[1] = exchange_p([initial_e], [initial_p])
+eta_n_reference: ℝ = 2.0*gas_constant*temperature/faraday * asinh_scalar(current_nominal/(2.0*area*length_n*a_n*i0n_ref[0]))
+eta_p_reference: ℝ = 2.0*gas_constant*temperature/faraday * asinh_scalar(-current_nominal/(2.0*area*length_p*a_p*i0p_ref[0]))
+ref_p: ℝ = u_p_initial-u_n_initial+eta_p_reference-eta_n_reference
+ref_e: ℝ = -u_n_initial-eta_n_reference
+z0: ℝ[na] = zeros(na)
+sxn: ℝ[ns_n] = for k:ℕ(ns_n) -> cmax_n + 0.0*k
+sxp: ℝ[ns_p] = for k:ℕ(ns_p) -> cmax_p + 0.0*k
+sxe: ℝ[ne] = for k:ℕ(ne) -> initial_e + 0.0*k
+x_scale: ℝ[nd] = concat(sxn, sxp, sxe, [5.0])
+szn: ℝ[nx_n] = for k:ℕ(nx_n) -> 1e-4 + 0.0*k
+szp: ℝ[nx_p] = for k:ℕ(nx_p) -> 0.05 + 0.0*k
+sze: ℝ[ne] = for k:ℕ(ne) -> 0.05 + 0.0*k
+z_scale: ℝ[na] = concat(szn,szp,sze)
+# Normalize each charge equation by its cell-volume flux balance.
+gsn: ℝ[nx_n] = for k:ℕ(nx_n) -> length_total**2 * 5.0/(area*width_n[k]) + 0.0*k
+gsp: ℝ[nx_p] = for k:ℕ(nx_p) -> length_total**2 * 5.0/(area*width_p[k]) + 0.0*k
+gse: ℝ[ne] = for k:ℕ(ne) -> length_total**2 * 5.0/(area*width[k]) + 0.0*k
+g_scale: ℝ[na] = concat(gsn, gsp, gse)
+wn: ℝ[ns_n] = particle_inventory(nx_n, nr_n, radius_n, length_n/nx_n, active_n)
+wp: ℝ[ns_p] = particle_inventory(nx_p, nr_p, radius_p, length_p/nx_p, active_p)
+inventory_weights: ℝ[nd] = concat(wn, wp, eps*width, [0.0])
+
+def asinh_scalar(q: ℝ): ℝ:
+    return log(q+sqrt(q*q+1.0))
+
+def current_a(t: ℝ): ℝ:
+    return current_nominal
+
+def reaction_n(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ[nx_n]:
+    cs: ℝ[nx_n] = S_n @ x[0:ns_n]
+    ce: ℝ[nx_n] = x[ns_n+ns_p:ns_n+ns_p+nx_n]
+    phi_s: ℝ[nx_n] = z[0:nx_n]
+    phi_e: ℝ[nx_n] = z[nx_n+nx_p:nx_n+nx_p+nx_n]
+    eta: ℝ[nx_n] = phi_s-phi_e+u_n_initial+eta_n_reference-ocp_n(cs/cmax_n)
+    return 2.0*exchange_n(ce, cs)*sinh(faraday*eta/(2.0*gas_constant*temperature))
+
+def reaction_p(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ[nx_p]:
+    cs: ℝ[nx_p] = S_p @ x[ns_n:ns_n+ns_p]
+    ce: ℝ[nx_p] = x[ns_n+ns_p+nx_n+nx_s:ns_n+ns_p+ne]
+    phi_s: ℝ[nx_p] = z[nx_n:nx_n+nx_p]
+    phi_e: ℝ[nx_p] = z[nx_n+nx_p+nx_n+nx_s:na]
+    eta: ℝ[nx_p] = phi_s-phi_e+u_p_initial+eta_p_reference-ocp_p(cs/cmax_p)
+    return 2.0*exchange_p(ce, cs)*sinh(faraday*eta/(2.0*gas_constant*temperature))
+
+def electrolyte_current(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ[m]:
+    ce: ℝ[ne] = x[ns_n+ns_p:ns_n+ns_p+ne]
+    phi_e: ℝ[ne] = z[nx_n+nx_p:na]
+    conductivity: ℝ[ne+1] = A_e @ (transport*electrolyte_conductivity(ce))
+    chi: ℝ[ne] = 2.0*(1.0-t_plus)*gas_constant*temperature / (faraday*maximum(ce, 0.01))
+    return conductivity*(harmonic_edges(chi, H_e, ne)*gradient_values(ce,width,ne) - gradient_values(phi_e,width,ne))
+
+def dfn_rhs(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ[nd]:
+    jn: ℝ[nx_n] = reaction_n(t,x,z)
+    jp: ℝ[nx_p] = reaction_p(t,x,z)
+    ce: ℝ[ne] = x[ns_n+ns_p:ns_n+ns_p+ne]
+    aj: ℝ[ne] = concat(a_n*jn, separator_zero, a_p*jp)
+    flux: ℝ[ne+1] = -harmonic_edges(transport*electrolyte_diffusivity(ce), H_e, ne)*gradient_values(ce,width,ne) + t_plus*electrolyte_current(t,x,z)/faraday
+    dcn: ℝ[ns_n] = K_n@(x[0:ns_n]-initial_n) + B_n@jn
+    dcp: ℝ[ns_p] = K_p@(x[ns_n:ns_n+ns_p]-initial_p) + B_p@jp
+    dce: ℝ[ne] = (-divergence_values(flux,width,ne)+aj/faraday)/eps
+    return concat(dcn,dcp,dce,[current_a(t)/3600.0])
+
+def dfn_algebraic(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ[na]:
+    jn: ℝ[nx_n] = reaction_n(t,x,z)
+    jp: ℝ[nx_p] = reaction_p(t,x,z)
+    aj: ℝ[ne] = concat(a_n*jn,separator_zero,a_p*jp)
+    phin: ℝ[nx_n] = z[0:nx_n]
+    phip: ℝ[nx_p] = z[nx_n:nx_n+nx_p]
+    gradn: ℝ[nx_n+1] = gradient_values(phin,width_n,nx_n)
+    gradn[0] = 2.0*phin[0]/width_n[0]
+    isn: ℝ[nx_n+1] = -sigma_n*gradn
+    boundary: ℝ[nx_p+1] = positive_boundary
+    isp: ℝ[nx_p+1] = -sigma_p*gradient_values(phip,width_p,nx_p) + current_a(t)/area*boundary
+    gn: ℝ[nx_n] = length_total**2*(divergence_values(isn,width_n,nx_n)+a_n*jn)
+    gp: ℝ[nx_p] = length_total**2*(divergence_values(isp,width_p,nx_p)+a_p*jp)
+    ge: ℝ[ne] = length_total**2*(divergence_values(electrolyte_current(t,x,z),width,ne)-aj)
+    return concat(gn,gp,ge)
+
+def dfn_voltage(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ:
+    return ref_p + 1.5*z[nx_n+nx_p-1] - 0.5*z[nx_n+nx_p-2]
+
+def physical_potentials(z: ℝ[na]): ℝ[na]:
+    return concat(z[0:nx_n], ref_p+z[nx_n:nx_n+nx_p], ref_e+z[nx_n+nx_p:na])
+
+def surface_n(x: ℝ[nd]): ℝ[nx_n]:
+    return S_n @ x[0:ns_n]
+
+def surface_p(x: ℝ[nd]): ℝ[nx_p]:
+    return S_p @ x[ns_n:ns_n+ns_p]
+
+def dfn_cutoff(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ:
+    return dfn_voltage(t,x,z)-2.5
+
+# BDF2 integration.
+nb: ℕ = nd+na
+solver_scale: ℝ[nb] = concat(x_scale,z_scale)
+from tutorials.battery.gaussian_elimination import gaussian_solve, get_2d_array_num_rows, get_2d_array_num_cols, get_1d_array_length, min, max
+from tutorials.battery.dae import newton_tolerance, algebraic_tolerance, relative_tolerance, absolute_tolerance, max_norm, finite_values, initial_residual, initial_component, initial_jacobian, consistent_potentials, step_residual, step_component, step_jacobian, step_newton, bdf_step, step_factor, attempt_step, integrate_dfn
+
+# Reconstruct physical outputs from the saved differential/algebraic states.
+nf: ℕ = 1+nx_n+nx_p+na
+def trajectory_fields(states: ℝ[82,nb+1]): ℝ[82,nf]:
+    fields: ℝ[82,nf] = zeros(82,nf)
+    x: ℝ[nd] = zeros(nd)
+    z: ℝ[na] = zeros(na)
+    t: ℝ = 0.0
+    for row:ℕ(1,states[0,0]+1.0):
+        t = states[row,0]
+        x = states[row,1:nd+1]
+        z = states[row,nd+1:nb+1]
+        fields[row,:] = concat([dfn_voltage(t,x,z)],surface_n(x),surface_p(x),physical_potentials(z))
+    return fields
+
+def lithium_inventory_drift(states: ℝ[82,nb+1]): ℝ:
+    initial: ℝ = states[1,1:nd+1] @ inventory_weights
+    drift: ℝ = 0.0
+    change: ℝ = 0.0
+    for row:ℕ(1,states[0,0]+1.0):
+        change = abs((states[row,1:nd+1] @ inventory_weights)-initial)/abs(initial)
+        if change > drift:
+            drift = change
+    return drift
+
+def prediction_values(states: ℝ[82,nb+1], fields: ℝ[82,nf], row: ℝ): ℝ[3]:
+    return [states[row,0],fields[row,0],states[row,nd]]
+
+# Run the fixed discharge and show a few predictions.
+
+trajectory: ℝ[82,nb+1] = integrate_dfn()
+
+prediction_fields: ℝ[82,nf] = trajectory_fields(trajectory)
+inventory_drift: ℝ = lithium_inventory_drift(trajectory)
+if trajectory[0,1] == 1.0:
+    print("Predictions: [time (s), voltage (V), discharged capacity (Ah)]")
+    print(prediction_values(trajectory,prediction_fields,1.0))
+    print(prediction_values(trajectory,prediction_fields,3.0))
+    print(prediction_values(trajectory,prediction_fields,31.0))
+    print(prediction_values(trajectory,prediction_fields,61.0))
+    print("Cutoff prediction: [time (s), voltage (V), discharged capacity (Ah)]")
+    print(prediction_values(trajectory,prediction_fields,trajectory[0,0]))
+else:
+    print("DFN solve did not reach cutoff; solver status:")
+print(trajectory[0,1])
