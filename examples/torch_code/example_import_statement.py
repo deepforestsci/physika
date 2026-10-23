@@ -58,12 +58,12 @@ print(f_results)
 obj_example_class = ExampleClass().to(DEVICE)
 class_value = obj_example_class.class_method()
 print(class_value)
-v = torch.tensor([1.0, 2.0, 3.0], device=DEVICE)
+v = torch.tensor([[1.0], [2.0], [3.0]], device=DEVICE)
 for i in range(int(0), int(3)):
-    if v[int(i)] > 2:
-        v[int(i)] = (v[int(i)] * 2)
+    if v[int(i), int(0)] > 2:
+        v[int(i), int(0)] = (v[int(i), int(0)] * 2)
 print(v)
-grad_f_x = compute_grad(f_x, v[int(2)])
+grad_f_x = compute_grad(f_x, v[int(2), int(0)])
 print(grad_f_x)
 r = torch.tensor([(-1.0), 0.0, 0.5, 1.0, 2.0], device=DEVICE)
 φ = superbee(r)

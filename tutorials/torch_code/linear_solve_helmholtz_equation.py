@@ -90,6 +90,41 @@ def mse_loss(true_u, pred_u):
         total = (total + square_diff[int(i)])
     return (total / total_len)
 
+def get_1d_array_length(x):
+    total = 0
+    temp = 0
+    for i in range(len(x)):
+        temp = x[int(i)]
+        total = total + 1
+    return total
+
+def get_2d_array_num_rows(x):
+    total = 0
+    temp = 0
+    for i in range(len(x)):
+        temp = x[int(i)]
+        total = total + 1
+    return total
+
+def get_2d_array_num_cols(x, m=None, n=None):
+    if m is None:
+        m = int(x.shape[0])
+    if n is None:
+        n = int(x.shape[1])
+    return get_1d_array_length(x[int(0)])
+
+def max(x, y):
+    if x > y:
+        return x
+    else:
+        return y
+
+def min(x, y):
+    if x < y:
+        return x
+    else:
+        return y
+
 def gaussian_solve(A, b):
     a_row = get_2d_array_num_rows(A)
     a_col = get_2d_array_num_cols(A)
@@ -128,41 +163,6 @@ def gaussian_solve(A, b):
         val = torch.reshape(val, (1,) if isinstance(1, int) else 1)
         x = torch.cat([val, x])
     return x
-
-def get_2d_array_num_cols(x, m=None, n=None):
-    if m is None:
-        m = int(x.shape[0])
-    if n is None:
-        n = int(x.shape[1])
-    return get_1d_array_length(x[int(0)])
-
-def get_2d_array_num_rows(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
-
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
-
-def min(x, y):
-    if x < y:
-        return x
-    else:
-        return y
-
-def max(x, y):
-    if x > y:
-        return x
-    else:
-        return y
 
 # === Program ===
 x0, x1, n = 0, 1, 10
