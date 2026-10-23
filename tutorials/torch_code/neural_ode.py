@@ -131,7 +131,7 @@ class ODEFunc(nn.Module):
         self.B1 = nn.Parameter(torch.as_tensor(B1))
         self.W2 = nn.Parameter(torch.as_tensor(W2))
         self.B2 = nn.Parameter(torch.as_tensor(B2))
-        self.learnable_params = [self.W1, self.B1, self.W2, self.B2]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self

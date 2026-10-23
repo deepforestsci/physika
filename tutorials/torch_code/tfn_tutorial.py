@@ -238,7 +238,7 @@ class MOIModel(nn.Module):
         self.b1_2 = nn.Parameter(torch.as_tensor(b1_2))
         self.w2_2 = nn.Parameter(torch.as_tensor(w2_2))
         self.b2_2 = nn.Parameter(torch.as_tensor(b2_2))
-        self.learnable_params = [self.w1_0, self.b1_0, self.w2_0, self.b2_0, self.w1_2, self.b1_2, self.w2_2, self.b2_2]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, points, masses, centers, gamma):
         this = self

@@ -93,7 +93,7 @@ class GCNModel(nn.Module):
         super().__init__()
         self.W1 = nn.Parameter(torch.as_tensor(W1))
         self.W2 = nn.Parameter(torch.as_tensor(W2))
-        self.learnable_params = [self.W1, self.W2]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, A, H, sz):
         this = self

@@ -26,7 +26,7 @@ class HamiltonianNet(nn.Module):
         self.b1 = nn.Parameter(torch.as_tensor(b1))
         self.W2 = nn.Parameter(torch.as_tensor(W2))
         self.b2 = nn.Parameter(torch.as_tensor(b2))
-        self.learnable_params = [self.W1, self.b1, self.W2, self.b2]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self
