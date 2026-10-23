@@ -8,8 +8,7 @@
 # ------------------------------------------------------------
 
 def get_1d_array_length(x: ℝ[m]): ℝ:
-    total: ℝ = 0
-    temp: ℝ = 0
+    total, temp: ℝ = 0, 0
     for i:
         temp = x[i]
         total += 1
@@ -62,29 +61,27 @@ class FullyConnectedNetwork(W: ℝ[m, n, n], B: ℝ[m, n, o], w: ℝ[o, n], b: �
         len_dataset = get_3d_array_depth(X)
         last_loss: R = 0
         for i:ℕ(epochs):
-            epoch_loss = 0
+            epoch_loss: ℝ = 0
             for j:ℕ(len_dataset):
-                pred = this(X[j])
-                current_loss = this.loss(pred, y[j])
-                epoch_loss = epoch_loss + current_loss
-                learnable_grads = grad(current_loss, this.learnable_params)
+                pred: ℝ = this(X[j])
+                current_loss: ℝ = this.loss(pred, y[j])
+                epoch_loss: ℝ = epoch_loss + current_loss
+                learnable_grads: list = grad(current_loss, this.learnable_params)
                 this.update_params(lr, learnable_grads)
-            last_loss = epoch_loss / len_dataset
+            last_loss: ℝ = epoch_loss / len_dataset
         return last_loss
     def evaluate(X: ℝ[r, n, o], y: ℝ[r]) → ℝ:
         x: ℝ = 1.5
         len_dataset: ℝ = get_3d_array_depth(X)
         total_loss: ℝ = 0
         for j:ℕ(len_dataset):
-            pred = this(X[j])
-            current_loss = this.loss(pred, y[j])
-            total_loss = total_loss + current_loss
+            pred: ℝ = this(X[j])
+            current_loss: ℝ = this.loss(pred, y[j])
+            total_loss: ℝ = total_loss + current_loss
         return total_loss / len_dataset
-    def update_params(lr: R, learnable_grads: R[m]):
-        this.W = this.W - lr * learnable_grads[0]
-        this.B = this.B - lr * learnable_grads[1]
-        this.w = this.w - lr * learnable_grads[2]
-        this.b = this.b - lr * learnable_grads[3]
+    def update_params(lr: R, learnable_grads: list):
+        for idx:
+            this.learnable_params[idx] = this.learnable_params[idx] - lr * learnable_grads[idx]
 
 
 # ------------------------------------------------------------
