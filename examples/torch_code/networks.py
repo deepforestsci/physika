@@ -26,31 +26,29 @@ def zero_2d_array(rows, cols):
     results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
-def sigma(x):
+def σ(x):
     rows = get_2d_array_num_rows(x)
     cols = get_1d_array_length(x[int(0)])
     results = zero_2d_array(rows, cols)
     for i in range(int(0), int(rows)):
         for j in range(int(0), int(cols)):
-            results[int(i), int(j)] = (1.0 / (1.0 + torch.exp((0.0 - x[int(i), int(j)]) if isinstance((0.0 - x[int(i), int(j)]), torch.Tensor) else torch.tensor(float((0.0 - x[int(i), int(j)]))))))
+            results[int(i), int(j)] = (1.0 / (1.0 + torch.exp(x[int(i), int(j)] if isinstance(x[int(i), int(j)], torch.Tensor) else torch.tensor(float(x[int(i), int(j)])))))
     return results
 
 # === Classes ===
 class OneLayerNet(nn.Module):
-    def __init__(self, W0, c0, w1, b1):
+    def __init__(self, W0, b0, W1, b1):
         super().__init__()
         self.W0 = nn.Parameter(torch.as_tensor(W0))
-        self.c0 = nn.Parameter(torch.as_tensor(c0))
-        self.w1 = nn.Parameter(torch.as_tensor(w1))
+        self.b0 = nn.Parameter(torch.as_tensor(b0))
+        self.W1 = nn.Parameter(torch.as_tensor(W1))
         self.b1 = nn.Parameter(torch.as_tensor(b1))
-        self.learnable_params = [self.W0, self.c0, self.w1, self.b1]
+        self.learnable_params = [self.W0, self.b0, self.W1, self.b1]
 
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        z = sigma(((self.W0 @ x) + self.c0))
-        results = ((self.w1 @ z) + self.b1)
-        return results[int(0), int(0)]
+        return ((self.W1 @ σ(((self.W0 @ x) + self.b0))) + self.b1)
 
     def loss(self, y, target):
         this = self
@@ -72,7 +70,7 @@ class FullyConnectedNetwork(nn.Module):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
         for k in range(len(self.W)):
-            x = sigma(((self.W[int(k)] @ x) + self.B[int(k)]))
+            x = σ(((self.W[int(k)] @ x) + self.B[int(k)]))
         return ((self.w @ x) + self.b)
 
     def loss(self, y, target):
@@ -87,7 +85,8 @@ c0 = torch.tensor([[0.1], [0.2]], device=DEVICE)
 w1 = torch.tensor([[0.7, 0.8]], device=DEVICE)
 b1 = 0.3
 net1 = OneLayerNet(W0, c0, w1, b1)
-print(net1(torch.tensor([1.0, 2.0, 3.0], device=DEVICE)))
+x = torch.tensor([[1.0], [2.0], [3.0]], device=DEVICE)
+print(net1(x))
 W = torch.tensor([[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], [[0.2, 0.3, 0.4], [0.5, 0.6, 0.7], [0.8, 0.9, 0.1]]], device=DEVICE)
 B = torch.tensor([[[0.1], [0.2], [0.3]], [[0.1], [0.2], [0.3]]], device=DEVICE)
 w = torch.tensor([[0.5, 0.5, 0.5]], device=DEVICE)

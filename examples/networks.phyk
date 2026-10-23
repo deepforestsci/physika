@@ -30,13 +30,13 @@ def zero_2d_array(rows: ℝ, cols: ℝ): ℝ[m, n]:
 # ------------------------------------------------------------
 # Activation: σ(x) = 1/(1 + e^(-x))
 # ------------------------------------------------------------
-def sigma(x: ℝ[a,b]): ℝ[a,b]:
+def σ(x: ℝ[a,b]): ℝ[a,b]:
     rows: ℝ = get_2d_array_num_rows(x)
     cols: ℝ = get_1d_array_length(x[0])
-    results: ℝ[cols, rows] = zero_2d_array(rows, cols)
+    results: ℝ[rows, cols] = zero_2d_array(rows, cols)
     for i:ℕ(rows):
         for j:ℕ(cols):
-            results[i,j] = 1.0 / (1.0 + exp(0.0 - x[i,j]))
+            results[i,j] = 1.0 / (1.0 + exp(x[i,j]))
     return results
 
 
@@ -44,15 +44,9 @@ def sigma(x: ℝ[a,b]): ℝ[a,b]:
 # ============================================================
 # Example 1: One-Layer Network (simple version)
 # ============================================================
-class OneLayerNet:
-    W0: ℝ[m, n]
-    c0: ℝ[m, o] 
-    w1: ℝ[o, m]
-    b1: ℝ
-    def λ(x: ℝ[n, o]) → ℝ:
-        z = sigma(W0 @ x + c0)
-        results = w1 @ z + b1
-        return results[0,0]
+class OneLayerNet(W0: ℝ[m, n], b0: ℝ[m, o], W1: ℝ[o, m], b1: ℝ):
+    def λ(x: ℝ[n, o]) → ℝ[o, o]:
+        return W1 @ σ(W0 @ x + b0) + b1
     def loss(y: ℝ, target: ℝ) → ℝ:
         return (y - target) ** 2.0
 
@@ -61,22 +55,18 @@ c0: ℝ[2,1] = [[0.1],[0.2]]
 w1: ℝ[1,2] = [[0.7,0.8]]
 b1: ℝ = 0.3
 net1 = OneLayerNet(W0, c0, w1, b1)
+x: ℝ[3,1] = [[1.0], [2.0], [3.0]]
+net1(x)
 
-net1([1.0, 2.0, 3.0])
 
 # ============================================================
 # Example 2: Generalized n-Layer Network
 # ============================================================
 
-class FullyConnectedNetwork:
-    W: ℝ[m, n, n]
-    B: ℝ[m, n, o]
-    w: ℝ[o, n]
-    b: ℝ 
-    n: ℕ
+class FullyConnectedNetwork(W: ℝ[m, n, n], B: ℝ[m, n, o], w: ℝ[o, n], b: ℝ , n: ℕ):
     def λ(x: ℝ[n, o]) → ℝ[m, n]:
         for k:
-            x = sigma(W[k] @ x + B[k])
+            x = σ(W[k] @ x + B[k])
         return w @ x + b
     def loss(y: ℝ, target: ℝ) → ℝ:
         return (y - target) ** 2.0
