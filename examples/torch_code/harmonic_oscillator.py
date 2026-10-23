@@ -49,7 +49,7 @@ def solve(A, b):
 
 def U(k, m, t, x0, v0):
     omega = ((k / m) ** 0.5)
-    A = torch.tensor([[1.0, 0.0], [0.0, omega]], device=DEVICE)
+    A = torch.stack([torch.stack([torch.as_tensor(1.0, dtype=torch.get_default_dtype(), device=DEVICE), torch.as_tensor(0.0, dtype=torch.get_default_dtype(), device=DEVICE)]), torch.stack([torch.as_tensor(0.0, dtype=torch.get_default_dtype(), device=DEVICE), torch.as_tensor(omega, dtype=torch.get_default_dtype(), device=DEVICE)])])
     B = torch.stack([torch.as_tensor(x0), torch.as_tensor(v0)])
     coeffs = solve(A, B)
     a = coeffs[int(0)]
