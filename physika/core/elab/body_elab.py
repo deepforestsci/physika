@@ -53,6 +53,9 @@ from physika.core.elab.dim_typespec import (_REAL_CONST, _TYPE_0_LEVEL,
                                             _NAT_CONST, _NAT_SUB,
                                             typespec_to_cic_resolved)
 
+# branch statements that return instead of reassigning a local
+RETURN_STMT_TAGS = ("body_if_return", "body_if_else_return")
+
 
 def expr_to_str(e: Expr) -> str:
     """
@@ -570,6 +573,25 @@ def elab_body_if(stmt: tuple, i: int, stmts: List[tuple],
     else:
         else_stmts = None
 
+    # A branch that returns leaves no value to merge, so it is encoded the
+    # same way ``elab_body_if_return`` encodes ``if ...: return`` at body
+    # level: the else side is the else branch followed by the rest of body.
+    if any(
+            isinstance(s, tuple) and s and s[0] in RETURN_STMT_TAGS
+            for s in then_stmts):
+        cond_cic = elaborate_condition_bool(cond_node, cur_env, cur_elab,
+                                            errors)
+        then_cic, then_elab, _then_env, then_decls, then_names = (
+            elaborate_stmts_with_return(then_stmts, None, cur_env, cur_elab,
+                                        errors, context_label))
+        return build_if_return_term(cond_cic, then_cic,
+                                    (else_stmts or []) + stmts[i + 1:],
+                                    body_node, cur_env, then_elab,
+                                    local_decls + then_decls, {
+                                        **fvar_names,
+                                        **then_names
+                                    }, errors, context_label)
+
     merged = merge_branch_values(cond_node, then_stmts, else_stmts, cur_env,
                                  cur_elab, errors)
     for var_name, value_cic in merged.items():
@@ -648,9 +670,84 @@ def elab_body_if_return(stmt: tuple, i: int, stmts: List[tuple],
     cond_node, then_node = stmt[1], stmt[2]
     cond_cic = elaborate_condition_bool(cond_node, cur_env, cur_elab, errors)
     then_cic = elaborate_expr(then_node, cur_env, cur_elab, errors)
+    return build_if_return_term(cond_cic, then_cic, stmts[i + 1:], body_node,
+                                cur_env, cur_elab, local_decls, fvar_names,
+                                errors, context_label)
+
+
+def build_if_return_term(cond_cic: Expr, then_cic: Expr,
+                         rest_stmts: List[tuple], body_node: Optional[ASTNode],
+                         cur_env: Dict[str, Expr], cur_elab: ElabT,
+                         local_decls: List[Tuple[str, Expr]],
+                         fvar_names: Dict[FVarId, str], errors: List[str],
+                         context_label: str) -> HandlerResult:
+    """
+    Build the CIC term for a function body that returns early at an ``if``.
+
+    CIC has no control flow, so a body shaped like::
+
+        if cond:
+            return x
+        <rest of the body>
+
+    cannot branch. It is expressed instead as the single value
+    ``Real.ite/Nat.ite(cond, x, <rest of the body>)``: whatever runs when
+    *cond* is false becomes the else side.
+
+    The caller elaborates *x* and hands it over as ``then_cic``; this
+    elaborates ``rest_stmts`` recursively for the else side, reconciles the
+    two sides (an ``ℕ`` side is lifted to ``ℝ`` when the other side is
+    ``ℝ``), and assembles the ``ite``. If the condition, *x* or the else
+    side did not elaborate, the result degrades to a fresh MVar so the
+    caller reports an error instead of emitting a wrong body.
+
+    The control signal returned is ``("return", ...)``: the function's value
+    is now complete, so the caller stops walking statements.
+
+    Parameters
+    ----------
+    cond_cic : Expr
+        The ``if``'s condition, already elaborated to a boolean CIC term.
+    then_cic : Expr
+        The value the "then" side returns, already elaborated.
+    rest_stmts : List[tuple]
+        Statements that still run when the condition is false: the else
+        branch, when there is one, followed by whatever comes after the
+        ``if``.
+    body_node : object
+        Function's terminal return expression node (or ``None``).
+    cur_env: Dict[str, Expr]
+        Current environment with solved MVars
+    cur_elab: Elab
+        Threaded elaboration state.
+    local_decls: List[Tuple[str, Expr]]
+        List of tuples that contains solved and unsolved variables names with
+        its CIC term.
+    fvar_names: Dict[FVarId, str].
+        Free variables names present in current scope.
+    errors : list
+        List to append errors.
+    context_label : str
+        Location in a physika file for appending an error.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import build_if_return_term
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.expr import Lit
+    >>> from physika.utils.cic_utils.elab_utils import (
+    ...     elaborate_condition_bool)
+    >>> elab = Elab(Environment())
+    >>> cond = elaborate_condition_bool(
+    ...     ("cond_lt", ("num", 1.0), ("num", 2.0)), {}, elab, [])
+    >>> build_if_return_term(
+    ...     cond, Lit(1.0), [], ("num", 2.0), {}, elab, [], {}, [], "f")[4][0]
+    'return'
+    """
     else_cic, else_elab, _else_env, else_local_decls, else_fvar_names = (
-        elaborate_stmts_with_return(stmts[i + 1:], body_node, cur_env,
-                                    cur_elab, errors, context_label))
+        elaborate_stmts_with_return(rest_stmts, body_node, cur_env, cur_elab,
+                                    errors, context_label))
     all_local_decls = local_decls + else_local_decls
 
     merged_fvar_names = {**fvar_names, **else_fvar_names}
