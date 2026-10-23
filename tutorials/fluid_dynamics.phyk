@@ -1,0 +1,345 @@
+# -------------------------------------------------------
+# Fluid Dynamics
+# Equations and formulas from https://en.wikipedia.org/wiki/Fluid_dynamics
+# All quantities are in SI units.
+# -------------------------------------------------------
+
+# -------------------------------------------------------
+# 1. Dimensionless numbers and the equation of state
+# -------------------------------------------------------
+
+# mfp: Mean free path of the fluid molecules
+# L: Characteristic length scale of the flow
+# Knudsen number, the continuum assumption holds for Kn < 0.01
+def knudsen(mfp: ℝ, L: ℝ): ℝ:
+    return mfp / L
+
+# ρ: Density
+# Rs: Specific gas constant
+# T: Temperature
+# Ideal gas law (equation of state)
+def pressure_ideal_gas(ρ: ℝ, Rs: ℝ, T: ℝ): ℝ:
+    return ρ * Rs * T
+
+# γ: Ratio of specific heats
+# Speed of sound in an ideal gas
+def speed_of_sound(γ: ℝ, Rs: ℝ, T: ℝ): ℝ:
+    return sqrt(γ * Rs * T)
+
+# v: Flow speed
+# c: Speed of sound
+# Mach number, the flow can be treated as incompressible for Ma < 0.3
+def mach(v: ℝ, c: ℝ): ℝ:
+    return v / c
+
+# μ: Dynamic viscosity
+# Reynolds number, ratio of inertial to viscous forces
+def reynolds(ρ: ℝ, v: ℝ, L: ℝ, μ: ℝ): ℝ:
+    return ρ * v * L / μ
+
+# Air at sea level flowing past a 1 m object at 30 m/s
+ρ_air, Rs_air, T_air, γ_air, μ_air: ℝ = 1.225, 287.05, 288.15, 1.4, 1.81e-5
+mfp_air, L_body, v_air: ℝ = 6.8e-8, 1.0, 30.0
+
+Kn: ℝ = knudsen(mfp_air, L_body)
+print(Kn)
+
+p_air: ℝ = pressure_ideal_gas(ρ_air, Rs_air, T_air)
+print(p_air)
+
+c_air: ℝ = speed_of_sound(γ_air, Rs_air, T_air)
+print(c_air)
+
+Ma: ℝ = mach(v_air, c_air)
+print(Ma)
+
+Re: ℝ = reynolds(ρ_air, v_air, L_body, μ_air)
+print(Re)
+
+# -------------------------------------------------------
+# 2. Conservation of mass and flow kinematics
+# Partial derivatives of analytic fields are computed with grad
+# -------------------------------------------------------
+
+# A 1D compressible flow: uniform expansion u = a x,
+# with density decaying in time as ρ = ρ0 exp(-a t)
+# ρ0: Initial density
+# a: Expansion rate
+def ρ_expand(t: ℝ, x: ℝ, ρ0: ℝ, a: ℝ): ℝ:
+    return ρ0 * exp(0.0 - a * t)
+
+def u_expand(t: ℝ, x: ℝ, a: ℝ): ℝ:
+    return a * x
+
+# Mass flux ρu
+def mass_flux(t: ℝ, x: ℝ, ρ0: ℝ, a: ℝ): ℝ:
+    return ρ_expand(t, x, ρ0, a) * u_expand(t, x, a)
+
+# Continuity equation residual: ∂ρ/∂t + ∂(ρu)/∂x = 0
+def continuity_residual(t: ℝ, x: ℝ, ρ0: ℝ, a: ℝ): ℝ:
+    dρ_dt: ℝ = grad(ρ_expand(t, x, ρ0, a), t)
+    dflux_dx: ℝ = grad(mass_flux(t, x, ρ0, a), x)
+    return dρ_dt + dflux_dx
+
+# A temperature field carried by the flow, φ = x exp(-a t)
+def φ_expand(t: ℝ, x: ℝ, a: ℝ): ℝ:
+    return x * exp(0.0 - a * t)
+
+# Material derivative: Dφ/Dt = ∂φ/∂t + u ∂φ/∂x
+# φ is constant along a particle path x = x0 exp(a t), so Dφ/Dt = 0
+def material_derivative(t: ℝ, x: ℝ, a: ℝ): ℝ:
+    dφ_dt: ℝ = grad(φ_expand(t, x, a), t)
+    dφ_dx: ℝ = grad(φ_expand(t, x, a), x)
+    return dφ_dt + u_expand(t, x, a) * dφ_dx
+
+t0, x0, ρ0, a: ℝ = 0.5, 2.0, 1.0, 0.3
+
+res_continuity: ℝ = continuity_residual(t0, x0, ρ0, a)
+print(res_continuity)
+
+Dφ_Dt: ℝ = material_derivative(t0, x0, a)
+print(Dφ_Dt)
+
+# 2D linear flow (u, v), a point source of strength s
+# superposed with a rigid-body vortex of angular speed Ω:
+# u = s x - Ω y, v = Ω x + s y
+def u_linear(x: ℝ, y: ℝ, s: ℝ, Ω: ℝ): ℝ:
+    return s * x - Ω * y
+
+def v_linear(x: ℝ, y: ℝ, s: ℝ, Ω: ℝ): ℝ:
+    return Ω * x + s * y
+
+# Divergence ∇·u = ∂u/∂x + ∂v/∂y, which is 0 for incompressible flow
+def divergence(x: ℝ, y: ℝ, s: ℝ, Ω: ℝ): ℝ:
+    return grad(u_linear(x, y, s, Ω), x) + grad(v_linear(x, y, s, Ω), y)
+
+# Vorticity ω = ∂v/∂x - ∂u/∂y, which is 0 for irrotational flow
+def vorticity(x: ℝ, y: ℝ, s: ℝ, Ω: ℝ): ℝ:
+    return grad(v_linear(x, y, s, Ω), x) - grad(u_linear(x, y, s, Ω), y)
+
+xp, yp: ℝ = 1.0, 2.0
+
+# Pure vortex (s = 0, Ω = 1.5): incompressible (0) and rotational (2Ω = 3)
+div_vortex: ℝ = divergence(xp, yp, 0.0, 1.5)
+print(div_vortex)
+ω_vortex: ℝ = vorticity(xp, yp, 0.0, 1.5)
+print(ω_vortex)
+
+# Pure source (s = 0.8, Ω = 0): compressible (2s = 1.6) and irrotational (0)
+div_source: ℝ = divergence(xp, yp, 0.8, 0.0)
+print(div_source)
+ω_source: ℝ = vorticity(xp, yp, 0.8, 0.0)
+print(ω_source)
+
+# -------------------------------------------------------
+# 3. Conservation of momentum
+# -------------------------------------------------------
+
+# Plane Poiseuille flow: steady, pressure-driven flow of a Newtonian
+# fluid between two fixed plates at y = 0 and y = H
+# G: Driving pressure gradient, G = -∂p/∂x
+# H: Gap between the plates
+# Exact solution: u(y) = G / (2 μ) y (H - y), v = 0
+def u_poiseuille(y: ℝ, G: ℝ, μ: ℝ, H: ℝ): ℝ:
+    return G / (2.0 * μ) * y * (H - y)
+
+def du_dy_poiseuille(y: ℝ, G: ℝ, μ: ℝ, H: ℝ): ℝ:
+    return grad(u_poiseuille(y, G, μ, H), y)
+
+# Second derivative as a central difference of the autodiff first derivative
+# h: Finite difference step
+def d2u_dy2_poiseuille(y: ℝ, G: ℝ, μ: ℝ, H: ℝ, h: ℝ): ℝ:
+    return (du_dy_poiseuille(y + h, G, μ, H) - du_dy_poiseuille(y - h, G, μ, H)) / (2.0 * h)
+
+# p0: Pressure at x = 0
+# Linear pressure drop along the channel
+def p_poiseuille(x: ℝ, p0: ℝ, G: ℝ): ℝ:
+    return p0 - G * x
+
+# Newtonian fluid: shear stress τ = μ ∂u/∂y
+def shear_stress(y: ℝ, G: ℝ, μ: ℝ, H: ℝ): ℝ:
+    return μ * du_dy_poiseuille(y, G, μ, H)
+
+# Incompressible Navier-Stokes, x-momentum:
+# ρ (∂u/∂t + u ∂u/∂x + v ∂u/∂y) = -∂p/∂x + μ ∇²u
+# The flow is steady with ∂u/∂x = 0 and v = 0, so the inertial terms vanish
+# and the residual is -∂p/∂x + μ ∂²u/∂y²
+def navier_stokes_residual(x: ℝ, y: ℝ, p0: ℝ, G: ℝ, μ: ℝ, H: ℝ, h: ℝ): ℝ:
+    dp_dx: ℝ = grad(p_poiseuille(x, p0, G), x)
+    return 0.0 - dp_dx + μ * d2u_dy2_poiseuille(y, G, μ, H, h)
+
+# Water in a 1 cm channel
+μ_water, H_gap, G_drive, p_in, h_fd: ℝ = 1.0e-3, 0.01, 0.1, 101325.0, 1.0e-4
+x_probe, y_probe: ℝ = 0.5, 0.003
+
+# Centreline velocity, u_max = G H² / (8 μ)
+u_center: ℝ = u_poiseuille(H_gap / 2.0, G_drive, μ_water, H_gap)
+print(u_center)
+
+# Wall shear stress, τ_w = G H / 2
+τ_wall: ℝ = shear_stress(0.0, G_drive, μ_water, H_gap)
+print(τ_wall)
+
+res_ns: ℝ = navier_stokes_residual(x_probe, y_probe, p_in, G_drive, μ_water, H_gap, h_fd)
+print(res_ns)
+
+# Euler equations (inviscid, μ = 0):
+# ρ (u ∂u/∂x + v ∂u/∂y) = -∂p/∂x
+# ρ (u ∂v/∂x + v ∂v/∂y) = -∂p/∂y
+# Checked on the rigid-body vortex of section 2 (s = 0), whose pressure
+# rises outward to supply the centripetal force
+def p_vortex(x: ℝ, y: ℝ, p0: ℝ, ρ: ℝ, Ω: ℝ): ℝ:
+    return p0 + 0.5 * ρ * Ω * Ω * (x * x + y * y)
+
+def euler_residual_x(x: ℝ, y: ℝ, p0: ℝ, ρ: ℝ, Ω: ℝ): ℝ:
+    u: ℝ = u_linear(x, y, 0.0, Ω)
+    v: ℝ = v_linear(x, y, 0.0, Ω)
+    du_dx: ℝ = grad(u_linear(x, y, 0.0, Ω), x)
+    du_dy: ℝ = grad(u_linear(x, y, 0.0, Ω), y)
+    dp_dx: ℝ = grad(p_vortex(x, y, p0, ρ, Ω), x)
+    return ρ * (u * du_dx + v * du_dy) + dp_dx
+
+def euler_residual_y(x: ℝ, y: ℝ, p0: ℝ, ρ: ℝ, Ω: ℝ): ℝ:
+    u: ℝ = u_linear(x, y, 0.0, Ω)
+    v: ℝ = v_linear(x, y, 0.0, Ω)
+    dv_dx: ℝ = grad(v_linear(x, y, 0.0, Ω), x)
+    dv_dy: ℝ = grad(v_linear(x, y, 0.0, Ω), y)
+    dp_dy: ℝ = grad(p_vortex(x, y, p0, ρ, Ω), y)
+    return ρ * (u * dv_dx + v * dv_dy) + dp_dy
+
+res_euler_x: ℝ = euler_residual_x(xp, yp, p_in, 1000.0, 1.5)
+print(res_euler_x)
+res_euler_y: ℝ = euler_residual_y(xp, yp, p_in, 1000.0, 1.5)
+print(res_euler_y)
+
+# -------------------------------------------------------
+# 4. Bernoulli's principle and stagnation pressure
+# Steady, inviscid, incompressible flow along a streamline
+# -------------------------------------------------------
+
+# Dynamic pressure, q = ½ ρ v²
+def dynamic_pressure(ρ: ℝ, v: ℝ): ℝ:
+    return 0.5 * ρ * v * v
+
+# Stagnation (total) pressure, p₀ = p + ½ ρ v²
+def stagnation_pressure(p: ℝ, ρ: ℝ, v: ℝ): ℝ:
+    return p + dynamic_pressure(ρ, v)
+
+# g: Gravitational acceleration
+# z: Elevation
+# Bernoulli constant, p + ½ ρ v² + ρ g z = const along a streamline
+def bernoulli_head(p: ℝ, ρ: ℝ, v: ℝ, g: ℝ, z: ℝ): ℝ:
+    return p + 0.5 * ρ * v * v + ρ * g * z
+
+# Venturi meter: water slows down in a pipe of area A1 and speeds up in
+# a throat of area A2. Continuity gives A1 v1 = A2 v2, and Bernoulli
+# gives the pressure in the throat
+def venturi_velocity(v1: ℝ, A1: ℝ, A2: ℝ): ℝ:
+    return v1 * A1 / A2
+
+def venturi_pressure(p1: ℝ, ρ: ℝ, v1: ℝ, A1: ℝ, A2: ℝ): ℝ:
+    v2: ℝ = venturi_velocity(v1, A1, A2)
+    return p1 + 0.5 * ρ * (v1 * v1 - v2 * v2)
+
+ρ_water, g0: ℝ = 1000.0, 9.81
+v_pipe, A_pipe, A_throat: ℝ = 2.0, 0.01, 0.004
+
+v_throat: ℝ = venturi_velocity(v_pipe, A_pipe, A_throat)
+print(v_throat)
+
+p_throat: ℝ = venturi_pressure(p_in, ρ_water, v_pipe, A_pipe, A_throat)
+print(p_throat)
+
+# The Bernoulli constant is the same in the pipe and in the throat
+head_pipe: ℝ = bernoulli_head(p_in, ρ_water, v_pipe, g0, 0.0)
+print(head_pipe)
+head_throat: ℝ = bernoulli_head(p_throat, ρ_water, v_throat, g0, 0.0)
+print(head_throat)
+
+# Compressible (isentropic) stagnation pressure of an ideal gas:
+# p₀ = p (1 + (γ - 1) / 2 Ma²)^(γ / (γ - 1))
+def stagnation_pressure_compressible(p: ℝ, γ: ℝ, Ma: ℝ): ℝ:
+    return p * (1.0 + 0.5 * (γ - 1.0) * Ma * Ma)**(γ / (γ - 1.0))
+
+# At Ma ≈ 0.09 the incompressible and compressible results agree closely
+p0_incompressible: ℝ = stagnation_pressure(p_air, ρ_air, v_air)
+print(p0_incompressible)
+p0_compressible: ℝ = stagnation_pressure_compressible(p_air, γ_air, Ma)
+print(p0_compressible)
+
+# At Ma = 0.8 the incompressible formula underestimates the stagnation pressure
+v_fast: ℝ = 0.8 * c_air
+p0_incompressible_fast: ℝ = stagnation_pressure(p_air, ρ_air, v_fast)
+print(p0_incompressible_fast)
+p0_compressible_fast: ℝ = stagnation_pressure_compressible(p_air, γ_air, 0.8)
+print(p0_compressible_fast)
+
+# -------------------------------------------------------
+# 5. Creeping flow and turbulence
+# -------------------------------------------------------
+
+π: ℝ = 3.14159
+
+# r_s: Sphere radius
+# Stokes drag on a sphere in creeping flow (Re << 1), F = 6 π μ r v
+def stokes_drag(μ: ℝ, r_s: ℝ, v: ℝ): ℝ:
+    return 6.0 * 3.14159 * μ * r_s * v
+
+# ρ_s: Sphere density
+# ρ_f: Fluid density
+# Terminal velocity, where drag balances gravity minus buoyancy
+# v_t = 2 / 9 (ρ_s - ρ_f) g r² / μ
+def terminal_velocity(ρ_s: ℝ, ρ_f: ℝ, g: ℝ, r_s: ℝ, μ: ℝ): ℝ:
+    return 2.0 / 9.0 * (ρ_s - ρ_f) * g * r_s * r_s / μ
+
+# A 50 μm sand grain settling in water
+ρ_sand, r_grain: ℝ = 2650.0, 5.0e-5
+
+v_settle: ℝ = terminal_velocity(ρ_sand, ρ_water, g0, r_grain, μ_water)
+print(v_settle)
+
+# Stokes flow is valid since Re based on the diameter is below 1
+Re_grain: ℝ = reynolds(ρ_water, v_settle, 2.0 * r_grain, μ_water)
+print(Re_grain)
+
+# Drag equals the net weight (ρ_s - ρ_f) g (4/3) π r³ at terminal velocity
+F_drag: ℝ = stokes_drag(μ_water, r_grain, v_settle)
+print(F_drag)
+F_weight: ℝ = (ρ_sand - ρ_water) * g0 * 4.0 / 3.0 * π * r_grain * r_grain * r_grain
+print(F_weight)
+
+# Reynolds decomposition: a turbulent velocity is split into a time mean
+# and a fluctuation, u = ū + u'
+# A velocity probe signal with mean U and fluctuation amplitude A
+# ω_f: Angular frequency of the fluctuation
+def probe_velocity(t: ℝ, U: ℝ, A: ℝ, ω_f: ℝ): ℝ:
+    return U + A * sin(ω_f * t)
+
+# Time mean ū = (1 / n) Σ u(tᵢ) over n samples spaced dt apart
+def time_mean(U: ℝ, A: ℝ, ω_f: ℝ, dt: ℝ, n_samples: ℕ): ℝ:
+    total: ℝ = 0.0
+    for i: ℕ(n_samples):
+        total = total + probe_velocity(i * dt, U, A, ω_f)
+    return total / n_samples
+
+# Turbulent kinetic energy per unit mass from the fluctuation, k = ½ mean(u'²)
+def turbulent_kinetic_energy(U: ℝ, A: ℝ, ω_f: ℝ, dt: ℝ, n_samples: ℕ): ℝ:
+    u_mean: ℝ = time_mean(U, A, ω_f, dt, n_samples)
+    total: ℝ = 0.0
+    u_prime: ℝ = 0.0
+    for i: ℕ(n_samples):
+        u_prime = probe_velocity(i * dt, U, A, ω_f) - u_mean
+        total = total + u_prime * u_prime
+    return 0.5 * total / n_samples
+
+# 1000 samples covering exactly 10 periods of the fluctuation
+u_mean_probe, A_probe, ω_probe, dt_probe: ℝ = 10.0, 1.5, 2.0 * π, 0.01
+N_probe: ℕ = 1000
+
+# Expected mean ū = 10
+u_bar: ℝ = time_mean(u_mean_probe, A_probe, ω_probe, dt_probe, N_probe)
+print(u_bar)
+
+# Expected k = A² / 4 = 0.5625
+k_turb: ℝ = turbulent_kinetic_energy(u_mean_probe, A_probe, ω_probe, dt_probe, N_probe)
+print(k_turb)
