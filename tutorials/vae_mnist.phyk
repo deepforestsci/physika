@@ -112,8 +112,8 @@ elbo_after: ℝ = vae.loss(x0, recon_after)
 elbo_after
 
 # Visualization (image reconstruvtion)
-show_mnist_reconstruction(X[0], recon_after[0])
-recon10: ℝ[1,784] = vae([X[10]])
-show_mnist_reconstruction(X[10], recon10[0])
-recon45: ℝ[1,784] = vae([X[45]])
-show_mnist_reconstruction(X[45], recon45[0])
+# show_mnist_reconstruction(X[0], recon_after[0])
+# recon10: ℝ[1,784] = vae([X[10]])
+# show_mnist_reconstruction(X[10], recon10[0])
+# recon45: ℝ[1,784] = vae([X[45]])
+# show_mnist_reconstruction(X[45], recon45[0])
