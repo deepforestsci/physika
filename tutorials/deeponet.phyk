@@ -1,100 +1,10 @@
 physika.seed(0)
 from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_rows, get_2d_array_num_cols, get_1d_array_length
+from grf import GRF
+from cn_solve import Crank_Nicholson
 
 def σ(a: ℝ[ra, rb]): ℝ[ra, rb]:
     return (a + abs(a)) * 0.5
-
-# GRF, create gaussian random field samples
-class GRF(dx: ℝ, l: ℝ, m: ℕ):
-    def kernel() -> ℝ[m, m]:
-        K: ℝ[m, m] = for i:ℕ(this.m) -> for j:ℕ(this.m) -> exp(-((i * this.dx) - (j * this.dx))**2 / (2.0 * this.l**2))
-        for i:ℕ(this.m):
-            K[i, i] = K[i, i] + 0.0001
-        return K
-    def chol(K: ℝ[m, m]): ℝ[m, m]:
-        L: ℝ[m, m] = zeros(m, m)
-        mm: ℝ = this.m
-        for j:ℕ(mm):
-            d: ℝ = K[j, j]
-            for q:ℕ(j):
-                d = d - L[j, q]**2
-            L[j, j] = sqrt(d)
-            cnt: ℝ = mm - j - 1
-            for t:ℕ(cnt):
-                o: ℝ = K[j + 1 + t, j]
-                for q:ℕ(j):
-                    o = o - L[j + 1 + t, q] * L[j, q]
-                L[j + 1 + t, j] = o / L[j, j]
-        return L
-    def sample(Zs: ℝ[nu, m], nu: ℝ): ℝ[nu, m]:
-        K: ℝ[m, m] = this.kernel()
-        L: ℝ[m, m] = this.chol(K)
-        us: ℝ[nu, m] = zeros(nu, m)
-        for a:ℕ(nu):
-            u: ℝ[m] = L @ Zs[a]
-            us[a, :] = u
-        return us
-
-# Crank_Nicholson, takes GRF samples then run CN solver steps to create the diffusion reaction functions for training/testing model
-class Crank_Nicholson(U: ℝ[Ns, m], Y: ℝ[Ns, 2], S: ℝ[Ns], m: ℕ, nt: ℕ, Ns: ℕ, dt: ℝ, r: ℝ, rk: ℝ):
-    B: ℝ[m, m]
-    C: ℝ[m, m]
-    def build() -> ℝ:
-        rr: ℝ = this.r
-        bb: ℝ[m, m] = zeros(m, m)
-        cc: ℝ[m, m] = zeros(m, m)
-        mb: ℝ = this.m - 2
-        for t:ℕ(mb):
-            bb[t+1, t] = -rr
-            bb[t+1, t+1] = 1.0 + 2.0 * rr
-            bb[t+1, t+2] = -rr
-            cc[t+1, t] = rr
-            cc[t+1, t+1] = 1.0 - 2.0 * rr
-            cc[t+1, t+2] = rr
-        mm1: ℝ = this.m - 1
-        bb[0, 0] = 1.0
-        bb[mm1, mm1] = 1.0
-        this.B = bb
-        this.C = cc
-        return 0.0
-    def reaction(s: ℝ[m], u: ℝ[m]): ℝ[m]:
-        return this.rk * s * s + u
-    def field(u: ℝ[m]): ℝ[nt, m]:
-        sn: ℝ[m] = zeros(m)
-        Φ: ℝ[nt, m] = zeros(nt, m)
-        last: ℝ = this.m - 1
-        steps: ℝ = this.nt - 1
-        for n2:ℕ(steps):
-            rhs: ℝ[m] = this.C @ sn + this.dt * this.reaction(sn, u)
-            rhs[0] = 0.0
-            rhs[last] = 0.0
-            sn = gaussian_solve(this.B, rhs)
-            Φ[n2 + 1, :] = sn
-        return Φ
-    def fill(a: ℝ, u: ℝ[m], Φ: ℝ[nt, m], P: ℕ): ℝ:
-        lU: ℝ[Ns, m] = this.U
-        lY: ℝ[Ns, 2] = this.Y
-        lS: ℝ[Ns] = this.S
-        xs: ℝ[P] ~ Uniform(0.0, 1.0, P)
-        ts: ℝ[P] ~ Uniform(0.0, 1.0, P)
-        for j:ℕ(P):
-            xc: ℝ = xs[j]
-            tc: ℝ = ts[j]
-            lU[a*P + j, :] = u
-            lY[a*P + j, 0] = xc
-            lY[a*P + j, 1] = tc
-            lS[a*P + j] = Φ[tc * (this.nt - 1), xc * (this.m - 1)]
-        this.U = lU
-        this.Y = lY
-        this.S = lS
-        return 0.0
-    def sample(us: ℝ[nu, m], nu: ℝ, P: ℕ): ℝ:
-        d: ℝ = this.build()
-        for a:ℕ(nu):
-            u: ℝ[m] = us[a]
-            Φ: ℝ[nt, m] = this.field(u)
-            this.fill(a, u, Φ, P)
-        return 0.0
 
 # unstacked deeponet learns operator
 class DeepONet(ξ: ℝ[m, n], θ: ℝ[1, n], c: ℝ[n, p], cb: ℝ[1, p], w1: ℝ[2, q], ζ1: ℝ[1, q], w2: ℝ[q, q], ζ2: ℝ[1, q], w3: ℝ[q, p], ζ3: ℝ[1, p], b0: ℝ[1]):

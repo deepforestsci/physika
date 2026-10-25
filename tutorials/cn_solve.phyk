@@ -1,0 +1,89 @@
+from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_rows, get_2d_array_num_cols, get_1d_array_length
+
+# Crank_Nicholson, takes GRF samples then run CN solver steps to create the diffusion reaction functions for training/testing model
+class Crank_Nicholson(U: ℝ[Ns, m], Y: ℝ[Ns, 2], S: ℝ[Ns], m: ℕ, nt: ℕ, Ns: ℕ, dt: ℝ, r: ℝ, rk: ℝ):
+    B: ℝ[m, m]
+    C: ℝ[m, m]
+    def build() -> ℝ:
+        rr: ℝ = this.r
+        bb: ℝ[m, m] = zeros(m, m)
+        cc: ℝ[m, m] = zeros(m, m)
+        mb: ℝ = this.m - 2
+        for t:ℕ(mb):
+            bb[t+1, t] = -rr
+            bb[t+1, t+1] = 1.0 + 2.0 * rr
+            bb[t+1, t+2] = -rr
+            cc[t+1, t] = rr
+            cc[t+1, t+1] = 1.0 - 2.0 * rr
+            cc[t+1, t+2] = rr
+        mm1: ℝ = this.m - 1
+        bb[0, 0] = 1.0
+        bb[mm1, mm1] = 1.0
+        this.B = bb
+        this.C = cc
+        return 0.0
+    def reaction(s: ℝ[m], u: ℝ[m]): ℝ[m]:
+        return this.rk * s * s + u
+    def field(u: ℝ[m]): ℝ[nt, m]:
+        sn: ℝ[m] = zeros(m)
+        Φ: ℝ[nt, m] = zeros(nt, m)
+        last: ℝ = this.m - 1
+        steps: ℝ = this.nt - 1
+        for n2:ℕ(steps):
+            rhs: ℝ[m] = this.C @ sn + this.dt * this.reaction(sn, u)
+            rhs[0] = 0.0
+            rhs[last] = 0.0
+            sn = gaussian_solve(this.B, rhs)
+            Φ[n2 + 1, :] = sn
+        return Φ
+    def fill(a: ℝ, u: ℝ[m], Φ: ℝ[nt, m], P: ℕ): ℝ:
+        lU: ℝ[Ns, m] = this.U
+        lY: ℝ[Ns, 2] = this.Y
+        lS: ℝ[Ns] = this.S
+        xs: ℝ[P] ~ Uniform(0.0, 1.0, P)
+        ts: ℝ[P] ~ Uniform(0.0, 1.0, P)
+        for j:ℕ(P):
+            xc: ℝ = xs[j]
+            tc: ℝ = ts[j]
+            lU[a*P + j, :] = u
+            lY[a*P + j, 0] = xc
+            lY[a*P + j, 1] = tc
+            lS[a*P + j] = Φ[tc * (this.nt - 1), xc * (this.m - 1)]
+        this.U = lU
+        this.Y = lY
+        this.S = lS
+        return 0.0
+    def sample(us: ℝ[nu, m], nu: ℝ, P: ℕ): ℝ:
+        d: ℝ = this.build()
+        for a:ℕ(nu):
+            u: ℝ[m] = us[a]
+            Φ: ℝ[nt, m] = this.field(u)
+            this.fill(a, u, Φ, P)
+        return 0.0
+
+
+physika.seed(0)
+m_demo: ℝ, nt_demo: ℝ = 20, 10
+D_demo: ℝ, k_demo: ℝ = 0.01, 0.01
+dx_demo: ℝ = 1.0 / (m_demo - 1)
+dt_demo: ℝ = 1.0 / (nt_demo - 1)
+r_demo: ℝ = D_demo * dt_demo / (2.0 * dx_demo**2)
+
+nu_demo: ℝ = 1
+P_demo: ℕ = 5
+Ns_demo: ℝ = 5
+
+U_demo: ℝ[Ns_demo, m_demo] = zeros(Ns_demo, m_demo)
+Y_demo: ℝ[Ns_demo, 2] = zeros(Ns_demo, 2)
+S_demo: ℝ[Ns_demo] = zeros(Ns_demo)
+
+us_demo: ℝ[nu_demo, m_demo] = for i:ℕ(nu_demo) -> ε: ℝ[m_demo] ~ Normal(0.0, 1.0, m_demo)
+
+cn_demo: Crank_Nicholson = Crank_Nicholson(U_demo, Y_demo, S_demo, m_demo, nt_demo, Ns_demo, dt_demo, r_demo, k_demo)
+done: ℝ = cn_demo.sample(us_demo, nu_demo, P_demo)
+
+Sres: ℝ[Ns_demo] = cn_demo.S
+Yres: ℝ[Ns_demo, 2] = cn_demo.Y
+print(Sres[0])
+print(Sres[1])
+print(Yres[0, 0])
