@@ -1,19 +1,19 @@
 physika.seed(0)
 from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_rows, get_2d_array_num_cols, get_1d_array_length
 from grf import GRF
-from cn_solve import Crank_Nicholson
+from cn_solve import Crank_Nicholson, reaction
 
-def σ(a: ℝ[ra, rb]): ℝ[ra, rb]:
+def relu(a: ℝ[ra, rb]): ℝ[ra, rb]:
     return (a + abs(a)) * 0.5
 
 # unstacked deeponet learns operator
 class DeepONet(ξ: ℝ[m, n], θ: ℝ[1, n], c: ℝ[n, p], cb: ℝ[1, p], w1: ℝ[2, q], ζ1: ℝ[1, q], w2: ℝ[q, q], ζ2: ℝ[1, q], w3: ℝ[q, p], ζ3: ℝ[1, p], b0: ℝ[1]):
     def branch(u: ℝ[1, m]): ℝ[1, p]:
-        return σ(u @ this.ξ + this.θ) @ this.c + this.cb
+        return relu(u @ this.ξ + this.θ) @ this.c + this.cb
     def trunk(y: ℝ[1, 2]): ℝ[1, p]:
-        h1: ℝ[1, q] = σ(y @ this.w1 + this.ζ1)
-        h2: ℝ[1, q] = σ(h1 @ this.w2 + this.ζ2)
-        return σ(h2 @ this.w3 + this.ζ3)
+        h1: ℝ[1, q] = relu(y @ this.w1 + this.ζ1)
+        h2: ℝ[1, q] = relu(h1 @ this.w2 + this.ζ2)
+        return relu(h2 @ this.w3 + this.ζ3)
     def λ(u: ℝ[1, m], y: ℝ[1, 2]) -> ℝ:
         bk: ℝ[1, p] = this.branch(u)
         tk: ℝ[1, p] = this.trunk(y)

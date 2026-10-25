@@ -1,6 +1,9 @@
 from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_rows, get_2d_array_num_cols, get_1d_array_length
 
-# Crank_Nicholson, takes GRF samples then run CN solver steps to create the diffusion reaction functions for training/testing model
+def reaction(s: ℝ[m], u: ℝ[m], rk: ℝ): ℝ[m]:
+    return rk * s * s + u
+
+# Full Crank-Nicolson reaction-diffusion solver, nonlinear step solved implicitly by Newton iteration
 class Crank_Nicholson(U: ℝ[Ns, m], Y: ℝ[Ns, 2], S: ℝ[Ns], m: ℕ, nt: ℕ, Ns: ℕ, dt: ℝ, r: ℝ, rk: ℝ):
     B: ℝ[m, m]
     C: ℝ[m, m]
@@ -22,18 +25,31 @@ class Crank_Nicholson(U: ℝ[Ns, m], Y: ℝ[Ns, 2], S: ℝ[Ns], m: ℕ, nt: ℕ,
         this.B = bb
         this.C = cc
         return 0.0
-    def reaction(s: ℝ[m], u: ℝ[m]): ℝ[m]:
-        return this.rk * s * s + u
     def field(u: ℝ[m]): ℝ[nt, m]:
         sn: ℝ[m] = zeros(m)
         Φ: ℝ[nt, m] = zeros(nt, m)
         last: ℝ = this.m - 1
         steps: ℝ = this.nt - 1
+        half: ℝ = this.dt * 0.5
+        newton_iters: ℝ = 3
         for n2:ℕ(steps):
-            rhs: ℝ[m] = this.C @ sn + this.dt * this.reaction(sn, u)
-            rhs[0] = 0.0
-            rhs[last] = 0.0
-            sn = gaussian_solve(this.B, rhs)
+            g: ℝ[m] = this.C @ sn + half * reaction(sn, u, this.rk)
+            g[0] = 0.0
+            g[last] = 0.0
+            s: ℝ[m] = sn
+            for it:ℕ(newton_iters):
+                fnew: ℝ[m] = half * reaction(s, u, this.rk)
+                fnew[0] = 0.0
+                fnew[last] = 0.0
+                res: ℝ[m] = this.B @ s - g - fnew
+                Jf = grad(reaction(s, u, this.rk), s)
+                Jf[0, 0] = 0.0
+                Jf[last, last] = 0.0
+                J: ℝ[m, m] = this.B - half * Jf
+                negR: ℝ[m] = zeros(m) - res
+                delta: ℝ[m] = gaussian_solve(J, negR)
+                s = s + delta
+            sn = s
             Φ[n2 + 1, :] = sn
         return Φ
     def fill(a: ℝ, u: ℝ[m], Φ: ℝ[nt, m], P: ℕ): ℝ:
