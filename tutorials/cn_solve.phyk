@@ -3,28 +3,31 @@ from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_a
 def reaction(s: ℝ[m], u: ℝ[m], rk: ℝ): ℝ[m]:
     return rk * s * s + u
 
+def build_cn_B_mat(r: ℝ, m: ℕ): ℝ[m, m]:
+    B: ℝ[m, m] = zeros(m, m)
+    interior: ℝ = m - 2
+    for i:ℕ(interior):
+        B[i+1, i] = -r
+        B[i+1, i+1] = 1.0 + 2.0 * r
+        B[i+1, i+2] = -r
+    last: ℝ = m - 1
+    B[0, 0] = 1.0
+    B[last, last] = 1.0
+    return B
+
+def build_cn_C_mat(r: ℝ, m: ℕ): ℝ[m, m]:
+    C: ℝ[m, m] = zeros(m, m)
+    interior: ℝ = m - 2
+    for i:ℕ(interior):
+        C[i+1, i] = r
+        C[i+1, i+1] = 1.0 - 2.0 * r
+        C[i+1, i+2] = r
+    return C
+
 # Full Crank-Nicolson reaction-diffusion solver, nonlinear step solved implicitly by Newton iteration
 class Crank_Nicholson(U: ℝ[Ns, m], Y: ℝ[Ns, 2], S: ℝ[Ns], m: ℕ, nt: ℕ, Ns: ℕ, dt: ℝ, r: ℝ, rk: ℝ):
     B: ℝ[m, m]
     C: ℝ[m, m]
-    def build() -> ℝ:
-        rr: ℝ = this.r
-        bb: ℝ[m, m] = zeros(m, m)
-        cc: ℝ[m, m] = zeros(m, m)
-        mb: ℝ = this.m - 2
-        for t:ℕ(mb):
-            bb[t+1, t] = -rr
-            bb[t+1, t+1] = 1.0 + 2.0 * rr
-            bb[t+1, t+2] = -rr
-            cc[t+1, t] = rr
-            cc[t+1, t+1] = 1.0 - 2.0 * rr
-            cc[t+1, t+2] = rr
-        mm1: ℝ = this.m - 1
-        bb[0, 0] = 1.0
-        bb[mm1, mm1] = 1.0
-        this.B = bb
-        this.C = cc
-        return 0.0
     def field(u: ℝ[m]): ℝ[nt, m]:
         sn: ℝ[m] = zeros(m)
         Φ: ℝ[nt, m] = zeros(nt, m)
@@ -32,7 +35,7 @@ class Crank_Nicholson(U: ℝ[Ns, m], Y: ℝ[Ns, 2], S: ℝ[Ns], m: ℕ, nt: ℕ,
         steps: ℝ = this.nt - 1
         half: ℝ = this.dt * 0.5
         newton_iters: ℝ = 3
-        for n2:ℕ(steps):
+        for n:ℕ(steps):
             g: ℝ[m] = this.C @ sn + half * reaction(sn, u, this.rk)
             g[0] = 0.0
             g[last] = 0.0
@@ -50,7 +53,7 @@ class Crank_Nicholson(U: ℝ[Ns, m], Y: ℝ[Ns, 2], S: ℝ[Ns], m: ℕ, nt: ℕ,
                 delta: ℝ[m] = gaussian_solve(J, negR)
                 s = s + delta
             sn = s
-            Φ[n2 + 1, :] = sn
+            Φ[n + 1, :] = sn
         return Φ
     def fill(a: ℝ, u: ℝ[m], Φ: ℝ[nt, m], P: ℕ): ℝ:
         lU: ℝ[Ns, m] = this.U
@@ -69,13 +72,14 @@ class Crank_Nicholson(U: ℝ[Ns, m], Y: ℝ[Ns, 2], S: ℝ[Ns], m: ℕ, nt: ℕ,
         this.Y = lY
         this.S = lS
         return 0.0
-    def sample(us: ℝ[nu, m], nu: ℝ, P: ℕ): ℝ:
-        d: ℝ = this.build()
+    def sample(us: ℝ[nu, m], nu: ℝ, P: ℕ): ℝ[Ns]:
+        this.B = build_cn_B_mat(this.r, this.m)
+        this.C = build_cn_C_mat(this.r, this.m)
         for a:ℕ(nu):
             u: ℝ[m] = us[a]
             Φ: ℝ[nt, m] = this.field(u)
             this.fill(a, u, Φ, P)
-        return 0.0
+        return this.S
 
 
 physika.seed(0)
@@ -96,7 +100,7 @@ S_demo: ℝ[Ns_demo] = zeros(Ns_demo)
 us_demo: ℝ[nu_demo, m_demo] = for i:ℕ(nu_demo) -> ε: ℝ[m_demo] ~ Normal(0.0, 1.0, m_demo)
 
 cn_demo: Crank_Nicholson = Crank_Nicholson(U_demo, Y_demo, S_demo, m_demo, nt_demo, Ns_demo, dt_demo, r_demo, k_demo)
-done: ℝ = cn_demo.sample(us_demo, nu_demo, P_demo)
+done: ℝ[Ns_demo] = cn_demo.sample(us_demo, nu_demo, P_demo)
 
 Sres: ℝ[Ns_demo] = cn_demo.S
 Yres: ℝ[Ns_demo, 2] = cn_demo.Y

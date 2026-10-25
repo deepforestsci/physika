@@ -1,28 +1,26 @@
 # GRF, create gaussian random field samples
 class GRF(dx: ℝ, l: ℝ, m: ℕ):
-    def kernel() -> ℝ[m, m]:
+    def rbf_kernel() -> ℝ[m, m]:
         K: ℝ[m, m] = for i:ℕ(this.m) -> for j:ℕ(this.m) -> exp(-((i * this.dx) - (j * this.dx))**2 / (2.0 * this.l**2))
         for i:ℕ(this.m):
             K[i, i] = K[i, i] + 0.0001
         return K
-    def chol(K: ℝ[m, m]): ℝ[m, m]:
+    def cholesky(K: ℝ[m, m]): ℝ[m, m]:
         L: ℝ[m, m] = zeros(m, m)
-        mm: ℝ = this.m
-        for j:ℕ(mm):
-            d: ℝ = K[j, j]
+        for j:ℕ(this.m):
+            diag: ℝ = K[j, j]
             for q:ℕ(j):
-                d = d - L[j, q]**2
-            L[j, j] = sqrt(d)
-            cnt: ℝ = mm - j - 1
-            for t:ℕ(cnt):
-                o: ℝ = K[j + 1 + t, j]
+                diag = diag - L[j, q]**2
+            L[j, j] = sqrt(diag)
+            for i:ℕ(j + 1, this.m):
+                acc: ℝ = K[i, j]
                 for q:ℕ(j):
-                    o = o - L[j + 1 + t, q] * L[j, q]
-                L[j + 1 + t, j] = o / L[j, j]
+                    acc = acc - L[i, q] * L[j, q]
+                L[i, j] = acc / L[j, j]
         return L
     def sample(Zs: ℝ[nu, m], nu: ℝ): ℝ[nu, m]:
-        K: ℝ[m, m] = this.kernel()
-        L: ℝ[m, m] = this.chol(K)
+        K: ℝ[m, m] = this.rbf_kernel()
+        L: ℝ[m, m] = this.cholesky(K)
         us: ℝ[nu, m] = zeros(nu, m)
         for a:ℕ(nu):
             u: ℝ[m] = L @ Zs[a]
