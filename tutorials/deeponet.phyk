@@ -1,0 +1,113 @@
+physika.seed(0)
+from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_rows, get_2d_array_num_cols, get_1d_array_length
+from grf import GRF
+from cn_solve import Crank_Nicholson, reaction, build_cn_B_mat, build_cn_C_mat
+
+def relu(a: ℝ[ra, rb]): ℝ[ra, rb]:
+    return (a + abs(a)) * 0.5
+
+# unstacked deeponet learns operator
+class DeepONet(ξ: ℝ[m, n], θ: ℝ[1, n], c: ℝ[n, p], cb: ℝ[1, p], w1: ℝ[2, q], ζ1: ℝ[1, q], w2: ℝ[q, q], ζ2: ℝ[1, q], w3: ℝ[q, p], ζ3: ℝ[1, p], b0: ℝ[1]):
+    def branch(u: ℝ[1, m]): ℝ[1, p]:
+        return relu(u @ this.ξ + this.θ) @ this.c + this.cb
+    def trunk(y: ℝ[1, 2]): ℝ[1, p]:
+        h1: ℝ[1, q] = relu(y @ this.w1 + this.ζ1)
+        h2: ℝ[1, q] = relu(h1 @ this.w2 + this.ζ2)
+        return relu(h2 @ this.w3 + this.ζ3)
+    def λ(u: ℝ[1, m], y: ℝ[1, 2]) -> ℝ:
+        bk: ℝ[1, p] = this.branch(u)
+        tk: ℝ[1, p] = this.trunk(y)
+        return sum(bk[0] * tk[0]) + this.b0[0]
+    def loss(target: ℝ, x_hat: ℝ): ℝ:
+        err: ℝ = target - x_hat
+        return err * err
+    def train(U: ℝ[ns, m], Y: ℝ[ns, 2], S: ℝ[ns], epochs: ℕ, lr: ℝ, n_samples: ℝ): ℝ[epochs]:
+        losses: ℝ[epochs] = zeros(epochs)
+        for epoch:ℕ(epochs):
+            total = 0
+            for i:ℕ(n_samples):
+                u: ℝ[1, m] = [U[i]]
+                y: ℝ[1, 2] = [Y[i]]
+                pred = this(u, y)
+                ls = this.loss(S[i], pred)
+                learnable_grads = grad(ls, this.learnable_params)
+                this.update_params(lr, learnable_grads)
+                total += this.loss(S[i], this(u, y))
+            epoch_loss = total/n_samples
+            losses[epoch] = epoch_loss
+            print(epoch_loss)
+        return losses
+    def evaluate(U: ℝ[ns, m], Y: ℝ[ns, 2], S: ℝ[ns], n_samples: ℝ): ℝ:
+        total: ℝ = 0
+        for i:ℕ(n_samples):
+            x: ℝ[1, m] = [U[i]]
+            y: ℝ[1, 2] = [Y[i]]
+            err: ℝ = S[i] - this(x, y)
+            total += err * err
+        return total / n_samples
+    def update_params(lr: ℝ, learnable_grads: ℝ[g]):
+        this.ξ = this.ξ - lr * learnable_grads[0]
+        this.θ = this.θ - lr * learnable_grads[1]
+        this.c = this.c - lr * learnable_grads[2]
+        this.cb = this.cb - lr * learnable_grads[3]
+        this.w1 = this.w1 - lr * learnable_grads[4]
+        this.ζ1 = this.ζ1 - lr * learnable_grads[5]
+        this.w2 = this.w2 - lr * learnable_grads[6]
+        this.ζ2 = this.ζ2 - lr * learnable_grads[7]
+        this.w3 = this.w3 - lr * learnable_grads[8]
+        this.ζ3 = this.ζ3 - lr * learnable_grads[9]
+        this.b0 = this.b0 - lr * learnable_grads[10]
+
+m: ℝ, n: ℝ, p: ℝ, q: ℝ = 100, 100, 100, 100
+D: ℝ, k: ℝ, l: ℝ, nt: ℝ = 0.01, 0.01, 0.2, 100
+dx: ℝ, dt: ℝ = 1.0 / (m - 1), 1.0 / (nt - 1)
+r: ℝ = D * dt / (2.0 * dx**2)
+gstd_io: ℝ = sqrt(2.0 / (m + n))
+gstd_in: ℝ = sqrt(2.0 / (2.0 + q))
+
+ξ: ℝ[m, n] = for i:ℕ(m) -> ε: ℝ[n] ~ Normal(0.0, gstd_io, n)
+θ: ℝ[1, n] = zeros(1, n)
+c: ℝ[n, p] = for i:ℕ(n) -> ε: ℝ[p] ~ Normal(0.0, gstd_io, p)
+cb: ℝ[1, p] = zeros(1, p)
+w1: ℝ[2, q] = for i:ℕ(2) -> ε: ℝ[q] ~ Normal(0.0, gstd_in, q)
+ζ1: ℝ[1, q] = zeros(1, q)
+w2: ℝ[q, q] = for i:ℕ(q) -> ε: ℝ[q] ~ Normal(0.0, gstd_io, q)
+ζ2: ℝ[1, q] = zeros(1, q)
+w3: ℝ[q, p] = for i:ℕ(q) -> ε: ℝ[p] ~ Normal(0.0, gstd_io, p)
+ζ3: ℝ[1, p] = zeros(1, p)
+b0: ℝ[1] = [0.0]
+
+deeponet: DeepONet = DeepONet(ξ, θ, c, cb, w1, ζ1, w2, ζ2, w3, ζ3, b0)
+print(DEVICE)
+
+nu: ℝ, Ns: ℝ = 2, 50
+P: ℕ = 25
+U: ℝ[Ns, m] = zeros(Ns, m)
+Y: ℝ[Ns, 2] = zeros(Ns, 2)
+S: ℝ[Ns] = zeros(Ns)
+Zs: ℝ[nu, m] = for i:ℕ(nu) -> ε: ℝ[m] ~ Normal(0.0, 1.0, m)
+
+grf: GRF = GRF(dx, l, m)
+us: ℝ[nu, m] = grf.sample(Zs, nu)
+cn: Crank_Nicholson = Crank_Nicholson(U, Y, S, m, nt, Ns, dt, r, k)
+done: ℝ[Ns] = cn.sample(us, nu, P)
+
+epochs: ℕ = 1
+lr: ℝ = 0.001
+losses: ℝ[epochs] = deeponet.train(cn.U, cn.Y, cn.S, epochs, lr, Ns)
+print(losses[-1])
+
+nu_test: ℝ, Nt: ℝ = 1, 25
+Zt: ℝ[nu_test, m] = for i:ℕ(nu_test) -> ε: ℝ[m] ~ Normal(0.0, 1.0, m)
+Ut: ℝ[Nt, m] = zeros(Nt, m)
+Yt: ℝ[Nt, 2] = zeros(Nt, 2)
+St: ℝ[Nt] = zeros(Nt)
+us_test: ℝ[nu_test, m] = grf.sample(Zt, nu_test)
+cn_test: Crank_Nicholson = Crank_Nicholson(Ut, Yt, St, m, nt, Nt, dt, r, k)
+done_test: ℝ[Nt] = cn_test.sample(us_test, nu_test, P)
+test_mse: ℝ = deeponet.evaluate(cn_test.U, cn_test.Y, cn_test.S, Nt)
+print(test_mse)
+gY: ℝ[Ns, 2] = cn.Y
+x0: ℝ[1, m] = [us[0]]
+y0: ℝ[1, 2] = [gY[0]]
+print(deeponet(x0, y0))
