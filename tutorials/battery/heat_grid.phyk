@@ -1,0 +1,43 @@
+# Resolve high-power transients without oversampling the long cruise.
+# The adjoint still uses one fixed grid, and verification halves every step.
+def resolve_heat_grid(grid: ℝ[max_nodes,tape_columns], high_step_limit: ℝ): ℝ[max_nodes,tape_columns]:
+    output: ℝ[max_nodes,tape_columns] = zeros(max_nodes,tape_columns)
+    output[1,:] = grid[1,:]
+    saved: ℕ = 1
+    pieces: ℕ = 1
+    h: ℝ = 0.0
+    previous_h: ℝ = 0.1
+    started: ℝ = 0.0
+    live: ℝ = grid[0,1]
+    coefficients: ℝ[3] = [1.0,1.0,0.0]
+    time: ℝ = 0.0
+    for node:ℕ(2,grid[0,0]+1.0):
+        if live > 0.0:
+            if grid[node,1] == 0.0:
+                if 1.0*saved < max_nodes-1:
+                    saved = saved+1
+                    output[saved,0:6] = grid[node,0:6]
+                    started = 0.0
+                else:
+                    live = 0.0
+            else:
+                pieces = 1
+                if grid[node,5] > 12.0:
+                    for division:ℕ(63):
+                        if grid[node,1] > high_step_limit*pieces:
+                            pieces = pieces+1
+                h = grid[node,1]/pieces
+                for piece:ℕ(pieces):
+                    if live > 0.0:
+                        if 1.0*saved < max_nodes-1:
+                            coefficients = bdf_coefficients(h,previous_h,started)
+                            saved = saved+1
+                            time = grid[node,0]-grid[node,1]+(piece+1)*h
+                            output[saved,0:6] = concat([time,h],coefficients,[grid[node,5]])
+                            started = 1.0
+                            previous_h = h
+                        else:
+                            live = 0.0
+    output[0,0] = saved
+    output[0,1] = live
+    return output

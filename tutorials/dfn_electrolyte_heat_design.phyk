@@ -1,0 +1,813 @@
+# Electrolyte design to reduce peak cell heat generation over a fixed mission.
+# Coupled DFN/lumped-temperature model; all solves and updates run in Physika.
+# Run: physika tutorials/dfn_electrolyte_heat_design.phyk
+# Heat sources follow PyBaMM with Chen2020 and arbitrary cell geometry.
+# Property curves are mathematical design targets, not electrolyte compositions.
+
+# Grid size
+nx_n: ℕ = 10
+nx_s: ℕ = 10
+nx_p: ℕ = 10
+nr_n: ℕ = 10
+nr_p: ℕ = 10
+current_nominal: ℝ = 5.0
+
+from tutorials.battery.chen2020 import faraday, gas_constant, temperature, length_n, length_s, length_p, area, radius_n, radius_p, diffusivity_n, diffusivity_p, sigma_n, sigma_p, porosity_n, porosity_s, porosity_p, active_n, active_p, cmax_n, cmax_p, initial_n, initial_p, initial_e, t_plus, minimum, maximum, softplus, sinh, tanh, ocp_barrier, ocp_n, ocp_p, exchange_n, exchange_p, electrolyte_diffusivity, electrolyte_conductivity
+from tutorials.battery.finite_volume import arithmetic_matrix, harmonic_matrix, matrix_vector, harmonic_edges, particle_matrix, particle_source, surface_matrix, particle_inventory, gradient_values, divergence_values
+
+ns_n: ℕ = nx_n*nr_n
+ns_p: ℕ = nx_p*nr_p
+ne: ℕ = nx_n+nx_s+nx_p
+nd: ℕ = ns_n+ns_p+ne+2
+nv: ℕ = nx_n+nx_p+ne
+na: ℕ = nv+1
+nb: ℕ = nd+na
+n_parameters: ℕ = 13
+spline_size: ℕ = 6
+one_column: ℕ = 1
+history_columns: ℕ = n_parameters+8
+n_solids: ℕ = ns_n+ns_p+nx_n+nx_p
+max_nodes: ℕ = 1200
+tape_columns: ℕ = nb+6
+length_total: ℝ = length_n+length_s+length_p
+a_n: ℝ = 3.0*active_n/radius_n
+a_p: ℝ = 3.0*active_p/radius_p
+
+width_n: ℝ[nx_n] = for k:ℕ(nx_n) -> length_n/nx_n + 0.0*k
+width_s: ℝ[nx_s] = for k:ℕ(nx_s) -> length_s/nx_s + 0.0*k
+width_p: ℝ[nx_p] = for k:ℕ(nx_p) -> length_p/nx_p + 0.0*k
+width: ℝ[ne] = concat(width_n, width_s, width_p)
+eps_n: ℝ[nx_n] = for k:ℕ(nx_n) -> porosity_n + 0.0*k
+eps_s: ℝ[nx_s] = for k:ℕ(nx_s) -> porosity_s + 0.0*k
+eps_p: ℝ[nx_p] = for k:ℕ(nx_p) -> porosity_p + 0.0*k
+eps: ℝ[ne] = concat(eps_n, eps_s, eps_p)
+transport: ℝ[ne] = eps**1.5
+separator_zero: ℝ[nx_s] = zeros(nx_s)
+
+A_e: ℝ[ne+1,ne] = arithmetic_matrix(width, ne)
+H_e: ℝ[ne+1,ne] = harmonic_matrix(width, ne)
+positive_boundary: ℝ[nx_p+1] = zeros(nx_p+1)
+positive_boundary[nx_p] = 1.0
+K_n: ℝ[ns_n,ns_n] = particle_matrix(nx_n, nr_n, radius_n, diffusivity_n)
+K_p: ℝ[ns_p,ns_p] = particle_matrix(nx_p, nr_p, radius_p, diffusivity_p)
+B_n: ℝ[ns_n,nx_n] = particle_source(nx_n, nr_n, radius_n, faraday)
+B_p: ℝ[ns_p,nx_p] = particle_source(nx_p, nr_p, radius_p, faraday)
+S_n: ℝ[nx_n,ns_n] = surface_matrix(nx_n, nr_n)
+S_p: ℝ[nx_p,ns_p] = surface_matrix(nx_p, nr_p)
+
+cn0: ℝ[ns_n] = for k:ℕ(ns_n) -> initial_n + 0.0*k
+cp0: ℝ[ns_p] = for k:ℕ(ns_p) -> initial_p + 0.0*k
+ce0: ℝ[ne] = for k:ℕ(ne) -> initial_e + 0.0*k
+x0: ℝ[nd] = concat(cn0, cp0, ce0, [0.0,0.0])
+un0: ℝ[1] = ocp_n([initial_n/cmax_n])
+u_n_initial: ℝ = un0[0]
+up0: ℝ[1] = ocp_p([initial_p/cmax_p])
+u_p_initial: ℝ = up0[0]
+# Evaluate the change in positive OCP without cancelling two ~17 V tanh
+# terms or subtracting two ~4 V OCP values. These are fixed references.
+positive_initial_stoich: ℝ = initial_p/cmax_p
+positive_pair_reference: ℝ[1] = ocp_p_pair([positive_initial_stoich])
+positive_small_reference: ℝ[1] = tanh(18.5138*([positive_initial_stoich]-0.5542))
+positive_barrier_reference: ℝ[1] = ocp_barrier([positive_initial_stoich])
+i0n_ref: ℝ[1] = exchange_n([initial_e], [initial_n])
+i0p_ref: ℝ[1] = exchange_p([initial_e], [initial_p])
+eta_n_reference: ℝ = 2.0*gas_constant*temperature/faraday * asinh_scalar(current_nominal/(2.0*area*length_n*a_n*i0n_ref[0]))
+eta_p_reference: ℝ = 2.0*gas_constant*temperature/faraday * asinh_scalar(-current_nominal/(2.0*area*length_p*a_p*i0p_ref[0]))
+ref_p: ℝ = u_p_initial-u_n_initial+eta_p_reference-eta_n_reference
+ref_e: ℝ = -u_n_initial-eta_n_reference
+z0: ℝ[na] = concat(zeros(nv),[7.5])
+sxn: ℝ[ns_n] = for k:ℕ(ns_n) -> cmax_n + 0.0*k
+sxp: ℝ[ns_p] = for k:ℕ(ns_p) -> cmax_p + 0.0*k
+sxe: ℝ[ne] = for k:ℕ(ne) -> initial_e + 0.0*k
+x_scale: ℝ[nd] = concat(sxn, sxp, sxe, [10.0,5.0])
+szn: ℝ[nx_n] = for k:ℕ(nx_n) -> 1e-4 + 0.0*k
+# Positive potentials use a collector value plus a small spatial profile.
+# This preserves small solid-current gradients as the voltage falls.
+szp: ℝ[nx_p] = for k:ℕ(nx_p) -> 0.001 + 0.0*k
+szp[nx_p-1] = 0.05
+sze: ℝ[ne] = for k:ℕ(ne) -> 0.05 + 0.0*k
+z_scale: ℝ[na] = concat(szn,szp,sze,[5.0])
+solver_scale: ℝ[nb] = concat(x_scale,z_scale)
+# Normalize each charge equation by its cell-volume flux balance.
+gsn: ℝ[nx_n] = for k:ℕ(nx_n) -> length_total**2 * 5.0/(area*width_n[k]) + 0.0*k
+gsp: ℝ[nx_p] = for k:ℕ(nx_p) -> length_total**2 * 5.0/(area*width_p[k]) + 0.0*k
+gse: ℝ[ne] = for k:ℕ(ne) -> length_total**2 * 5.0/(area*width[k]) + 0.0*k
+g_scale: ℝ[nv] = concat(gsn, gsp, gse)
+wn: ℝ[ns_n] = particle_inventory(nx_n, nr_n, radius_n, length_n/nx_n, active_n)
+wp: ℝ[ns_p] = particle_inventory(nx_p, nr_p, radius_p, length_p/nx_p, active_p)
+inventory_weights: ℝ[nd] = concat(wn, wp, eps*width, [0.0,0.0])
+
+from tutorials.battery.lumped_thermal import cooling_coefficient, cooling_area, cell_volume, collector_length_n, collector_length_p, collector_sigma_n, collector_sigma_p, thermal_length, thermal_capacity, temperature_index, heat_scale, heat_sharpness, cell_temperature, exchange_n_thermal, exchange_p_thermal, edge_average, heat_components, thermal_rate, local_heat_state, local_heat_parameter, heat_interval_exponential, mission_heat_values, heat_objective_weights, heat_objective, thermal_metrics
+
+# Numerical and optimization settings are ordinary source-level constants.
+maximum_step: ℝ = 10.0
+high_power_step: ℝ = 0.625
+optimization_steps: ℕ = 200
+starting_step: ℝ = 100.0
+maximum_design_step: ℝ = 10000.0
+# Both stationarity measures must meet this tolerance on both time grids.
+stationarity_tolerance: ℝ = 5e-5
+penalty_weight: ℝ = 100.0
+constraint_sharpness: ℝ = 1000.0
+modification_budget: ℝ = 0.25
+roughness_length: ℝ = 0.05
+merit_resolution: ℝ = 1e-5
+minimum_voltage: ℝ = 3.0
+
+from tutorials.battery.gaussian_elimination import gaussian_solve, get_2d_array_num_rows, get_2d_array_num_cols, get_1d_array_length, min, max
+
+# Piecewise cubic coefficients for the six clamped B-splines with knots
+# [0,0,0,0,1/3,2/3,1,1,1,1]. Rows multiply [1,u,u²,u³],
+# where u=3*xi-span. This avoids recursive basis evaluation in the residual.
+spline_coefficients: ℝ[3,4,6] = [
+    [[1.0,0.0,0.0,0.0,0.0,0.0],[-3.0,3.0,0.0,0.0,0.0,0.0],[3.0,-4.5,1.5,0.0,0.0,0.0],[-1.0,1.75,-11.0/12.0,1.0/6.0,0.0,0.0]],
+    [[0.0,0.25,7.0/12.0,1.0/6.0,0.0,0.0],[0.0,-0.75,0.25,0.5,0.0,0.0],[0.0,0.75,-1.25,0.5,0.0,0.0],[0.0,-0.25,7.0/12.0,-7.0/12.0,0.25,0.0]],
+    [[0.0,0.0,1.0/6.0,7.0/12.0,0.25,0.0],[0.0,0.0,-0.5,-0.25,0.75,0.0],[0.0,0.0,0.5,-1.25,0.75,0.0],[0.0,0.0,-1.0/6.0,11.0/12.0,-1.75,1.0]]
+]
+quadrature_nodes: ℝ[4] = [-0.8611363115940526,-0.3399810435848563,0.3399810435848563,0.8611363115940526]
+quadrature_weights: ℝ[4] = [0.3478548451374539,0.6521451548625461,0.6521451548625461,0.3478548451374539]
+
+def asinh_scalar(q: ℝ): ℝ:
+    return log(q+sqrt(q*q+1.0))
+
+def phase_power(phase: ℕ): ℝ:
+    if 1.0*phase == 1.0:
+        return 12.0
+    return 30.0
+
+def phase_end(phase: ℕ): ℝ:
+    if 1.0*phase == 0.0:
+        return 60.0
+    if 1.0*phase == 1.0:
+        return 1860.0
+    return 1920.0
+
+def basis_values(xi: ℝ): ℝ[6]:
+    q: ℝ = xi
+    if xi < 0.0:
+        q = 0.0*xi
+    if xi > 1.0:
+        q = 1.0+0.0*xi
+    span: ℕ = 0
+    if q >= 1.0/3.0:
+        span = 1
+    if q >= 2.0/3.0:
+        span = 2
+    u: ℝ = 3.0*q-span
+    return [1.0,u,u*u,u*u*u] @ spline_coefficients[span]
+
+def basis_derivative(xi: ℝ): ℝ[6]:
+    span: ℕ = 0
+    if xi >= 1.0/3.0:
+        span = 1
+    if xi >= 2.0/3.0:
+        span = 2
+    u: ℝ = 3.0*xi-span
+    return [0.0,3.0,6.0*u,9.0*u*u] @ spline_coefficients[span]
+
+def spline_basis(ce: ℝ[m]): ℝ[m,6]:
+    size: ℝ = get_1d_array_length(ce)
+    result: ℝ[m,6] = zeros(size,6)
+    q: ℝ[m] = 3.0*(ce-200.0)/2300.0
+    u0: ℝ[m] = minimum(maximum(q,0.0),1.0)
+    u1: ℝ[m] = minimum(maximum(q-1.0,0.0),1.0)
+    u2: ℝ[m] = minimum(maximum(q-2.0,0.0),1.0)
+    # Continuous span polynomials telescope. Evaluate all concentrations
+    # together to keep the residual and its Jacobian inexpensive.
+    for k:ℕ(6):
+        result[:,k] = spline_coefficients[0,0,k]+u0*(spline_coefficients[0,1,k]+u0*(spline_coefficients[0,2,k]+u0*spline_coefficients[0,3,k]))+u1*(spline_coefficients[1,1,k]+u1*(spline_coefficients[1,2,k]+u1*spline_coefficients[1,3,k]))+u2*(spline_coefficients[2,1,k]+u2*(spline_coefficients[2,2,k]+u2*spline_coefficients[2,3,k]))
+    return result
+
+def property_curve(basis: ℝ[m,6], coefficients: ℝ[6]): ℝ[m]:
+    size: ℝ = get_2d_array_num_rows(basis)
+    column_shape: list = [spline_size,one_column]
+    vector_shape: list = [size]
+    column: ℝ[6,1] = reshape(coefficients,column_shape)
+    values: ℝ[m,1] = basis @ column
+    return reshape(values,vector_shape)
+
+def modification_matrix(): ℝ[6,6]:
+    result: ℝ[6,6] = zeros(6,6)
+    b: ℝ[6] = zeros(6)
+    d: ℝ[6] = zeros(6)
+    xi: ℝ = 0.0
+    for span:ℕ(3):
+        for point:ℕ(4):
+            xi = (span+0.5*(quadrature_nodes[point]+1.0))/3.0
+            b = basis_values(xi)
+            d = basis_derivative(xi)
+            for row:ℕ(6):
+                result[row,:] = result[row,:] + quadrature_weights[point]/18.0*(b[row]*b+roughness_length**2*d[row]*d)
+    return result
+
+budget_matrix: ℝ[6,6] = modification_matrix()
+
+def property_budget(theta: ℝ[n_parameters]): ℝ:
+    return theta[0:6] @ budget_matrix @ theta[0:6] + theta[6:12] @ budget_matrix @ theta[6:12] + theta[12]**2/3.0
+
+# Euclidean projection onto the intersection of the coefficient box and the
+# quadratic property budget. Dykstra corrections are needed when both bind.
+# A small inward rounding margin preserves strict budget feasibility.
+budget_identity: ℝ[n_parameters,n_parameters] = zeros(n_parameters,n_parameters)
+budget_hessian: ℝ[n_parameters,n_parameters] = zeros(n_parameters,n_parameters)
+for row:ℕ(n_parameters):
+    budget_identity[row,row] = 1.0
+for row:ℕ(6):
+    budget_hessian[row,0:6] = budget_matrix[row,:]
+    budget_hessian[row+6,6:12] = budget_matrix[row,:]
+budget_hessian[12,12] = 1.0/3.0
+
+def project_budget(v: ℝ[n_parameters]): ℝ[n_parameters+1]:
+    identity: ℝ[n_parameters,n_parameters] = budget_identity
+    hessian: ℝ[n_parameters,n_parameters] = budget_hessian
+    target: ℝ = modification_budget**2*(1.0-8e-7)
+    result: ℝ[n_parameters] = v
+    low: ℝ = 0.0
+    high: ℝ = 1.0
+    middle: ℝ = 0.0
+    candidate: ℝ[n_parameters] = v
+    if property_budget(v) <= target:
+        return concat(v,[1.0])
+    result = gaussian_solve(identity+2.0*high*hessian,v)
+    for bracket:ℕ(32):
+        if property_budget(result) > target:
+            high = 2.0*high
+            result = gaussian_solve(identity+2.0*high*hessian,v)
+    if property_budget(result) > target:
+        return concat(result,[0.0])
+    for search:ℕ(32):
+        middle = 0.5*(low+high)
+        candidate = gaussian_solve(identity+2.0*middle*hessian,v)
+        if property_budget(candidate) > target:
+            low = middle
+        else:
+            high = middle
+            result = candidate
+    return concat(result,[1.0])
+
+def project_design(v: ℝ[n_parameters]): ℝ[n_parameters+1]:
+    x: ℝ[n_parameters] = v
+    y: ℝ[n_parameters] = minimum(maximum(v,-1.0),1.0)
+    old: ℝ[n_parameters] = v
+    box_correction: ℝ[n_parameters] = zeros(n_parameters)
+    budget_correction: ℝ[n_parameters] = zeros(n_parameters)
+    ellipse: ℝ[n_parameters+1] = zeros(n_parameters+1)
+    change: ℝ = 1.0
+    live: ℝ = 1.0
+    status: ℝ = 0.0
+    if property_budget(y) <= modification_budget**2*(1.0-8e-7):
+        return concat(y,[1.0])
+    for cycle:ℕ(512):
+        if live > 0.0:
+            old = x
+            y = minimum(maximum(x+box_correction,-1.0),1.0)
+            box_correction = x+box_correction-y
+            ellipse = project_budget(y+budget_correction)
+            x = ellipse[0:n_parameters]
+            budget_correction = y+budget_correction-x
+            change = max(max_norm(x-old,n_parameters),max_norm(x-y,n_parameters))
+            if ellipse[n_parameters] < 1.0:
+                live = 0.0
+            if change <= 2e-7:
+                live = 0.0
+                status = 1.0
+    # Remove only the last rounding error; convergence still requires Dykstra.
+    x = minimum(maximum(x,-1.0),1.0)
+    if property_budget(x) > modification_budget**2*(1.0-8e-7):
+        x = x*sqrt(modification_budget**2*(1.0-8e-7)/property_budget(x))
+    return concat(x,[status])
+
+# [unit-step gradient mapping, budget multiplier, budget slack,
+#  box KKT residual, complementarity residual, projection success].
+def constrained_stationarity(theta: ℝ[n_parameters], gradient: ℝ[n_parameters]): ℝ[6]:
+    hessian: ℝ[n_parameters,n_parameters] = budget_hessian
+    projection: ℝ[n_parameters+1] = project_design(theta-gradient)
+    budget_gradient: ℝ[n_parameters] = zeros(n_parameters)
+    for row:ℕ(n_parameters):
+        budget_gradient[row] = 2.0*sum(hessian[row,:]*theta)
+    free_gradient: ℝ[n_parameters] = gradient+zeros(n_parameters)
+    free_budget: ℝ[n_parameters] = budget_gradient+zeros(n_parameters)
+    multiplier: ℝ = 0.0
+    slack: ℝ = modification_budget**2-property_budget(theta)
+    residual: ℝ[n_parameters] = zeros(n_parameters)
+    for parameter:ℕ(n_parameters):
+        if abs(theta[parameter]) >= 1.0-1e-6:
+            free_gradient[parameter] = 0.0
+            free_budget[parameter] = 0.0
+    if slack <= 1e-6:
+        if free_budget @ free_budget > 1e-12:
+            multiplier = max(0.0,-(free_gradient @ free_budget)/(free_budget @ free_budget))
+    residual = theta-minimum(maximum(theta-gradient-multiplier*budget_gradient,-1.0),1.0)
+    return [max_norm(theta-projection[0:n_parameters],n_parameters),multiplier,slack,max_norm(residual,n_parameters),abs(multiplier*slack),projection[n_parameters]]
+
+def design_diffusivity(ce: ℝ[m], theta: ℝ[n_parameters]): ℝ[m]:
+    bounded: ℝ[m] = minimum(maximum(ce,200.0),2500.0)
+    basis: ℝ[m,6] = spline_basis(bounded)
+    return electrolyte_diffusivity(bounded)*exp(log(2.0)*property_curve(basis,theta[0:6]))
+
+def design_conductivity(ce: ℝ[m], theta: ℝ[n_parameters]): ℝ[m]:
+    bounded: ℝ[m] = minimum(maximum(ce,200.0),2500.0)
+    basis: ℝ[m,6] = spline_basis(bounded)
+    return electrolyte_conductivity(bounded)*exp(log(2.0)*property_curve(basis,theta[6:12]))
+
+def design_transference(theta: ℝ[n_parameters]): ℝ:
+    return t_plus+0.1*theta[12]
+
+def positive_profile(z: ℝ[na]): ℝ[nx_p]:
+    return concat(z[nx_n:nx_n+nx_p-1],[0.0])
+
+def ocp_p_pair(q: ℝ[m]): ℝ[m]:
+    a: ℝ[m] = 15.7890*(q-0.3117)
+    delta: ℝ[m] = 0.1418*(q-0.3117)-0.00477924
+    ta: ℝ[m] = tanh(a)
+    tb: ℝ[m] = tanh(a+delta)
+    # tanh(a+delta)-tanh(a) = tanh(delta)*(1-ta*tb).
+    return -0.1484*ta+17.5842*tanh(delta)*(1.0-ta*tb)
+
+def ocp_p_change(theta: ℝ[m]): ℝ[m]:
+    q: ℝ[m] = maximum(minimum(theta,1.0-1e-10),1e-10)
+    return -0.8090*(q-positive_initial_stoich)-0.0428*(tanh(18.5138*(q-0.5542))-positive_small_reference[0])+ocp_p_pair(q)-positive_pair_reference[0]+ocp_barrier(theta)-positive_barrier_reference[0]
+
+def reaction_overpotential_n(x: ℝ[nd], z: ℝ[na]): ℝ[nx_n]:
+    cs: ℝ[nx_n] = S_n @ x[0:ns_n]
+    return z[0:nx_n]-z[nx_n+nx_p:nx_n+nx_p+nx_n]+eta_n_reference+(u_n_initial-ocp_n(cs/cmax_n))
+
+def reaction_overpotential_p(x: ℝ[nd], z: ℝ[na]): ℝ[nx_p]:
+    cs: ℝ[nx_p] = S_p @ x[ns_n:ns_n+ns_p]
+    return positive_profile(z)-z[nx_n+nx_p+nx_n+nx_s:nv]+z[nx_n+nx_p-1]+eta_p_reference-ocp_p_change(cs/cmax_p)
+
+def reaction_n(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ[nx_n]:
+    cs: ℝ[nx_n] = S_n @ x[0:ns_n]
+    ce: ℝ[nx_n] = x[ns_n+ns_p:ns_n+ns_p+nx_n]
+    T: ℝ = cell_temperature(x)
+    return 2.0*exchange_n_thermal(ce,cs,T)*sinh(faraday*reaction_overpotential_n(x,z)/(2.0*gas_constant*T))
+
+def reaction_p(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ[nx_p]:
+    cs: ℝ[nx_p] = S_p @ x[ns_n:ns_n+ns_p]
+    ce: ℝ[nx_p] = x[ns_n+ns_p+nx_n+nx_s:ns_n+ns_p+ne]
+    T: ℝ = cell_temperature(x)
+    return 2.0*exchange_p_thermal(ce,cs,T)*sinh(faraday*reaction_overpotential_p(x,z)/(2.0*gas_constant*T))
+
+def electrolyte_current(t: ℝ, x: ℝ[nd], z: ℝ[na], theta: ℝ[n_parameters]): ℝ[m]:
+    ce: ℝ[ne] = x[ns_n+ns_p:ns_n+ns_p+ne]
+    phi_e: ℝ[ne] = z[nx_n+nx_p:nv]
+    conductivity: ℝ[ne+1] = A_e @ (transport*design_conductivity(ce,theta))
+    chi: ℝ[ne] = 2.0*(1.0-design_transference(theta))*gas_constant*cell_temperature(x) / (faraday*maximum(ce, 0.01))
+    return conductivity*(harmonic_edges(chi, H_e, ne)*gradient_values(ce,width,ne) - gradient_values(phi_e,width,ne))
+
+def dfn_rhs(t: ℝ, x: ℝ[nd], z: ℝ[na], theta: ℝ[n_parameters]): ℝ[nd]:
+    jn: ℝ[nx_n] = reaction_n(t,x,z)
+    jp: ℝ[nx_p] = reaction_p(t,x,z)
+    ce: ℝ[ne] = x[ns_n+ns_p:ns_n+ns_p+ne]
+    aj: ℝ[ne] = concat(a_n*jn, separator_zero, a_p*jp)
+    flux: ℝ[ne+1] = -harmonic_edges(transport*design_diffusivity(ce,theta), H_e, ne)*gradient_values(ce,width,ne) + design_transference(theta)*electrolyte_current(t,x,z,theta)/faraday
+    dcn: ℝ[ns_n] = K_n@(x[0:ns_n]-initial_n) + B_n@jn
+    dcp: ℝ[ns_p] = K_p@(x[ns_n:ns_n+ns_p]-initial_p) + B_p@jp
+    dce: ℝ[ne] = (-divergence_values(flux,width,ne)+aj/faraday)/eps
+    return concat(dcn,dcp,dce,[thermal_rate(x,z,theta),z[nv]/3600.0])
+
+def dfn_algebraic(t: ℝ, x: ℝ[nd], z: ℝ[na], theta: ℝ[n_parameters]): ℝ[nv]:
+    jn: ℝ[nx_n] = reaction_n(t,x,z)
+    jp: ℝ[nx_p] = reaction_p(t,x,z)
+    aj: ℝ[ne] = concat(a_n*jn,separator_zero,a_p*jp)
+    phin: ℝ[nx_n] = z[0:nx_n]
+    phip: ℝ[nx_p] = positive_profile(z)
+    gradn: ℝ[nx_n+1] = gradient_values(phin,width_n,nx_n)
+    gradn[0] = 2.0*phin[0]/width_n[0]
+    isn: ℝ[nx_n+1] = -sigma_n*gradn
+    boundary: ℝ[nx_p+1] = positive_boundary
+    isp: ℝ[nx_p+1] = -sigma_p*gradient_values(phip,width_p,nx_p) + z[nv]/area*boundary
+    gn: ℝ[nx_n] = length_total**2*(divergence_values(isn,width_n,nx_n)+a_n*jn)
+    gp: ℝ[nx_p] = length_total**2*(divergence_values(isp,width_p,nx_p)+a_p*jp)
+    ge: ℝ[ne] = length_total**2*(divergence_values(electrolyte_current(t,x,z,theta),width,ne)-aj)
+    return concat(gn,gp,ge)
+
+def dfn_voltage(t: ℝ, x: ℝ[nd], z: ℝ[na]): ℝ:
+    return ref_p+z[nx_n+nx_p-1]-0.5*z[nx_n+nx_p-2]
+
+def physical_potentials(z: ℝ[na]): ℝ[nv]:
+    return concat(z[0:nx_n],ref_p+z[nx_n+nx_p-1]+positive_profile(z),ref_e+z[nx_n+nx_p:nv])
+
+def surface_n(x: ℝ[nd]): ℝ[nx_n]:
+    return S_n @ x[0:ns_n]
+
+def surface_p(x: ℝ[nd]): ℝ[nx_p]:
+    return S_p @ x[ns_n:ns_n+ns_p]
+
+# The power equation is solved in the same Newton system as charge balance.
+def algebraic_residual(x: ℝ[nd], z: ℝ[na], theta: ℝ[n_parameters], power: ℝ): ℝ[na]:
+    charge: ℝ[nv] = dfn_algebraic(0.0,x,z,theta)/g_scale*(newton_tolerance/algebraic_tolerance)
+    return concat(charge,[(z[nv]*dfn_voltage(0.0,x,z)-power)/30.0])
+
+# Stable, conservative log-sum-exp: the sum is deliberately not averaged.
+def smooth_max(values: ℝ[m], size: ℕ): ℝ:
+    shift: ℝ = values[0]
+    for k:ℕ(size):
+        if values[k] > shift:
+            shift = values[k]
+    return shift+log(sum(exp(constraint_sharpness*(values-shift))))/constraint_sharpness
+
+def solid_stoichiometry(x: ℝ[nd]): ℝ[n_solids]:
+    return concat(x[0:ns_n]/cmax_n,x[ns_n:ns_n+ns_p]/cmax_p,surface_n(x)/cmax_n,surface_p(x)/cmax_p)
+
+# Six path families: V lower, I upper, electrolyte lower/upper, solid lower/upper.
+def node_constraints(w: ℝ[nb]): ℝ[6]:
+    x: ℝ[nd] = w[0:nd]
+    z: ℝ[na] = w[nd:nb]
+    ce: ℝ[ne] = x[ns_n+ns_p:ns_n+ns_p+ne]
+    solids: ℝ[n_solids] = solid_stoichiometry(x)
+    return [minimum_voltage-dfn_voltage(0.0,x,z),(z[nv]-15.0)/15.0,smooth_max((200.0-ce)/1000.0,ne),smooth_max((ce-2500.0)/1000.0,ne),smooth_max(0.01-solids,ns_n+ns_p+nx_n+nx_p),smooth_max(solids-0.99,ns_n+ns_p+nx_n+nx_p)]
+
+def mission_constraints(theta: ℝ[n_parameters], tape: ℝ[max_nodes,tape_columns]): ℝ[8]:
+    groups: ℝ[8] = zeros(8)
+    local: ℝ[6] = node_constraints(tape[1,6:tape_columns])
+    shift: ℝ = 0.0
+    groups[0:6] = local
+    for node:ℕ(2,tape[0,0]+1.0):
+        local = node_constraints(tape[node,6:tape_columns])
+        for family:ℕ(6):
+            shift = max(groups[family],local[family])
+            groups[family] = shift+log(exp(constraint_sharpness*(groups[family]-shift))+exp(constraint_sharpness*(local[family]-shift)))/constraint_sharpness
+    groups[6] = tape[tape[0,0],6+nd-1]/5.0-0.8
+    groups[7] = property_budget(theta)/modification_budget**2-1.0
+    return groups
+
+def mission_merit(theta: ℝ[n_parameters], tape: ℝ[max_nodes,tape_columns], groups: ℝ[8]): ℝ:
+    return heat_objective(theta,tape)+penalty_weight*sum(maximum(groups,0.0)**2)
+
+# These constants are detached before the backward sweep. Differentiating this
+# local scalar supplies exactly the state derivative of the global path penalty.
+def local_penalty(u: ℝ[nb], groups: ℝ[8], weights: ℝ[6]): ℝ:
+    local: ℝ[6] = node_constraints(u*solver_scale)
+    return sum(weights*exp(constraint_sharpness*(local-groups[0:6])))/constraint_sharpness
+
+def budget_penalty(theta: ℝ[n_parameters]): ℝ:
+    violation: ℝ = property_budget(theta)/modification_budget**2-1.0
+    positive: ℝ[1] = maximum([violation],0.0)
+    return penalty_weight*positive[0]**2
+
+# Exact sampled diagnostics, independently of the smooth optimization penalty.
+# [Q, Vmin, Imax, ce min/max, solid min/max, budget, inventory drift,
+#  scaled charge residual, relative power residual, feasible, Imin, Vmax].
+def mission_metrics(theta: ℝ[n_parameters], tape: ℝ[max_nodes,tape_columns]): ℝ[14]:
+    result: ℝ[14] = [0.0,1e6,-1e6,1e6,-1e6,1e6,-1e6,0.0,0.0,0.0,0.0,1.0,1e6,-1e6]
+    w: ℝ[nb] = zeros(nb)
+    x: ℝ[nd] = zeros(nd)
+    z: ℝ[na] = zeros(na)
+    solids: ℝ[n_solids] = zeros(ns_n+ns_p+nx_n+nx_p)
+    voltage: ℝ = 0.0
+    coefficient_norm: ℝ = max_norm(theta,n_parameters)
+    budget_limit: ℝ = modification_budget**2
+    voltage_limit: ℝ = minimum_voltage
+    inventory: ℝ = inventory_weights @ x0
+    result[0] = tape[tape[0,0],6+nd-1]
+    result[7] = property_budget(theta)
+    for node:ℕ(1,tape[0,0]+1.0):
+        w = tape[node,6:tape_columns]
+        x = w[0:nd]
+        z = w[nd:nb]
+        voltage = dfn_voltage(0.0,x,z)
+        solids = solid_stoichiometry(x)
+        result[1] = min(result[1],voltage)
+        result[2] = max(result[2],z[nv])
+        result[12] = min(result[12],z[nv])
+        result[13] = max(result[13],voltage)
+        for cell:ℕ(ne):
+            result[3] = min(result[3],x[ns_n+ns_p+cell])
+            result[4] = max(result[4],x[ns_n+ns_p+cell])
+        for cell:ℕ(ns_n+ns_p+nx_n+nx_p):
+            result[5] = min(result[5],solids[cell])
+            result[6] = max(result[6],solids[cell])
+        result[8] = max(result[8],abs(inventory_weights @ x-inventory)/inventory)
+        result[9] = max(result[9],max_norm(dfn_algebraic(0.0,x,z,theta)/g_scale,nv))
+        result[10] = max(result[10],abs(z[nv]*voltage-tape[node,5])/tape[node,5])
+        if finite_values(w,nb) < 1.0:
+            result[11] = 0.0
+    if tape[0,1] < 1.0:
+        result[11] = 0.0
+    if abs(tape[tape[0,0],0]-1920.0) > 0.001:
+        result[11] = 0.0
+    if result[0] > 4.0:
+        result[11] = 0.0
+    if result[1] < voltage_limit:
+        result[11] = 0.0
+    if result[2] > 15.0:
+        result[11] = 0.0
+    if result[12] <= 0.0:
+        result[11] = 0.0
+    if result[3] < 200.0:
+        result[11] = 0.0
+    if result[4] > 2500.0:
+        result[11] = 0.0
+    if result[5] < 0.01:
+        result[11] = 0.0
+    if result[6] > 0.99:
+        result[11] = 0.0
+    if result[7] > budget_limit:
+        result[11] = 0.0
+    if coefficient_norm > 1.0:
+        result[11] = 0.0
+    if result[8] > 1e-4:
+        result[11] = 0.0
+    if result[9] > 2e-3:
+        result[11] = 0.0
+    if result[10] > 1e-5:
+        result[11] = 0.0
+    return result
+
+from tutorials.battery.mission_dae import newton_tolerance, state_correction_tolerance, algebraic_tolerance, relative_tolerance, absolute_tolerance, max_norm, finite_values, initial_residual, initial_jacobian, consistent_potentials, step_residual, step_jacobian, step_newton, bdf_coefficients, bdf_step, step_factor, attempt_step, adaptive_mission, replay_mission, refine_grid, residual_contraction
+from tutorials.battery.heat_adjoint import heat_adjoint
+from tutorials.battery.heat_grid import resolve_heat_grid
+
+# Heat gradients resolve small changes in polarization losses. Tighten only
+# this example's charge-balance tolerance; leave the shared solver unchanged.
+algebraic_tolerance = 2e-4
+state_correction_tolerance = 1e-6
+
+# Row zero returns the best physically feasible design and run status.
+# Its trailing fields are status, updates, smooth objective, merit,
+# stationarity residual, forward solves, adjoint sweeps, and feasibility.
+# History rows: [theta(13), update, peak W, merit, step, projected norm, feasible,
+#                property budget, accepted]. The residual precedes the update.
+def optimize_mission(theta0: ℝ[n_parameters], grid: ℝ[max_nodes,tape_columns], initial_tape: ℝ[max_nodes,tape_columns]): ℝ[optimization_steps+2,history_columns]:
+    output: ℝ[optimization_steps+2,history_columns] = zeros(optimization_steps+2,history_columns)
+    theta: ℝ[n_parameters] = theta0
+    best: ℝ[n_parameters] = theta0
+    trial: ℝ[n_parameters] = theta0
+    gradient: ℝ[n_parameters] = zeros(n_parameters)
+    projected: ℝ[n_parameters] = zeros(n_parameters)
+    adjoint: ℝ[n_parameters+2] = zeros(n_parameters+2)
+    trial_adjoint: ℝ[n_parameters+2] = zeros(n_parameters+2)
+    stationary: ℝ[6] = zeros(6)
+    trial_stationary: ℝ[6] = zeros(6)
+    cached_gradient: ℝ = 0.0
+    displacement: ℝ[n_parameters] = zeros(n_parameters)
+    gradient_change: ℝ[n_parameters] = zeros(n_parameters)
+    secant_curvature: ℝ = 0.0
+    projection: ℝ[n_parameters+1] = zeros(n_parameters+1)
+    tape: ℝ[max_nodes,tape_columns] = initial_tape
+    candidate: ℝ[max_nodes,tape_columns] = zeros(max_nodes,tape_columns)
+    groups: ℝ[8] = mission_constraints(theta,tape)
+    trial_groups: ℝ[8] = zeros(8)
+    metrics: ℝ[14] = mission_metrics(theta,tape)
+    trial_metrics: ℝ[14] = zeros(14)
+    heat_metrics: ℝ[12] = thermal_metrics(theta,tape)
+    merit: ℝ = mission_merit(theta,tape,groups)
+    trial_merit: ℝ = 0.0
+    best_peak: ℝ = heat_objective(theta,tape)
+    best_merit: ℝ = merit
+    merit_floor: ℝ = merit
+    step: ℝ = starting_step
+    projected_norm: ℝ = 0.0
+    predicted_change: ℝ = 0.0
+    resolution: ℝ = merit_resolution
+    # Use the reported tolerance; the halved-grid check is independent.
+    tolerance: ℝ = stationarity_tolerance
+    accepted: ℝ = 0.0
+    updates: ℝ = 0.0
+    forwards: ℝ = 0.0
+    backwards: ℝ = 0.0
+    live: ℝ = metrics[11]
+    status: ℝ = -1.0
+    output[1,:] = concat(theta,[0.0,heat_metrics[0],merit,step,0.0,metrics[11],metrics[7],1.0])
+    if live > 0.0:
+        status = 1.0
+    for iteration:ℕ(optimization_steps):
+        if live > 0.0:
+            if cached_gradient < 1.0:
+                adjoint = heat_adjoint(theta,tape,detach(groups),1.0)
+                backwards = backwards+1.0
+            cached_gradient = 0.0
+            if adjoint[n_parameters] < 1.0:
+                live = 0.0
+                status = -2.0
+            if live > 0.0:
+                gradient = detach(adjoint[0:n_parameters])
+                stationary = constrained_stationarity(theta,gradient)
+                projected_norm = max(stationary[0],stationary[3])
+                if stationary[5] < 1.0:
+                    live = 0.0
+                    status = -3.0
+                if projected_norm <= tolerance:
+                    live = 0.0
+                    status = -4.0
+                    if metrics[11] > 0.0:
+                        if max_norm(maximum(groups,0.0),8) == 0.0:
+                            status = 2.0
+            if live > 0.0:
+                accepted = 0.0
+                for search:ℕ(9):
+                    if accepted < 1.0:
+                        if live > 0.0:
+                            projection = project_design(detach(theta-step*gradient))
+                            trial = detach(projection[0:n_parameters])
+                            if projection[n_parameters] < 1.0:
+                                diagnostic_label: string = "Rejected projection trial: [step, projection status]"
+                                print(diagnostic_label)
+                                print([step,projection[n_parameters]])
+                            else:
+                                predicted_change = gradient @ (trial-theta)
+                                if max_norm(trial-theta,n_parameters) <= 2e-7:
+                                    live = 0.0
+                                    status = 4.0
+                                if predicted_change < 0.0:
+                                    if live > 0.0:
+                                        candidate = replay_mission(trial,grid)
+                                        forwards = forwards+1.0
+                                        if candidate[0,1] > 0.0:
+                                            trial_groups = mission_constraints(trial,candidate)
+                                            trial_merit = mission_merit(trial,candidate,trial_groups)
+                                            if trial_merit < merit:
+                                                if trial_merit <= merit+1e-4*predicted_change:
+                                                    accepted = 1.0
+                                            # Rounded objective values can hide a useful final step.
+                                            # Require a feasible candidate and a smaller KKT residual
+                                            # inside a fixed band around the lowest accepted merit.
+                                            if accepted < 1.0:
+                                                if trial_merit <= merit_floor+resolution:
+                                                    trial_metrics = mission_metrics(trial,candidate)
+                                                    if trial_metrics[11] > 0.0:
+                                                        if max_norm(maximum(trial_groups,0.0),8) == 0.0:
+                                                            trial_adjoint = heat_adjoint(trial,candidate,detach(trial_groups),1.0)
+                                                            backwards = backwards+1.0
+                                                            if trial_adjoint[n_parameters] > 0.0:
+                                                                trial_stationary = constrained_stationarity(trial,detach(trial_adjoint[0:n_parameters]))
+                                                                if trial_stationary[5] > 0.0:
+                                                                    if max(trial_stationary[0],trial_stationary[3]) < 0.99*projected_norm:
+                                                                        accepted = 1.0
+                                                                    if max(trial_stationary[0],trial_stationary[3]) <= tolerance:
+                                                                        accepted = 1.0
+                                                                    if accepted > 0.0:
+                                                                        adjoint = trial_adjoint
+                                                                        cached_gradient = 1.0
+                            if accepted < 1.0:
+                                step = step/2.0
+                if accepted > 0.0:
+                    # Reuse the accepted gradient at the next iteration and
+                    # estimate a spectral step from the change in gradient.
+                    if cached_gradient < 1.0:
+                        adjoint = heat_adjoint(trial,candidate,detach(trial_groups),1.0)
+                        backwards = backwards+1.0
+                        cached_gradient = 1.0
+                    displacement = trial-theta
+                    gradient_change = adjoint[0:n_parameters]-gradient
+                    theta = trial
+                    tape = candidate
+                    groups = trial_groups
+                    merit = trial_merit
+                    metrics = mission_metrics(theta,tape)
+                    heat_metrics = thermal_metrics(theta,tape)
+                    updates = updates+1.0
+                    output[updates+1,:] = concat(theta,[updates,heat_metrics[0],merit,step,projected_norm,metrics[11],metrics[7],1.0])
+                    print([updates,heat_metrics[0],merit,step,projected_norm,metrics[11],metrics[7]])
+                    step = min(maximum_design_step,1.5*step)
+                    if cached_gradient > 0.0:
+                        secant_curvature = displacement @ gradient_change
+                        if secant_curvature > 1e-12:
+                            step = min(maximum_design_step,max(0.1,(displacement @ displacement)/secant_curvature))
+                    if metrics[11] > 0.0:
+                        merit_floor = min(merit_floor,merit)
+                        if merit <= merit_floor+resolution:
+                            best = theta
+                            best_peak = heat_objective(theta,tape)
+                            best_merit = merit
+                else:
+                    if live > 0.0:
+                        live = 0.0
+                        status = 3.0
+    output[0,:] = concat(best,[status,updates,best_peak,best_merit,projected_norm,forwards,backwards,metrics[11]])
+    return output
+
+# [concentration, baseline D, best D, baseline kappa, best kappa].
+def property_table(theta: ℝ[n_parameters]): ℝ[41,5]:
+    result: ℝ[41,5] = zeros(41,5)
+    ce: ℝ = 200.0
+    basis: ℝ[6] = zeros(6)
+    D: ℝ[1] = zeros(1)
+    kappa: ℝ[1] = zeros(1)
+    for row:ℕ(41):
+        ce = 200.0+2300.0*row/40.0
+        basis = basis_values((ce-200.0)/2300.0)
+        D = electrolyte_diffusivity([ce])
+        kappa = electrolyte_conductivity([ce])
+        result[row,:] = [ce,D[0],D[0]*exp(log(2.0)*sum(basis*theta[0:6])),kappa[0],kappa[0]*exp(log(2.0)*sum(basis*theta[6:12]))]
+    return result
+
+# Run the heat mission.
+theta_baseline: ℝ[n_parameters] = zeros(n_parameters)
+diagnostic_label: string = "Baseline thermal mission: adaptive grid"
+print(diagnostic_label)
+adaptive_baseline_grid: ℝ[max_nodes,tape_columns] = adaptive_mission(theta_baseline,maximum_step)
+mission_grid: ℝ[max_nodes,tape_columns] = resolve_heat_grid(adaptive_baseline_grid,high_power_step)
+diagnostic_label: string = "Baseline thermal mission: fixed-grid replay"
+print(diagnostic_label)
+baseline_trajectory: ℝ[max_nodes,tape_columns] = replay_mission(theta_baseline,mission_grid)
+baseline_metrics: ℝ[14] = mission_metrics(theta_baseline,baseline_trajectory)
+baseline_heat: ℝ[12] = thermal_metrics(theta_baseline,baseline_trajectory)
+diagnostic_label: string = "Lumped model: thermal capacity J/K, cooling coefficient W/m2/K, cooling area m2"
+print(diagnostic_label)
+print([thermal_capacity,cooling_coefficient,cooling_area])
+diagnostic_label: string = "Baseline: electrical feasibility metrics, then thermal metrics"
+print(diagnostic_label)
+print(baseline_metrics)
+print(baseline_heat)
+optimization_history: ℝ[optimization_steps+2,history_columns] = zeros(optimization_steps+2,history_columns)
+theta_best: ℝ[n_parameters] = theta_baseline
+if baseline_metrics[11] > 0.0:
+    diagnostic_label: string = "Native peak-heat optimization: [update,peak W,merit,step,incoming stationarity,feasible,budget]"
+    print(diagnostic_label)
+    optimization_history = optimize_mission(theta_baseline,mission_grid,baseline_trajectory)
+    theta_best = optimization_history[0,0:n_parameters]
+else:
+    diagnostic_label: string = "BASELINE INFEASIBLE: optimization skipped; inspect the diagnostics."
+    print(diagnostic_label)
+diagnostic_label: string = "Optimization summary, then design coefficients"
+print(diagnostic_label)
+print(optimization_history[0,:])
+print(theta_best)
+best_trajectory: ℝ[max_nodes,tape_columns] = replay_mission(theta_best,mission_grid)
+
+# Validate the optimized mission and report its properties.
+best_metrics: ℝ[14] = mission_metrics(theta_best,best_trajectory)
+best_heat: ℝ[12] = thermal_metrics(theta_best,best_trajectory)
+best_constraints: ℝ[8] = mission_constraints(theta_best,best_trajectory)
+best_adjoint: ℝ[n_parameters+2] = heat_adjoint(theta_best,best_trajectory,best_constraints,0.0)
+stationarity_diagnostics: ℝ[6] = constrained_stationarity(theta_best,detach(best_adjoint[0:n_parameters]))
+converged: ℝ = 0.0
+if optimization_history[0,n_parameters] == 2.0:
+    if best_metrics[11] > 0.0:
+        if stationarity_diagnostics[0] <= stationarity_tolerance:
+            if stationarity_diagnostics[3] <= stationarity_tolerance:
+                if stationarity_diagnostics[5] > 0.0:
+                    converged = 1.0
+diagnostic_label: string = "Best: electrical metrics, thermal metrics, and first-order stationarity"
+print(diagnostic_label)
+print(best_metrics)
+print(best_heat)
+print(stationarity_diagnostics)
+property_targets: ℝ[41,5] = property_table(theta_best)
+
+# Halve every time step and independently rebuild an adaptive grid.
+diagnostic_label: string = "Time verification: halved-grid forward and adjoint solves"
+print(diagnostic_label)
+refined_mission_grid: ℝ[max_nodes,tape_columns] = refine_grid(mission_grid)
+refined_baseline_trajectory: ℝ[max_nodes,tape_columns] = replay_mission(theta_baseline,refined_mission_grid)
+refined_best_trajectory: ℝ[max_nodes,tape_columns] = replay_mission(theta_best,refined_mission_grid)
+refined_baseline_metrics: ℝ[14] = mission_metrics(theta_baseline,refined_baseline_trajectory)
+refined_best_metrics: ℝ[14] = mission_metrics(theta_best,refined_best_trajectory)
+refined_baseline_heat: ℝ[12] = thermal_metrics(theta_baseline,refined_baseline_trajectory)
+refined_best_heat: ℝ[12] = thermal_metrics(theta_best,refined_best_trajectory)
+refined_best_constraints: ℝ[8] = mission_constraints(theta_best,refined_best_trajectory)
+refined_best_adjoint: ℝ[n_parameters+2] = heat_adjoint(theta_best,refined_best_trajectory,refined_best_constraints,0.0)
+refined_stationarity_diagnostics: ℝ[6] = constrained_stationarity(theta_best,detach(refined_best_adjoint[0:n_parameters]))
+diagnostic_label: string = "Time verification: independent adaptive forward solve"
+print(diagnostic_label)
+verification_trajectory: ℝ[max_nodes,tape_columns] = adaptive_mission(theta_best,maximum_step/2.0)
+verification_metrics: ℝ[14] = mission_metrics(theta_best,verification_trajectory)
+verification_heat: ℝ[12] = thermal_metrics(theta_best,verification_trajectory)
+refinement_errors: ℝ[6] = [abs(baseline_heat[0]-refined_baseline_heat[0]),abs(best_heat[0]-refined_best_heat[0]),abs(baseline_heat[1]-refined_baseline_heat[1]),abs(best_heat[1]-refined_best_heat[1]),abs(best_metrics[1]-refined_best_metrics[1]),max(abs(best_metrics[3]-refined_best_metrics[3]),abs(best_metrics[4]-refined_best_metrics[4]))]
+verification_errors: ℝ[4] = [abs(best_heat[0]-verification_heat[0]),abs(best_heat[1]-verification_heat[1]),abs(best_metrics[1]-verification_metrics[1]),max(abs(best_metrics[3]-verification_metrics[3]),abs(best_metrics[4]-verification_metrics[4]))]
+run_verified: ℝ = converged*refined_best_metrics[11]*refined_baseline_metrics[11]*verification_metrics[11]
+if refined_stationarity_diagnostics[0] > stationarity_tolerance:
+    run_verified = 0.0
+if refined_stationarity_diagnostics[3] > stationarity_tolerance:
+    run_verified = 0.0
+if refined_best_adjoint[n_parameters] < 1.0:
+    run_verified = 0.0
+if refined_stationarity_diagnostics[5] < 1.0:
+    run_verified = 0.0
+if max(refinement_errors[0],refinement_errors[1]) > 0.005:
+    run_verified = 0.0
+if max(refinement_errors[2],refinement_errors[3]) > 0.01:
+    run_verified = 0.0
+if refinement_errors[4] > 0.001:
+    run_verified = 0.0
+if refinement_errors[5] > 10.0:
+    run_verified = 0.0
+if verification_errors[0] > 0.005:
+    run_verified = 0.0
+if verification_errors[1] > 0.01:
+    run_verified = 0.0
+if verification_errors[2] > 0.001:
+    run_verified = 0.0
+if verification_errors[3] > 10.0:
+    run_verified = 0.0
+if refined_baseline_heat[0]-refined_best_heat[0] <= 5.0*max(refinement_errors[0],refinement_errors[1]):
+    run_verified = 0.0
+diagnostic_label: string = "Halved-grid baseline/best thermal metrics, stationarity, forward errors"
+print(diagnostic_label)
+print(refined_baseline_heat)
+print(refined_best_heat)
+print(refined_stationarity_diagnostics)
+print(refinement_errors)
+diagnostic_label: string = "Independent adaptive thermal metrics and forward errors"
+print(diagnostic_label)
+print(verification_heat)
+print(verification_errors)
+if run_verified > 0.0:
+    diagnostic_label: string = "RUN VERIFIED: first-order constrained convergence and time checks passed."
+    print(diagnostic_label)
+else:
+    diagnostic_label: string = "RUN INCOMPLETE: convergence or forward verification did not pass; inspect diagnostics."
+    print(diagnostic_label)
+print([run_verified,converged])
