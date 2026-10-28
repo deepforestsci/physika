@@ -84,6 +84,11 @@ Dependent types
 .. literalinclude:: ../examples/dep_types.phyk
    :language: text
 
+Matrix inverse
+~~~~~~~~~~~~~~
+.. literalinclude:: ../examples/matrix_inverse.phyk
+   :language: text
+
 Dimensional analysis
 ~~~~~~~~~~~~~~~~~~~~
 .. literalinclude:: ../examples/units_basic.phyk
