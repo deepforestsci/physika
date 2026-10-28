@@ -897,6 +897,7 @@ def expr_call(node: Any,
        ``abs``, ``tanh``, ``log``, ``real``, ``imag``) — preserve the shape
        of their first argument.
     2. Built-in reduction (``sum``) → ``ℝ``.
+    2b. ``inv(A)`` → the shape of ``A``; a non square ``A`` is an error.
     3. ``grad(f, x)`` → same shape as ``x``.
     4. User-defined functions in ``func_env`` — arity and argument types
        are checked; each argument is unified against its declared parameter
@@ -941,7 +942,8 @@ def expr_call(node: Any,
     >>> t
     ℝ[3]
     """
-    from physika.utils.type_checker_utils import from_typespec, unify
+    from physika.utils.type_checker_utils import (from_typespec, type_to_str,
+                                                  unify)
 
     func_name, args = node[1], node[2]
     # Infer all argument types first
@@ -961,6 +963,20 @@ def expr_call(node: Any,
             return arg_types[0], s
         else:
             return T_REAL, s
+
+    if func_name == "inv":
+        # Square matrix in, same shape out. A non square argument is
+        # reported here, a singular one can only fail at runtime.
+        arg_t = s.apply(cast(Type, arg_types[0])) if (
+            arg_types and arg_types[0] is not None) else None
+        if isinstance(arg_t, TTensor):
+            dims = [d for d, _ in arg_t.dims]
+            concrete = [d for d in dims if isinstance(d, int)]
+            if len(dims) != 2 or (len(concrete) == 2
+                                  and concrete[0] != concrete[1]):
+                ctx.add_error(f"'inv' expects a square matrix, got "
+                              f"{type_to_str(arg_t)}")
+        return arg_t, s
 
     if func_name in ("sum"):
         return T_REAL, s
