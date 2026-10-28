@@ -202,6 +202,18 @@ class TestTypeCheckerCleanPrograms:
 class TestTypeCheckerErrors:
     """TypeChecker reports errors on bad typed physika programs."""
 
+    def test_inv_requires_a_square_matrix(self):
+        """
+        ``inv`` accepts a square matrix and rejects any other shape.
+        """
+        assert typecheck_phyk("A : ℝ[2, 2] = [[4.0, 7.0], [2.0, 6.0]]\n"
+                              "inv(A)\n") == []
+        errors = typecheck_phyk(
+            "C : ℝ[2, 3] = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]\n"
+            "inv(C)\n")
+        assert errors[0] == (
+            "Line 0: 'inv' expects a square matrix, got ℝ[2,3]")
+
     def test_top_level_type_mismatch(self):
         # declared ℝ[3], inferred ℝ
         errors = typecheck_phyk("v : ℝ[3] = 0.0\n")

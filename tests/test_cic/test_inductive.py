@@ -214,6 +214,17 @@ class TestMkBuiltinEnv:
         # OfNat have no ι-rules
         assert env.inductives["OfNat"].rec_info is None
 
+    def test_matrix_axioms_registered(self):
+        """
+        Matrix operators are registered as axioms, so each one carries a
+        type and no definition body.
+        """
+        env = mk_builtin_env()
+        for name in ("Mat.matmul", "Mat.madd", "Mat.add_scalar",
+                     "Mat.concat_rows", "Mat.inv"):
+            assert name in env.constants, name
+            assert env.constants[name].value is None, name
+
     def test_derived_recursor_shapes(self):
         """
         Every builtin recursor has the expected

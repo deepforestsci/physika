@@ -296,6 +296,16 @@ class TestLower:
         expr = app(c("Real.add"), Lit(1.0), Lit(2.0))
         assert lower(expr, {}, Environment(), ()) == "(1.0 + 2.0)"
 
+    def test_mat_inv_skips_implicit_dim(self):
+        """
+        ``Mat.inv`` lowers to ``torch.linalg.inv`` of its matrix argument,
+        dropping the implicit ``{n}`` that torch reads off the tensor.
+        """
+        mat = fv("A0")
+        expr = app(c("Mat.inv"), Lit(3), mat)
+        assert lower(expr, {mat.id: "A"}, Environment(),
+                     ()) == "torch.linalg.inv(A)"
+
     def test_vec_get_wraps_index(self):
         """
         ```Vec.get`` should lower to ``v[int(i)]``

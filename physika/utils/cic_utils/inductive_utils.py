@@ -2283,7 +2283,7 @@ def reg_mat_ops(env: Environment) -> None:
 
     ``Mat.matmul`` (``A @ B``), ``Mat.madd`` (elementwise, same shape),
     ``Mat.add_scalar`` (broadcast a scalar), ``Mat.concat_rows``
-    (row-append).
+    (row-append), ``Mat.inv`` (square inverse).
 
     Parameters
     ----------
@@ -2295,7 +2295,8 @@ def reg_mat_ops(env: Environment) -> None:
     >>> from physika.core.inductive import mk_builtin_env
     >>> env = mk_builtin_env()
     >>> all(n in env.constants for n in
-    ...     ("Mat.matmul", "Mat.madd", "Mat.add_scalar", "Mat.concat_rows"))
+    ...     ("Mat.matmul", "Mat.madd", "Mat.add_scalar", "Mat.concat_rows",
+    ...      "Mat.inv"))
     True
     """
     real = Const("Real", ())
@@ -2392,4 +2393,19 @@ def reg_mat_ops(env: Environment) -> None:
         ConstantInfo(name="Mat.concat_rows",
                      level_params=(),
                      type=mat_concat_rows_type,
+                     value=None))
+
+    # Mat.inv :
+    # ∀ {n : Nat}, Vec (Vec Real n) n → Vec (Vec Real n) n
+    # The same ``n`` on both axes is what makes a non square argument a
+    # type error instead of a runtime one.
+    mat_inv_type = ForallE(
+        "n", NAT,
+        ForallE("A", App(App(vec, vr(BVar(0))), BVar(0)),
+                App(App(vec, vr(BVar(1))), BVar(1)), BinderInfo.DEFAULT),
+        BinderInfo.IMPLICIT)
+    env.add_constant(
+        ConstantInfo(name="Mat.inv",
+                     level_params=(),
+                     type=mat_inv_type,
                      value=None))

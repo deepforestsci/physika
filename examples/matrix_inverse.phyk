@@ -1,0 +1,38 @@
+# Examples of the square matrix inverse
+
+A: ℝ[3, 3] = [[2.0, 1.0, 1.0], [1.0, 3.0, 2.0], [1.0, 0.0, 0.0]]
+B: ℝ[2, 2] = [[4.0, 7.0], [2.0, 6.0]]
+rhs: ℝ[2, 1] = [[1.0], [2.0]]
+
+# Example #1
+# `inv(M)` inverts a square matrix. Multiplying the inverse back by the
+# original returns the identity, up to float32 rounding: the second line
+# prints 1.0000002 on the diagonal and about 1e-7 off it, not exact 1s
+# and 0s.
+inv(A)
+inv(A) @ A
+
+# Example #2
+# Solving `M x = b` by inverting M. Both parameters are declared over the
+# same dimension `n`, so a call whose matrix and vector disagree in size is
+# a type error. `inv` is itself typed as ℝ[n, n] → ℝ[n, n], so passing it a
+# non square matrix is reported at type check time rather than at runtime.
+def solve_via_inv(M : ℝ[n, n], b : ℝ[n, 1]): ℝ[n, 1]:
+    return inv(M) @ b
+
+solve_via_inv(B, rhs)
+
+# Example #3
+# `trace_of_inv` returns the trace of inv(M * s), and grad() differentiates
+# it: the result of `inv` stays in the autograd graph like any other value.
+# Scaling M by s scales its inverse by 1/s, so the trace is
+# trace(inv(M)) / s and the derivative at s = 1 is -trace(inv(M)). Here
+# inv(B) is [[0.6, -0.7], [-0.2, 0.4]] with trace 1.0, so the two printed
+# lines are 1.0 and -1.0.
+def trace_of_inv(M : ℝ[n, n], s : ℝ): ℝ:
+    C : ℝ[n, n] = inv(M * s)
+    return C[0, 0] + C[1, 1]
+
+s0: ℝ = 1.0
+trace_of_inv(B, s0)
+grad(trace_of_inv(B, s0), s0)
