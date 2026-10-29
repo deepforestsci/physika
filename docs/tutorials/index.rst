@@ -106,6 +106,7 @@ Tutorials
    undirected_graph
    kmeans
    neural_ode
+   lnn
 
 .. toctree::
    :maxdepth: 1
