@@ -71,6 +71,7 @@ Tutorials
    :caption: Materials Science
 
    allen_cahn
+   nn_pes_behler_parrinello
 
 .. toctree::
    :maxdepth: 1
