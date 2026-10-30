@@ -8,8 +8,10 @@ from physika.utils.ast_utils import build_unified_ast, ast_to_torch_expr
 from physika.utils.types import TScalar, TTensor, TInstance, Substitution
 import sys
 import os
-from tests.conftest import exec_phyk
+from tests.conftest import exec_phyk, capture_output, type_errors
 import torch
+from tests.test_codegen import parse_source_to_ast
+from physika.codegen import from_ast_to_torch
 
 
 def make_method(name="ke", params=None, body=None, statements=None):
@@ -745,3 +747,54 @@ class TestPhysikaClass:
 
         result_loop = ns()["obj_B"].access_memeber_in_loop()
         assert float(result_loop) == 3.0
+
+
+nn_modulelist_src = """
+class Linear1D(W: ℝ, b: ℝ):
+    def λ(x: ℝ) -> ℝ:
+        return W * x + b
+
+class SequentialModel(layers: list):
+    def λ(x: ℝ) -> ℝ:
+        for idx:ℕ(2):
+            layer: Linear1D = layers[idx]
+            x: ℝ = layer(x)
+        return x
+
+linear1: Linear1D = Linear1D(2.0, 1.0)
+linear2: Linear1D = Linear1D(3.0, -1.0)
+
+layers: list = [linear1, linear2]
+model: SequentialModel = SequentialModel(layers)
+
+results: ℝ = model(2.0)
+print(results)
+"""
+
+
+class TestnnModuleList:
+    """
+    Test cases for nn_modulelist_src
+    """
+
+    def test_execution(self):
+        # correctness test
+        results = capture_output(nn_modulelist_src)
+        assert results == "14.0 ∈ ℝ\n"
+
+    def test_type_checking(self):
+        # verify type checker returns no errors
+        assert type_errors(nn_modulelist_src) == []
+
+    def test_codegen_uses_module_list(self):
+        # verify nn.ModuleList gets generated
+        ast = parse_source_to_ast(nn_modulelist_src)
+        pytorch_code = from_ast_to_torch(ast)
+
+        expected = (
+            "self.layers = nn.ModuleList(layers) "
+            "if any(isinstance(i, nn.Module) for i in layers) "
+            "else torch.as_tensor(layers).float() "
+            "if all(isinstance(i, (int, float, torch.Tensor)) for i in layers) "  # noqa
+            "else list(layers)")
+        assert expected in pytorch_code
