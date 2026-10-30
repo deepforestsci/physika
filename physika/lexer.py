@@ -1,4 +1,7 @@
 import ply.lex as lex
+import unicodedata
+from ply.lex import TOKEN
+
 
 tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
           "TIMES", "DIVIDE", "INTDIV", "MATMUL", "POWER", "EQUALS", "EQEQ",
@@ -124,10 +127,54 @@ def t_WHITESPACE(t):
     pass  # Ignore whitespace within lines
 
 
+
+
+
+MATH = r"\U0001D40B\U0001D613\U0001D715\U0001D45E"
+ID_START = r"a-zA-Z_\u0391-\u03A9\u03B1-\u03C9\u210F\u2202\u00B2" + MATH
+ID_CONT  = ID_START + r"0-9\u0307\u0308\u2215\u2044\u1D62"
+
+# Python identifiers can't contain these, so rename them once, here.
+_MANGLE = {
+    "\u2202": "partial_",   # ∂
+    "\u00B2": "_sq",        # ²
+    "\u2044": "_over_",     # ⁄
+}
+
+# def mangle_identifier(name: str) -> str:
+#     out = []
+#     for ch in name:
+#         if ch in _MANGLE:                          
+#             out.append(_MANGLE[ch])
+#         else:
+#             norm = unicodedata.normalize("NFKC", ch)
+#             out.append("".join(_MANGLE.get(c, c) for c in norm))
+#     return "".join(out)
+
+
+def mangle_identifier(name: str) -> str:
+    out = []
+    for ch in name:
+        if ch in _MANGLE:
+            out.append(_MANGLE[ch])
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+
+@TOKEN(rf"[{ID_START}][{ID_CONT}]*")
 def t_ID(t):
-    r"[a-zA-Z_\u0391-\u03A9\u03B1-\u03C9\u210F][a-zA-Z0-9_\u0391-\u03A9\u03B1-\u03C9\u210F]*"  # noqa
     t.type = reserved.get(t.value, "ID")
+    if t.type == "ID":
+        t.value = mangle_identifier(t.value)
     return t
+
+
+# def t_ID(t):
+#     r"[a-zA-Z_\u0391-\u03A9\u03B1-\u03C9\u210F][a-zA-Z0-9_\u0391-\u03A9\u03B1-\u03C9\u210F\u0307\u0308]*"  # noqa
+#     t.type = reserved.get(t.value, "ID")
+#     return t
 
 
 def t_error(t):

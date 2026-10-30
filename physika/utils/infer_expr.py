@@ -961,6 +961,22 @@ def expr_call(node: Any,
             return arg_types[0], s
         else:
             return T_REAL, s
+    
+    if func_name == "squeeze":
+        if not arg_types or not isinstance(arg_types[0], TTensor):
+            return (arg_types[0] if arg_types else None), s
+
+        tensor_type = arg_types[0]
+        dims = list(tensor_type.dims)
+
+        if len(args) > 1 and isinstance(args[1], int):
+            dim = args[1] % len(dims)
+            if dims[dim][0] == 1:
+                dims.pop(dim)
+        else:
+            dims = [d for d in dims if d[0] != 1]
+
+        return TTensor(tuple(dims)), s
 
     if func_name in ("sum"):
         return T_REAL, s

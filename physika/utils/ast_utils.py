@@ -748,7 +748,8 @@ def ast_to_torch_expr(node: ASTNode,
             "zeros": "torch.zeros",
             "rfft": "torch.fft.rfft",
             "irfft": "torch.fft.irfft",
-            "gelu": "torch.nn.functional.gelu"
+            "gelu": "torch.nn.functional.gelu",
+            "squeeze": "torch.squeeze"
         }
         list_arg_funcs = {
             "concat": "torch.cat",

@@ -1,0 +1,126 @@
+from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_cols, get_2d_array_num_rows, get_1d_array_length, min, max
+
+
+def rand_2d_array(n:N, m:N, μ:ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.5, 1.0)
+
+def softplus(x: ℝ[n,1]): ℝ[n,1]:
+    return log(1 + exp(x))
+
+def mse_loss(pred: ℝ, true: ℝ): R:
+    return (pred - true)**2
+
+
+# Commented for CI, since create_dataset is runtime function 
+#dataset = create_dataset(50)
+#train_dataset = dataset[0]
+#test_dataset = dataset[1]
+
+# sample datasets for CI
+train_dataset: list = [[rand_2d_array(2, 1, 1.0), 0.0]]
+test_dataset: list = [[rand_2d_array(2, 1, 1.0), 0.0]]
+
+
+class LNN(W1: ℝ[H, I], b1: ℝ[H, 1], W2: ℝ[1, H], b2: ℝ):
+    def λ(x: ℝ[I, 1]) → ℝ[d]:
+        d: ℕ = I / 2
+        𝘓: ℝ[1, 1] = W2 @ softplus(W1 @ x + b1) + b2
+        ∂𝘓⁄∂x: ℝ[I, 1] = grad(𝘓, x)
+        ∂²𝘓⁄∂x²: ℝ[I, I] = zeros(I, I)
+        for i:ℕ(I):
+            ∂²𝘓⁄∂x∂xᵢ = grad(∂𝘓⁄∂x[i], x)
+            ∂²𝘓⁄∂x²[i, :] = ∂²𝘓⁄∂x∂xᵢᵀ
+        ∂²𝘓⁄∂q̇²: ℝ[d, d] = ∂²𝘓⁄∂x²[d:I, d:I]
+        ∂²𝘓⁄∂q∂q̇: ℝ[d, d] = ∂²𝘓⁄∂x²[0:d, d:I]
+        ∂𝘓⁄∂q = squeeze(∂𝘓⁄∂x[0:d], 1)
+        q̇ = squeeze(x[d:I], 1)
+        b: ℝ[d] = ∂𝘓⁄∂q - ∂²𝘓⁄∂q∂q̇ᵀ @ q̇
+        q̈: ℝ[d] = gaussian_solve(∂²𝘓⁄∂q̇², b)
+        return q̈
+    def train(epochs: N, lr: ℝ): ℝ:
+        train_dataset_len = len(train_dataset)
+        epoch_loss: ℝ = 0
+        for idx:ℕ(epochs):
+            print(idx)
+            epoch_loss: R = 0
+            for j:ℕ(train_dataset_len):
+                sample = train_dataset[j]
+                x = sample[0]
+                true_qddot = sample[1]
+                pred = this(x)
+                loss = mse_loss(pred, true_qddot)
+                epoch_loss += loss
+                learnable_grads = grad(loss, this.learnable_params)
+                this.update_params(lr, learnable_grads)
+            epoch_loss = epoch_loss / train_dataset_len
+            print(epoch_loss)
+        return epoch_loss
+    def update_params(lr: ℝ, learnable_grads: ℝ[m]):
+        this.W1 = this.W1 - lr * learnable_grads[0]
+        this.b1 = this.b1 - lr * learnable_grads[1]
+        this.W2 = this.W2 - lr * learnable_grads[2]
+        this.b2 = this.b2 - lr * learnable_grads[3]
+
+
+H: ℕ = 128
+I: ℕ = 2
+W1: ℝ[H, I] = rand_2d_array(H, I, 1.0)
+b1: ℝ[H, 1] = rand_2d_array(H, 1, 0.5)
+W2: ℝ[1, H] = rand_2d_array(1, H, 0.1)
+b2: ℝ = 0.0
+
+model: LNN = LNN(W1, b1, W2, b2)
+
+# ------------------------------------------------------------------
+# Set epochs to 1000; here it is 1 so the
+# tutorial runs quickly through tests/test_tutorials.py.
+# ------------------------------------------------------------------
+epochs: ℕ = 1
+
+
+train_loss: ℝ = model.train(epochs, 0.001)
+#print(train_loss)
+
+
+def ode_derivative(state: ℝ[2, 1], lnn: LNN): ℝ[2, 1]:
+    derivative: ℝ[2, 1] = zeros(2, 1)
+    derivative[0, 0] = state[1, 0]
+    derivative[1, 0] = lnn(state)[0]
+    return derivative
+
+
+def rk4_step(state: ℝ[2, 1], Δt: ℝ,lnn: LNN): ℝ[2, 1]:
+    k1: ℝ[2, 1] = ode_derivative(state, lnn)
+    k2_state: ℝ[2, 1] = state + 0.5 * Δt * k1
+    k2: ℝ[2, 1] = ode_derivative(k2_state, lnn)
+    k3_state: ℝ[2, 1] = state + 0.5 * Δt * k2
+    k3: ℝ[2, 1] = ode_derivative(k3_state, lnn)
+    k4_state: ℝ[2, 1] = state + Δt * k3
+    k4: ℝ[2, 1] = ode_derivative(k4_state, lnn)
+    return state + (Δt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+
+def ode_solver(lnn: LNN, initial_state: ℝ[2, 1],Δt: ℝ,
+                num_steps: ℕ): ℝ[num_steps + 1, 2, 1]:
+    trajectory: ℝ[num_steps + 1, 2, 1] = zeros(num_steps + 1, 2, 1)
+    state: ℝ[2, 1] = initial_state
+    trajectory[0, :, :] = state
+    for i: ℕ(num_steps):
+        state = rk4_step(state, Δt, lnn)
+        trajectory[i + 1, :, :] = state
+    return trajectory
+
+test_sample = test_dataset[0]
+initial_state: ℝ[2, 1] = test_sample[0]
+Δt: ℝ = 0.01
+
+
+# ------------------------------------------------------------------
+# Set num_steps to 1000; here it is 1 so the
+# tutorial runs quickly through tests/test_tutorials.py.
+# ------------------------------------------------------------------
+num_steps: ℕ = 1
+
+trajectory = ode_solver(model, initial_state, Δt, num_steps)
+
+#visualize_trajectory(trajectory, Δt)
