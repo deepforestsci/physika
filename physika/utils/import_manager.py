@@ -173,10 +173,16 @@ def resolve_imports(local_program_ast: list, source_file_path: Path) -> list:
                 found = False
                 for module_node in module_ast:
                     if (isinstance(module_node, tuple) and len(module_node) > 1
-                            and isinstance(module_node[1], str) and
-                        (module_node[1] == symbol or module_node[1] in deps)
-                            and module_node not in extra_nodes):
+                            and isinstance(module_node[1], str)
+                            and (module_node[1] == symbol
+                                 or module_node[1] in deps)):  # noqa
                         name = module_node[1]
+
+                        if name == symbol:
+                            found = True
+
+                        if module_node in extra_nodes:
+                            continue
 
                         # Replace an earlier declaration of the same name.
                         existing_index = next(
@@ -190,9 +196,6 @@ def resolve_imports(local_program_ast: list, source_file_path: Path) -> list:
 
                         if name in module_symbols:
                             symbol_table[name] = module_symbols[name]
-
-                        if name == symbol:
-                            found = True
 
                 if not found:
                     raise ImportError(
