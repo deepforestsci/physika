@@ -23,16 +23,19 @@ Leonhard Euler's work on the Seven Bridges of Königsberg in 1736. [Euler1736]_
 Design
 ------
 
-Physika has no ``dictionary`` and no growable container, and its values are
-immutable, so the design differs from the Python in three ways:
+Physika has no ``dictionary`` and no growable container, and the size of a
+matrix is part of its type, so the design differs from the Python in three
+ways:
 
 - The adjacency structure is a fixed-size matrix, ``adjacency: ℝ[n, n]``,
   holding the edge weight at ``[u, v]`` wherever an edge connects ``u`` and
   ``v`` (``1.0`` for a plain unweighted edge);
-- A method that would mutate the graph instead returns a **new** ``Graph``;
-- Adding a vertex changes the matrix shape, which a method cannot do to its
-  own ``this`` in place, so the new vertex count is passed in explicitly as
-  a ``ℕ`` parameter.
+- A method that changes edges builds a copy of the matrix, updates the copy
+  and stores it back in ``this.adjacency``;
+- Adding a vertex changes the matrix shape, and so the graph's type changes
+  from ``ℝ[n, n]`` to ``ℝ[n+1, n+1]``. A method cannot do that to its own
+  ``this``, so ``add_vertex_adjacency`` returns the larger matrix and a new
+  ``UndirectedGraph`` is built from it.
 
 Because the adjacency entries are real numbers, any readout built from them
 with ``+``, ``*`` and ``sum`` is **differentiable** in the edge weights --
@@ -43,50 +46,28 @@ The UndirectedGraph class
 
 .. code-block:: text
 
-    class UndirectedGraph():
-        adjacency: ℝ[n, n]
-        def num_vertices() → ℝ:
-            return get_2d_array_num_rows(this.adjacency) * 1.0
-        def has_edge(u: ℝ, v: ℝ) → ℝ:
-            m: ℝ[n, n] = this.adjacency
-            r: ℝ[n] = m[u]
-            return r[v]
-        def degree(u: ℝ) → ℝ:
-            m: ℝ[n, n] = this.adjacency
-            r: ℝ[n] = m[u]
-            return get_sum_of_1d_array(r)
-        def sq_degree_sum(s: ℝ) → ℝ:
-            m: ℝ[n, n] = this.adjacency
-            k: ℝ = get_2d_array_num_rows(m)
-            acc: ℝ = 0
-            for i : ℕ(k):
-                d: ℝ = 0
-                for j : ℕ(k):
-                    d += s * m[i, j]
-                acc += d * d
-            return acc
-        def neighbors(u: ℝ) → ℝ[n]:
-            m: ℝ[n, n] = this.adjacency
+    class UndirectedGraph(adjacency: ℝ[n, n]):
+        def num_vertices() → ℕ:
+            return num_rows(this.adjacency)
+        def has_edge(u: ℕ, v: ℕ) → ℝ:
+            m = this.adjacency
+            return m[u, v]
+        def neighbors(u: ℕ) → ℝ[n]:
+            m = this.adjacency
             return m[u]
-        def add_weighted_edge(u: ℝ, v: ℝ, w: ℝ):
-            m: ℝ[n, n] = this.adjacency
-            k: ℝ = get_2d_array_num_rows(m)
-            new_adj: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → m[a, b]
+        def degree(u: ℕ) → ℝ:
+            m = this.adjacency
+            return row_sum(m[u])
+        def sq_degree_sum(s: ℝ) → ℝ:
+            return sq_degree_sum_of(this.adjacency, s)
+        def add_weighted_edge(u: ℕ, v: ℕ, w: ℝ):
+            m = this.adjacency
+            new_adj = for a : ℕ(num_rows(m)) → m[a] + 0.0
             new_adj[u, v] = w
             new_adj[v, u] = w
             this.adjacency = new_adj
-        def add_edge(u: ℝ, v: ℝ):
+        def add_edge(u: ℕ, v: ℕ):
             this.add_weighted_edge(u, v, 1.0)
-        def grow_adjacency(new_n: ℕ) → ℝ[new_n, new_n]:
-            old: ℝ[n, n] = this.adjacency
-            result: ℝ[new_n, new_n] = for a : ℕ(new_n) → for b : ℕ(new_n) → (a + b) * 0.0
-            m: ℝ= get_2d_array_num_rows(old)
-            for a : ℕ(m):
-                for b : ℕ(m):
-                    result[a, b] = old[a, b]
-            return result
-        def add_vertex(new_n: ℕ):
-            this.adjacency = this.grow_adjacency(new_n)
 
 Function summary
 ----------------
@@ -111,16 +92,18 @@ Function summary
      - Copies the matrix, sets entries ``[u, v]`` and ``[v, u]`` to ``w``, and stores the new matrix. The weight can represent similarity, capacity or distance.
    * - ``add_edge(u, v)``
      - ``add_edge(u, v)`` is a shortcut for the unweighted case, using ``add_weighted_edge(u, v, 1.0)``.
-   * - ``grow_adjacency(new_n)``
-     - Returns an ``new_n`` × ``new_n`` matrix with the old adjacency copied into the top-left block and the rest left zero.
-   * - ``add_vertex(new_n)``
-     - Replaces the adjacency with ``grow_adjacency(new_n)``, adding an isolated vertex.
-   * - ``empty_graph(n_vertices)``
-     - Builds an ``UndirectedGraph`` with ``n_vertices`` vertices and no edges.
-   * - ``get_sum_of_1d_array(x)``
-     - Returns the sum of the elements of a 1-D array.
-   * - ``get_2d_array_num_rows(x)``
-     - Returns the number of rows of a 2-D array.
+   * - ``num_rows(x)``
+     - Returns the number of rows of a square matrix ``ℝ[k, k]`` as a ``ℕ``.
+   * - ``row_sum(x)``
+     - Returns the sum of the elements of a vector.
+   * - ``zeros_like(x)``
+     - Returns a zero vector of the same length as ``x``.
+   * - ``append(x, value)``
+     - Returns ``x`` with ``value`` added at the end (``ℝ[m]`` → ``ℝ[m+1]``).
+   * - ``sq_degree_sum_of(x, s)``
+     - Returns :math:`\sum_i (s\,\text{row\_sum}(x_i))^2` for a square matrix. ``sq_degree_sum`` calls it so the vertex count is a size parameter the CIC checker can use.
+   * - ``add_vertex_adjacency(x)``
+     - Returns a ``ℝ[k+1, k+1]`` matrix with ``x`` copied into the top-left block and a zero row and column added.
  
 ``sq_degree_sum(s)`` sums the squared weighted degree of every vertex:
 
@@ -149,68 +132,72 @@ science:
   measures degree heterogeneity, separating a regular mesh from a
   hub-dominated network.
 
-The ``UndirectedGraph`` is built through a function rather than a literal matrix:
+The ``UndirectedGraph`` is built using a predefined adjacency matrix as it's parameter:
 
 .. code-block:: text
 
-   def empty_graph(n_vertices: ℕ): Graph:
-       z: ℝ[n_vertices, n_vertices] = for a : ℕ(n_vertices) → for b : ℕ(n_vertices) → (a + b) * 0.0
-       g: UndirectedGraph = UndirectedGraph()
-       g.adjacency = z
-       return g
+   empty3: ℝ[3, 3] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+
+   g = UndirectedGraph(empty3)
 
 Helper Functions
 ----------------
 
 .. code-block:: text
 
-    def get_sum_of_1d_array(x: ℝ[m]): ℝ:
-        total: ℝ = 0
-        for i:
-            total += x[i]
-        return total
+    def num_rows(x: ℝ[k, k]): ℕ:
+        return k
 
-    def get_2d_array_num_rows(x: R[m, n]): ℝ:
-        total: ℝ = 0
-        temp: ℝ = 0
-        for i:
-            temp = x[i]
-            total += 1
-        return total
+    def row_sum(x: ℝ[k]): ℝ:
+        return sum(for i : ℕ(k) → x[i])
+
+    def zeros_like(x: ℝ[k]): ℝ[k]:
+        return for i : ℕ(k) → 0.0 * x[i]
+
+    def append(x: ℝ[m], value: ℝ): ℝ[m+1]:
+        return x + [value]
+
+    def sq_degree_sum_of(x: ℝ[k, k], s: ℝ): ℝ:
+        return sum(for i : ℕ(k) → (s * row_sum(x[i])) * (s * row_sum(x[i])))
+
+    def add_vertex_adjacency(x: ℝ[k, k]): ℝ[k+1, k+1]:
+        padded: ℝ[k, k+1] = for i : ℕ(k) → append(x[i], 0.0)
+        zero_row: ℝ[k+1] = zeros_like(padded[0])
+        return padded + [zero_row]
 
 Example
 -------
 
 .. code-block:: text
 
-   n0: ℕ = 3
-   g = empty_graph(n0)
+   empty3: ℝ[3, 3] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+
+   g = UndirectedGraph(empty3)
    g.num_vertices()
 
-   g.add_edge(0.0, 1.0)
-   g.add_edge(1.0, 2.0)
+   g.add_edge(0, 1)
+   g.add_edge(1, 2)
 
-   g.neighbors(1.0)
-   g.degree(1.0)
-   g.has_edge(0.0, 2.0)
+   g.neighbors(1)
+   g.degree(1)
+   g.has_edge(0, 2)
 
-   n3: ℕ = 4
-   g.add_vertex(n3)
-   g.add_edge(2.0, 3.0)
-   g.degree(3.0)
+   g = UndirectedGraph(add_vertex_adjacency(g.adjacency))
+   g.add_edge(2, 3)
+   g.degree(3)
 
 Output::
 
-   3.0 ∈ ℝ
+   3 ∈ ℝ
    [1.0, 0.0, 1.0] ∈ ℝ[3]
    2.0 ∈ ℝ
    0.0 ∈ ℝ
    1.0 ∈ ℝ
 
 Vertex ``1`` connects to both ``0`` and ``2``, so its degree is ``2``;
-``0`` and ``2`` are not directly connected. After ``add_vertex`` the graph
-has 4 vertices, and connecting the new vertex ``3`` to vertex ``2`` gives it
-degree ``1``.
+``0`` and ``2`` are not directly connected. After rebuilding the graph from
+``add_vertex_adjacency(g.adjacency)`` it has 4 vertices, and connecting the
+new vertex ``3`` to vertex ``2`` gives it degree ``1``.
 
 .. _undirected-graph-differentiability:
 
@@ -231,9 +218,9 @@ The derivative are useful for:
 
 .. code-block:: text
 
-   wg: UndirectedGraph = empty_graph(3)
-   wg.add_weighted_edge(0.0, 1.0, 2.0)
-   wg.add_weighted_edge(1.0, 2.0, 3.0)
+   wg = UndirectedGraph(empty3)
+   wg.add_weighted_edge(0, 1, 2.0)
+   wg.add_weighted_edge(1, 2, 3.0)
 
    s0: ℝ = 1.0
    wg.sq_degree_sum(s0)
@@ -287,15 +274,15 @@ term with the chain rule,
 
     .. code-block:: text
 
-        n0: ℕ = 3
-        g: UndirectedGraph = empty_graph(n0)
+        empty3: ℝ[3, 3] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
-        g.add_edge(0.0, 1.0)
-        g.add_edge(1.0, 2.0)
+        g = UndirectedGraph(empty3)
 
-        n3: ℕ = 4
-        g.add_vertex(n3)
-        g.add_edge(2.0, 3.0)
+        g.add_edge(0, 1)
+        g.add_edge(1, 2)
+
+        g = UndirectedGraph(add_vertex_adjacency(g.adjacency))
+        g.add_edge(2, 3)
 
         visualize_graph(g.adjacency)
 
@@ -324,91 +311,72 @@ Full Code
 
 .. code-block:: text
 
-    def get_sum_of_1d_array(x: ℝ[m]): ℝ:
-        total: ℝ = 0
-        for i:
-            total += x[i]
-        return total
+    def num_rows(x: ℝ[k, k]): ℕ:
+        return k
 
-    def get_2d_array_num_rows(x: R[m, n]): ℝ:
-        total: ℝ = 0
-        temp: ℝ = 0
-        for i:
-            temp = x[i]
-            total += 1
-        return total
+    def row_sum(x: ℝ[k]): ℝ:
+        return sum(for i : ℕ(k) → x[i])
 
-    class UndirectedGraph():
-        adjacency: ℝ[n, n]
-        def num_vertices() → ℝ:
-            return get_2d_array_num_rows(this.adjacency) * 1.0
-        def has_edge(u: ℝ, v: ℝ) → ℝ:
-            m: ℝ[n, n] = this.adjacency
-            r: ℝ[n] = m[u]
-            return r[v]
-        def degree(u: ℝ) → ℝ:
-            m: ℝ[n, n] = this.adjacency
-            r: ℝ[n] = m[u]
-            return get_sum_of_1d_array(r)
-        def sq_degree_sum(s: ℝ) → ℝ:
-            m: ℝ[n, n] = this.adjacency
-            k: R = get_2d_array_num_rows(m)
-            acc: ℝ = 0
-            for i : ℕ(k):
-                d: ℝ = 0
-                for j : ℕ(k):
-                    d += s * m[i, j]
-                acc += d * d
-            return acc
-        def neighbors(u: ℝ) → ℝ[n]:
-            m: ℝ[n, n] = this.adjacency
+    def zeros_like(x: ℝ[k]): ℝ[k]:
+        return for i : ℕ(k) → 0.0 * x[i]
+
+    def append(x: ℝ[m], value: ℝ): ℝ[m+1]:
+        return x + [value]
+
+    def sq_degree_sum_of(x: ℝ[k, k], s: ℝ): ℝ:
+        return sum(for i : ℕ(k) → (s * row_sum(x[i])) * (s * row_sum(x[i])))
+
+    # Adding a vertex grows the adjacency matrix from ℝ[k, k] to ℝ[k+1, k+1]
+    def add_vertex_adjacency(x: ℝ[k, k]): ℝ[k+1, k+1]:
+        padded: ℝ[k, k+1] = for i : ℕ(k) → append(x[i], 0.0)
+        zero_row: ℝ[k+1] = zeros_like(padded[0])
+        return padded + [zero_row]
+
+    # The number of vertices n is part of the graph's type, so every query
+    # below is checked against the adjacency matrix shape. Vertices are ℕ.
+    class UndirectedGraph(adjacency: ℝ[n, n]):
+        def num_vertices() → ℕ:
+            return num_rows(this.adjacency)
+        def has_edge(u: ℕ, v: ℕ) → ℝ:
+            m = this.adjacency
+            return m[u, v]
+        def neighbors(u: ℕ) → ℝ[n]:
+            m = this.adjacency
             return m[u]
-        def add_weighted_edge(u: ℝ, v: ℝ, w: ℝ):
-            m: ℝ[n, n] = this.adjacency
-            k: R = get_2d_array_num_rows(m)
-            new_adj: ℝ[n, n] = for a : ℕ(k) → for b : ℕ(k) → m[a, b]
+        def degree(u: ℕ) → ℝ:
+            m = this.adjacency
+            return row_sum(m[u])
+        def sq_degree_sum(s: ℝ) → ℝ:
+            return sq_degree_sum_of(this.adjacency, s)
+        def add_weighted_edge(u: ℕ, v: ℕ, w: ℝ):
+            m = this.adjacency
+            new_adj = for a : ℕ(num_rows(m)) → m[a] + 0.0
             new_adj[u, v] = w
             new_adj[v, u] = w
             this.adjacency = new_adj
-        def add_edge(u: ℝ, v: ℝ):
+        def add_edge(u: ℕ, v: ℕ):
             this.add_weighted_edge(u, v, 1.0)
-        def grow_adjacency(new_n: ℕ) → ℝ[new_n, new_n]:
-            old: ℝ[n, n] = this.adjacency
-            result: ℝ[new_n, new_n] = for a : ℕ(new_n) → for b : ℕ(new_n) → (a + b) * 0.0
-            m: R = get_2d_array_num_rows(old)
-            for a : ℕ(m):
-                for b : ℕ(m):
-                    result[a, b] = old[a, b]
-            return result
-        def add_vertex(new_n: ℕ):
-            this.adjacency = this.grow_adjacency(new_n)
 
-    def empty_graph(n_vertices: ℕ): UndirectedGraph:
-        z: ℝ[n_vertices, n_vertices] = for a : ℕ(n_vertices) → for b : ℕ(n_vertices) → (a + b) * 0.0
-        g: UndirectedGraph = UndirectedGraph()
-        g.adjacency = z
-        return g
+    empty3: ℝ[3, 3] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
-    n0: ℕ = 3
-    g: UndirectedGraph = empty_graph(n0)
+    g = UndirectedGraph(empty3)
     g.num_vertices()
 
-    g.add_edge(0.0, 1.0)
-    g.add_edge(1.0, 2.0)
+    g.add_edge(0, 1)
+    g.add_edge(1, 2)
 
-    g.neighbors(1.0)
-    g.degree(1.0)
-    g.has_edge(0.0, 2.0)
+    g.neighbors(1)
+    g.degree(1)
+    g.has_edge(0, 2)
 
-    n3: ℕ = 4
-    g.add_vertex(n3)
-    g.add_edge(2.0, 3.0)
-    g.degree(3.0)
+    # adding a vertex changes the graph's type (n = 3 → n = 4), so it is a new graph
+    g = UndirectedGraph(add_vertex_adjacency(g.adjacency))
+    g.add_edge(2, 3)
+    g.degree(3)
 
-    # Differentiability: build a weighted graph and grad a readout w.r.t. s.
-    wg: UndirectedGraph = empty_graph(3)
-    wg.add_weighted_edge(0.0, 1.0, 2.0)
-    wg.add_weighted_edge(1.0, 2.0, 3.0)
+    wg = UndirectedGraph(empty3)
+    wg.add_weighted_edge(0, 1, 2.0)
+    wg.add_weighted_edge(1, 2, 3.0)
 
     s0: ℝ = 1.0
     wg.sq_degree_sum(s0)
