@@ -1301,8 +1301,9 @@ def natrec(motive: Expr, base: Expr, step: Expr, major: Expr) -> Expr:
     ...      LocalContext(), MetaVarContext())
     Lit(val=7)
     """
-    return App(App(App(App(Const("Nat.rec", (LSucc(LZero()),)), motive),
-                       base), step), major)
+    return App(
+        App(App(App(Const("Nat.rec", (LSucc(LZero()), )), motive), base),
+            step), major)
 
 
 def mk_nat_eqb_value() -> Expr:
@@ -1327,23 +1328,24 @@ def mk_nat_eqb_value() -> Expr:
     base = Lam(
         "m", NAT,
         natrec(bool_motive, TRUE,
-                Lam("mp", NAT, Lam("_", BOOL, FALSE, _DEF), _DEF), BVar(0)),
+               Lam("mp", NAT, Lam("_", BOOL, FALSE, _DEF), _DEF), BVar(0)),
         _DEF)
     # n = succ k: fun m => case m of 0 => false | succ mp => ih mp
     step = Lam(
         "k", NAT,
-        Lam("ih", nat_to_bool,
-            Lam("m", NAT,
-                natrec(bool_motive, FALSE,
-                        Lam("mp", NAT,
-                            Lam("_", BOOL, App(BVar(3), BVar(1)), _DEF), _DEF),
-                        BVar(0)),
-                _DEF), _DEF), _DEF)
+        Lam(
+            "ih", nat_to_bool,
+            Lam(
+                "m", NAT,
+                natrec(
+                    bool_motive, FALSE,
+                    Lam("mp", NAT, Lam("_", BOOL, App(BVar(3), BVar(1)), _DEF),
+                        _DEF), BVar(0)), _DEF), _DEF), _DEF)
     motive = Lam("_", NAT, nat_to_bool, _DEF)
     return Lam(
         "n", NAT,
-        Lam("m", NAT, App(natrec(motive, base, step, BVar(1)), BVar(0)),
-            _DEF), _DEF)
+        Lam("m", NAT, App(natrec(motive, base, step, BVar(1)), BVar(0)), _DEF),
+        _DEF)
 
 
 def mk_int_decl() -> InductiveDecl:
@@ -1665,14 +1667,16 @@ def int_eqb_case(on_ofnat: bool) -> Expr:
     eq_branch = Lam("n", NAT, App(App(Const("Nat.eqb", ()), BVar(2)), BVar(0)),
                     _DEF)
     false_branch = Lam("n", NAT, FALSE, _DEF)
-    ofnat, negsucc = ((eq_branch, false_branch) if on_ofnat
-                      else (false_branch, eq_branch))
+    ofnat, negsucc = ((eq_branch, false_branch) if on_ofnat else
+                      (false_branch, eq_branch))
     return Lam(
         "m", NAT,
-        Lam("y", INT,
-            App(App(App(App(Const("Int.rec", (LSucc(LZero()),)),
-                            bool_motive), ofnat), negsucc), BVar(0)),
-            _DEF), _DEF)
+        Lam(
+            "y", INT,
+            App(
+                App(
+                    App(App(Const("Int.rec", (LSucc(LZero()), )), bool_motive),
+                        ofnat), negsucc), BVar(0)), _DEF), _DEF)
 
 
 def mk_int_eqb_value() -> Expr:
@@ -1695,11 +1699,14 @@ def mk_int_eqb_value() -> Expr:
     motive = Lam("_", INT, mk_arrow(INT, BOOL), _DEF)
     return Lam(
         "x", INT,
-        Lam("y", INT,
-            App(App(App(App(App(Const("Int.rec", (LSucc(LZero()),)), motive),
+        Lam(
+            "y", INT,
+            App(
+                App(
+                    App(
+                        App(App(Const("Int.rec", (LSucc(LZero()), )), motive),
                             int_eqb_case(True)), int_eqb_case(False)),
-                    BVar(1)), BVar(0)),
-            _DEF), _DEF)
+                    BVar(1)), BVar(0)), _DEF), _DEF)
 
 
 def reg_int_ops(env: Environment) -> None:
@@ -1975,7 +1982,9 @@ def reg_nat_ops(env: Environment) -> None:
             ConstantInfo(name=name, level_params=(), type=tp, value=None))
 
     env.add_constant(
-        ConstantInfo(name="Nat.eqb", level_params=(), type=nat_cmp_bool,
+        ConstantInfo(name="Nat.eqb",
+                     level_params=(),
+                     type=nat_cmp_bool,
                      value=mk_nat_eqb_value()))
 
     env.add_constant(
