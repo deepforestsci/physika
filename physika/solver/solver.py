@@ -4,8 +4,13 @@ from physika.core.environment import Environment
 from physika.solver.solver_candidate import (solve_candidate,
                                              unsupported_reason)
 from physika.solver.solver_dims import check_dimensions
-from physika.solver.utils import (KIND_SYMBOL, free_vars, kind_and_unit)
+from physika.solver.utils import (KIND_SYMBOL, eval_scope, free_vars,
+                                  kind_and_unit, raw_defs)
 from physika.units import sig_unit_spec
+from physika.solver.solver_linear import linear_system, solve_linear
+from physika.solver.solver_chain import solve_chain
+from physika.solver.solver_poly import solve_poly
+from physika.solver.solver_sym_linear import solve_sym_linear
 
 
 def solve_block(node: tuple,
@@ -78,6 +83,67 @@ def solve_block(node: tuple,
     if candidates is not None:
         return lines + solve_candidate(variables, kind, candidates, conds, env,
                                        tag, tname)
+    # path 2 - linear system solve
+    program = unified_ast.get("program", [])
+    funcs = unified_ast.get("functions", {})
+    defs = raw_defs(program, block_locals)
+    lin_scope = eval_scope(program)
+    eval_scope(block_locals, lin_scope)
+    system = linear_system(conds, variables, lin_scope)
+    if system is not None:
+        out = solve_linear(system, variables, kind, env, tag, tname, bindings)
+        if out is not None:
+            return lines + out
+        # Not a unique solution for linear system
+        if kind == "real" and len(variables) == 1:
+            out = solve_chain(conds, variables[0], defs, funcs, tag, tname,
+                              bindings)
+            if out is not None:
+                return lines + out
+        if kind == "real" and len(variables) > 1:
+            out = solve_sym_linear(conds, variables, defs, funcs, tag, tname,
+                                   unit, bindings)
+            if out is not None:
+                return lines + out
+        return lines + [
+            f"{tag} : {tname}  ✗ not a uniquely-solvable "
+            f"linear system ({len(conds)} eq, "
+            f"{len(system[2])} unknown)"
+        ]
+
+    if len(variables) == 1:
+        var = variables[0]
+        # path 3 - polynomial with one unknown
+        scope = eval_scope(program)
+        eval_scope(block_locals, scope)
+        out = solve_poly(var, kind, unit, conds, scope, funcs, env, tag, tname,
+                         bindings)
+        if out is not None:
+            return lines + out
+        # path 4 - symbolic chain where a coefficient is a free symbol
+        if kind == "real":
+            out = solve_chain(conds, var, defs, funcs, tag, tname, bindings)
+            if out is not None:
+                return lines + out
+
+    # path 4b - linear system with symbolic or complex coefficients
+    if kind == "real" and len(variables) > 1:
+        out = solve_sym_linear(conds, variables, defs, funcs, tag, tname, unit,
+                               bindings)
+        if out is not None:
+            return lines + out
+
+    # not supported yet
+    if kind == "real":
+        return lines + [
+            f"{tag} : ℝ  ✗ the equation is neither linear nor a "
+            f"polynomial in {', '.join(variables)}"
+        ]
+    if len(variables) != 1:
+        return lines + [
+            f"{tag} : {tname}  ✗ non-linear systems with "
+            f"{len(variables)} unknowns are not supported"
+        ]
 
     reason = unsupported_reason(conds, variables[0], is_int)
     if reason is not None:
