@@ -93,6 +93,12 @@ Tutorials
 
 .. toctree::
    :maxdepth: 1
+   :caption: Plasma Physics & Fusion Energy
+
+   torax_core_transport
+
+.. toctree::
+   :maxdepth: 1
    :caption: General Methods & Machine Learning Foundations
 
    learn_parameter_ode
