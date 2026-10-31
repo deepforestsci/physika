@@ -225,7 +225,7 @@ class IndentLexer:
             at_line_start = self.last_type in (None, "NEWLINE", "INDENT",
                                                "DEDENT")
             if not (at_line_start and nxt is not None and nxt.type == "ID"):
-                tok.type = "ID" 
+                tok.type = "ID"
 
         if tok and tok.type == "SUPERSCRIPT":
             # expand `x²` / `x⁻¹` into  `x**2` / `x**-1`.
