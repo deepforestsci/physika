@@ -24,10 +24,13 @@ from physika.core.inductive import Constructor, InductiveDecl, Recursor, Recurso
 from physika.core.reduction import (
     is_def_eq,
     is_level_def_eq,
+    lit_int,
     lit_nat_int,
+    nat_value,
     pattern_mvar_app,
     solve_pattern,
     succ_chain_nat_int,
+    try_int_literal_op,
     try_iota,
     try_nat_literal_binop,
     whnf,
@@ -146,6 +149,26 @@ class TestLitNatInt:
         # Lit wrapping FloatLit should never be a valid Nat
         assert lit_nat_int(Lit(FloatLit(2.0))) is None
 
+    def test_lit_int(self):
+        """
+        Checks ``lit_int`` reads ``Int`` literals back as Python ints.
+        """
+        from physika.core.inductive import mk_builtin_env
+        from physika.utils.cic_utils.inductive_utils import int_lit
+
+        env, lctx, mctx = mk_builtin_env(), LocalContext(), MetaVarContext()
+        assert lit_int(int_lit(3), env, lctx, mctx) == 3
+        assert lit_int(int_lit(0), env, lctx, mctx) == 0
+        assert lit_int(int_lit(-3), env, lctx, mctx) == -3
+
+        # an Int expression is reduced first
+        add = App(App(Const("Int.add", ()), int_lit(2)), int_lit(-5))
+        assert lit_int(add, env, lctx, mctx) == -3
+
+        # a non-Int term returns None
+        assert lit_int(Lit(3), env, lctx, mctx) is None
+        assert lit_int(Const("x", ()), env, lctx, mctx) is None
+
 
 class TestSuccChainNatInt:
     """
@@ -169,6 +192,23 @@ class TestSuccChainNatInt:
         # chain that ends with a Lit int adds Nat.succ count to base value
         chain = App(Const("Nat.succ", ()), Lit(1))  # succ(succ(zero)) shape
         assert succ_chain_nat_int(chain, env, lctx, mctx) == 2
+
+    def test_nat_value(self):
+        """
+        Checks ``nat_value`` for literals, ``Nat.succ`` chains and terms
+        reducing to them.
+        """
+        from physika.core.inductive import mk_builtin_env
+
+        env, lctx, mctx = mk_builtin_env(), LocalContext(), MetaVarContext()
+        assert nat_value(Lit(4), env, lctx, mctx) == 4
+        assert nat_value(App(Const("Nat.succ", ()), Lit(4)), env, lctx,
+                         mctx) == 5
+        add = App(App(Const("Nat.add", ()), Lit(2)), Lit(3))
+        assert nat_value(add, env, lctx, mctx) == 5
+
+        # a term that is not a Nat value returns None
+        assert nat_value(Const("n", ()), env, lctx, mctx) is None
 
 
 class TestWhnf:
@@ -501,6 +541,40 @@ class TestTryNatLiteralBinop:
         non_lit_operand = App(App(Const("Nat.add", ()), Const("n", ())),
                               Lit(1))
         assert try_nat_literal_binop(non_lit_operand, env, lctx, mctx) is None
+
+    def test_try_int_literal_op(self):
+        """
+        Checks ``try_int_literal_op`` on every ``INT_LITERAL_OPS`` entry.
+        """
+        from physika.core.inductive import mk_builtin_env
+        from physika.utils.cic_utils.inductive_utils import int_lit
+
+        env, lctx, mctx = mk_builtin_env(), LocalContext(), MetaVarContext()
+
+        def op(name, *args):
+            e = Const(name, ())
+            for a in args:
+                e = App(e, a)
+            return try_int_literal_op(e, env, lctx, mctx)
+
+        assert op("Int.add", int_lit(2), int_lit(-5)) == int_lit(-3)
+        assert op("Int.sub", int_lit(2), int_lit(5)) == int_lit(-3)
+        assert op("Int.mul", int_lit(-4), int_lit(10**6)) == int_lit(-4000000)
+        assert op("Int.neg", int_lit(7)) == int_lit(-7)
+        assert op("Int.subNatNat", Lit(2), Lit(5)) == int_lit(-3)
+        assert op("Int.eqb", int_lit(7), int_lit(7)) == Const("Bool.true", ())
+        assert op("Int.eqb", int_lit(7),
+                  int_lit(-7)) == Const("Bool.false", ())
+
+        # an operation that is not in INT_LITERAL_OPS returns None
+        assert op("Int.div", int_lit(4), int_lit(2)) is None
+
+        # wrong number of arguments returns None
+        assert op("Int.add", int_lit(1)) is None
+        assert op("Int.neg", int_lit(1), int_lit(2)) is None
+
+        # an operand that is not a literal returns None
+        assert op("Int.add", Const("x", ()), int_lit(1)) is None
 
 
 class TestTryIota:

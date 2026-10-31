@@ -23,17 +23,21 @@ from physika.utils.cic_utils.inductive_utils import (
     decl_is_prop_sorted,
     derive_recursor,
     dim_vec_nth,
+    int_eqb_case,
     int_lit,
     int_rec_app,
     mk_bool_decl,
     mk_dim_vec_literal,
     mk_fin_decl,
     mk_int_decl,
+    mk_int_eqb_value,
     mk_nat_decl,
+    mk_nat_eqb_value,
     mk_prod_decl,
     mk_vec_decl,
     mk_vec_literal,
     name_appears,
+    natrec,
     open_index_tele,
     read_dim_vec_literal,
     reg_autodiff,
@@ -787,6 +791,35 @@ class TestNatValues:
         assert lit_nat_int(
             whnf_builtin(App(App(Const("Nat.sub", ()), Lit(2)), Lit(5)))) == 0
 
+    def test_natrec(self):
+        """``natrec`` applies ``Nat.rec``: base case at 0, step otherwise."""
+        nat = Const("Nat", ())
+        motive = Lam("_", nat, nat, BinderInfo.DEFAULT)
+        step = Lam("k", nat, Lam("ih", nat, BVar(0), BinderInfo.DEFAULT),
+                   BinderInfo.DEFAULT)
+        assert lit_nat_int(whnf_builtin(natrec(motive, Lit(7), step,
+                                               Lit(0)))) == 7
+        assert lit_nat_int(whnf_builtin(natrec(motive, Lit(7), step,
+                                               Lit(3)))) == 7
+
+    def test_eqb(self):
+        """``Nat.eqb`` reduces to ``Bool.true`` / ``Bool.false``."""
+
+        def eqb(a, b):
+            return App(App(Const("Nat.eqb", ()), a), b)
+
+        true, false = Const("Bool.true", ()), Const("Bool.false", ())
+        assert whnf_builtin(eqb(Lit(3), Lit(3))) == true
+        assert whnf_builtin(eqb(Lit(0), Lit(0))) == true
+        assert whnf_builtin(eqb(Lit(4), Lit(5))) == false
+        assert whnf_builtin(eqb(Lit(0), Lit(2))) == false
+        # operands are reduced first
+        two_plus_three = App(App(Const("Nat.add", ()), Lit(2)), Lit(3))
+        assert whnf_builtin(eqb(two_plus_three, Lit(5))) == true
+        # applying the value directly gives the same result
+        assert whnf_builtin(App(App(mk_nat_eqb_value(), Lit(2)),
+                                Lit(2))) == true
+
 
 class TestIntLit:
     """
@@ -1028,6 +1061,34 @@ class TestIntValues:
 
         assert def_eq_builtin(m, int_lit(-6))
 
+    def test_int_eqb_case(self):
+        """``int_eqb_case`` compares only same-constructor payloads."""
+        true, false = Const("Bool.true", ()), Const("Bool.false", ())
+        # first argument was ofNat 2
+        ofnat = int_eqb_case(True)
+        assert whnf_builtin(App(App(ofnat, Lit(2)), int_lit(2))) == true
+        assert whnf_builtin(App(App(ofnat, Lit(2)), int_lit(3))) == false
+        assert whnf_builtin(App(App(ofnat, Lit(2)), int_lit(-3))) == false
+        # first argument was negSucc 2 (= -3)
+        negsucc = int_eqb_case(False)
+        assert whnf_builtin(App(App(negsucc, Lit(2)), int_lit(-3))) == true
+        assert whnf_builtin(App(App(negsucc, Lit(2)), int_lit(2))) == false
+
+    def test_eqb(self):
+        """``Int.eqb`` reduces to ``Bool.true`` / ``Bool.false``."""
+
+        def eqb(a, b):
+            return App(App(Const("Int.eqb", ()), int_lit(a)), int_lit(b))
+
+        true, false = Const("Bool.true", ()), Const("Bool.false", ())
+        assert whnf_builtin(eqb(-2, -2)) == true
+        assert whnf_builtin(eqb(0, 0)) == true
+        assert whnf_builtin(eqb(3, -3)) == false
+        assert whnf_builtin(eqb(-1, 0)) == false
+        # applying the value directly gives the same result
+        value = App(App(mk_int_eqb_value(), int_lit(-4)), int_lit(-4))
+        assert whnf_builtin(value) == true
+
 
 class TestDimValues:
     """
@@ -1083,6 +1144,7 @@ class TestRegOps:
         env = inductives_only_env()
         reg_nat_ops(env)
         assert env.constants["Nat.add"].value is not None
+        assert env.constants["Nat.eqb"].value is not None
         assert env.constants["Nat.ltb"].value is None  # axiom
         assert "Nat.ite" in env.constants
 
@@ -1146,7 +1208,8 @@ class TestRegOps:
         """
         env = inductives_only_env()
         reg_int_ops(env)
-        for n in ("Int.neg", "Int.subNatNat", "Int.add", "Int.sub", "Int.mul"):
+        for n in ("Int.neg", "Int.subNatNat", "Int.add", "Int.sub", "Int.mul",
+                  "Int.eqb"):
             assert env.constants[n].value is not None
 
     def test_reg_dim_ops(self):
