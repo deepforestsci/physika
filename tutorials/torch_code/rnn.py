@@ -103,7 +103,7 @@ class Linear(nn.Module):
         self.b = nn.Parameter(torch.as_tensor(b))
         self.add_module('adam_W', adam_W)
         self.add_module('adam_b', adam_b)
-        self.learnable_params = [self.W, self.b]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self
@@ -128,7 +128,7 @@ class RNN(nn.Module):
         self.H = int(H)
         self.add_module('in2hidden', in2hidden)
         self.add_module('in2output', in2output)
-        self.learnable_params = []
+        self.learnable_params = list(self.parameters())
 
     def forward(self, X):
         this = self
