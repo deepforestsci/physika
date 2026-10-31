@@ -1,5 +1,7 @@
 from fractions import Fraction
 
+import pytest
+
 from physika.core.expr import App, BVar, Const, Lit
 from physika.core.inductive import mk_builtin_env
 from physika.units import unit_to_dimvec_cic
@@ -11,6 +13,29 @@ from physika.solver.solver_candidate import (arith, solve_candidate,
 from physika.solver.solver_dims import (add_terms, check_dimensions, dim_env,
                                         dim_str, has_units, is_number,
                                         same_dim)
+from physika.solver.solver_linear import (eq_row, frac, gauss_jordan, lin,
+                                          linear_system, solve_linear,
+                                          verify_linear_row)
+from physika.solver.solver_poly import (deriv_call, divisors, inline_call,
+                                        numeric_roots, p_add, p_deriv, p_eval,
+                                        p_mul, p_pow, poly_of, poly_roots,
+                                        poly_str, rational_roots, solve_poly,
+                                        verify_deriv, verify_poly_root,
+                                        wrt_name)
+from physika.solver.solver_chain import (chain_side, fresh_definition,
+                                         fresh_linear_pattern, fresh_pattern,
+                                         is_var, solve_chain, ssqrt,
+                                         sym_solve_poly)
+from physika.solver.solver_sym_linear import (is_zero, solve_sym_linear,
+                                              sym_gauss_jordan,
+                                              sym_linear_rows)
+from physika.solver.sym_utils import (
+    NotInRingFragment, ast_to_sym, call_key, chain_rule, check_ring_int,
+    contains_var, defs_rule, deriv_args, eval_numeric, expand_rule, int_exp,
+    is_neg, is_num, lit_or_expr, rewrite, rewrite_once, ring_degree, sadd,
+    sdiv, smul, sneg, sp_add, sp_mul, ssub, substitute_chain, substitute_defs,
+    sym_app, sym_deriv, sym_expand_calls, sym_inline_calls, sym_poly_of,
+    verify_identity, verify_ring_identity)
 from physika.solver.utils import (KIND_SYMBOL, KINDS, eval_const, fmt_num,
                                   free_vars, in_domain, int_sum, kind_and_unit,
                                   reduces_true, to_expr)
@@ -35,6 +60,18 @@ def eq(lhs, rhs):
     Helper function to build an equation node.
     """
     return ("cond_eq", lhs, rhs)
+
+
+def run_block(variables, kind, conds):
+    """
+    Helper function to run ``solve_block`` without a candidate.
+
+    Returns solved lines and the bindings.
+    """
+    bindings = {}
+    node = ("solve_decl", variables, kind, None, conds, 1)
+    return solve_block(node, mk_builtin_env(), {"program": []},
+                       bindings), bindings
 
 
 # Verify a quadriatic equation with cnaidate
@@ -108,6 +145,48 @@ class TestSolver:
         node = ("solve_decl", ["x"], "ℤ", [num(3)], block, 1)
         out = solve_block(node, mk_builtin_env(), {"program": []})
         assert out == ["Line 1: solve x: free variable 'k'"]
+
+    def test_solve_block_paths(self):
+        """
+        Test solve block paths without a candidate.
+        """
+        x_plus_y = ("add", var("x"), var("y"))
+        x_minus_y = ("sub", var("x"), var("y"))
+        # path 2, linear system
+        out, b = run_block(["x", "y"], "ℤ",
+                           [eq(x_plus_y, num(10)),
+                            eq(x_minus_y, num(4))])
+        assert out == [
+            "Line 1: solve x, y : ℤ  →  x = 7, y = 3   "
+            "(kernel-verified)"
+        ]
+        assert b == {"x": num(7), "y": num(3)}
+        out, _ = run_block(
+            ["x", "y"], "ℤ",
+            [eq(x_plus_y, num(1)), eq(x_plus_y, num(2))])
+        assert "not a uniquely-solvable linear system" in out[0]
+        # path 3, polynomial, two roots so no binding
+        out, b = run_block(["x"], "ℤ", [QUADRATIC])
+        assert out == ["Line 1: solve x : ℤ  →  x = 4, -3   (kernel-verified)"]
+        assert b == {}
+        # path 4, symbolic chain
+        kx = ("mul", var("k"), var("x"))
+        out, b = run_block(["x"], "ℝ", [eq(kx, var("F"))])
+        assert out[-1].startswith("Line 1: solve x : ℝ  →  x = (F / k)")
+        assert b == {"x": ("div", var("F"), var("k"))}
+        # path 4b, symbolic linear system
+        out, b = run_block(
+            ["x", "y"], "ℝ",
+            [eq(("mul", num(2), var("x")), var("s")),
+             eq(var("y"), kx)])
+        assert "x = (s / 2), y = (k * (s / 2))" in out[-1]
+        assert set(b) == {"x", "y"}
+        # no path applies
+        cos_x = eq(("call", "cos", [var("x")]), num(1))
+        assert run_block(["x"], "ℝ", [cos_x])[0] == [
+            "Line 1: solve x : ℝ  ✗ the equation is neither linear nor a "
+            "polynomial in x"
+        ]
 
     def test_solve_equations(self):
         """Reports every ``solve`` statement in order, skips the rest."""
@@ -363,3 +442,436 @@ class TestSolverUtils:
         assert not reduces_true(eqb(3, 5), env)
         # a stuck term is not verified
         assert not reduces_true(Const("unknown", ()), env)
+
+
+class TestSolverLinear:
+    """
+    Tests for ``lin``, ``frac``, ``eq_row``, ``gauss_jordan``,
+    ``verify_linear_row``, ``linear_system`` and ``solve_linear``.
+    """
+
+    def test_lin(self):
+        """Linear forms, constants from scope, and non-linear terms."""
+        expr = ("sub", ("mul", num(2), var("x")), var("c"))
+        assert lin(expr, ["x"], {"c": Fraction(4)}) == {
+            "x": Fraction(2),
+            None: Fraction(-4)
+        }
+        assert lin(("div", var("x"), num(2)), ["x"]) == {"x": Fraction(1, 2)}
+        assert lin(("mul", var("x"), var("y")), ["x", "y"]) is None
+        assert lin(("pow", var("x"), num(2)), ["x"]) is None
+        assert lin(var("k"), ["x"]) is None
+
+    def test_rows(self):
+        """``frac`` and ``eq_row`` give exact ``lhs - rhs`` rows."""
+        assert (frac(3), frac(2.0), frac(0.25)) == (Fraction(3), Fraction(2),
+                                                    Fraction(1, 4))
+        assert eq_row(eq(var("x"), num(4)), ["x"]) == {
+            "x": Fraction(1),
+            None: Fraction(-4)
+        }
+
+    def test_gauss_jordan(self):
+        """Unique, singular and non-square systems."""
+        one = Fraction(1)
+        rows = [{
+            "x": one,
+            "y": one,
+            None: Fraction(-10)
+        }, {
+            "x": one,
+            "y": -one,
+            None: Fraction(-4)
+        }]
+        assert gauss_jordan(rows, ["x", "y"]) == {
+            "x": Fraction(7),
+            "y": Fraction(3)
+        }
+        assert gauss_jordan([rows[0], rows[0]], ["x", "y"]) is None
+        assert gauss_jordan(rows[:1], ["x", "y"]) is None
+
+    def test_verify_linear_row(self):
+        """The kernel checks a row with rational coefficients."""
+        row = {"x": Fraction(2), None: Fraction(-1)}
+        env = mk_builtin_env()
+        assert verify_linear_row(row, {"x": Fraction(1, 2)}, env)
+        assert not verify_linear_row(row, {"x": Fraction(1)}, env)
+
+    def test_linear_system(self):
+        """Other names become auxiliary unknowns, one equation in one
+        unknown is left to the polynomial path."""
+        eq_k = eq(("add", var("x"), var("k")), num(3))
+        _, aux, allvars = linear_system([eq_k], ["x"], {})
+        assert (aux, allvars) == (["k"], ["x", "k"])
+        assert linear_system([eq_k], ["x"], {"k": 1}) is None
+        assert linear_system([eq(("mul", var("x"), var("x")), num(1))],
+                             ["x", "y"], {}) is None
+
+    def test_solve_linear(self):
+        """Report lines for ℤ, rational and ℕ solutions."""
+        env = mk_builtin_env()
+        conds = [
+            eq(("add", var("x"), var("y")), num(10)),
+            eq(("sub", var("x"), var("y")), num(5))
+        ]
+        system = linear_system(conds, ["x", "y"], {})
+        assert solve_linear(system, ["x", "y"], "real", env, "T", "ℝ") == [
+            "T : ℝ  →  x = 15/2, y = 5/2   (kernel-verified)"
+        ]
+        assert "no ℤ solution" in solve_linear(system, ["x", "y"], "int", env,
+                                               "T", "ℤ")[0]
+
+
+class TestSolverPoly:
+    """
+    Tests for the polynomial helpers and ``solve_poly``.
+    """
+
+    def test_poly_arithmetic(self):
+        """
+        Test helper funcctions ``p_add``, ``p_mul``, ``p_pow``,
+        ``p_deriv`` and ``p_eval``.
+        """
+        x1 = {1: Fraction(1), 0: Fraction(1)}  # x + 1
+        assert p_add(x1, {1: Fraction(1)}, sub=True) == {0: Fraction(1)}
+        assert p_mul(x1, x1) == p_pow(x1, 2) == {
+            2: Fraction(1),
+            1: Fraction(2),
+            0: Fraction(1)
+        }
+        assert p_deriv({2: Fraction(3), 0: Fraction(7)}) == {1: Fraction(6)}
+        assert p_eval(x1, Fraction(2)) == 3
+
+    def test_poly_of(self):
+        """Scope constants, ``deriv``, ``sqrt``, inlined functions and
+        non-polynomials."""
+        square = ("pow", ("sub", var("x"), var("a")), num(2))
+        assert poly_of(square, "x", {"a": 3}, {}, {}) == {
+            2: Fraction(1),
+            1: Fraction(-6),
+            0: Fraction(9)
+        }
+        assert poly_of(("call", "deriv", [square]), "x", {"a": 3}, {}, {}) == {
+            1: Fraction(2),
+            0: Fraction(-6)
+        }
+        assert poly_of(("call", "sqrt", [num(4)]), "x", {}, {}, {}) == {0: 2.0}
+        assert poly_of(("call", "sqrt", [num(-4)]), "x", {}, {}, {}) is None
+        assert poly_of(("div", var("x"), num(0)), "x", {}, {}, {}) is None
+        assert poly_of(("div", num(1), var("x")), "x", {}, {}, {}) is None
+        funcs = {
+            "double": {
+                "params": [("y", "ℝ")],
+                "statements": [],
+                "body": ("mul", num(2), var("y"))
+            }
+        }
+        assert inline_call("double", [var("x")], "x", {}, funcs, {}) == {
+            1: Fraction(2)
+        }
+        assert wrt_name([var("f"), var("t")]) == "t"
+
+    def test_roots(self):
+        """Closed form, rational root theorem and numeric roots."""
+        assert divisors(-6) == [1, 2, 3, 6]
+        cubic = {
+            3: Fraction(2),
+            2: Fraction(-5),
+            1: Fraction(1),
+            0: Fraction(2)
+        }
+        assert rational_roots(cubic) == [
+            Fraction(-1, 2), Fraction(1),
+            Fraction(2)
+        ]
+        assert numeric_roots({
+            3: Fraction(1),
+            0: Fraction(-2)
+        }) == [1.2599210499]
+        # x (x - 2)(x - 3), the factored out root 0 is not returned
+        assert poly_roots({
+            3: Fraction(1),
+            2: Fraction(-5),
+            1: Fraction(6)
+        }) == [Fraction(3), Fraction(2)]
+        assert poly_roots({2: Fraction(1), 0: Fraction(1)}) == []
+
+    def test_verify(self):
+        """Kernel checks of a root and of a derivative."""
+        env = mk_builtin_env()
+        poly = {2: Fraction(1, 3), 0: Fraction(-3)}
+        assert verify_poly_root(poly, Fraction(3), env)
+        assert not verify_poly_root(poly, Fraction(2), env)
+        f = {2: Fraction(3), 0: Fraction(7)}
+        assert verify_deriv(f, {1: Fraction(6)}, env)
+        assert not verify_deriv(f, {1: Fraction(3)}, env)
+
+    def test_report_helpers(self):
+        """`Test for helpers for report results in solver block
+        `deriv_call`` and ``poly_str``.
+        """
+        f = ("pow", var("t"), num(2))
+        assert deriv_call(
+            ("add", ("call", "deriv", [f, var("t")]), num(1))) == (f, "t")
+        assert deriv_call(var("t")) is None
+        assert poly_str({
+            2: Fraction(3),
+            1: Fraction(1),
+            0: Fraction(-7)
+        }, "x") == "3·x^2 + x - 7"
+
+    def test_solve_poly(self):
+        """Roots, ``deriv`` lines, trivial and rootless equations."""
+        env = mk_builtin_env()
+        out = solve_poly("x", "nat", {}, [QUADRATIC], {}, {}, env, "T", "ℕ")
+        assert out == ["T : ℕ  →  x = 4   (kernel-verified)"]
+        bindings = {}
+        cube = ("call", "deriv", [("pow", var("x"), num(3))])
+        out = solve_poly("x", "real", {"m": 1}, [eq(cube, num(12))], {}, {},
+                         env, "T", "ℝ", bindings)
+        assert out == [
+            "T: d/dx [ x^3 ]  =  3·x^2   (power rule, "
+            "kernel-checked)", "T : ℝ  →  x = 2, -2  [m]   (kernel-verified)"
+        ]
+        assert bindings == {}
+        assert solve_poly("x", "int", {}, [eq(var("x"), var("x"))], {}, {},
+                          env, "T",
+                          "ℤ") == ["T : ℤ  →  any x (equation is trivial)"]
+        sq = eq(("pow", var("x"), num(2)), num(-1))
+        assert solve_poly("x", "int", {}, [sq], {}, {}, env, "T",
+                          "ℤ") == ["T : ℤ  ✗ no ℤ root"]
+        assert solve_poly("x", "int", {}, [eq(var("k"), num(1))], {}, {}, env,
+                          "T", "ℤ") is None
+
+
+class TestSolverChain:
+    """
+    Tests for the chain helpers and ``solve_chain``.
+    """
+
+    def test_patterns(self):
+        """New names and powers are definitions, the unknown is not."""
+        square = ("pow", var("q"), num(2))
+        assert is_var(var("q")) and not is_var(num(1))
+        assert fresh_pattern(var("q"), {}, "x") == "q"
+        assert fresh_pattern(square, {}, "x") == square
+        assert fresh_pattern(var("x"), {}, "x") is None
+        assert fresh_pattern(var("q"), {"q": num(1)}, "x") is None
+        value = ("add", var("a"), var("b"))
+        assert fresh_definition(var("q"), value, var("q"), value, {},
+                                "x") == ("q", value)
+        loop = ("add", var("q"), num(1))
+        assert fresh_definition(var("q"), loop, var("q"), loop, {},
+                                "x") is None
+        side = ("mul", num(2), var("alpha"))
+        assert fresh_linear_pattern(side, var("pi"), side, var("pi"), {},
+                                    "x", {}) == ("alpha", ("div", var("pi"),
+                                                           num(2)))
+        # ħ * ω: neither bare factor is the coefficient
+        side = ("mul", var("h"), var("w"))
+        assert fresh_linear_pattern(side, var("E"), side, var("E"), {}, "x",
+                                    {}) is None
+
+    def test_sym_solve_poly(self):
+        """Linear and quadratic roots, ``None`` for other degrees."""
+        assert ssqrt(Fraction(9, 4)) == Fraction(3, 2)
+        assert ssqrt(var("d")) == ("call", "sqrt", [var("d")])
+        assert sym_solve_poly({
+            1: var("k"),
+            0: var("F")
+        }) == [("div", ("neg", var("F")), var("k"))]
+        assert sym_solve_poly({
+            2: Fraction(1),
+            0: Fraction(-4)
+        }) == [Fraction(2), Fraction(-2)]
+        assert sym_solve_poly({3: Fraction(1), 0: Fraction(1)}) is None
+        assert sym_solve_poly({1: Fraction(0), 0: Fraction(1)}) is None
+
+    def test_solve_chain(self):
+        """Definitions, a checked claim and the final solve."""
+        a, b, q, y = var("a"), var("b"), var("q"), var("y")
+        conds = [
+            eq(q, ("add", a, b)),
+            eq(("sub", q, b), a),
+            eq(("mul", y, q), a)
+        ]
+        bindings = {}
+        out = solve_chain(conds, "y", {}, {}, "T", "ℝ", bindings)
+        assert out[0] == "T: q := (a + b)   (definition)"
+        assert out[1].startswith("T: step 2:") and "✓ verified" in out[1]
+        assert out[-1].startswith("T : ℝ  →  y = (a / (a + b))")
+        assert bindings == {"y": ("div", a, ("add", a, b))}
+        deriv_t = ("call", "deriv", [("mul", var("v"), var("t")), var("t")])
+        assert chain_side(deriv_t, {"v": num(3), "t": num(0)}, {}) == num(3)
+        assert solve_chain([], "y", {}, {}, "T", "ℝ") is None
+        assert solve_chain([eq(("call", "cos", [y]), a)], "y", {}, {}, "T",
+                           "ℝ") is None
+
+
+class TestSolverSymLinear:
+    """
+    Tests for symbolic solve of linear systems and helpers.
+    """
+
+    def test_rows_and_elimination(self):
+        """Vrrifes correct symbolic rows, cross terms operations."""
+        assert is_zero(Fraction(0)) and not is_zero(var("k"))
+        kx = eq(("mul", var("k"), var("x")), var("F"))
+        assert sym_linear_rows([kx], ["x"], {}, {}) == [[var("k"), var("F")]]
+        xy = eq(("mul", var("x"), var("y")), num(1))
+        assert sym_linear_rows([xy, xy], ["x", "y"], {}, {}) is None
+        zero, one = Fraction(0), Fraction(1)
+        assert sym_gauss_jordan([[Fraction(2), zero,
+                                  var("s")],
+                                 [zero, one,
+                                  var("t")]]) == [("div", var("s"), num(2)),
+                                                  var("t")]
+        assert sym_gauss_jordan([[zero, zero, one], [zero, zero, one]]) is None
+
+    def test_solve_sym_linear(self):
+        """Report lines, bindings and linear ystems are not square."""
+        conds = [
+            eq(("mul", num(2), var("x")), var("s")),
+            eq(var("y"), ("mul", var("k"), var("x")))
+        ]
+        bindings = {}
+        out = solve_sym_linear(conds, ["x", "y"], {}, {}, "T", "ℝ", {"m": 1},
+                               bindings)
+        assert out[1] == "T: symbolic in k, s"
+        assert "x = (s / 2), y = (k * (s / 2))  [m]" in out[2]
+        assert bindings == {
+            "x": ("div", var("s"), num(2)),
+            "y": ("mul", var("k"), ("div", var("s"), num(2)))
+        }
+        assert solve_sym_linear(conds[:1], ["x", "y"], {}, {}, "T", "ℝ",
+                                {}) is None
+
+
+class TestSymUtils:
+    """
+    Tests for the symbolic helpers in ``sym_utils``.
+    """
+
+    def test_coefficient_arithmetic(self):
+        """Numbers stay exact in symbolic expresisons and
+        0, 1, -1 and negations simplify."""
+        a, b = var("a"), var("b")
+        assert is_num(Fraction(1, 2)) and not is_num(a)
+        assert is_neg(("neg", a)) and not is_neg(a)
+        assert sadd(Fraction(1, 2), 1) == Fraction(3, 2)
+        assert sadd(0, a) == a
+        assert ssub(0, a) == ("neg", a)
+        assert sneg(sneg(a)) == a
+        assert smul(-1, a) == ("neg", a)
+        assert smul(("neg", a), b) == ("neg", ("mul", a, b))
+        assert smul(0, a) == 0
+        assert sdiv(a, 1) == a and sdiv(1, 4) == Fraction(1, 4)
+        assert sdiv(("neg", a), ("neg", b)) == ("div", a, b)
+        assert sp_add({1: Fraction(2)}, {1: var("k")}) == {
+            1: ("add", num(2), var("k"))
+        }
+        assert sp_mul({1: Fraction(1)}, {
+            1: var("k"),
+            0: Fraction(3)
+        }) == {
+            2: var("k"),
+            1: Fraction(3)
+        }
+
+    def test_substitution(self):
+        """Definitions, chain keys, ``deriv`` and function inlining."""
+        cos = ("call", "cos", [var("θ")])
+        assert contains_var(cos, "θ") and not contains_var(cos, "x")
+        assert lit_or_expr(num(3)) == Fraction(3)
+        d = ("call", "deriv", [("mul", var("a"), var("t")), var("t")])
+        assert deriv_args(d) == (("mul", var("a"), var("t")), "t")
+        assert deriv_args(("call", "deriv", [var("f")])) is None
+        defs = {"a": ("mul", num(2), var("b")), "b": var("c")}
+        assert substitute_defs(var("a"), defs) == ("mul", num(2), var("c"))
+        assert rewrite_once(("neg", var("a")), defs_rule,
+                            defs) == (("neg", defs["a"]), True)
+        assert rewrite(var("a"), defs_rule, defs, 1) == defs["a"]
+        square = ("pow", var("q"), num(2))
+        assert chain_rule(square, {square: var("s")}) == (var("s"), True)
+        # the t of deriv(f, t) is kept
+        assert substitute_chain(d, {"t": num(0)}) == d
+        assert expand_rule(d, None) == (var("a"), True)
+        assert sym_expand_calls(
+            ("add", d, var("x"))) == ("add", var("a"), var("x"))
+        funcs = {
+            "sq": {
+                "params": [("y", "ℝ")],
+                "statements": [],
+                "body": ("mul", var("y"), var("y"))
+            }
+        }
+        assert sym_inline_calls(("call", "sq", [var("a")]),
+                                funcs) == ("mul", var("a"), var("a"))
+
+    def test_poly_and_deriv(self):
+        """Symbolic polynomials, exponents and derivatives."""
+        cos = ("call", "cos", [var("θ")])
+        assert sym_poly_of(("add", ("mul", cos, var("x")), num(1)), "x") == {
+            1: cos,
+            0: Fraction(1)
+        }
+        assert sym_poly_of(("div", num(1), var("x")), "x") is None
+        assert int_exp(("neg", num(3))) == -3 and int_exp(var("k")) is None
+        two_t = ("mul", num(2), var("t"))
+        assert sym_deriv(("call", "sin", [two_t]),
+                         "t") == ("mul", ("call", "cos", [two_t]), num(2))
+        assert sym_deriv(("call", "tan", [var("t")]), "t") is None
+
+    def test_eval_numeric(self):
+        """Floats, complex numbers, functions and errors."""
+        subs = {"a": Fraction(3, 2)}
+        assert eval_numeric(("mul", var("a"), ("call", "sqrt", [num(4)])),
+                            subs) == 3.0
+        assert eval_numeric(("mul", ("imaginary", ), ("imaginary", )),
+                            {}) == -1
+        funcs = {
+            "sq": {
+                "params": [("y", "ℝ")],
+                "statements": [],
+                "body": ("mul", var("y"), var("y"))
+            }
+        }
+        assert eval_numeric(("call", "sq", [var("a")]), subs, funcs) == 2.25
+        with pytest.raises(ValueError):
+            eval_numeric(("call", "unknown", [num(1)]), {})
+
+    def test_ring_translation(self):
+        """Atoms, degrees and ``Sym`` terms of the ring fragment."""
+        check_ring_int(Fraction(4))
+        with pytest.raises(NotInRingFragment):
+            check_ring_int(2.5)
+        cos = ("call", "cos", [var("θ")])
+        assert call_key(cos) == ("cos", (("var", "θ"), ))
+        with pytest.raises(NotInRingFragment):
+            call_key(("call", "cos", [("add", var("a"), var("b"))]))
+        atoms = {}
+        assert ring_degree(("mul", ("pow", var("x"), num(2)), cos), atoms) == 3
+        assert atoms == {"x": 0, call_key(cos): 1}
+        with pytest.raises(NotInRingFragment):
+            ring_degree(("div", var("x"), var("y")), {})
+        assert sym_app("atom", Lit(0)) == App(Const("Sym.atom", ()), Lit(0))
+        assert ast_to_sym(("neg", var("x")),
+                          {"x": 0}) == sym_app("neg", sym_app("atom", Lit(0)))
+
+    def test_verify(self):
+        """Kernel ring check and rando instances checker."""
+        a, b = var("a"), var("b")
+        assert verify_ring_identity(("add", a, b), ("add", b, a)) is True
+        assert verify_ring_identity(("add", a, b), a) is False
+        assert verify_ring_identity(("div", a, b), a) is None
+        sin2 = ("pow", ("call", "sin", [var("t")]), num(2))
+        cos2 = ("pow", ("call", "cos", [var("t")]), num(2))
+        assert verify_identity(sin2, ("sub", num(1), cos2), ["t"]) is True
+        assert verify_identity(sin2, cos2, ["t"]) is False
+        # root of x² == a substituted for x
+        assert verify_identity(("pow", var("x"), num(2)),
+                               a, ["a"],
+                               unknown="x",
+                               root=("call", "sqrt", [a])) is True
+        assert verify_identity(("call", "sqrt", [("neg", a)]), a,
+                               ["a"]) is None
