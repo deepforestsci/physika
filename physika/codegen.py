@@ -11,8 +11,7 @@ from physika.elf import REGISTRY
 from physika.units import update_unit_env
 
 # fallback to ast codegen
-AST_CODEGEN_STMT_TAGS = ("body_for", "body_for_range", "body_for_accum",
-                         "body_if_else", "body_if_else_return")
+AST_CODEGEN_STMT_TAGS = ("body_for", "body_for_range", "body_for_accum")
 
 
 def from_ast_to_torch(unified_ast: Dict[str, Any],

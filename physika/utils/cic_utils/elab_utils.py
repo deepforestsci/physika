@@ -1211,11 +1211,19 @@ def elaborate_branch_values(stmts: list, base_env: Dict[str, Expr],
                                          errors)
             values.update(merged)
         else:
-            for name in body_stmts_assigned_names(stmts[i:]):
-                if name in values:
-                    values[name] = elab.new_mvar(f"_unelaborated_{name}",
-                                                 _TYPE_0_LEVEL,
-                                                 kind=MetaVarKind.SYNTHETIC)
+            unelaborated = [
+                name for name in body_stmts_assigned_names(stmts[i:])
+                if name in values
+            ]
+            for name in unelaborated:
+                values[name] = elab.new_mvar(f"_unelaborated_{name}",
+                                             _TYPE_0_LEVEL,
+                                             kind=MetaVarKind.SYNTHETIC)
+            if not unelaborated:
+                # the dropped statement reassigns nothing, so it leaves no
+                # unsolved placeholder behind for the caller to report
+                errors.append(
+                    f"'{tag}' inside an if branch is not supported yet")
             break
         i += 1
     return values

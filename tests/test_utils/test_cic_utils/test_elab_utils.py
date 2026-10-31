@@ -580,6 +580,20 @@ class TestElaborateBranchValues:
         result = elaborate_branch_values(stmts, {"y": Lit(1.0)}, elab, [])
         assert result == {"y": Lit(5.0)}
 
+    def test_unsupported_statement_reports_error(self):
+        """
+        A dropped statement that reassigns nothing leaves no unsolved
+        placeholder behind, so it is reported instead of vanishing.
+        """
+        elab = Elab(Environment())
+        errors: list = []
+        stmts = [("body_for", "i", ("num", 3.0), [])]
+        result = elaborate_branch_values(stmts, {}, elab, errors)
+        assert result == {}
+        assert errors == [
+            "'body_for' inside an if branch is not supported yet"
+        ]
+
 
 class TestMergeBranchValues:
     """
