@@ -1281,6 +1281,71 @@ def mk_nat_sub_value() -> Expr:
                BinderInfo.DEFAULT)
 
 
+_DEF = BinderInfo.DEFAULT
+TRUE = Const("Bool.true", ())
+FALSE = Const("Bool.false", ())
+
+
+def natrec(motive: Expr, base: Expr, step: Expr, major: Expr) -> Expr:
+    """
+    Returns ``Nat.rec motive base step major``.
+
+    Examples
+    --------
+    >>> from physika.utils.cic_utils.inductive_utils import natrec
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> motive = Lam("_", NAT, NAT, BinderInfo.DEFAULT)
+    >>> step = Lam("k", NAT, Lam("ih", NAT, BVar(0), BinderInfo.DEFAULT),
+    ...            BinderInfo.DEFAULT)
+    >>> whnf(natrec(motive, Lit(7), step, Lit(3)), mk_builtin_env(),
+    ...      LocalContext(), MetaVarContext())
+    Lit(val=7)
+    """
+    return App(App(App(App(Const("Nat.rec", (LSucc(LZero()),)), motive),
+                       base), step), major)
+
+
+def mk_nat_eqb_value() -> Expr:
+    """
+    Reducible body of ``Nat.eqb : Nat → Nat → Bool``, by ``Nat.rec`` on
+    both arguments: ``eqb 0 0 = true``, ``eqb (succ n) (succ m) = eqb n m``
+    and ``false`` otherwise. Used by the solver's ℕ kernel checks.
+
+    Examples
+    --------
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> eqb = lambda a, b: App(App(Const("Nat.eqb", ()), Lit(a)), Lit(b))
+    >>> env = mk_builtin_env()
+    >>> whnf(eqb(3, 3), env, LocalContext(), MetaVarContext())
+    Const(name='Bool.true', levels=())
+    >>> whnf(eqb(4, 5), env, LocalContext(), MetaVarContext())
+    Const(name='Bool.false', levels=())
+    """
+    nat_to_bool = mk_arrow(NAT, BOOL)
+    bool_motive = Lam("_", NAT, BOOL, _DEF)
+    # n = 0: fun m => (m == 0)
+    base = Lam(
+        "m", NAT,
+        natrec(bool_motive, TRUE,
+                Lam("mp", NAT, Lam("_", BOOL, FALSE, _DEF), _DEF), BVar(0)),
+        _DEF)
+    # n = succ k: fun m => case m of 0 => false | succ mp => ih mp
+    step = Lam(
+        "k", NAT,
+        Lam("ih", nat_to_bool,
+            Lam("m", NAT,
+                natrec(bool_motive, FALSE,
+                        Lam("mp", NAT,
+                            Lam("_", BOOL, App(BVar(3), BVar(1)), _DEF), _DEF),
+                        BVar(0)),
+                _DEF), _DEF), _DEF)
+    motive = Lam("_", NAT, nat_to_bool, _DEF)
+    return Lam(
+        "n", NAT,
+        Lam("m", NAT, App(natrec(motive, base, step, BVar(1)), BVar(0)),
+            _DEF), _DEF)
+
+
 def mk_int_decl() -> InductiveDecl:
     """
     Declaration of the integer inductive type.
@@ -1581,6 +1646,62 @@ def mk_int_mul_value() -> Expr:
     return lctx.mk_lambda([i1, i2], body)
 
 
+def int_eqb_case(on_ofnat: bool) -> Expr:
+    """
+    Branch of ``Int.eqb`` for one constructor of its first argument:
+    ``fun m y => Int.rec (fun _ => Bool) <ofNat n> <negSucc n> y``, where
+    the branch for the same constructor is ``Nat.eqb m n`` and the other
+    one is ``false``.
+
+    Examples
+    --------
+    >>> from physika.utils.cic_utils.inductive_utils import int_eqb_case
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> case = App(App(int_eqb_case(True), Lit(2)), int_lit(2))
+    >>> whnf(case, mk_builtin_env(), LocalContext(), MetaVarContext())
+    Const(name='Bool.true', levels=())
+    """
+    bool_motive = Lam("_", INT, BOOL, _DEF)
+    eq_branch = Lam("n", NAT, App(App(Const("Nat.eqb", ()), BVar(2)), BVar(0)),
+                    _DEF)
+    false_branch = Lam("n", NAT, FALSE, _DEF)
+    ofnat, negsucc = ((eq_branch, false_branch) if on_ofnat
+                      else (false_branch, eq_branch))
+    return Lam(
+        "m", NAT,
+        Lam("y", INT,
+            App(App(App(App(Const("Int.rec", (LSucc(LZero()),)),
+                            bool_motive), ofnat), negsucc), BVar(0)),
+            _DEF), _DEF)
+
+
+def mk_int_eqb_value() -> Expr:
+    """
+    Reducible body of ``Int.eqb : Int → Int → Bool``: two ``Int`` are
+    equal when they have the same constructor and ``Nat.eqb``-equal
+    payloads. Used by the solver's ℤ kernel checks.
+
+    Examples
+    --------
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> eqb = lambda a, b: App(App(Const("Int.eqb", ()), int_lit(a)),
+    ...                        int_lit(b))
+    >>> env = mk_builtin_env()
+    >>> whnf(eqb(-2, -2), env, LocalContext(), MetaVarContext())
+    Const(name='Bool.true', levels=())
+    >>> whnf(eqb(3, -3), env, LocalContext(), MetaVarContext())
+    Const(name='Bool.false', levels=())
+    """
+    motive = Lam("_", INT, mk_arrow(INT, BOOL), _DEF)
+    return Lam(
+        "x", INT,
+        Lam("y", INT,
+            App(App(App(App(App(Const("Int.rec", (LSucc(LZero()),)), motive),
+                            int_eqb_case(True)), int_eqb_case(False)),
+                    BVar(1)), BVar(0)),
+            _DEF), _DEF)
+
+
 def reg_int_ops(env: Environment) -> None:
     """
     Register ``Int`` arithmetic with ``Int.rec`` reducible definitions
@@ -1628,6 +1749,11 @@ def reg_int_ops(env: Environment) -> None:
                      level_params=(),
                      type=_int_binop,
                      value=mk_int_mul_value()))
+    env.add_constant(
+        ConstantInfo(name="Int.eqb",
+                     level_params=(),
+                     type=mk_arrow(INT, mk_arrow(INT, BOOL)),
+                     value=mk_int_eqb_value()))
 
 
 def mk_bool_decl() -> InductiveDecl:
@@ -1809,8 +1935,9 @@ def reg_nat_ops(env: Environment) -> None:
     Register ``Nat`` operators.
 
     Boolean comparisons as axioms:
-    ``Nat.eqb``/``neb``/``ltb``/``gtb``/``leb``/``geb`` and ``Nat.ite`` used
-    for elaborating an if condtion with natural numbers.
+    ``Nat.neb``/``ltb``/``gtb``/``leb``/``geb`` and ``Nat.ite`` used
+    for elaborating an if condtion with natural numbers. ``Nat.eqb`` has a
+    reducible body (``mk_nat_eqb_value``), used by the equation solver.
 
     Definitions as ``Nat.rec``-based bodies that the kernel computes with:
     ``Nat.add``, ``Nat.mul``, ``Nat.pred``, ``Nat.sub``
@@ -1828,13 +1955,14 @@ def reg_nat_ops(env: Environment) -> None:
     >>> env = mk_builtin_env()   # calls reg_nat_ops internally
     >>> env.constants["Nat.add"].value is not None
     True
+    >>> env.constants["Nat.eqb"].value is not None
+    True
     >>> env.constants["Nat.ltb"].value is None
     True
     """
     nat_binop = mk_arrow(NAT, mk_arrow(NAT, NAT))
     nat_cmp_bool = mk_arrow(NAT, mk_arrow(NAT, BOOL))
     for name, tp in [
-        ("Nat.eqb", nat_cmp_bool),
         ("Nat.neb", nat_cmp_bool),
         ("Nat.ltb", nat_cmp_bool),
         ("Nat.gtb", nat_cmp_bool),
@@ -1845,6 +1973,10 @@ def reg_nat_ops(env: Environment) -> None:
     ]:
         env.add_constant(
             ConstantInfo(name=name, level_params=(), type=tp, value=None))
+
+    env.add_constant(
+        ConstantInfo(name="Nat.eqb", level_params=(), type=nat_cmp_bool,
+                     value=mk_nat_eqb_value()))
 
     env.add_constant(
         ConstantInfo(name="Nat.add",
