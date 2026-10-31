@@ -6,7 +6,7 @@ tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
           "LARROW", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE",
           "INDENT", "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS",
           "LAMBDA", "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION",
-          "WALRUS", "FROM", "IMPORT", "NABLA")
+          "WALRUS", "FROM", "IMPORT", "NABLA", "SOLVE", "WHERE", "SUPERSCRIPT")
 
 reserved = {
     "def": "DEF",
@@ -19,16 +19,34 @@ reserved = {
     "Function": "FUNCTION",
     "Equation": "EQUATION",
     "from": "FROM",
-    "import": "IMPORT"
+    "import": "IMPORT",
+    "solve": "SOLVE",
+    "where": "WHERE",
 }
 
-t_POWER = r"\*\*"
+
+def t_POWER(t):
+    r"\*\*"
+    # a FUNCTION rule (not the plain string it used to be) so it's tried
+    # before t_TIMES.
+    return t
+
+
 t_PLUSEQ = r"\+="
 t_ARROW = r"→|->"
 t_LARROW = r"←"  # unit annotation:  x : ℝ ← [kg, m, s**-2] = expr
 t_PLUS = r"\+"
 t_MINUS = r"-"
-t_TIMES = r"\*"
+
+
+def t_TIMES(t):
+    r"\*|⋅"
+    # ⋅ (U+22C5) is unicode notation for ordinary `*`
+    # for example, 5 ⋅ 5
+    t.value = "*"
+    return t
+
+
 t_INTDIV = r"//"  # must come before t_DIVIDE so // matches before /
 t_DIVIDE = r"/"
 t_MATMUL = r"@"
@@ -110,6 +128,26 @@ def t_NUMBER(t):
     return t
 
 
+_SUPERSCRIPT_DIGITS = {
+    "⁰": "0",
+    "¹": "1",
+    "²": "2",
+    "³": "3",
+    "⁴": "4",
+    "⁵": "5",
+    "⁶": "6",
+    "⁷": "7",
+    "⁸": "8",
+    "⁹": "9"
+}
+
+
+def t_SUPERSCRIPT(t):
+    r"⁻?[⁰¹²³⁴⁵⁶⁷⁸⁹]+"
+    # unicode notation for an exponent: `x²` = `x**2`, `x⁻¹` = `x**-1` —
+    return t
+
+
 def t_NEWLINE(t):
     r"\n[ \t]*"
     t.lexer.lineno += 1
@@ -148,6 +186,8 @@ class IndentLexer:
         self.pending_newline = None  # Store NEWLINE to emit before DEDENT
         self.after_for = False  # Track if we just saw FOR keyword
         self.bracket_depth = 0  # Track nesting of brackets/parens
+        self.raw_pushback = []  # Raw tokens peeked ahead, not yet processed
+        self.last_type = None  # Type of the last token returned
 
     def input(self, data):
         # Ensure file ends with newline for proper DEDENT handling
@@ -159,13 +199,51 @@ class IndentLexer:
         self.pending_newline = None
         self.after_for = False
         self.bracket_depth = 0
+        self.raw_pushback = []
+        self.last_type = None
 
     def token(self):
+        tok = self._token()
+        self.last_type = tok.type if tok else None
+        return tok
+
+    def _token(self):
         # Return queued tokens first
         if self.token_queue:
             return self.token_queue.pop(0)
 
-        tok = self.lexer.token()
+        if self.raw_pushback:
+            tok = self.raw_pushback.pop(0)
+        else:
+            tok = self.lexer.token()
+
+        if tok and tok.type == "SOLVE":
+            # `solve` starts a solve statement only at the beginning of a
+            # line and before a uknown name.
+            nxt = self.lexer.token()
+            if nxt is not None:
+                self.raw_pushback.append(nxt)
+            at_line_start = self.last_type in (None, "NEWLINE", "INDENT",
+                                               "DEDENT")
+            if not (at_line_start and nxt is not None and nxt.type == "ID"):
+                tok.type = "ID"
+
+        if tok and tok.type == "SUPERSCRIPT":
+            # expand `x²` / `x⁻¹` into  `x**2` / `x**-1`.
+            raw = tok.value
+            neg = raw.startswith("⁻")
+            digits = raw[1:] if neg else raw
+            n = int("".join(_SUPERSCRIPT_DIGITS[c] for c in digits))
+            if neg:
+                minus_tok = lex.LexToken()
+                minus_tok.type, minus_tok.value = "MINUS", "-"
+                minus_tok.lineno, minus_tok.lexpos = tok.lineno, tok.lexpos
+                self.token_queue.append(minus_tok)
+            num_tok = lex.LexToken()
+            num_tok.type, num_tok.value = "NUMBER", n
+            num_tok.lineno, num_tok.lexpos = tok.lineno, tok.lexpos
+            self.token_queue.append(num_tok)
+            tok.type, tok.value = "POWER", "**"
 
         # After FOR, treat IMAGINARY as ID (allow 'i' as loop variable)
         if tok and tok.type == "FOR":
@@ -197,7 +275,7 @@ class IndentLexer:
         if tok.type == "NEWLINE":
             # Skip newlines inside brackets/parens (like Python)
             if self.bracket_depth > 0:
-                return self.token()  # Skip this newline, get next token
+                return self._token()  # Skip this newline, get next token
 
             _, new_indent = tok.value
             tok.value = 1  # Restore simple newline count

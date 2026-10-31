@@ -1543,6 +1543,98 @@ def p_error(p):
         raise SyntaxError("Syntax error at EOF")
 
 
+def p_solve_conds(p):
+    """solve_conds : condition
+                   | solve_conds COMMA condition"""
+    # Comma-separated list of `lhs == rhs` equations in a `solve … where …`
+    # block.
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[0] = p[1] + [p[3]]
+
+
+def p_solve_local(p):
+    """solve_local : ID COLON type_spec EQUALS func_expr NEWLINE
+                   | NEWLINE"""
+    # local constant declaration inside a `solve … where:` block
+    p[0] = None if len(p) == 2 else ("solve_local", p[1], p[3], p[5])
+
+
+def p_solve_locals(p):
+    """solve_locals :
+                    | solve_locals solve_local"""
+    # multiple local constants, extending from aove
+    if len(p) == 1:
+        p[0] = []
+    else:
+        p[0] = p[1] + ([p[2]] if p[2] is not None else [])
+
+
+def p_solve_block_conds(p):
+    """solve_block_conds : condition NEWLINE
+                         | solve_block_conds condition NEWLINE
+                         | solve_block_conds NEWLINE"""
+    # One or more newline separated `lhs == rhs` equations.
+    if p.slice[1].type == "solve_block_conds":
+        p[0] = p[1] if len(p) == 3 else p[1] + [p[2]]
+    else:
+        p[0] = [p[1]]
+
+
+def p_solve_block(p):
+    """solve_block : solve_locals solve_block_conds"""
+    # `solve_locals` in the block's local constants foprm
+    eqs = p[2]
+    p[0] = ("solve_block", p[1], eqs[0] if len(eqs) == 1 else eqs, None)
+
+
+def p_solve_block_labeled(p):
+    """solve_block_labeled : solve_locals ID COLON condition NEWLINE"""
+    # `F : <equation>`
+    # trailing equation carries the quantity's name
+    # the dimension comes from the `where F : ℝ ← [unit] :` header.
+    p[0] = ("solve_block", p[1], p[4], None)
+
+
+def p_statement_solve(p):
+    """statement : SOLVE id_list COLON type_spec WHERE solve_conds NEWLINE
+                 | SOLVE id_list COLON type_spec EQUALS expr WHERE condition NEWLINE
+                 | SOLVE id_list COLON type_spec WHERE COLON NEWLINE INDENT solve_block DEDENT
+                 | SOLVE id_list COLON type_spec WHERE LBRACKET unit_list RBRACKET COLON NEWLINE INDENT solve_block DEDENT
+                 | SOLVE id_list COLON type_spec WHERE ID COLON type_spec COLON NEWLINE INDENT solve_block_labeled DEDENT
+    """  # noqa: E501
+    # Solves equations for the unknowns, checked by the CIC kernel.
+    # Example:
+    #   solve x, y : ℤ where x + y == 10, x - y == 4
+    #   solve x : ℤ = 4 where x*x == x + 12
+    #   solve a : ℝ ← [m] where [kg, m, s**-2]:
+    #       k : ℝ = 2.0
+    #       k * a == 1
+    # Returns:
+    #   ("solve_decl", vars, type, [candidate] | None, [cond_eq], line), or
+    #   ("solve_block", locals, cond_eq, unit | None) in place of [cond_eq]
+    marker = p.slice[5].type  # token right after `type_spec`
+    if marker == "EQUALS":  # verify form
+        p[0] = ("solve_decl", p[2], p[4], [p[6]], [p[8]], p.lineno(1))
+        return
+    after_where = p.slice[6].type  # token after `WHERE`
+    if after_where == "COLON":  # solve block
+        p[0] = ("solve_decl", p[2], p[4], None, p[9], p.lineno(1))
+    elif after_where == "LBRACKET":  # unitrs prestent
+        blk = p[12]
+        p[0] = ("solve_decl", p[2], p[4], None, ("solve_block", blk[1], blk[2],
+                                                 p[7]), p.lineno(1))
+    elif after_where == "ID" and p.slice[7].type == "COLON":
+        blk, hdr = p[12], p[8]
+        unit_ast = (hdr[2] if isinstance(hdr, tuple) and hdr
+                    and hdr[0] == "unit_typed" else None)
+        p[0] = ("solve_decl", p[2], p[4], None, ("solve_block", blk[1], blk[2],
+                                                 unit_ast), p.lineno(1))
+    else:  # just one where:
+        p[0] = ("solve_decl", p[2], p[4], None, p[6], p.lineno(1))
+
+
 # Symbolic types
 def p_statement_symbol_decl(p):
     """statement : ID COLON SYMBOL NEWLINE"""
