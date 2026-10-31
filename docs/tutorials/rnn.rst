@@ -443,10 +443,10 @@ Full code
             total += 1
         return total
 
-    def rand_2d_array(n:ℝ, m:ℝ, μ:ℝ): ℝ[n, m]:
+    def rand_2d_array(n:ℕ, m:ℕ, μ:ℝ): ℝ[n, m]:
         return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
 
-    def rand_array(x: ℝ): ℝ[m]:
+    def rand_array(x: ℕ): ℝ[m]:
         t ~ 𝒩(0, 1, x)
         return t
 
@@ -535,8 +535,8 @@ Full code
     # O -> output class size
     # H -> hidden size (used in hidden state)
 
-    I: ℝ = 59
-    O: ℝ = 18
+    I: ℕ = 59
+    O: ℕ = 18
     H: ℕ = 128
 
 
