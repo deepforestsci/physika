@@ -23,7 +23,8 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
                       resolved_program_fvar_names: Optional[Dict[FVarId,
                                                                  str]] = None,
                       cic_env: Optional[Environment] = None,
-                      func_sigs: Optional[Dict[str, Any]] = None) -> str:
+                      func_sigs: Optional[Dict[str, Any]] = None,
+                      solve_bindings: Optional[Dict[str, Any]] = None) -> str:
     """Convert a unified AST into a complete, executable Python/PyTorch
     source string.
 
@@ -327,7 +328,8 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
                                        grad_target_vars,
                                        resolved_expr_code=resolved_expr_code,
                                        unit_env=unit_env,
-                                       func_sigs=func_sigs)
+                                       func_sigs=func_sigs,
+                                       solve_bindings=solve_bindings)
         if stmt_code:
             code_lines.append(stmt_code)
         update_unit_env(stmt, unit_env, func_sigs)
