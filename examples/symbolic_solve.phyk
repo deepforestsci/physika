@@ -1,0 +1,49 @@
+# Physika symbolic solver
+
+# Example #1: verify a candidate
+solve x : ℕ = 3 where x + 2 == 5
+solve x : ℤ = 5 where x² - 5⋅x + 6 == 0
+
+# Example #2: linear systems of equations
+solve x, y : ℤ where x + y == 10, x - y == 4
+solve w, x, y, z : ℝ where:
+    2⋅w + x + y - z == 0
+    w - x + 3⋅y + 2⋅z == -7
+    3⋅w + 2⋅x - y + z == 9
+    w + x + y + 4⋅z == 5
+
+# Example #3: polynomials solver
+solve x : ℤ where x³ - 6⋅x² + 11⋅x - 6 == 0
+solve x : ℝ where:
+    μ : ℝ = 4
+    θ : ℝ = μ²/2500 - 1/100
+    θ⋅x² + x - 4⋅μ² == 0
+
+# Example #4: derivatives with the power rule
+solve x : ℝ where deriv(x**3 - 3*x) == 0
+
+# Example #5: function used in symbolic solver.
+def height(t: ℝ): ℝ:
+    return 20*t - 5*t**2
+
+solve t : ℝ where deriv(height(t)) == 0
+
+# Example #6: very term must have the same dimension and units (checker)
+solve F1, F2 : ℝ ← [kg, m, s**-2] where F1 + F2 == 90, 3*F1 == 6*F2
+solve a : ℝ ← [m] where:
+    c1 : ℝ ← [kg, m**-1, s**-2] = 36
+    c2 : ℝ ← [kg, m**-2, s**-2] = 18
+    deriv(c1*a**2 - c2*a**3) == 0
+
+# Example #7: symbolic chain, definitions, checked claim and solve
+solve y : ℝ where:
+    q == a + b
+    s == q² - 2⋅a⋅b
+    s == a² + b²
+    y == s
+solve x : ℝ where:
+    3⋅n == m - 1
+    x == n + 1
+
+# Example #8: linear system with symbolic coefficients
+solve u, v : ℝ where 2⋅u == p, v == k⋅u
