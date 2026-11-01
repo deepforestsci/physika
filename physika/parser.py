@@ -1405,6 +1405,14 @@ def p_term_factor(p):
     p[0] = p[1]
 
 
+def p_factor_nabla_call(p):
+    """factor      : NABLA LPAREN args RPAREN
+       func_factor : NABLA LPAREN func_args RPAREN"""
+    # AST node for ``grad`` function call
+    args = p[3]
+    p[0] = ("call", "grad", args)
+
+
 def p_factor_call(p):
     """factor : ID LPAREN args RPAREN"""
     # Return AST node for function call
