@@ -32,7 +32,7 @@ class Encoder(nn.Module):
         self.bμ = nn.Parameter(torch.as_tensor(bμ))
         self.Wl = nn.Parameter(torch.as_tensor(Wl))
         self.bl = nn.Parameter(torch.as_tensor(bl))
-        self.learnable_params = [self.We, self.be, self.Wμ, self.bμ, self.Wl, self.bl]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self
@@ -65,7 +65,7 @@ class Decoder(nn.Module):
         self.ba = nn.Parameter(torch.as_tensor(ba))
         self.Wo = nn.Parameter(torch.as_tensor(Wo))
         self.bo = nn.Parameter(torch.as_tensor(bo))
-        self.learnable_params = [self.Wa, self.ba, self.Wo, self.bo]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, z):
         this = self
@@ -91,7 +91,7 @@ class VariationalAutoEncoder(nn.Module):
         self.add_module('enc', enc)
         self.add_module('dec', dec)
         self.lat = nn.Parameter(torch.as_tensor(lat))
-        self.learnable_params = [self.lat]
+        self.learnable_params = list(self.parameters())
         self.μ = None
         self.lv = None
 
