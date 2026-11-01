@@ -10,17 +10,17 @@ def sigmoid(z: ℝ[k,h]): ℝ[k,h]:
     res: ℝ[k,h] = 1.0 / (1.0 + exp(-z))
     return res
 
-class Encoder(We: ℝ[m,n], be: ℝ[1,n], Wu: ℝ[n,h], bu: ℝ[1,h], Wl: ℝ[n,h], bl: ℝ[1,h]):
+class Encoder(We: ℝ[m,n], be: ℝ[1,n], Wμ: ℝ[n,h], bμ: ℝ[1,h], Wl: ℝ[n,h], bl: ℝ[1,h]):
     def λ(x: ℝ[1,m]) → ℝ[1,h], ℝ[1,h]:
         he: ℝ[1,n] = tanh(x @ We + be)
-        mu: ℝ[1,h] = he @ Wu + bu
+        μ: ℝ[1,h] = he @ Wμ + bμ
         lv: ℝ[1,h] = he @ Wl + bl
-        return mu, lv
+        return μ, lv
     def update_params(lr: ℝ, learnable_grads: ℝ[p]):
         this.We = this.We - lr * learnable_grads[0]
         this.be = this.be - lr * learnable_grads[1]
-        this.Wu = this.Wu - lr * learnable_grads[2]
-        this.bu = this.bu - lr * learnable_grads[3]
+        this.Wμ = this.Wμ - lr * learnable_grads[2]
+        this.bμ = this.bμ - lr * learnable_grads[3]
         this.Wl = this.Wl - lr * learnable_grads[4]
         this.bl = this.bl - lr * learnable_grads[5]
 
@@ -35,19 +35,19 @@ class Decoder(Wa: ℝ[h,n], ba: ℝ[1,n], Wo: ℝ[n,m], bo: ℝ[1,m]):
         this.bo = this.bo - lr * learnable_grads[3]
 
 class VariationalAutoEncoder(enc: Encoder, dec: Decoder, lat: ℝ):
-    mu: ℝ[1,lat]
+    μ: ℝ[1,lat]
     lv: ℝ[1,lat]
     def λ(x: ℝ[1,n]) → ℝ[1,n]:
-        mu, lv = enc(x)
-        this.mu = mu
+        μ, lv = enc(x)
+        this.μ = μ
         this.lv = lv
-        eps: ℝ[1,lat] ~ 𝒩(0.0, 1.0, 1, lat)
-        sigma: ℝ[1,lat] = exp(this.lv * 0.5)
-        z: ℝ[1,lat] = this.mu + sigma * eps
+        ε: ℝ[1,lat] ~ 𝒩(0.0, 1.0, 1, lat)
+        σ: ℝ[1,lat] = exp(this.lv * 0.5)
+        z: ℝ[1,lat] = this.μ + σ * ε
         x_hat: ℝ[1,n] = dec(z)
         return x_hat
     def loss(target: ℝ[1,784], x_hat: ℝ[1,784]) → ℝ:
-        kl: ℝ = - 0.5 * sum(1.0 + this.lv - this.mu ** 2 - exp(this.lv))
+        kl: ℝ = - 0.5 * sum(1.0 + this.lv - this.μ ** 2 - exp(this.lv))
         recon: ℝ =  - sum(target * log(x_hat + 1e-7) + (1.0 - target) * log(1.0 - x_hat + 1e-7))
         return kl + recon
     def train(X: ℝ[1000,784], epochs: ℕ, lr: ℝ, images: ℝ):
@@ -63,7 +63,7 @@ class VariationalAutoEncoder(enc: Encoder, dec: Decoder, lat: ℝ):
 
 # helpers for weights and bias initialisation
 def rand_array(n:ℕ, m:ℕ, μ:ℝ): ℝ[n, m]:
-    return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+    return for i:ℕ(n) → for j:ℕ(m) → μ * ε ~ 𝒩(0.0, 1.0)
 
 def zeros(n:ℕ, m:ℕ): ℝ[n, m]:
     return for i:ℕ(n) → for j:ℕ(m) → 0.0
@@ -71,8 +71,8 @@ def zeros(n:ℕ, m:ℕ): ℝ[n, m]:
 We: ℝ[784,256] = rand_array(784, 256, 0.05)
 be: ℝ[1,256] = zeros(1, 256)
 
-Wu: ℝ[256,20] = rand_array(256, 20, 0.01)
-bu: ℝ[1,20] = zeros(1, 20)
+Wμ: ℝ[256,20] = rand_array(256, 20, 0.01)
+bμ: ℝ[1,20] = zeros(1, 20)
 
 Wl: ℝ[256,20] = rand_array(256, 20, 0.01)
 bl: ℝ[1,20] = zeros(1, 20)
@@ -85,7 +85,7 @@ bo: ℝ[1,784] = zeros(1, 784)
 
 
 # Phsyika VAE
-enc = Encoder(We, be, Wu, bu, Wl, bl)
+enc = Encoder(We, be, Wμ, bμ, Wl, bl)
 dec = Decoder(Wa, ba, Wo, bo)
 lat : ℝ = 20.0
 vae = VariationalAutoEncoder(enc, dec, lat)
@@ -105,6 +105,7 @@ elbo_before
 epochs : ℕ = 2
 lr : ℝ = 2e-4
 vae.train(X, epochs, lr, images)
+
 
 # physika VAE evaluation
 recon_after: ℝ[1,784] = vae(x0)

@@ -24,23 +24,23 @@ def zeros(n, m):
 
 # === Classes ===
 class Encoder(nn.Module):
-    def __init__(self, We, be, Wu, bu, Wl, bl):
+    def __init__(self, We, be, Wμ, bμ, Wl, bl):
         super().__init__()
         self.We = nn.Parameter(torch.as_tensor(We))
         self.be = nn.Parameter(torch.as_tensor(be))
-        self.Wu = nn.Parameter(torch.as_tensor(Wu))
-        self.bu = nn.Parameter(torch.as_tensor(bu))
+        self.Wμ = nn.Parameter(torch.as_tensor(Wμ))
+        self.bμ = nn.Parameter(torch.as_tensor(bμ))
         self.Wl = nn.Parameter(torch.as_tensor(Wl))
         self.bl = nn.Parameter(torch.as_tensor(bl))
-        self.learnable_params = [self.We, self.be, self.Wu, self.bu, self.Wl, self.bl]
+        self.learnable_params = [self.We, self.be, self.Wμ, self.bμ, self.Wl, self.bl]
 
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
         he = tanh(((x @ self.We) + self.be))
-        mu = ((he @ self.Wu) + self.bu)
+        μ = ((he @ self.Wμ) + self.bμ)
         lv = ((he @ self.Wl) + self.bl)
-        return (mu, lv)
+        return (μ, lv)
 
     def update_params(self, lr, learnable_grads):
         this = self
@@ -50,9 +50,9 @@ class Encoder(nn.Module):
         with torch.no_grad():
             self.be.copy_((self.be - (lr * learnable_grads[int(1)])))
         with torch.no_grad():
-            self.Wu.copy_((self.Wu - (lr * learnable_grads[int(2)])))
+            self.Wμ.copy_((self.Wμ - (lr * learnable_grads[int(2)])))
         with torch.no_grad():
-            self.bu.copy_((self.bu - (lr * learnable_grads[int(3)])))
+            self.bμ.copy_((self.bμ - (lr * learnable_grads[int(3)])))
         with torch.no_grad():
             self.Wl.copy_((self.Wl - (lr * learnable_grads[int(4)])))
         with torch.no_grad():
@@ -92,18 +92,18 @@ class VariationalAutoEncoder(nn.Module):
         self.add_module('dec', dec)
         self.lat = nn.Parameter(torch.as_tensor(lat))
         self.learnable_params = [self.lat]
-        self.mu = None
+        self.μ = None
         self.lv = None
 
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        self.mu, self.lv = self.enc(x)
-        self.mu = self.mu
+        self.μ, self.lv = self.enc(x)
+        self.μ = self.μ
         self.lv = self.lv
-        eps = torch.distributions.Normal(0.0, 1.0).rsample((int(1), int(self.lat),))
-        sigma = torch.exp((self.lv * 0.5) if isinstance((self.lv * 0.5), torch.Tensor) else torch.tensor(float((self.lv * 0.5))))
-        z = (self.mu + (sigma * eps))
+        ε = torch.distributions.Normal(0.0, 1.0).rsample((int(1), int(self.lat),))
+        σ = torch.exp((self.lv * 0.5) if isinstance((self.lv * 0.5), torch.Tensor) else torch.tensor(float((self.lv * 0.5))))
+        z = (self.μ + (σ * ε))
         x_hat = self.dec(z)
         return x_hat
 
@@ -111,7 +111,7 @@ class VariationalAutoEncoder(nn.Module):
         this = self
         target = torch.as_tensor(target, device=DEVICE).float()
         x_hat = torch.as_tensor(x_hat, device=DEVICE).float()
-        kl = ((-0.5) * torch.sum((((1.0 + self.lv) - (self.mu ** 2)) - torch.exp(self.lv if isinstance(self.lv, torch.Tensor) else torch.tensor(float(self.lv)))) if isinstance((((1.0 + self.lv) - (self.mu ** 2)) - torch.exp(self.lv if isinstance(self.lv, torch.Tensor) else torch.tensor(float(self.lv)))), torch.Tensor) else torch.tensor(float((((1.0 + self.lv) - (self.mu ** 2)) - torch.exp(self.lv if isinstance(self.lv, torch.Tensor) else torch.tensor(float(self.lv))))))))
+        kl = ((-0.5) * torch.sum((((1.0 + self.lv) - (self.μ ** 2)) - torch.exp(self.lv if isinstance(self.lv, torch.Tensor) else torch.tensor(float(self.lv)))) if isinstance((((1.0 + self.lv) - (self.μ ** 2)) - torch.exp(self.lv if isinstance(self.lv, torch.Tensor) else torch.tensor(float(self.lv)))), torch.Tensor) else torch.tensor(float((((1.0 + self.lv) - (self.μ ** 2)) - torch.exp(self.lv if isinstance(self.lv, torch.Tensor) else torch.tensor(float(self.lv))))))))
         recon = (-torch.sum(((target * torch.log((x_hat + 1e-07) if isinstance((x_hat + 1e-07), torch.Tensor) else torch.tensor(float((x_hat + 1e-07))))) + ((1.0 - target) * torch.log(((1.0 - x_hat) + 1e-07) if isinstance(((1.0 - x_hat) + 1e-07), torch.Tensor) else torch.tensor(float(((1.0 - x_hat) + 1e-07)))))) if isinstance(((target * torch.log((x_hat + 1e-07) if isinstance((x_hat + 1e-07), torch.Tensor) else torch.tensor(float((x_hat + 1e-07))))) + ((1.0 - target) * torch.log(((1.0 - x_hat) + 1e-07) if isinstance(((1.0 - x_hat) + 1e-07), torch.Tensor) else torch.tensor(float(((1.0 - x_hat) + 1e-07)))))), torch.Tensor) else torch.tensor(float(((target * torch.log((x_hat + 1e-07) if isinstance((x_hat + 1e-07), torch.Tensor) else torch.tensor(float((x_hat + 1e-07))))) + ((1.0 - target) * torch.log(((1.0 - x_hat) + 1e-07) if isinstance(((1.0 - x_hat) + 1e-07), torch.Tensor) else torch.tensor(float(((1.0 - x_hat) + 1e-07))))))))))
         return (kl + recon)
 
@@ -134,15 +134,15 @@ class VariationalAutoEncoder(nn.Module):
 torch.manual_seed(int(42))
 We = rand_array(784, 256, 0.05)
 be = torch.zeros(int(1), int(256), device=DEVICE)
-Wu = rand_array(256, 20, 0.01)
-bu = torch.zeros(int(1), int(20), device=DEVICE)
+Wμ = rand_array(256, 20, 0.01)
+bμ = torch.zeros(int(1), int(20), device=DEVICE)
 Wl = rand_array(256, 20, 0.01)
 bl = torch.zeros(int(1), int(20), device=DEVICE)
 Wa = rand_array(20, 256, 0.2)
 ba = torch.zeros(int(1), int(256), device=DEVICE)
 Wo = rand_array(256, 784, 0.05)
 bo = torch.zeros(int(1), int(784), device=DEVICE)
-enc = Encoder(We, be, Wu, bu, Wl, bl)
+enc = Encoder(We, be, Wμ, bμ, Wl, bl)
 dec = Decoder(Wa, ba, Wo, bo)
 lat = 20.0
 vae = VariationalAutoEncoder(enc, dec, lat)
