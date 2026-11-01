@@ -10,6 +10,7 @@ from physika.lexer import lexer
 from physika.parser import parser, symbol_table
 from physika.runtime import compute_grad
 from physika.utils.ast_utils import build_unified_ast
+from tests.conftest import run_phyk
 
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 r_tol = 1e-02
@@ -437,3 +438,45 @@ class TestJacobian:
         assert torch.allclose(J_c,
                               torch.tensor(expected_c, dtype=torch.float32),
                               atol=r_tol)
+
+
+class TestNablaOperator:
+    """
+    Tests for nabla ``∇`` operator.
+    """
+
+    def test_nabla_operator(self):
+        """Tests nabla at top, function, and loop levels."""
+
+        # Top-level program
+        src = ("def f(x: ℝ): ℝ:\n"
+               "    return x**2\n"
+               "\n"
+               "x: ℝ = 2.0\n"
+               "res: ℝ = ∇(f, x)")
+        top_level_ns = run_phyk(src)
+        assert top_level_ns["res"].item() == pytest.approx(4.0)
+
+        # Function-level program
+        src = ("def f(x: ℝ) : ℝ:\n"
+               "    return x**2\n"
+               "\n"
+               "def slope(x: ℝ) : ℝ:\n"
+               "    r: ℝ = ∇(f, x)\n"
+               "    return r\n"
+               "\n"
+               "res: ℝ = slope(3.0)")
+        function_level_ns = run_phyk(src)
+        assert function_level_ns["res"].item() == pytest.approx(6.0)
+
+        # Loop-level program
+        src = ("def f(x: ℝ) : ℝ:\n"
+               "    return x**2\n"
+               "\n"
+               "x, lr: ℝ = 2.0, 0.1\n"
+               "\n"
+               "for i:ℕ(5):\n"
+               "    x = x - lr * ∇(f, x)\n"
+               "print(x)")
+        loop_level_ns = run_phyk(src)
+        assert loop_level_ns["x"].item() == pytest.approx(0.65536)

@@ -7,6 +7,7 @@ from physika.utils.import_manager import resolve_imports
 from io import StringIO
 from contextlib import redirect_stdout
 from typing import Optional
+from physika.runtime import compute_grad
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
 
@@ -74,7 +75,9 @@ def run_phyk(src: str, phyk_file: Optional[str] = None) -> dict:
         pm.symbol_table,
     )
     code = from_ast_to_torch(ast, print_code=False)
-    ns: dict = {}
+    ns: dict = {
+        "compute_grad": compute_grad,
+    }
     exec(code, ns)
     return ns
 
