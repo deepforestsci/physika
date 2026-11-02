@@ -50,3 +50,14 @@ for i:
     sum_Ω += Ω[i]
 
 sum_Ω
+
+
+# Transpose of matrix
+
+a: ℝ[2, 3] = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+
+a_T: ℝ[3, 2] = aᵀ
+print(a_T)

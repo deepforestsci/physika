@@ -49,3 +49,11 @@ class TestGreekLetters:
     def test_for_loop(self, numeric_ns):
         # Test greek letters for loop
         assert float(numeric_ns["sum_Ω"]) == pytest.approx(1.5)
+
+
+class ModifierLetters:
+    """Tests for Modifier letter symbols."""
+
+    def test_tranpose(self, numeric_ns):
+        # Test matrix transpose correctness
+        assert numeric_ns["x_T"].tolist() == [[1, 4], [2, 5], [3, 6]]

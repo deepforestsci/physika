@@ -60,4 +60,17 @@ EXPECTED = {'functions': {'f': {'params': [('x', ('tensor', [('m', 'invariant')]
               [('for_pluseq', 'sum_Ω', ('index', 'Ω', ('imaginary',)))],
               ['Ω'],
               49),
-             ('expr', ('var', 'sum_Ω'), 0)]}
+             ('expr', ('var', 'sum_Ω'), 0),
+             ('decl',
+              'a',
+              ('tensor', [(2, 'invariant'), (3, 'invariant')]),
+              ('array',
+               [('array', [('num', 1), ('num', 2), ('num', 3)]),
+                ('array', [('num', 4), ('num', 5), ('num', 6)])]),
+              57),
+             ('decl',
+              'a_T',
+              ('tensor', [(3, 'invariant'), (2, 'invariant')]),
+              ('transpose', ('var', 'a')),
+              62),
+             ('expr', ('call', 'print', [('var', 'a_T')]), 0)]}

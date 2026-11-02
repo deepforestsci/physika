@@ -1342,6 +1342,25 @@ Letterlike Symbols
      - Planck Constant Over Two Pi
 
 
+Modifier letters
+----------------
+
+Physika supports modifier letter ``ᵀ`` as postfix operator which is used
+to get transpose of matrix. It is written after the variable name in mathematical
+notation.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 15 35
+
+   * - Symbol
+     - Unicode
+     - Name
+   * - ᵀ
+     - U+1D40
+     - Modifier Letter Capital T
+
+
 Import statements
 -----------------
 
