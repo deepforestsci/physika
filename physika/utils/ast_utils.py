@@ -770,6 +770,10 @@ def ast_to_torch_expr(node: ASTNode,
             return (f"torch.reshape({x}, "
                     f"({dim},) if isinstance({dim}, int) else {dim})")
 
+        elif func_name == "inv":
+            # square matrix in, same shape out: no scalar coercion
+            return f"torch.linalg.inv({arg})"
+
         elif func_name in multi_arg_funcs:
             return f"{multi_arg_funcs[func_name]}({', '.join(arg_strs)})"
 
