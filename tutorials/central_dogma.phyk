@@ -115,8 +115,8 @@ def adjoint_grad(θ: ℝ[4]): ℝ[n]:
         mr = mr_array[idx]
         pr = pr_array[idx]
         state = [mr, pr]
-        J_state = grad(rk4_step(state, θ), state)
-        J_theta = grad(rk4_step(state, θ), θ)
+        J_state = ∇(rk4_step(state, θ), state)
+        J_theta = ∇(rk4_step(state, θ), θ)
         L += s @ J_theta
         residual = [0.0, (pr_array[idx] - true_pr[idx]) / m]
         s = residual + (s @ J_state)

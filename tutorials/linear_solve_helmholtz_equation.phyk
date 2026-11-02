@@ -145,7 +145,7 @@ for i:ℕ(epochs):
     pred_u = solver(guess_k, n)
     loss = mse_loss(true_u, pred_u)
     losses = append(losses, loss)
-    grad = grad(loss, guess_k)
+    grad = ∇(loss, guess_k)
     guess_k = guess_k - lr * grad
     print(guess_k)
 

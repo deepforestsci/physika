@@ -100,7 +100,7 @@ class GCNModel(W1: ℝ[30, 4], W2: ℝ[4]):
                 z = this(A_j, H_j, sz_j)
                 current_loss = mse(z, label)
                 loss += current_loss
-                learnable_grads = grad(current_loss, this.learnable_params)
+                learnable_grads = ∇(current_loss, this.learnable_params)
                 this.update_params(lr, learnable_grads)
             loss = loss / len_train_X
         return loss

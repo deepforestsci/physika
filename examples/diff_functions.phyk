@@ -12,7 +12,7 @@ def torch_funcs_with_scalar_R(x: ℝ): ℝ[m]:
     return [result_sin, result_cos, result_exp, result_sqrt, result_log, result_abs]
 
 def check_diff_torch_funcs(x: ℝ): ℝ:
-    results = grad(torch_funcs_with_scalar_R, x)
+    results = ∇(torch_funcs_with_scalar_R, x)
     return results
 
 x: ℝ = 1.0
@@ -53,20 +53,20 @@ def f(x: ℝ): ℝ:
 
 x0 : ℝ = - 1.5
 f(x0)
-grad(f(x0), x0)
+∇(f(x0), x0)
 
 x1 : ℝ = - 0.5
 f(x1)
-grad(f(x1), x1)
+∇(f(x1), x1)
 
 x2 : ℝ = 0.5
 f(x2)
-grad(f(x2), x2)
+∇(f(x2), x2)
 
 x3 : ℝ = 1.5
 f(x3)
-grad(f(x3), x3)
+∇(f(x3), x3)
 
 x4 : ℝ = 3.14
 f(x4)
-grad(f(x4), x4)
+∇(f(x4), x4)

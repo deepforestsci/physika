@@ -137,22 +137,22 @@ X
 
 y: ℝ = real(X[1])                   # real part of the k=1 frequency coefficient
 y
-grad(y, x)
+∇(y, x)
 
 # --- The same gradient computed through the DFT and Cooley–Tukey FFT--------------------
 dft_spectrum: ℂ[4] = dft(x)
 dft_coeff: ℝ = real(dft_spectrum[1])
-grad(dft_coeff, x)
+∇(dft_coeff, x)
 
 ct_fft_spectrum: ℂ[4] = ct_fft(x, 4)
 ct_fft_coeff: ℝ = real(ct_fft_spectrum[1])
-grad(ct_fft_coeff, x)
+∇(ct_fft_coeff, x)
 
 # Differentiate through the inverse transform.
 inv_signal: ℂ[4] = ifft(X)
 inv_sample: ℝ = real(inv_signal[1])
 inv_sample
-grad(inv_sample, x)
+∇(inv_sample, x)
 
 # --- Gradient through the FFT--(Parseval's theorem) ----
 
@@ -165,5 +165,5 @@ energy_freq: ℝ = sum(abs(X2)**2) / len(x2)   # same energy: sum of squared spe
 energy_time
 energy_freq
 
-grad(energy_time, x2)
-grad(energy_freq, x2)
+∇(energy_time, x2)
+∇(energy_freq, x2)

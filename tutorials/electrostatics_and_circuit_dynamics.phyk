@@ -41,7 +41,7 @@ x2: ℝ[3] = [1.0, 1.0, 1.0]
 coulomb_e: ℝ[3] = E(q1, x1, x2)
 
 # Jacobian of the electric field with respect to x2
-dE_dx2: ℝ[3] = grad(E(q1, x1, x2), x2)
+dE_dx2: ℝ[3] = ∇(E(q1, x1, x2), x2)
 
 print(coulomb_e)
 print(dE_dx2)

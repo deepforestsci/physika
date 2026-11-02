@@ -132,8 +132,8 @@ def adjoint_grad(θ: ℝ[3]): ℝ[n]:
         X = X_array[idx]
         S = S_array[idx]
         state = [X, S]
-        J_state = grad(rk4_step(state, θ), state)
-        J_theta = grad(rk4_step(state, θ), θ)
+        J_state = ∇(rk4_step(state, θ), state)
+        J_theta = ∇(rk4_step(state, θ), θ)
         L += s @ J_theta
         residual = [
             (X_array[idx] - true_X[idx]) / m,

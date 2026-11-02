@@ -9,9 +9,9 @@ def f(x: ℝ): ℝ:
 # positive bracnh
 a : ℝ = 3.0
 f(a)
-grad(f(a), a)
+∇(f(a), a)
 
 # negative branch
 b : ℝ = - 2.0
 f(b)
-grad(f(b), b)
+∇(f(b), b)
