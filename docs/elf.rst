@@ -160,6 +160,8 @@ Inside a Physika method body, the current instance is referred as ``this``. The 
 
 * The class inherits from ``nn.Module``.
 * An ``__init__`` method is generated from the constructor parameters. Scalar (``ℝ``) and tensor parameters are converted with ``torch.as_tensor`` objects. If the class defines learnable parameters (e.g. inside a forward method), these are wrapped in ``nn.Parameter``.
+  Whereas, if a parameter is passed as ``list`` data type and if each element of ``list`` contains class instances (``nn.Module``) it gets generated as ``nn.ModuleList`` to preserve the parameters else it gets converted to
+  ``torch.as_tensor``.
 * If any class has learnable parameters and a forward lambda (``λ``) method ``learnable_params`` gets added as a class field which can be accessed with ``this.learnable_params`` syntax.
 * Each Physika method is emitted by ``emit_method``, walking down the AST, which handles ``this`` to ``self`` rewriting and fields substitution via ``replace_class_params``
 

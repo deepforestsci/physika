@@ -40,7 +40,7 @@ def f_return_list(x, y, z):
 class A(nn.Module):
     def __init__(self, x):
         super().__init__()
-        self.x = torch.as_tensor(x).float() if isinstance(x, (int, float, torch.Tensor)) else x
+        self.x = nn.ModuleList(x) if any(isinstance(i, nn.Module) for i in x) else torch.as_tensor(x).float() if all(isinstance(i, (int, float, torch.Tensor)) for i in x) else list(x)
 
     def get_list(self):
         this = self
