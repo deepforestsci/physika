@@ -250,7 +250,7 @@ Because ``BPNet`` holds exactly one ``Subnet``, every atom is evaluated by the
 same weights. That is the architectural constraint the Letter [#behler] requires for
 permutation invariance, expressed as object identity rather than as a penalty.
 
-.. code-block:: python
+.. code-block:: text
 
    class Descriptor(rs: ℝ, ζ: ℕ, lam: ℤ):
        def λ(a: ℕ, pos: ℝ[na, 3], natoms: ℕ) → ℝ[2]:
@@ -359,7 +359,7 @@ The forces are :math:`\mathbf F_i=-\partial E/\partial\mathbf R_i`.
 3.3 Parameter gradients
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. code-block:: text
 
    class BPNet:
        # ...
@@ -426,7 +426,7 @@ The loss is the squared error in the total energy,
 ``train`` performs stochastic gradient descent on the subnet weights, one
 update per frame.
 
-.. code-block:: python
+.. code-block:: text
 
    class BPNet:
        # ...
@@ -471,7 +471,7 @@ update per frame.
 ``train_all`` additionally updates ``rs``, with its own learning rate ``lrd``.
 Setting ``lrd`` to zero makes it identical to ``train``.
 
-.. code-block:: python
+.. code-block:: text
 
    class BPNet:
        # ...
