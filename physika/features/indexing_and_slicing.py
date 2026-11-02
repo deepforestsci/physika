@@ -1266,6 +1266,12 @@ class IndexingandSlicing(ELF):
             'A[:, int(0)] = 1'
             """
             _, arr_name, idx_list, rhs_expr = node
+
+            # useful when ELF class fields has AST of field_access
+            # e.g - ('field_access', ('var', 'this'), 'learnable_params')
+            if isinstance(arr_name, tuple):
+                arr_name = to_expr(arr_name)
+
             parts = []
             for item in idx_list:
                 if item[0] == "index_item":

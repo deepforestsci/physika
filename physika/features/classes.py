@@ -863,6 +863,19 @@ def make_parser_rules():
         #   p[5] - value expression
         p[0] = ("body_field_assign", p[1], p[3], p[5])
 
+    def p_func_loop_stmt_field_index_assign_nd(p):
+        """func_loop_stmt : member_expr LBRACKET multi_index_list RBRACKET EQUALS func_expr NEWLINE"""
+        # Indexed assignment to a field inside a class-method loop.
+        # Example:
+        #   this.learnable_params[i] = (
+        #       this.learnable_params[i] - lr * learnable_grads[i]
+        #   )
+        # Parameters:
+        #   p[1] - target member expression
+        #   p[3] - list of index expressions
+        #   p[6] - right-hand-side expression
+        p[0] = ("for_index_assign_nd", p[1], p[3], p[6])
+
     def p_func_loop_stmt_method_call(p):
         """func_loop_stmt : member_expr DOT ID LPAREN func_args RPAREN NEWLINE"""
         # Method call used as a statement inside a for loop of a class method.
@@ -903,6 +916,7 @@ def make_parser_rules():
         p_member_expr_field,
         p_member_expr_method,
         p_func_loop_stmt_field_assign,
+        p_func_loop_stmt_field_index_assign_nd,
         p_func_loop_stmt_method_call,
     ]
 
@@ -919,7 +933,7 @@ class ClassFeature(ELF):
     token (``"."``) for field and method access
 
     **Parser rules**
-    Sixteen PLY grammar functions (see ``make_parser_rules``) handle class
+    Twenty-five PLY grammar functions (see ``make_parser_rules``) handle class
     declarations with and without constructor parameters, field
     declarations, method definitions, and single or two tuple valued returns.
 

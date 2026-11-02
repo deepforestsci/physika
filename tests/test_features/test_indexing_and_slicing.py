@@ -4,12 +4,16 @@ from physika.utils.types import (TTensor, T_REAL, T_COMPLEX, TList, TDim,
 from tests.test_utils.test_infer_stmt import make_stmt_ctx
 from tests.test_utils.test_infer_expr import make_ctx
 from physika.utils.infer_expr import infer_expr
+from physika.utils.ast_utils import ast_to_torch_expr
 
 rules = IndexingandSlicing().type_rules()
 stmt_for_eq = rules["loop_index_assign_nd"]
 stmt_for_pluseq = rules["for_pluseq"]
 expr_index = rules["index"]
 expr_indexN = rules["indexN"]
+
+fwd_rules = IndexingandSlicing().forward_rules()
+for_index_assign_nd = fwd_rules["for_index_assign_nd"]
 
 
 class TestIndexingandSlicing:
@@ -1005,3 +1009,99 @@ class TestStmtForPluseq:
 
         assert errors == []
         assert ctx.env["i"] is i_dim
+
+
+class TestEmitForIndexAssignND:
+    """
+    Test for generated Pytorch code for
+    ``emit_for_index_assign_nd`` function.
+    """
+
+    def test_multidimensional_index(self):
+        """Test for simple indexing"""
+        node = (
+            "for_index_assign_nd",
+            "A",
+            [
+                ("index_item", ("var", "i")),
+                ("index_item", ("var", "j")),
+            ],
+            ("num", 5),
+        )
+
+        code = for_index_assign_nd(
+            node,
+            ast_to_torch_expr,
+            current_loop_var={"i", "j"},
+        )
+
+        assert code == "A[int(i), int(j)] = 5"
+
+    def test_full_slice(self):
+        """Test for slicing"""
+        node = (
+            "for_index_assign_nd",
+            "A",
+            [
+                ("slice_item", None, None),
+                ("index_item", ("num", 0)),
+            ],
+            ("num", 1),
+        )
+
+        code = for_index_assign_nd(
+            node,
+            ast_to_torch_expr,
+            current_loop_var={"i", "j"},
+        )
+
+        assert code == "A[:, int(0)] = 1"
+
+    def test_learnable_params_update(self):
+        """
+        Test for ELF classes ``field_access`` inside
+        for_index_assign_nd.
+
+        The relevant physika code is:
+
+        '''
+        class A(w: R, b: R):
+        def λ(x: R) -> R:
+            return w @ x + b
+        def update_params(lr: R, grads: list):
+            for idx:
+                this.learnable_params[idx] = this.learnable_params[idx] - lr * grads[idx] # noqa
+        '''
+        """
+        node = (
+            "for_index_assign_nd",
+            ("field_access", ("var", "this"), "learnable_params"),
+            [("index_item", ("var", "idx"))],
+            (
+                "sub",
+                (
+                    "chain_index",
+                    (
+                        "field_access",
+                        ("var", "this"),
+                        "learnable_params",
+                    ),
+                    ("var", "idx"),
+                ),
+                (
+                    "mul",
+                    ("var", "lr"),
+                    ("index", "grads", ("var", "idx")),
+                ),
+            ),
+        )
+
+        code = for_index_assign_nd(
+            node,
+            ast_to_torch_expr,
+            current_loop_var={"idx"},
+        )
+
+        assert code == ("this.learnable_params[int(idx)] = "
+                        "(this.learnable_params[int(idx)] - "
+                        "(lr * grads[int(idx)]))")

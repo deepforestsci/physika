@@ -346,8 +346,8 @@ class TestMakeParserRules:
         # make_parser_rules returns a plain list
         assert isinstance(make_parser_rules(), list)
 
-        # Exactly 20 grammar rules
-        assert len(make_parser_rules()) == 24
+        # Exactly 25 grammar rules
+        assert len(make_parser_rules()) == 25
 
         # every item should be a callable p_ functino
         for rule in make_parser_rules():

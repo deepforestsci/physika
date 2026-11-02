@@ -5,6 +5,13 @@
 # True Hamiltonian: H(q, p) = (q² + p²) / 2
 # Hamilton's equations: dq/dt = ∂H/∂p = p, dp/dt = -∂H/∂q = -q
 
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total, temp: ℝ = 0, 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
 # ------------------------------------------------------------
 # Activation Function
 # ------------------------------------------------------------
@@ -36,7 +43,7 @@ class HamiltonianNet(W1: ℝ[M,N], b1: ℝ[M,1], W2: ℝ[1,M], b2: ℝ):
                 target: ℝ[2, 1] = train_y[i]
                 prediction: ℝ[2] = this(state)
                 loss: ℝ = mse_loss(prediction, target)
-                learnable_grads: ℝ[4] = grad(loss, this.learnable_params)
+                learnable_grads: list = grad(loss, this.learnable_params)
                 this.update_params(lr, learnable_grads)
         return loss
     def evaluate(X: ℝ[8,2,1], y: ℝ[8,2]) → ℝ:
@@ -46,11 +53,9 @@ class HamiltonianNet(W1: ℝ[M,N], b1: ℝ[M,1], W2: ℝ[1,M], b2: ℝ):
             current_loss: ℝ = mse_loss(pred, y[j])
             total_loss: ℝ = total_loss + current_loss
         return total_loss / 8
-    def update_params(lr: ℝ, learnable_grads: ℝ[4]):
-        this.W1 = this.W1 - lr * learnable_grads[0]
-        this.b1 = this.b1 - lr * learnable_grads[1]
-        this.W2 = this.W2 - lr * learnable_grads[2]
-        this.b2 = this.b2 - lr * learnable_grads[3]
+    def update_params(lr: ℝ, learnable_grads: list):
+        for idx:
+            this.learnable_params[idx] = this.learnable_params[idx] - lr * learnable_grads[idx]
 
 
 # ------------------------------------------------------------
