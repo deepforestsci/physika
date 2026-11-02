@@ -1152,7 +1152,7 @@ Physika supports scientific notation natively for numeric literals such as ``1e5
    G: ℝ = 6.674e-11    # gravitational constant (m³·kg⁻¹·s⁻²)
    c: ℝ = 3e8          # speed of light (m·s⁻¹)
 
-Mathematical Symbols in Identifiers
+Mathematical Symbols as Identifiers
 -----------------------------------
 
 Physika allows mathematical symbols inside variable names. This are further divided as:
@@ -1342,7 +1342,7 @@ Letterlike Symbols
      - Planck Constant Over Two Pi
 
 Mathematical Symbols
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -1371,7 +1371,7 @@ Mathematical Alphanumeric Symbols
 
 .. list-table::
    :header-rows: 1
-   :widths: 10 15 30 20
+   :widths: 10 15 30
 
    * - Symbol
      - Unicode
@@ -1402,10 +1402,10 @@ Additional Identifier Characters
      - Latin Subscript Small Letter I
    * - ◌̇
      - U+0307
-     - Combining Dot Above
+     - Combining Dot Above (e.g - q̇)
    * - ◌̈
      - U+0308
-     - Combining Diaeresis
+     - Combining Diaeresis (e.g - q̈)
 
 
 
