@@ -313,7 +313,7 @@ Full code
 
 .. code-block:: text
 
-    from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_cols, get_2d_array_num_rows, get_1d_array_length, min, max
+    from tutorials.linear_solve_gaussian_elimination import gaussian_solve
 
 
     def rand_2d_array(n:N, m:N, μ:ℝ): ℝ[n, m]:

@@ -40,6 +40,41 @@ def ode_solver(lnn, initial_state, Δt, num_steps):
         trajectory[int((i + 1)), :, :] = state
     return trajectory
 
+def get_1d_array_length(x):
+    total = 0
+    temp = 0
+    for i in range(len(x)):
+        temp = x[int(i)]
+        total = total + 1
+    return total
+
+def get_2d_array_num_rows(x):
+    total = 0
+    temp = 0
+    for i in range(len(x)):
+        temp = x[int(i)]
+        total = total + 1
+    return total
+
+def get_2d_array_num_cols(x, m=None, n=None):
+    if m is None:
+        m = int(x.shape[0])
+    if n is None:
+        n = int(x.shape[1])
+    return get_1d_array_length(x[int(0)])
+
+def max(x, y):
+    if x > y:
+        return x
+    else:
+        return y
+
+def min(x, y):
+    if x < y:
+        return x
+    else:
+        return y
+
 def gaussian_solve(A, b):
     a_row = get_2d_array_num_rows(A)
     a_col = get_2d_array_num_cols(A)
@@ -79,41 +114,6 @@ def gaussian_solve(A, b):
         x = torch.cat([val, x])
     return x
 
-def get_2d_array_num_cols(x, m=None, n=None):
-    if m is None:
-        m = int(x.shape[0])
-    if n is None:
-        n = int(x.shape[1])
-    return get_1d_array_length(x[int(0)])
-
-def get_2d_array_num_rows(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
-
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
-
-def min(x, y):
-    if x < y:
-        return x
-    else:
-        return y
-
-def max(x, y):
-    if x > y:
-        return x
-    else:
-        return y
-
 # === Classes ===
 class LNN(nn.Module):
     def __init__(self, W1, b1, W2, b2):
@@ -122,7 +122,7 @@ class LNN(nn.Module):
         self.b1 = nn.Parameter(torch.as_tensor(b1))
         self.W2 = nn.Parameter(torch.as_tensor(W2))
         self.b2 = nn.Parameter(torch.as_tensor(b2))
-        self.learnable_params = [self.W1, self.b1, self.W2, self.b2]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self
