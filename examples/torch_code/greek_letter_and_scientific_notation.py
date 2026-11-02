@@ -38,3 +38,6 @@ sum_Ω = 0
 for i in range(len(Ω)):
     sum_Ω = sum_Ω + Ω[int(i)]
 print(sum_Ω)
+a = torch.tensor([[1, 2, 3], [4, 5, 6]], device=DEVICE)
+a_T = torch.transpose(a, 0, 1)
+print(print(a_T))
