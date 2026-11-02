@@ -92,7 +92,7 @@ where :math:`\sigma_k^2` is ``exp(this.lv)``:
 
 .. code-block:: text
 
-   def loss(target: ℝ[1,784], x_hat: ℝ[1,784]) → ℝ:
+   def loss(target: ℝ[1,M], x_hat: ℝ[1,M]) → ℝ:
        kl: ℝ = - 0.5 * sum(1.0 + this.lv - this.μ ** 2 - exp(this.lv))
        recon: ℝ =  - sum(target * log(x_hat + 1e-7) + (1.0 - target) * log(1.0 - x_hat + 1e-7))
        return kl + recon
@@ -114,11 +114,11 @@ The complete VAE class is implemented in Physika as follows. In loss and train m
         z: ℝ[1,lat] = this.μ + σ * ε
         x_hat: ℝ[1,n] = dec(z)
         return x_hat
-    def loss(target: ℝ[1,784], x_hat: ℝ[1,784]) → ℝ:
+    def loss(target: ℝ[1,M], x_hat: ℝ[1,M]) → ℝ:
         kl: ℝ = - 0.5 * sum(1.0 + this.lv - this.μ ** 2 - exp(this.lv))
         recon: ℝ =  - sum(target * log(x_hat + 1e-7) + (1.0 - target) * log(1.0 - x_hat + 1e-7))
         return kl + recon
-    def train(X: ℝ[1000,784], epochs: ℕ, lr: ℝ, images: ℝ):
+    def train(X: ℝ[K,M], epochs: ℕ, lr: ℝ, images: ℝ):
         for epoch: ℕ(epochs):
             for i: ℕ(images):
                 x: ℝ[1,n] = [X[i]]
@@ -406,14 +406,14 @@ Here is the complete physika file.
            z: ℝ[1,lat] = this.μ + σ * ε
            x_hat: ℝ[1,n] = dec(z)
            return x_hat
-       def loss(target: ℝ[1,784], x_hat: ℝ[1,784]) → ℝ:
+       def loss(target: ℝ[1,M], x_hat: ℝ[1,M]) → ℝ:
            kl: ℝ = - 0.5 * sum(1.0 + this.lv - this.μ ** 2 - exp(this.lv))
            recon: ℝ =  - sum(target * log(x_hat + 1e-7) + (1.0 - target) * log(1.0 - x_hat + 1e-7))
            record_loss("total loss", kl + recon)
            record_loss("reconstruction", recon)
            record_loss("KL", kl)
            return kl + recon
-       def train(X: ℝ[1000,784], epochs: ℕ, lr: ℝ, images: ℝ):
+       def train(X: ℝ[K,M], epochs: ℕ, lr: ℝ, images: ℝ):
            for epoch: ℕ(epochs):
                for i: ℕ(images):
                    x: ℝ[1,n] = [X[i]]
