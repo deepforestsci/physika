@@ -65,7 +65,7 @@ class Descriptor(nn.Module):
         self.rs = nn.Parameter(torch.as_tensor(rs))
         self.ζ = int(ζ)
         self.lam = torch.as_tensor(lam).float() if isinstance(lam, (int, float, torch.Tensor)) else lam
-        self.learnable_params = [self.rs]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, a, pos, natoms):
         this = self
@@ -87,7 +87,7 @@ class Subnet(nn.Module):
         self.b2 = nn.Parameter(torch.as_tensor(b2))
         self.nin = int(nin)
         self.nhid = int(nhid)
-        self.learnable_params = [self.w1, self.b1, self.w2, self.b2]
+        self.learnable_params = list(self.parameters())
 
     def forward(self, g):
         this = self
@@ -111,7 +111,7 @@ class BPNet(nn.Module):
         super().__init__()
         self.add_module('desc', desc)
         self.add_module('sub', sub)
-        self.learnable_params = []
+        self.learnable_params = list(self.parameters())
 
     def forward(self, pos, natoms):
         this = self
