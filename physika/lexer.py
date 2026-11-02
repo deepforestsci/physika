@@ -1,4 +1,6 @@
 import ply.lex as lex
+from ply.lex import TOKEN
+from physika.utils.lexer_utils import mangle_identifier
 
 tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
           "TIMES", "DIVIDE", "INTDIV", "MATMUL", "POWER", "EQUALS", "EQEQ",
@@ -125,9 +127,20 @@ def t_WHITESPACE(t):
     pass  # Ignore whitespace within lines
 
 
+LETTERS = r"a-zA-Z_"
+GREEK = r"\u0391-\u03A9\u03B1-\u03C9"
+MATH = r"\U0001D40B\U0001D613\U0001D715"
+SPECIAL = r"\u210F\u2202"
+
+ID_START = LETTERS + GREEK + MATH + SPECIAL
+ID_CONT = ID_START + r"0-9\u0307\u0308\u00B2\u2044\u1D62"
+
+
+@TOKEN(rf"[{ID_START}][{ID_CONT}]*")
 def t_ID(t):
-    r"[a-zA-Z_\u0391-\u03A9\u03B1-\u03C9\u210F][a-zA-Z0-9_\u0391-\u03A9\u03B1-\u03C9\u210F]*"  # noqa
     t.type = reserved.get(t.value, "ID")
+    if t.type == "ID":
+        t.value = mangle_identifier(t.value)
     return t
 
 
