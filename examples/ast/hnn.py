@@ -339,31 +339,29 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                                                                    'idx')))))],
                                                              ['learnable_grads'])],
                                              'body': None}]}},
-<<<<<<< HEAD
  'program': [('func_def', 'get_1d_array_length'),
-=======
  'program': [('func_def', 'hamiltonian'),
              ('decl',
               'x',
               ('tensor', [(2, 'invariant')]),
               ('array', [('num', 1), ('num', 0.5)]),
-              17),
-             ('decl', 'H', 'ℝ', ('call', 'hamiltonian', [('var', 'x')]), 18),
+              19),
+             ('decl', 'H', 'ℝ', ('call', 'hamiltonian', [('var', 'x')]), 20),
              ('decl',
               'partial_H_over_partial_x',
               ('tensor', [(2, 'invariant')]),
               ('call', 'grad', [('var', 'H'), ('var', 'x')]),
-              19),
+              21),
              ('decl',
               'partial_H_over_partial_q',
               'ℝ',
               ('index', 'partial_H_over_partial_x', ('num', 0)),
-              20),
+              22),
              ('decl',
               'partial_H_over_partial_p',
               'ℝ',
               ('index', 'partial_H_over_partial_x', ('num', 1)),
-              21),
+              23),
              ('expr',
               ('call', 'print', [('var', 'partial_H_over_partial_x')]),
               0),
@@ -373,7 +371,6 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
              ('expr',
               ('call', 'print', [('var', 'partial_H_over_partial_p')]),
               0),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
              ('func_def', 'tanh'),
              ('func_def', 'mse_loss'),
              ('class_def', 'HamiltonianNet'),
@@ -404,10 +401,14 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                  [('array', [('neg', ('num', 0.7))]),
                   ('array', [('num', 0.7)])])]),
 <<<<<<< HEAD
+<<<<<<< HEAD
               65),
 =======
               80),
 >>>>>>> b26d2721 (update HNN example code with fraction symbols)
+=======
+              82),
+>>>>>>> 31dfc746 (updated HNN AST code)
              ('decl',
               'y',
               ('tensor', [(8, 'invariant'), (2, 'invariant')]),
@@ -421,33 +422,46 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                 ('array', [('neg', ('num', 0.7)), ('neg', ('num', 0.7))]),
                 ('array', [('num', 0.7), ('num', 0.7)])]),
 <<<<<<< HEAD
+<<<<<<< HEAD
               76),
 =======
               91),
 >>>>>>> b26d2721 (update HNN example code with fraction symbols)
+=======
+              93),
+>>>>>>> 31dfc746 (updated HNN AST code)
              ('func_def', 'rand_array'),
              ('decl',
               'W1',
               ('tensor', [(16, 'invariant'), (2, 'invariant')]),
               ('call', 'rand_array', [('num', 16), ('num', 2), ('num', 0.05)]),
 <<<<<<< HEAD
+<<<<<<< HEAD
               95),
 =======
               110),
 >>>>>>> b26d2721 (update HNN example code with fraction symbols)
+=======
+              112),
+>>>>>>> 31dfc746 (updated HNN AST code)
              ('decl',
               'b1',
               ('tensor', [(16, 'invariant'), (1, 'invariant')]),
               ('call', 'rand_array', [('num', 16), ('num', 1), ('num', 0.05)]),
 <<<<<<< HEAD
+<<<<<<< HEAD
               96),
 =======
               111),
 >>>>>>> b26d2721 (update HNN example code with fraction symbols)
+=======
+              113),
+>>>>>>> 31dfc746 (updated HNN AST code)
              ('decl',
               'W2',
               ('tensor', [(1, 'invariant'), (16, 'invariant')]),
               ('call', 'rand_array', [('num', 1), ('num', 16), ('num', 0.05)]),
+<<<<<<< HEAD
 <<<<<<< HEAD
               97),
              ('decl', 'b2', 'ℝ', ('num', 0.0), 98),
@@ -455,6 +469,10 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
               112),
              ('decl', 'b2', 'ℝ', ('num', 0.0), 113),
 >>>>>>> b26d2721 (update HNN example code with fraction symbols)
+=======
+              114),
+             ('decl', 'b2', 'ℝ', ('num', 0.0), 115),
+>>>>>>> 31dfc746 (updated HNN AST code)
              ('decl',
               'H_net',
               ('struct_type', 'HamiltonianNet'),
@@ -462,10 +480,14 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                'HamiltonianNet',
                [('var', 'W1'), ('var', 'b1'), ('var', 'W2'), ('var', 'b2')]),
 <<<<<<< HEAD
+<<<<<<< HEAD
               101),
 =======
               116),
 >>>>>>> b26d2721 (update HNN example code with fraction symbols)
+=======
+              118),
+>>>>>>> 31dfc746 (updated HNN AST code)
              ('decl',
               'loss_before',
               'ℝ',
@@ -473,6 +495,7 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                ('var', 'H_net'),
                'evaluate',
                [('var', 'X'), ('var', 'y')]),
+<<<<<<< HEAD
 <<<<<<< HEAD
               107),
              ('expr', ('call', 'print', [('var', 'loss_before')]), 0),
@@ -484,6 +507,12 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
              ('decl', 'epochs', 'ℕ', ('num', 1000), 131),
              ('decl', 'lr', 'ℝ', ('num', 0.01), 132),
 >>>>>>> b26d2721 (update HNN example code with fraction symbols)
+=======
+              124),
+             ('expr', ('call', 'print', [('var', 'loss_before')]), 0),
+             ('decl', 'epochs', 'ℕ', ('num', 1000), 133),
+             ('decl', 'lr', 'ℝ', ('num', 0.01), 134),
+>>>>>>> 31dfc746 (updated HNN AST code)
              ('decl',
               'train_loss',
               'ℝ',
@@ -492,10 +521,14 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                'train',
                [('var', 'X'), ('var', 'y'), ('var', 'epochs'), ('var', 'lr')]),
 <<<<<<< HEAD
+<<<<<<< HEAD
               118),
 =======
               133),
 >>>>>>> b26d2721 (update HNN example code with fraction symbols)
+=======
+              135),
+>>>>>>> 31dfc746 (updated HNN AST code)
              ('expr', ('call', 'print', [('var', 'train_loss')]), 0),
              ('decl',
               'loss_after',
@@ -505,8 +538,12 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                'evaluate',
                [('var', 'X'), ('var', 'y')]),
 <<<<<<< HEAD
+<<<<<<< HEAD
               125),
 =======
               140),
 >>>>>>> b26d2721 (update HNN example code with fraction symbols)
+=======
+              142),
+>>>>>>> 31dfc746 (updated HNN AST code)
              ('expr', ('call', 'print', [('var', 'loss_after')]), 0)]}
