@@ -4,6 +4,7 @@ import torch.optim as optim
 from physika.runtime import DEVICE
 
 from physika.runtime import print
+from physika.runtime import compute_grad
 
 # === Functions ===
 def get_1d_array_length(x):
@@ -12,6 +13,11 @@ def get_1d_array_length(x):
         temp = x[int(i)]
         total = total + 1
     return total
+def hamiltonian(x):
+    q, p = x[int(0)], x[int(1)]
+    m, ω = 1, 1
+    H = (((p ** 2) / (2 * m)) + (((m * (ω ** 2)) * (q ** 2)) / 2))
+    return H
 
 def tanh(x):
     return ((torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) - torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))) / (torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) + torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))))
@@ -38,11 +44,11 @@ class HamiltonianNet(nn.Module):
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float().requires_grad_(True)
-        h = ((self.W2 @ tanh(((self.W1 @ x) + self.b1))) + self.b2)
-        dh_grad = compute_grad(h, x)
-        dh_dp = dh_grad[int(1), int(0)]
-        dh_dq = (-dh_grad[int(0), int(0)])
-        return torch.stack([torch.as_tensor(dh_dp), torch.as_tensor(dh_dq)])
+        H = ((self.W2 @ tanh(((self.W1 @ x) + self.b1))) + self.b2)
+        partial_H_over_partial_x = compute_grad(H, x)
+        partial_h_over_partial_q = partial_H_over_partial_x[int(0), int(0)]
+        partial_h_over_partial_p = partial_H_over_partial_x[int(1), int(0)]
+        return torch.stack([torch.as_tensor(partial_h_over_partial_p), torch.as_tensor((-partial_h_over_partial_q))])
 
     def train(self, train_X, train_y, epochs, lr):
         this = self
@@ -78,6 +84,14 @@ class HamiltonianNet(nn.Module):
             self.learnable_params[int(idx)] = (self.learnable_params[int(idx)] - (lr * learnable_grads[int(idx)]))
 
 # === Program ===
+x = torch.as_tensor(torch.tensor([1, 0.5], device=DEVICE)).requires_grad_(True).to(DEVICE)
+H = hamiltonian(x)
+partial_H_over_partial_x = compute_grad(H, x)
+partial_H_over_partial_q = partial_H_over_partial_x[int(0)]
+partial_H_over_partial_p = partial_H_over_partial_x[int(1)]
+print(print(partial_H_over_partial_x))
+print(print(partial_H_over_partial_q))
+print(print(partial_H_over_partial_p))
 X = torch.tensor([[[0.0], [1.0]], [[1.0], [0.0]], [[0.0], [(-1.0)]], [[(-1.0)], [0.0]], [[0.5], [0.5]], [[(-0.5)], [(-0.5)]], [[0.7], [(-0.7)]], [[(-0.7)], [0.7]]], device=DEVICE)
 y = torch.tensor([[1.0, 0.0], [0.0, (-1.0)], [(-1.0), 0.0], [0.0, 1.0], [0.5, (-0.5)], [(-0.5), 0.5], [(-0.7), (-0.7)], [0.7, 0.7]], device=DEVICE)
 W1 = rand_array(16, 2, 0.05)
