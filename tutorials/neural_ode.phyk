@@ -119,7 +119,7 @@ def compute_vjps(z: ℝ[2,1], a: ℝ[2,1], model: ODEFunc): list:
     f_val: ℝ[2, 1] = model(z)
     scalar: ℝ = sum(a * f_val)
     parameter_list: list = [z, model.W1, model.B1, model.W2, model.B2]
-    result: list = grad(scalar, parameter_list)
+    result: list = ∇(scalar, parameter_list)
     dadt: ℝ[2, 1] = -result[0]
     dW1: ℝ[n_neurons, 2] = -result[1]
     dB1: ℝ[n_neurons, 1] = -result[2]

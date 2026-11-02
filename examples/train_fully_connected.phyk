@@ -66,7 +66,7 @@ class FullyConnectedNetwork(W: ℝ[m, n, n], B: ℝ[m, n, o], w: ℝ[o, n], b: �
                 pred: ℝ = this(X[j])
                 current_loss: ℝ = this.loss(pred, y[j])
                 epoch_loss: ℝ = epoch_loss + current_loss
-                learnable_grads: list = grad(current_loss, this.learnable_params)
+                learnable_grads: list = ∇(current_loss, this.learnable_params)
                 this.update_params(lr, learnable_grads)
             last_loss: ℝ = epoch_loss / len_dataset
         return last_loss

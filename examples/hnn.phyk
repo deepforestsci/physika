@@ -31,7 +31,7 @@ def mse_loss(symplectic_gradient: ℝ[2], target_gradient: ℝ[N]): ℝ:
 class HamiltonianNet(W1: ℝ[M,N], b1: ℝ[M,1], W2: ℝ[1,M], b2: ℝ):
     def λ(x: ℝ[N, 1]) → ℝ[2]:
         h: ℝ[1, 1] = W2 @ tanh(W1 @ x + b1) + b2
-        dh_grad: ℝ[2, 1] = grad(h, x)
+        dh_grad: ℝ[2, 1] = ∇(h, x)
         dh_dp: ℝ = dh_grad[1, 0]
         dh_dq: ℝ = -dh_grad[0, 0]
         return [dh_dp, dh_dq]
@@ -43,7 +43,7 @@ class HamiltonianNet(W1: ℝ[M,N], b1: ℝ[M,1], W2: ℝ[1,M], b2: ℝ):
                 target: ℝ[2, 1] = train_y[i]
                 prediction: ℝ[2] = this(state)
                 loss: ℝ = mse_loss(prediction, target)
-                learnable_grads: list = grad(loss, this.learnable_params)
+                learnable_grads: list = ∇(loss, this.learnable_params)
                 this.update_params(lr, learnable_grads)
         return loss
     def evaluate(X: ℝ[8,2,1], y: ℝ[8,2]) → ℝ:

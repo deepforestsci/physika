@@ -81,7 +81,7 @@ epochs: ℕ = 1
 
 for i:ℕ(epochs):
     print(i)
-    g = grad(calculate_loss, c)
+    g = ∇(calculate_loss, c)
     c = c - learning_rate * g
 
 pred_values: ℝ[m] = solver(c, u0, dx, dt, nt)

@@ -197,7 +197,7 @@ epochs: ℕ = 1
 
 for i:ℕ(epochs):
     print(i)
-    g = grad(calculate_loss, ρ)
+    g = ∇(calculate_loss, ρ)
     result = adam(ρ, g, m_adam, v_adam, t_adam, lr)
     ρ = result[0]
     m_adam = result[1]

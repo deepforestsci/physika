@@ -67,7 +67,7 @@ learning_rate: ℝ = 0.1
 epochs: ℕ = 1
 
 for i:ℕ(epochs):
-    g = grad(calculate_loss, α)
+    g = ∇(calculate_loss, α)
     α = α - learning_rate * g 
 
 pred_values: ℝ[m] = solver(α, T0, dx, dt, nt)

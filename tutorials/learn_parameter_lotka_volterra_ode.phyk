@@ -80,8 +80,8 @@ def adjoint_grad(θ: ℝ[4]): ℝ[n]:
         x = x_array[idx]
         y = y_array[idx]
         state = [x, y]
-        J_state = grad(rk4_step(state, θ), state)
-        J_theta = grad(rk4_step(state, θ), θ)
+        J_state = ∇(rk4_step(state, θ), state)
+        J_theta = ∇(rk4_step(state, θ), θ)
         L += s @ J_theta
         s = s @ J_state
     return L

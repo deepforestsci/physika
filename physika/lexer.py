@@ -6,7 +6,7 @@ tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
           "LARROW", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE",
           "INDENT", "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS",
           "LAMBDA", "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION",
-          "WALRUS", "FROM", "IMPORT")
+          "WALRUS", "FROM", "IMPORT", "NABLA")
 
 reserved = {
     "def": "DEF",
@@ -44,6 +44,7 @@ t_EQUALS = r"="
 t_WALRUS = r':='
 t_COLON = r":"
 t_COMMA = r","
+t_NABLA = r"∇"
 
 
 def t_LAMBDA(t):

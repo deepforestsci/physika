@@ -203,7 +203,7 @@ Gradients
    # positive bracnh
    a : ℝ = 3
    f(a)
-   grad(f(a), a)
+   ∇(f(a), a)
 
 Output::
 
@@ -215,7 +215,7 @@ Output::
    # negative branch
    b : ℝ = - 2
    f(b)
-   grad(f(b), b)
+   ∇(f(b), b)
 
 Output::
 
@@ -223,13 +223,13 @@ Output::
    -1.0 ∈ ℝ
 
 
-``grad`` calls ``compute_grad`` from the runtime, which differentiates ``f``
+``∇`` calls ``compute_grad`` from the runtime, which differentiates ``f``
 with respect to its argument using ``torch.autograd.grad``.
 
 Differentiable For Loops
 ------------------------
 
-The four loop forms in Physika are differentiable. ``grad()`` computes a gradient using
+The four loop forms in Physika are differentiable. ``∇()`` computes a gradient using
 Pytorch's autograd.
 
 For-expression
@@ -244,7 +244,7 @@ For-expression
 
    s : ℝ = 2.0
    scale_vec(s)
-   grad(scale_vec(s), s)
+   ∇(scale_vec(s), s)
 
 Output::
 
@@ -266,7 +266,7 @@ Implicit range for-loop
        return result
 
    s : ℝ = 1.0
-   grad(dot_with_arr(s), s)
+   ∇(dot_with_arr(s), s)
 
 Output::
 
@@ -289,7 +289,7 @@ and are fully differentiable:
        return sum(C)
 
    s : ℝ = 1.0
-   grad(matmul_scale(s), s)
+   ∇(matmul_scale(s), s)
 
 Output::
 
@@ -298,26 +298,26 @@ Output::
 Jacobian of vector output functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When the function returns a vector or tensor, ``grad()`` returns the full
+When the function returns a vector or tensor, ``∇()`` returns the full
 Jacobian matrix instead of a gradient vector:
 
 .. code-block:: text
 
    # f: ℝ → ℝ[n]
-   # grad() returns a vector (df[i]/ds)
+   # ∇() returns a vector (df[i]/ds)
    def cos_freqs(x : ℝ): ℝ[4]:
        return for i : ℕ(4) → cos(x * (i + 1.0))
 
-   grad(cos_freqs(x), x)    
+   ∇(cos_freqs(x), x)    
    # [-sin(x), -2sin(2x), -3sin(3x), -4sin(4x)]
 
    # f: ℝ[n] → ℝ[n]
-   # calling grad() for f with relation to x returns a matrix (df[i]/dx[j])
+   # calling ∇() for f with relation to x returns a matrix (df[i]/dx[j])
    def elementwise_sq(x : ℝ[n]): ℝ[n]:
        return for i → x[i] ** 2
 
    ev : ℝ[3] = [1.0, 2.0, 3.0]
-   grad(elementwise_sq(ev), ev)
+   ∇(elementwise_sq(ev), ev)
 
 Output::
 
