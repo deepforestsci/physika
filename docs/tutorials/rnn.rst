@@ -595,7 +595,6 @@ Full code
             return correct / test_dataset_len
 
 
-
     input_size: ℝ = 59
     output_size: ℝ = 18
     hidden_size: ℕ = 128
