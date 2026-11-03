@@ -514,6 +514,23 @@ Full code
                 max_val = iterable[i]
                 idx = i
         return idx
+    
+    def relu(x: ℝ): ℝ:
+        if x > 0.0:
+            return x
+        else:
+            return 0.0
+
+    def relu3d(x: ℝ[b, n, d]): ℝ[b, n, d]:
+        b = size(x, 0)
+        n = size(x, 1)
+        d = size(x, 2)
+        result: ℝ[b, n, d] = zeros(b, n, d)
+        for i: ℕ(b):
+            for j: ℕ(n):
+                for k: ℕ(d):
+                    result[i, j, k] = relu(x[i, j, k])
+        return result
 
 
     def cross_entropy(logits: ℝ[m], label: N): ℝ:
