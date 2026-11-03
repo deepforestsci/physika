@@ -666,7 +666,6 @@ Full Code
         return results
 
 
-
     class ConvNets(kernel: ℝ[K, K], b1: ℝ, w: ℝ[m, n], b2: ℝ[m]):
         def conv2d(input: ℝ[H, W]): ℝ[m, n]:
             out_H: ℝ = get_2d_array_num_rows(input) - get_2d_array_num_rows(kernel) + 1
