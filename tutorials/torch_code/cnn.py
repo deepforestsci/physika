@@ -64,6 +64,54 @@ def softmax(x):
     results = torch.stack([(exps_array[int(i)] / total) for _fi_i in range(int(len_x)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
+def conv2d(input, kernel, bias):
+    out_H = ((get_2d_array_num_rows(input) - get_2d_array_num_rows(kernel)) + 1)
+    out_W = ((get_1d_array_length(input[int(0)]) - get_1d_array_length(kernel[int(0)])) + 1)
+    results = zero_2d_array(out_H, out_W)
+    for i in range(int(0), int(out_H)):
+        for j in range(int(0), int(out_W)):
+            acc = 0
+            for ki in range(int(0), int(len(kernel))):
+                for kj in range(int(0), int(len(kernel[int(0)]))):
+                    acc = acc + (input[int((i + ki)), int((j + kj))] * kernel[int(ki), int(kj)])
+            results[int(i), int(j)] = (acc + b1)
+    return results
+
+def maxpool2d(x):
+    stride = 2
+    rows = (get_2d_array_num_rows(x) / 2)
+    cols = (get_1d_array_length(x[int(0)]) / 2)
+    results = zero_2d_array(rows, cols)
+    for i in range(int(0), int(rows)):
+        for j in range(int(0), int(cols)):
+            a = x[int((i * stride)), int((j * stride))]
+            b = x[int((i * stride)), int(((j * stride) + 1))]
+            c = x[int(((i * 2) + 1)), int((j * 2))]
+            d = x[int(((i * 2) + 1)), int(((j * 2) + 1))]
+            results[int(i), int(j)] = max(a, max(b, max(c, d)))
+    return results
+
+def flatten(x):
+    rows = get_2d_array_num_rows(x)
+    cols = get_1d_array_length(x[int(0)])
+    new_len = (rows * cols)
+    results = zero_1d_array(new_len)
+    for i in range(int(0), int(rows)):
+        for j in range(int(0), int(cols)):
+            results[int(((i * cols) + j))] = x[int(i), int(j)]
+    return results
+
+def linear(x, weight, bias):
+    out = get_1d_array_length(bias)
+    inp = get_1d_array_length(x)
+    results = zero_1d_array(out)
+    for i in range(int(0), int(out)):
+        acc = 0
+        for j in range(int(0), int(inp)):
+            acc = acc + (weight[int(i), int(j)] * x[int(j)])
+        results[int(i)] = (acc + bias[int(i)])
+    return results
+
 def rand_1d_array(n, μ):
     return torch.stack([(μ * torch.distributions.Normal(0.0, 1.0).rsample()) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 
@@ -91,80 +139,27 @@ def argmax(iterable):
 
 # === Classes ===
 class ConvNets(nn.Module):
-    def __init__(self, kernel, b1, w, b2):
+    def __init__(self, kernel1, b1, kernel2, b2, w, b3):
         super().__init__()
-        self.kernel = nn.Parameter(torch.as_tensor(kernel))
+        self.kernel1 = nn.Parameter(torch.as_tensor(kernel1))
         self.b1 = nn.Parameter(torch.as_tensor(b1))
-        self.w = nn.Parameter(torch.as_tensor(w))
+        self.kernel2 = nn.Parameter(torch.as_tensor(kernel2))
         self.b2 = nn.Parameter(torch.as_tensor(b2))
+        self.w = nn.Parameter(torch.as_tensor(w))
+        self.b3 = nn.Parameter(torch.as_tensor(b3))
         self.learnable_params = list(self.parameters())
-
-    def conv2d(self, input):
-        this = self
-        input = torch.as_tensor(input, device=DEVICE).float()
-        out_H = ((get_2d_array_num_rows(input) - get_2d_array_num_rows(self.kernel)) + 1)
-        out_W = ((get_1d_array_length(input[int(0)]) - get_1d_array_length(self.kernel[int(0)])) + 1)
-        results = zero_2d_array(out_H, out_W)
-        for i in range(int(0), int(out_H)):
-            for j in range(int(0), int(out_W)):
-                acc = 0
-                for ki in range(int(0), int(len(self.kernel))):
-                    for kj in range(int(0), int(len(self.kernel[int(0)]))):
-                        acc = acc + (input[int((i + ki)), int((j + kj))] * self.kernel[int(ki), int(kj)])
-                results[int(i), int(j)] = (acc + self.b1)
-        return results
-
-    def maxpool2d(self, x):
-        this = self
-        x = torch.as_tensor(x, device=DEVICE).float()
-        stride = 2
-        rows = (get_2d_array_num_rows(x) / 2)
-        cols = (get_1d_array_length(x[int(0)]) / 2)
-        results = zero_2d_array(rows, cols)
-        for i in range(int(0), int(rows)):
-            for j in range(int(0), int(cols)):
-                a = x[int((i * stride)), int((j * stride))]
-                b = x[int((i * stride)), int(((j * stride) + 1))]
-                c = x[int(((i * 2) + 1)), int((j * 2))]
-                d = x[int(((i * 2) + 1)), int(((j * 2) + 1))]
-                results[int(i), int(j)] = max(a, max(b, max(c, d)))
-        return results
-
-    def flatten(self, x):
-        this = self
-        x = torch.as_tensor(x, device=DEVICE).float()
-        rows = get_2d_array_num_rows(x)
-        cols = get_1d_array_length(x[int(0)])
-        new_len = (rows * cols)
-        results = zero_1d_array(new_len)
-        for i in range(int(0), int(rows)):
-            for j in range(int(0), int(cols)):
-                results[int(((i * cols) + j))] = x[int(i), int(j)]
-        return results
-
-    def linear(self, x, weight, bias):
-        this = self
-        x = torch.as_tensor(x, device=DEVICE).float()
-        weight = torch.as_tensor(weight, device=DEVICE).float()
-        bias = torch.as_tensor(bias, device=DEVICE).float()
-        out = get_1d_array_length(bias)
-        inp = get_1d_array_length(x)
-        results = zero_1d_array(out)
-        for i in range(int(0), int(out)):
-            acc = 0
-            for j in range(int(0), int(inp)):
-                acc = acc + (weight[int(i), int(j)] * x[int(j)])
-            results[int(i)] = (acc + bias[int(i)])
-        return results
 
     def forward(self, input):
         this = self
         input = torch.as_tensor(input, device=DEVICE).float()
-        conv1 = self.conv2d(input)
+        conv1 = conv2d(input, self.kernel1, self.b1)
         relu1 = relu2d(conv1)
-        pool1 = self.maxpool2d(relu1)
-        flat = self.flatten(pool1)
-        out = self.linear(flat, self.w, self.b2)
+        pool1 = maxpool2d(relu1)
+        conv2 = conv2d(pool1, self.kernel2, self.b2)
+        relu2 = relu2d(conv2)
+        pool2 = maxpool2d(relu2)
+        flat = flatten(pool2)
+        out = linear(flat, self.w, self.b3)
         results = softmax(out)
         return results
 
@@ -195,20 +190,26 @@ class ConvNets(nn.Module):
         this = self
         lr = torch.as_tensor(lr, device=DEVICE).float()
         with torch.no_grad():
-            self.kernel.copy_((self.kernel - (lr * learnable_grads[int(0)])))
+            self.kernel1.copy_((self.kernel1 - (lr * learnable_grads[int(0)])))
         with torch.no_grad():
             self.b1.copy_((self.b1 - (lr * learnable_grads[int(1)])))
         with torch.no_grad():
-            self.w.copy_((self.w - (lr * learnable_grads[int(2)])))
+            self.kernel2.copy_((self.kernel2 - (lr * learnable_grads[int(2)])))
         with torch.no_grad():
             self.b2.copy_((self.b2 - (lr * learnable_grads[int(3)])))
+        with torch.no_grad():
+            self.w.copy_((self.w - (lr * learnable_grads[int(4)])))
+        with torch.no_grad():
+            self.b3.copy_((self.b3 - (lr * learnable_grads[int(5)])))
 
 # === Program ===
-kernel = rand_2d_array(3, 3, 0.01)
+kernel1 = rand_2d_array(3, 3, 0.01)
+kernel2 = rand_2d_array(3, 3, 0.01)
 b1 = 0.0
-w = rand_2d_array(10, 169, 0.1)
-b2 = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], device=DEVICE)
-cnn_object = ConvNets(kernel, b1, w, b2).to(DEVICE)
+b2 = 0.0
+w = rand_2d_array(10, 25, 0.1)
+b3 = torch.zeros(int(10), device=DEVICE)
+cnn_object = ConvNets(kernel1, b1, kernel2, b2, w, b3).to(DEVICE)
 train_dataset_len = 1
 test_dataset_len = 1
 train_X = rand_3d_array(20, 28, 28, 0.5)
