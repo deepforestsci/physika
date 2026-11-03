@@ -126,7 +126,7 @@ def t_WHITESPACE(t):
 
 
 def t_ID(t):
-    r"[a-zA-Z_\u0391-\u03A9\u03B1-\u03C9\u210F][a-zA-Z0-9_\u0391-\u03A9\u03B1-\u03C9\u210F]*"  # noqa
+    r"[a-zA-Z_\u0391-\u03A9\u03B1-\u03C9\u210F][a-zA-Z0-9_\u0391-\u03A9\u03B1-\u03C9\u210F\u0302]*"  # noqa
     t.type = reserved.get(t.value, "ID")
     return t
 
