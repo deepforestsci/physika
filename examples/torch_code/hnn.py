@@ -23,11 +23,10 @@ def get_1d_array_length(x):
 def tanh(x):
     return ((torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) - torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))) / (torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) + torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))))
 
-def mse_loss(symplectic_gradient, target_gradient, N=None):
+def loss(pred, true, N=None):
     if N is None:
-        N = int(target_gradient.shape[0])
-    loss = (((symplectic_gradient[int(0)] - target_gradient[int(0)]) ** 2.0) + ((symplectic_gradient[int((1 + 0))] - target_gradient[int(1)]) ** 2.0))
-    return loss
+        N = int(pred.shape[0])
+    return (((pred[int(0)] - true[int(0)]) ** 2.0) + ((pred[int(1)] - true[int(1)]) ** 2.0))
 
 def rand_array(n, m, μ):
     return torch.stack([torch.stack([(μ * torch.distributions.Normal(0.0, 1.0).rsample()) for _fi_j in range(int(m)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -57,15 +56,15 @@ class HamiltonianNet(nn.Module):
         train_y = torch.as_tensor(train_y, device=DEVICE).float()
         lr = torch.as_tensor(lr, device=DEVICE).float()
         for epoch in range(int(0), int(epochs)):
-            loss = 0
+            lo = 0
             for i in range(int(0), int(8)):
                 state = train_X[int(i)]
                 target = train_y[int(i)]
                 prediction = self(state)
-                loss = mse_loss(prediction, target)
-                learnable_grads = compute_grad(loss, self.learnable_params)
+                lo = loss(prediction, target)
+                learnable_grads = compute_grad(lo, self.learnable_params)
                 self.update_params(lr, learnable_grads)
-        return loss
+        return lo
 
     def evaluate(self, X, y):
         this = self
@@ -74,7 +73,7 @@ class HamiltonianNet(nn.Module):
         total_loss = 0
         for j in range(int(0), int(8)):
             pred = self(X[int(j)])
-            current_loss = mse_loss(pred, y[int(j)])
+            current_loss = loss(pred, y[int(j)])
             total_loss = (total_loss + current_loss)
         return (total_loss / 8)
 
