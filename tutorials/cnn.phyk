@@ -59,52 +59,54 @@ def softmax(x: ℝ[m]): ℝ[m]:
 
 
 
-def conv2d(input: ℝ[H, W], kernel: ℝ[K, K], bias: ℝ): ℝ[m, n]:
-    out_H: ℝ = get_2d_array_num_rows(input) - get_2d_array_num_rows(kernel) + 1
-    out_W: ℝ = get_1d_array_length(input[0]) - get_1d_array_length(kernel[0]) + 1
-    results: ℝ[out_H, out_W] = zero_2d_array(out_H, out_W)
-    for i:ℕ(out_H):
-        for j:ℕ(out_W):
-            acc = 0
+def conv2d(input: ℝ[H, W], kernel: ℝ[K, K], b: ℝ): ℝ[m, n]:
+    H_out: ℝ = get_2d_array_num_rows(input) - get_2d_array_num_rows(kernel) + 1
+    W_out: ℝ = get_1d_array_length(input[0]) - get_1d_array_length(kernel[0]) + 1
+    results: ℝ[H_out, W_out] = zeros(H_out, W_out)
+    for i:ℕ(H_out):
+        for j:ℕ(W_out):
+            s: ℝ = 0
             for ki:ℕ(len(kernel)):
                 for kj:ℕ(len(kernel[0])):
-                    acc += input[i+ki, j+kj] * kernel[ki, kj]
-            results[i, j] = acc + b1
+                    s += input[i+ki, j+kj] * kernel[ki, kj]
+            results[i, j] = s + b
     return results
+
+
 
 def maxpool2d(x: ℝ[m, n]): ℝ[m, n]:
-    stride: ℝ = 2
-    rows: ℝ = get_2d_array_num_rows(x) / 2
-    cols: ℝ = get_1d_array_length(x[0]) / 2
-    results: ℝ[rows, cols] = zero_2d_array(rows, cols)
-    for i:ℕ(rows):
-        for j:ℕ(cols):
-            a = x[i*stride, j*stride]
-            b = x[i*stride, j*stride + 1]
+    S: ℝ = 2
+    r: ℝ = get_2d_array_num_rows(x) / 2
+    c: ℝ = get_1d_array_length(x[0]) / 2
+    Y: ℝ[r, c] = zeros(r, c)
+    for i:ℕ(r):
+        for j:ℕ(c):
+            a = x[i*S, j*S]
+            b = x[i*S, j*S + 1]
             c = x[i*2+1, j*2]
             d = x[i*2+1, j*2+1]
-            results[i, j] = max(a, max(b, max(c, d)))
-    return results
+            Y[i, j] = max(a, max(b, max(c, d)))
+    return Y
 
 def flatten(x: ℝ[m, n]): ℝ[n]:
-    rows: ℝ = get_2d_array_num_rows(x)
-    cols: ℝ = get_1d_array_length(x[0])
-    new_len: ℝ = rows*cols
-    results: ℝ[new_len] = zero_1d_array(new_len)
-    for i:ℕ(rows):
-        for j:ℕ(cols):
-            results[i*cols + j] = x[i, j]
-    return results
+    m: ℝ = get_2d_array_num_rows(x)
+    n: ℝ = get_1d_array_length(x[0])
+    L: ℝ = m*n
+    z: ℝ[L] = zeros(L)
+    for i:ℕ(m):
+        for j:ℕ(n):
+            z[i*n + j] = x[i, j]
+    return z
 
-def linear(x: ℝ[n], weight: ℝ[m, n], bias: ℝ[m]): ℝ[m]:
-    out: ℝ = get_1d_array_length(bias)
-    inp: ℝ = get_1d_array_length(x)
-    results: ℝ[out] = zero_1d_array(out)
-    for i:ℕ(out):
-        acc = 0
-        for j:ℕ(inp):
-            acc += weight[i, j] * x[j]
-        results[i] = acc + bias[i]
+def linear(x: ℝ[I], weight: ℝ[O, I], bias: ℝ[O]): ℝ[O]:
+    O: ℝ = get_1d_array_length(bias)
+    I: ℝ = get_1d_array_length(x)
+    results: ℝ[O] = zeros(O)
+    for i:ℕ(O):
+        s: ℝ = 0
+        for j:ℕ(I):
+            s += weight[i, j] * x[j]
+        results[i] = s + bias[i]
     return results
 
 

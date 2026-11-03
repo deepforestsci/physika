@@ -64,52 +64,52 @@ def softmax(x):
     results = torch.stack([(exps_array[int(i)] / total) for _fi_i in range(int(len_x)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return results
 
-def conv2d(input, kernel, bias):
-    out_H = ((get_2d_array_num_rows(input) - get_2d_array_num_rows(kernel)) + 1)
-    out_W = ((get_1d_array_length(input[int(0)]) - get_1d_array_length(kernel[int(0)])) + 1)
-    results = zero_2d_array(out_H, out_W)
-    for i in range(int(0), int(out_H)):
-        for j in range(int(0), int(out_W)):
-            acc = 0
+def conv2d(input, kernel, b):
+    H_out = ((get_2d_array_num_rows(input) - get_2d_array_num_rows(kernel)) + 1)
+    W_out = ((get_1d_array_length(input[int(0)]) - get_1d_array_length(kernel[int(0)])) + 1)
+    results = torch.zeros(int(H_out), int(W_out), device=DEVICE)
+    for i in range(int(0), int(H_out)):
+        for j in range(int(0), int(W_out)):
+            s = 0
             for ki in range(int(0), int(len(kernel))):
                 for kj in range(int(0), int(len(kernel[int(0)]))):
-                    acc = acc + (input[int((i + ki)), int((j + kj))] * kernel[int(ki), int(kj)])
-            results[int(i), int(j)] = (acc + b1)
+                    s = s + (input[int((i + ki)), int((j + kj))] * kernel[int(ki), int(kj)])
+            results[int(i), int(j)] = (s + b)
     return results
 
 def maxpool2d(x):
-    stride = 2
-    rows = (get_2d_array_num_rows(x) / 2)
-    cols = (get_1d_array_length(x[int(0)]) / 2)
-    results = zero_2d_array(rows, cols)
-    for i in range(int(0), int(rows)):
-        for j in range(int(0), int(cols)):
-            a = x[int((i * stride)), int((j * stride))]
-            b = x[int((i * stride)), int(((j * stride) + 1))]
+    S = 2
+    r = (get_2d_array_num_rows(x) / 2)
+    c = (get_1d_array_length(x[int(0)]) / 2)
+    Y = torch.zeros(int(r), int(c), device=DEVICE)
+    for i in range(int(0), int(r)):
+        for j in range(int(0), int(c)):
+            a = x[int((i * S)), int((j * S))]
+            b = x[int((i * S)), int(((j * S) + 1))]
             c = x[int(((i * 2) + 1)), int((j * 2))]
             d = x[int(((i * 2) + 1)), int(((j * 2) + 1))]
-            results[int(i), int(j)] = max(a, max(b, max(c, d)))
-    return results
+            Y[int(i), int(j)] = max(a, max(b, max(c, d)))
+    return Y
 
 def flatten(x):
-    rows = get_2d_array_num_rows(x)
-    cols = get_1d_array_length(x[int(0)])
-    new_len = (rows * cols)
-    results = zero_1d_array(new_len)
-    for i in range(int(0), int(rows)):
-        for j in range(int(0), int(cols)):
-            results[int(((i * cols) + j))] = x[int(i), int(j)]
-    return results
+    m = get_2d_array_num_rows(x)
+    n = get_1d_array_length(x[int(0)])
+    L = (m * n)
+    z = torch.zeros(int(L), device=DEVICE)
+    for i in range(int(0), int(m)):
+        for j in range(int(0), int(n)):
+            z[int(((i * n) + j))] = x[int(i), int(j)]
+    return z
 
 def linear(x, weight, bias):
-    out = get_1d_array_length(bias)
-    inp = get_1d_array_length(x)
-    results = zero_1d_array(out)
-    for i in range(int(0), int(out)):
-        acc = 0
-        for j in range(int(0), int(inp)):
-            acc = acc + (weight[int(i), int(j)] * x[int(j)])
-        results[int(i)] = (acc + bias[int(i)])
+    O = get_1d_array_length(bias)
+    I = get_1d_array_length(x)
+    results = torch.zeros(int(O), device=DEVICE)
+    for i in range(int(0), int(O)):
+        s = 0
+        for j in range(int(0), int(I)):
+            s = s + (weight[int(i), int(j)] * x[int(j)])
+        results[int(i)] = (s + bias[int(i)])
     return results
 
 def rand_1d_array(n, μ):
