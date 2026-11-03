@@ -34,6 +34,29 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                                                    ('var', 'q'),
                                                    ('num', 2))),
                                                  ('num', 2))))]},
+               'get_1d_array_length': {'params': [('x',
+                                                   ('tensor',
+                                                    [('m', 'invariant')]))],
+                                       'return_type': 'ℝ',
+                                       'body': ('var', 'total'),
+                                       'has_loop': False,
+                                       'statements': [('body_tuple_unpack',
+                                                       [('total', 'ℝ'),
+                                                        ('temp', 'ℝ')],
+                                                       ('expr_list',
+                                                        [('num', 0),
+                                                         ('num', 0)])),
+                                                      ('body_for',
+                                                       'i',
+                                                       [('loop_assign',
+                                                         'temp',
+                                                         ('index',
+                                                          'x',
+                                                          ('imaginary',))),
+                                                        ('loop_pluseq',
+                                                         'total',
+                                                         ('num', 1))],
+                                                       ['x'])]},
                'tanh': {'params': [('x', 'ℝ')],
                         'return_type': 'ℝ',
                         'body': ('div',
@@ -339,7 +362,6 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                                                                    'idx')))))],
                                                              ['learnable_grads'])],
                                              'body': None}]}},
- 'program': [('func_def', 'get_1d_array_length'),
  'program': [('func_def', 'hamiltonian'),
              ('decl',
               'x',
@@ -371,6 +393,7 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
              ('expr',
               ('call', 'print', [('var', 'partial_H_over_partial_p')]),
               0),
+             ('func_def', 'get_1d_array_length'),
              ('func_def', 'tanh'),
              ('func_def', 'mse_loss'),
              ('class_def', 'HamiltonianNet'),
@@ -400,15 +423,7 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                 ('array',
                  [('array', [('neg', ('num', 0.7))]),
                   ('array', [('num', 0.7)])])]),
-<<<<<<< HEAD
-<<<<<<< HEAD
-              65),
-=======
-              80),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
-=======
-              82),
->>>>>>> 31dfc746 (updated HNN AST code)
+              87),
              ('decl',
               'y',
               ('tensor', [(8, 'invariant'), (2, 'invariant')]),
@@ -421,73 +436,31 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                 ('array', [('neg', ('num', 0.5)), ('num', 0.5)]),
                 ('array', [('neg', ('num', 0.7)), ('neg', ('num', 0.7))]),
                 ('array', [('num', 0.7), ('num', 0.7)])]),
-<<<<<<< HEAD
-<<<<<<< HEAD
-              76),
-=======
-              91),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
-=======
-              93),
->>>>>>> 31dfc746 (updated HNN AST code)
+              98),
              ('func_def', 'rand_array'),
              ('decl',
               'W1',
               ('tensor', [(16, 'invariant'), (2, 'invariant')]),
               ('call', 'rand_array', [('num', 16), ('num', 2), ('num', 0.05)]),
-<<<<<<< HEAD
-<<<<<<< HEAD
-              95),
-=======
-              110),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
-=======
-              112),
->>>>>>> 31dfc746 (updated HNN AST code)
+              117),
              ('decl',
               'b1',
               ('tensor', [(16, 'invariant'), (1, 'invariant')]),
               ('call', 'rand_array', [('num', 16), ('num', 1), ('num', 0.05)]),
-<<<<<<< HEAD
-<<<<<<< HEAD
-              96),
-=======
-              111),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
-=======
-              113),
->>>>>>> 31dfc746 (updated HNN AST code)
+              118),
              ('decl',
               'W2',
               ('tensor', [(1, 'invariant'), (16, 'invariant')]),
               ('call', 'rand_array', [('num', 1), ('num', 16), ('num', 0.05)]),
-<<<<<<< HEAD
-<<<<<<< HEAD
-              97),
-             ('decl', 'b2', 'ℝ', ('num', 0.0), 98),
-=======
-              112),
-             ('decl', 'b2', 'ℝ', ('num', 0.0), 113),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
-=======
-              114),
-             ('decl', 'b2', 'ℝ', ('num', 0.0), 115),
->>>>>>> 31dfc746 (updated HNN AST code)
+              119),
+             ('decl', 'b2', 'ℝ', ('num', 0.0), 120),
              ('decl',
               'H_net',
               ('struct_type', 'HamiltonianNet'),
               ('call',
                'HamiltonianNet',
                [('var', 'W1'), ('var', 'b1'), ('var', 'W2'), ('var', 'b2')]),
-<<<<<<< HEAD
-<<<<<<< HEAD
-              101),
-=======
-              116),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
-=======
-              118),
->>>>>>> 31dfc746 (updated HNN AST code)
+              123),
              ('decl',
               'loss_before',
               'ℝ',
@@ -495,24 +468,10 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                ('var', 'H_net'),
                'evaluate',
                [('var', 'X'), ('var', 'y')]),
-<<<<<<< HEAD
-<<<<<<< HEAD
-              107),
+              129),
              ('expr', ('call', 'print', [('var', 'loss_before')]), 0),
-             ('decl', 'epochs', 'ℕ', ('num', 1000), 116),
-             ('decl', 'lr', 'ℝ', ('num', 0.01), 117),
-=======
-              122),
-             ('expr', ('call', 'print', [('var', 'loss_before')]), 0),
-             ('decl', 'epochs', 'ℕ', ('num', 1000), 131),
-             ('decl', 'lr', 'ℝ', ('num', 0.01), 132),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
-=======
-              124),
-             ('expr', ('call', 'print', [('var', 'loss_before')]), 0),
-             ('decl', 'epochs', 'ℕ', ('num', 1000), 133),
-             ('decl', 'lr', 'ℝ', ('num', 0.01), 134),
->>>>>>> 31dfc746 (updated HNN AST code)
+             ('decl', 'epochs', 'ℕ', ('num', 1000), 138),
+             ('decl', 'lr', 'ℝ', ('num', 0.01), 139),
              ('decl',
               'train_loss',
               'ℝ',
@@ -520,15 +479,7 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                ('var', 'H_net'),
                'train',
                [('var', 'X'), ('var', 'y'), ('var', 'epochs'), ('var', 'lr')]),
-<<<<<<< HEAD
-<<<<<<< HEAD
-              118),
-=======
-              133),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
-=======
-              135),
->>>>>>> 31dfc746 (updated HNN AST code)
+              140),
              ('expr', ('call', 'print', [('var', 'train_loss')]), 0),
              ('decl',
               'loss_after',
@@ -537,13 +488,5 @@ EXPECTED = {'functions': {'hamiltonian': {'params': [('x',
                ('var', 'H_net'),
                'evaluate',
                [('var', 'X'), ('var', 'y')]),
-<<<<<<< HEAD
-<<<<<<< HEAD
-              125),
-=======
-              140),
->>>>>>> b26d2721 (update HNN example code with fraction symbols)
-=======
-              142),
->>>>>>> 31dfc746 (updated HNN AST code)
+              147),
              ('expr', ('call', 'print', [('var', 'loss_after')]), 0)]}

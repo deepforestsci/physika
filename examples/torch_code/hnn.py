@@ -7,17 +7,18 @@ from physika.runtime import print
 from physika.runtime import compute_grad
 
 # === Functions ===
+def hamiltonian(x):
+    q, p = x[int(0)], x[int(1)]
+    m, ω = 1, 1
+    H = (((p ** 2) / (2 * m)) + (((m * (ω ** 2)) * (q ** 2)) / 2))
+    return H
+
 def get_1d_array_length(x):
     total, temp = 0, 0
     for i in range(len(x)):
         temp = x[int(i)]
         total = total + 1
     return total
-def hamiltonian(x):
-    q, p = x[int(0)], x[int(1)]
-    m, ω = 1, 1
-    H = (((p ** 2) / (2 * m)) + (((m * (ω ** 2)) * (q ** 2)) / 2))
-    return H
 
 def tanh(x):
     return ((torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) - torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))) / (torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x))) + torch.exp((0.0 - x) if isinstance((0.0 - x), torch.Tensor) else torch.tensor(float((0.0 - x))))))
