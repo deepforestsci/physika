@@ -536,30 +536,23 @@ where:
 
 .. code-block:: text
 
-    len_train_X: ℝ = get_1d_array_length(train_X)
-
-    epochs: ℕ = 20
-    lr: ℝ = 0.1
-
-    for i:ℕ(epochs):
-        loss = 0
-        for j:ℕ(len_train_X):
-            input = train_X[j]
-            label = train_y[j]
-            z = cnn_object(input)
-            current_loss = cross_entropy(z, label)
-            loss += current_loss
-            dk = grad(current_loss, cnn_object.kernel)
-            db1 = grad(current_loss, cnn_object.b1)
-            dw = grad(current_loss, cnn_object.w)
-            db2 = grad(current_loss, cnn_object.b2)
-            new_kernel = cnn_object.kernel - lr * dk
-            new_b1 = cnn_object.b1 - lr * db1
-            new_w = cnn_object.w - lr * dw
-            new_b2 = cnn_object.b2 - lr * db2
-            cnn_object = ConvNets(new_kernel, new_b1, new_w, new_b2)
-        loss = loss / len_train_X
-        print(loss)
+    def train(train_X: R[80, 28, 28], train_y: R[80], epochs: N, lr: R, train_dataset_len: R): R:
+        loss: ℝ = 0
+        for epoch:ℕ(epochs):
+            print(epoch)
+            epoch_loss: ℝ = 0
+            for j:ℕ(train_dataset_len):
+                input = train_X[j]
+                label = train_y[j]
+                z = this(input)
+                current_loss = cross_entropy(z, label)
+                epoch_loss += current_loss
+                learnable_grads = grad(current_loss, this.learnable_params)
+                this.update_params(lr, learnable_grads)
+            epoch_loss: ℝ = epoch_loss / train_dataset_len
+            print(epoch_loss)
+        loss: ℝ = epoch_loss
+        return loss
 
 
 Testing the Model
@@ -674,12 +667,8 @@ Full Code
 
 
 
-    class ConvNets:
-        kernel: ℝ[K, K]
-        b1: ℝ
-        w: ℝ[m, n]
-        b2: ℝ[m]
-        def conv2d(input: ℝ[H, W], kernel: ℝ[K, K], bias: ℝ): ℝ[m, n]:
+    class ConvNets(kernel: ℝ[K, K], b1: ℝ, w: ℝ[m, n], b2: ℝ[m]):
+        def conv2d(input: ℝ[H, W]): ℝ[m, n]:
             out_H: ℝ = get_2d_array_num_rows(input) - get_2d_array_num_rows(kernel) + 1
             out_W: ℝ = get_1d_array_length(input[0]) - get_1d_array_length(kernel[0]) + 1
             results: ℝ[out_H, out_W] = zero_2d_array(out_H, out_W)
@@ -689,7 +678,7 @@ Full Code
                     for ki:ℕ(len(kernel)):
                         for kj:ℕ(len(kernel[0])):
                             acc += input[i+ki, j+kj] * kernel[ki, kj]
-                    results[i, j] = acc + bias
+                    results[i, j] = acc + b1
             return results
         def maxpool2d(x: ℝ[m, n]): ℝ[m, n]:
             stride: ℝ = 2
@@ -724,38 +713,61 @@ Full Code
                 results[i] = acc + bias[i]
             return results
         def λ(input: ℝ[H, W]) -> ℝ[m]:
-            conv1: ℝ[m, n] = this.conv2d(input, this.kernel, this.b1)
+            conv1: ℝ[m, n] = this.conv2d(input)
             relu1: ℝ[H, W] = relu2d(conv1)
             pool1: ℝ[m, n] = this.maxpool2d(relu1)
             flat: ℝ[n] = this.flatten(pool1)
-            out: ℝ[m] = this.linear(flat, this.w, this.b2)
+            out: ℝ[m] = this.linear(flat, w, b2)
             results: ℝ[m] = softmax(out)
             return results
+        def train(train_X: R[80, 28, 28], train_y: R[80], epochs: N, lr: R, train_dataset_len: R): R:
+            loss: ℝ = 0
+            for epoch:ℕ(epochs):
+                print(epoch)
+                epoch_loss: ℝ = 0
+                for j:ℕ(train_dataset_len):
+                    input = train_X[j]
+                    label = train_y[j]
+                    z = this(input)
+                    current_loss = cross_entropy(z, label)
+                    epoch_loss += current_loss
+                    learnable_grads = grad(current_loss, this.learnable_params)
+                    this.update_params(lr, learnable_grads)
+                epoch_loss: ℝ = epoch_loss / train_dataset_len
+                print(epoch_loss)
+            loss: ℝ = epoch_loss
+            return loss
+        def update_params(lr: R, learnable_grads: R[m]):
+            this.kernel = this.kernel - lr * learnable_grads[0]
+            this.b1 = this.b1 - lr * learnable_grads[1]
+            this.w = this.w - lr * learnable_grads[2]
+            this.b2 = this.b2 - lr * learnable_grads[3]
 
 
+    def rand_array(n:ℝ, m:ℝ, μ:ℝ): ℝ[n, m]:
+        return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
 
-    kernel: ℝ[3, 3] = [
-        [1,0,-1],
-        [1,0,-1],
-        [1,0,-1]
-    ]
+    kernel: ℝ[3, 3] = rand_array(3, 3, 0.01)
+    b1: ℝ = 0.0
 
-    b1: ℝ = 0
+    w : ℝ[10,169] = rand_array(10, 169, 0.1)
 
-    w : ℝ[10,169] = for i : ℕ(10) -> for j : ℕ(169) -> sin(3.14 * i / 9) * cos(3.14 * j / 168)
-
-    b2: ℝ[10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    b2: ℝ[10] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     cnn_object: ConvNets = ConvNets(kernel, b1, w, b2)
 
 
 
-    dataset = create_dataset(80, 100)
+    dataset = create_dataset(80, 20)
     train_dataset = dataset[0]
     test_dataset = dataset[1]
 
-    train_X = train_dataset[0]
-    train_y = train_dataset[1]
+    train_dataset_len: ℝ = get_1d_array_length(train_dataset[0])
+    test_dataset_len: ℝ = get_1d_array_length(test_dataset[0])
+
+
+    train_X: ℝ[train_dataset_len, 28, 28] = train_dataset[0]
+    train_y: ℝ[train_dataset_len] = train_dataset[1]
     test_X = test_dataset[0]
     test_y = test_dataset[1]
 
@@ -765,30 +777,10 @@ Full Code
         return -log(p)
 
 
-    len_train_X: ℝ = get_1d_array_length(train_X)
-    epochs: ℕ = 20
+    epochs: ℕ = 50
     lr: ℝ = 0.1
 
-    for i:ℕ(epochs):
-        loss = 0
-        for j:ℕ(len_train_X):
-            input = train_X[j]
-            label = train_y[j]
-            z = cnn_object(input)
-            current_loss = cross_entropy(z, label)
-            loss += current_loss
-            dk = grad(current_loss, cnn_object.kernel)
-            db1 = grad(current_loss, cnn_object.b1)
-            dw = grad(current_loss, cnn_object.w)
-            db2 = grad(current_loss, cnn_object.b2)
-            new_kernel = cnn_object.kernel - lr * dk
-            new_b1 = cnn_object.b1 - lr * db1
-            new_w = cnn_object.w - lr * dw
-            new_b2 = cnn_object.b2 - lr * db2
-            cnn_object = ConvNets(new_kernel, new_b1, new_w, new_b2)
-        loss = loss / len_train_X
-        print(loss)
-
+    cnn_object.train(train_X, train_y, epochs, lr, train_dataset_len)
 
     def argmax(iterable: R[m]): R:
         idx: ℝ = 0
@@ -805,14 +797,15 @@ Full Code
     len_test_X: ℝ = get_1d_array_length(test_X)
     y_true: ℝ = 0
 
-    for i:ℕ(len_test_X):
-        x = test_X[i]
+    for i:ℕ(test_dataset_len):
+        x: ℝ[28, 28] = test_X[i]
         y_true = test_y[i]
         y_pred = cnn_object(x)
         pred_class = argmax(y_pred)
         if pred_class == y_true:
             correct += 1
-    accuracy = correct / len_test_X
+    accuracy: ℝ = correct / len_test_X
+    print(accuracy)
 
 
 References
