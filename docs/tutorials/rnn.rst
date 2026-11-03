@@ -599,7 +599,6 @@ Full code
     output_size: ℝ = 18
     hidden_size: ℕ = 128
 
-
     # --------------------
     # weights for RNN
     # --------------------
