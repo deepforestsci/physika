@@ -38,6 +38,37 @@ def superbee(r):
     phi = (0.5 * (s3 + torch.abs(s3 if isinstance(s3, torch.Tensor) else torch.tensor(float(s3)))))
     return phi
 
+def zero_1d_array(len):
+    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    return results
+
+def zero_2d_array(rows, cols):
+    results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    return results
+
+def get_1d_array_length(x):
+    total = 0
+    temp = 0
+    for i in range(len(x)):
+        temp = x[int(i)]
+        total = total + 1
+    return total
+
+def get_2d_array_num_rows(x):
+    total = 0
+    temp = 0
+    for i in range(len(x)):
+        temp = x[int(i)]
+        total = total + 1
+    return total
+
+def get_2d_array_num_cols(x, m=None, n=None):
+    if m is None:
+        m = int(x.shape[0])
+    if n is None:
+        n = int(x.shape[1])
+    return get_1d_array_length(x[int(0)])
+
 def gaussian_solve(A, b):
     a_row = get_2d_array_num_rows(A)
     a_col = get_2d_array_num_cols(A)
@@ -93,37 +124,6 @@ def gaussian_solve(A, b):
                 x_next[int(c)] = x[int(c)]
         x = x_next
     return x
-
-def get_2d_array_num_cols(x, m=None, n=None):
-    if m is None:
-        m = int(x.shape[0])
-    if n is None:
-        n = int(x.shape[1])
-    return get_1d_array_length(x[int(0)])
-
-def get_2d_array_num_rows(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
-
-def get_1d_array_length(x):
-    total = 0
-    temp = 0
-    for i in range(len(x)):
-        temp = x[int(i)]
-        total = total + 1
-    return total
-
-def zero_2d_array(rows, cols):
-    results = torch.stack([torch.stack([(j * 0) for _fi_j in range(int(cols)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(rows)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-    return results
-
-def zero_1d_array(len):
-    results = torch.stack([(i * 0) for _fi_i in range(int(len)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-    return results
 
 # === Classes ===
 class ExampleClass(nn.Module):

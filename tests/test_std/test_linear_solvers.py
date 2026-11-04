@@ -71,7 +71,7 @@ class TestGaussianElimination:
     def test_gaussian_solve_differentiability(self):
         # Test differerentiability of gaussian_solve.
         src = (
-            "from std.linear_solvers import gaussian_solve, get_2d_array_num_cols, get_2d_array_num_rows, get_1d_array_length, zero_2d_array, zero_1d_array\n"  # noqa
+            "from std.linear_solvers import gaussian_solve\n"
             "def f(alpha: ℝ): ℝ:\n"
             "    A: ℝ[3, 3] = [\n"
             "        [1, 2, 1],\n"
