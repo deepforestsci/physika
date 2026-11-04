@@ -146,7 +146,7 @@ Part 1: The atomic environment descriptor
 1.1 Cutoff function
 ~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. code-block:: text
 
    π: ℝ = 3.141592653589793
 
@@ -160,7 +160,7 @@ Part 1: The atomic environment descriptor
 1.2 Interatomic distance
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. code-block:: text
 
    def dist(pa: ℝ[3], pb: ℝ[3]): ℝ:
        d: ℝ[3] = pa - pb
@@ -174,7 +174,7 @@ Part 1: The atomic environment descriptor
 1.3 Radial symmetry function
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. code-block:: text
 
    def G1(a: ℕ, pos: ℝ[na, 3], natoms: ℕ, η: ℝ, rs: ℝ, rc: ℝ): ℝ:
        total: ℝ = 0.0
@@ -187,7 +187,7 @@ Part 1: The atomic environment descriptor
 1.4 Angular symmetry function
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. code-block:: text
 
    def G2(a: ℕ, pos: ℝ[na, 3], natoms: ℕ, η: ℝ, ζ: ℕ, lam: ℤ, rc: ℝ): ℝ:
        total: ℝ = 0.0
@@ -218,7 +218,7 @@ The hidden layer activation is the hyperbolic tangent, written through the ident
 
    \tanh x=1-\frac{2}{e^{2x}+1}.
 
-.. code-block:: python
+.. code-block:: text
 
    # Eq. (1): activation
    def fa(x: ℝ): ℝ:
@@ -227,7 +227,7 @@ The hidden layer activation is the hyperbolic tangent, written through the ident
 2.2 Subnet
 ~~~~~~~~~~
 
-.. code-block:: python
+.. code-block:: text
 
    def S(g: ℝ[ng], nin: ℕ, nhid: ℕ, w1: ℝ[nh, ng], b1: ℝ[nh], w2: ℝ[nh], b2: ℝ): ℝ:
        total: ℝ = b2
@@ -268,9 +268,7 @@ permutation invariance, expressed as object identity rather than as a penalty.
            this.b2 = this.b2 - lr * learnable_grads[3]
 
    # Eq. (2): E = Σ(i) Ei
-   class BPNet:
-       desc: Descriptor
-       sub: Subnet
+   class BPNet(desc: Descriptor, sub: Subnet):
        def λ(pos: ℝ[na, 3], natoms: ℕ) → ℝ:
            total: ℝ = 0.0
            for a: ℕ(natoms):
@@ -293,12 +291,10 @@ gradient step would break:
 - :math:`\zeta` must stay a positive integer
 - :math:`R_c` decides which neighbours exist
 
-.. code-block:: python
+.. code-block:: text
 
    # Fixed symmetry-function constants
-   η0: ℝ = 0.05
-   ηa: ℝ = 0.005
-   rcut: ℝ = 4.0
+   η0, ηa, rcut: ℝ = 0.05, 0.005, 4.0
 
 That leaves ``rs`` as the only differentiable symmetry-function parameter,
 alongside the subnet weights.
@@ -309,7 +305,7 @@ Part 3: Energy, forces and parameter gradients
 3.1 Configuration and total energy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. code-block:: text
 
    # A single configuration
    Pc: ℕ = 8
@@ -351,7 +347,7 @@ The weights are untrained, so this energy carries no physical meaning yet.
 
 The forces are :math:`\mathbf F_i=-\partial E/\partial\mathbf R_i`.
 
-.. code-block:: python
+.. code-block:: text
 
    # Forces:
    grad(net(r, Pc), r)
@@ -361,7 +357,7 @@ The forces are :math:`\mathbf F_i=-\partial E/\partial\mathbf R_i`.
 
 .. code-block:: text
 
-   class BPNet:
+   class BPNet(desc: Descriptor, sub: Subnet):
        # ...
        def desc_grads(pos: ℝ[na, 3], natoms: ℕ) → ℝ[m]:
            en: ℝ = this(pos, natoms)
@@ -370,7 +366,7 @@ The forces are :math:`\mathbf F_i=-\partial E/\partial\mathbf R_i`.
            en: ℝ = this(pos, natoms)
            return grad(en, this.sub.learnable_params)
 
-.. code-block:: python
+.. code-block:: text
 
    # dE/drs -- the only differentiable symmetry-function parameter left
    net.desc_grads(r, Pc)
@@ -392,14 +388,20 @@ Part 4: Training
 4.1 Reference data
 ~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. code-block:: text
 
-   # Training on 3 frames of the 8 Si atoms MD simulation trajectory
+   # BPNet Training
+   #
+   # The first three frames of a Materials Project GGA relaxation trajectory for 8 Si atoms.
+   # The ionic positions are being minimised, so successive frames are close together.
+   # X3[0] is the configuration r above, and X3[1] and X3[2] differ by at most
+   # 5.6e-4 Å. Axis 0 of ℝ[3, 8, 3] indexes the frame, axis 1 the atom and
+   # axis 2 the coordinate.
    X3: ℝ[3, 8, 3] = [[[  3.69468256,   2.44237664,   1.57337608],
            ...
            [ -1.40445908,  -1.93079596,   4.51103173]]]
 
-   # Target Energy values
+   # Reference DFT energies in eV, one per frame.
    y3: ℝ[3] = [-39.9157861, -39.91789224, -39.91789594]
 
    nframes3: ℕ = 3
@@ -415,7 +417,7 @@ The loss is the squared error in the total energy,
 
    \mathcal L=\bigl(E^{\mathrm{pred}}-E^{\mathrm{ref}}\bigr)^2 .
 
-.. code-block:: python
+.. code-block:: text
 
    def mse_loss(pred: ℝ, target: ℝ): ℝ:
        return (pred - target)**2
@@ -428,7 +430,7 @@ update per frame.
 
 .. code-block:: text
 
-   class BPNet:
+   class BPNet(desc: Descriptor, sub: Subnet):
        # ...
        def train(X: ℝ[nf, na, 3], y: ℝ[nf], nframes: ℕ, natoms: ℕ, epochs: ℕ, lr: ℝ) → ℝ:
            last: ℝ = 0.0
@@ -443,7 +445,7 @@ update per frame.
                last = epoch_loss / nframes
            return last
 
-.. code-block:: python
+.. code-block:: text
 
    # loss before training
    mse_loss(net(r, Pc), y3[0])
@@ -473,7 +475,7 @@ Setting ``lrd`` to zero makes it identical to ``train``.
 
 .. code-block:: text
 
-   class BPNet:
+   class BPNet(desc: Descriptor, sub: Subnet):
        # ...
        def train_all(X: ℝ[nf, na, 3], y: ℝ[nf], nframes: ℕ, natoms: ℕ, epochs: ℕ, lr: ℝ, lrd: ℝ) → ℝ:
            last: ℝ = 0.0
@@ -490,7 +492,7 @@ Setting ``lrd`` to zero makes it identical to ``train``.
                last = epoch_loss / nframes
            return last
 
-.. code-block:: python
+.. code-block:: text
 
    # optional: fit rs as well, with train_all
    lrd0: ℝ = 0.0001
@@ -526,8 +528,249 @@ potential in the following ways:
 Source code
 -----------
 
-The complete Physika implementation is provided in
+The complete implementation follows. The same file is exercised by CI as
 ``tutorials/nn_pes_behler_parrinello.phyk``.
+
+.. code-block:: text
+
+   # ============================================================
+   # Behler-Parrinello Neural Network Potential Energy Surface
+   # J. Behler and M. Parrinello, Phys. Rev. Lett. 98, 146401 (2007)
+   # ============================================================
+
+   π: ℝ = 3.141592653589793
+
+   # A single configuration: the first frame of a Materials Project GGA
+   # relaxation of 8 silicon atoms, Cartesian positions in Å. Row a of r is the
+   # position of atom a, so r[a] - r[j] is a separation vector, and the shape
+   # ℝ[Pc, 3] ties the row count to Pc.
+
+   Pc: ℕ = 8
+   r: ℝ[Pc, 3] = [[ 3.69468256,  2.44237664,  1.57337608],
+               [ 1.22577221,  0.73713025,  6.56769165],
+               [ 0.94713127,  0.27985289,  2.65383696],
+               [-0.70279321,  0.26258477,  8.05036569],
+               [ 1.77357416,  2.44520749,  3.17501106],
+               [ 0.68309124, -0.82981877,  4.72394411],
+               [-0.40740593,  1.70240007,  5.08154978],
+               [-1.40101553, -1.92847942,  4.49800493]]
+
+   # Eq. (3): cutoff function
+   def fc(rij: ℝ, rc: ℝ): ℝ:
+       θ: ℝ = π * rij / rc
+       if rij <= rc:
+           return 0.5 * (cos(θ) + 1.0)
+       else:
+           return 0.0
+
+   # TODO: Add minimum image convention to work with periodic configurations
+   def dist(pa: ℝ[3], pb: ℝ[3]): ℝ:
+       d: ℝ[3] = pa - pb
+       return sqrt(d @ d)
+
+   # Fixed symmetry-function constants.
+   η0, ηa, rcut: ℝ = 0.05, 0.005, 4.0
+
+   # Eq. (4): radial symmetry function
+   def G1(a: ℕ, pos: ℝ[na, 3], natoms: ℕ, η: ℝ, rs: ℝ, rc: ℝ): ℝ:
+       total: ℝ = 0.0
+       for j: ℕ(natoms):
+           if j != a:
+               rij = dist(pos[a], pos[j])
+               total += exp(-η * (rij - rs)**2) * fc(rij, rc)
+       return total
+
+   # Eq. (5): angular symmetry function
+   def G2(a: ℕ, pos: ℝ[na, 3], natoms: ℕ, η: ℝ, ζ: ℕ, lam: ℤ, rc: ℝ): ℝ:
+       total: ℝ = 0.0
+       for j: ℕ(natoms):
+           if j != a:
+               for k: ℕ(natoms):
+                   if k != a:
+                       if k != j:
+                           vij = pos[a] - pos[j]
+                           vik = pos[a] - pos[k]
+                           rij = dist(pos[a], pos[j])
+                           rik = dist(pos[a], pos[k])
+                           rjk = dist(pos[j], pos[k])
+                           cosθijk = (vij @ vik) / (rij * rik)
+                           gauss = exp(-η * (rij**2 + rik**2 + rjk**2))
+                           total += (1.0 + lam * cosθijk)**ζ * gauss * fc(rij, rc) * fc(rik, rc) * fc(rjk, rc)
+       return 2.0**(1.0 - ζ) * total
+
+   # Eq. (1): activation and the atomic subnet
+   def fa(x: ℝ): ℝ:
+       return 1.0 - 2.0 / (exp(2.0 * x) + 1.0)
+
+   def S(g: ℝ[ng], nin: ℕ, nhid: ℕ, w1: ℝ[nh, ng], b1: ℝ[nh], w2: ℝ[nh], b2: ℝ): ℝ:
+       total: ℝ = b2
+       for j: ℕ(nhid):
+           z = b1[j]
+           for m: ℕ(nin):
+               z += w1[j, m] * g[m]
+           total += w2[j] * fa(z)
+       return total
+
+   def mse_loss(pred: ℝ, target: ℝ): ℝ:
+       return (pred - target)**2
+
+   # Eq. (4)+(5): the descriptor, {R} -> {G}
+   #
+   # Of the six symmetry-function parameters, only rs is fitted. Per parameter:
+   #
+   #   rs    ℝ       learnable -- unconstrained, every shift leaves
+   #                   exp(-η (rij - rs)²) finite
+   #   ζ     ℕ       integer-valued, so a gradient step has nowhere to land
+   #                   between ζ = 1 and ζ = 2
+   #   lam   ℤ       only ±1 is meaningful: in between the 2^(1-ζ) prefactor
+   #                   stops normalising, and a base below 0 makes
+   #                   (1 + lam cosθ)^ζ return NaN
+   #   η0    global  must stay > 0, or exp(-η R²) turns into a divergent
+   #   ηa    global  exp(+|η| R²)
+   #   rcut  global  decides which neighbours exist at all, and must stay > 0
+
+   class Descriptor(rs: ℝ, ζ: ℕ, lam: ℤ):
+       def λ(a: ℕ, pos: ℝ[na, 3], natoms: ℕ) → ℝ[2]:
+           return [G1(a, pos, natoms, η0, this.rs, rcut), G2(a, pos, natoms, ηa, this.ζ, this.lam, rcut)]
+       def update_params(lr: ℝ, learnable_grads: ℝ[1]):
+           this.rs = this.rs - lr * learnable_grads[0]
+
+   # Eq. (1): the subnet, {G} -> Ei
+
+   class Subnet(w1: ℝ[3, 2], b1: ℝ[3], w2: ℝ[3], b2: ℝ, nin: ℕ, nhid: ℕ):
+       def λ(g: ℝ[2]) → ℝ:
+           return S(g, this.nin, this.nhid, this.w1, this.b1, this.w2, this.b2)
+       def update_params(lr: ℝ, learnable_grads: ℝ[4]):
+           this.w1 = this.w1 - lr * learnable_grads[0]
+           this.b1 = this.b1 - lr * learnable_grads[1]
+           this.w2 = this.w2 - lr * learnable_grads[2]
+           this.b2 = this.b2 - lr * learnable_grads[3]
+
+   # Eq. (2): E = Σ(i) Ei
+   class BPNet(desc: Descriptor, sub: Subnet):
+       def λ(pos: ℝ[na, 3], natoms: ℕ) → ℝ:
+           total: ℝ = 0.0
+           for a: ℕ(natoms):
+               total += sub(desc(a, pos, natoms))
+           return total
+       def desc_grads(pos: ℝ[na, 3], natoms: ℕ) → ℝ[m]:
+           en: ℝ = this(pos, natoms)
+           return grad(en, this.desc.learnable_params)
+       def sub_grads(pos: ℝ[na, 3], natoms: ℕ) → ℝ[m]:
+           en: ℝ = this(pos, natoms)
+           return grad(en, this.sub.learnable_params)
+       def train(X: ℝ[nf, na, 3], y: ℝ[nf], nframes: ℕ, natoms: ℕ, epochs: ℕ, lr: ℝ) → ℝ:
+           last: ℝ = 0.0
+           for ep: ℕ(epochs):
+               epoch_loss = 0.0
+               for s: ℕ(nframes):
+                   pred = this(X[s], natoms)
+                   current_loss = mse_loss(pred, y[s])
+                   epoch_loss = epoch_loss + current_loss
+                   learnable_grads = grad(current_loss, this.sub.learnable_params)
+                   this.sub.update_params(lr, learnable_grads)
+               last = epoch_loss / nframes
+           return last
+       def train_all(X: ℝ[nf, na, 3], y: ℝ[nf], nframes: ℕ, natoms: ℕ, epochs: ℕ, lr: ℝ, lrd: ℝ) → ℝ:
+           last: ℝ = 0.0
+           for ep: ℕ(epochs):
+               epoch_loss = 0.0
+               for s: ℕ(nframes):
+                   pred = this(X[s], natoms)
+                   current_loss = mse_loss(pred, y[s])
+                   epoch_loss = epoch_loss + current_loss
+                   sub_g = grad(current_loss, this.sub.learnable_params)
+                   desc_g = grad(current_loss, this.desc.learnable_params)
+                   this.sub.update_params(lr, sub_g)
+                   this.desc.update_params(lrd, desc_g)
+               last = epoch_loss / nframes
+           return last
+
+   # test - same configuration and parameters as the free-function version
+   rs0: ℝ = 0.0
+   ζ1: ℕ = 1
+   lam_p: ℤ = 1
+   nin0: ℕ = 2
+   nhid0: ℕ = 3
+   w1v: ℝ[3, 2] = [[0.1, -0.2], [0.3, 0.4], [-0.5, 0.6]]
+   b1v: ℝ[3] = [0.05, -0.1, 0.15]
+   w2v: ℝ[3] = [0.7, -0.8, 0.9]
+   b2v: ℝ = 0.25
+
+   dsc: Descriptor = Descriptor(rs0, ζ1, lam_p)
+   sbn: Subnet = Subnet(w1v, b1v, w2v, b2v, nin0, nhid0)
+   net: BPNet = BPNet(dsc, sbn)
+
+   # E for the whole 8-atom cell
+   net(r, Pc)
+
+   # Forces: pos is an argument of the call, so grad substitutes it directly
+   grad(net(r, Pc), r)
+
+   # dE/drs -- the only differentiable symmetry-function parameter left
+   net.desc_grads(r, Pc)
+
+   # dE/d(w1, b1, w2, b2)
+   net.sub_grads(r, Pc)
+
+   # BPNet Training
+   #
+   # The first three frames of a Materials Project GGA relaxation trajectory for 8 Si atoms.
+   # The ionic positions are being minimised, so successive frames are close together.
+   # X3[0] is the configuration r above, and X3[1] and X3[2] differ by at most
+   # 5.6e-4 Å. Axis 0 of ℝ[3, 8, 3] indexes the frame, axis 1 the atom and
+   # axis 2 the coordinate.
+   X3: ℝ[3, 8, 3] = [[[  3.69468256,   2.44237664,   1.57337608],
+           [  1.22577221,   0.73713025,   6.56769165],
+           [  0.94713127,   0.27985289,   2.65383696],
+           [ -0.70279321,   0.26258477,   8.05036569],
+           [  1.77357416,   2.44520749,   3.17501106],
+           [  0.68309124,  -0.82981877,   4.72394411],
+           [ -0.40740593,   1.70240007,   5.08154978],
+           [ -1.40101553,  -1.92847942,   4.49800493]],
+          [[  3.70035704,   2.43735102,   1.57132253],
+           [  1.22275941,   0.72471744,   6.58336459],
+           [  0.94499653,   0.28003215,   2.65875943],
+           [ -0.70886552,   0.25557454,   8.06916201],
+           [  1.76940601,   2.44227119,   3.17983024],
+           [  0.68112097,  -0.83334362,   4.73922893],
+           [ -0.41290640,   1.69891291,   5.08972282],
+           [ -1.40456399,  -1.93086651,   4.51142853]],
+          [[  3.70018932,   2.43749961,   1.57138319],
+           [  1.22284850,   0.72508445,   6.58290125],
+           [  0.94505962,   0.28002682,   2.65861393],
+           [ -0.70868602,   0.25578177,   8.06860634],
+           [  1.76952919,   2.44235799,   3.17968776],
+           [  0.68117921,  -0.83323943,   4.73877707],
+           [ -0.41274385,   1.69901599,   5.08948123],
+           [ -1.40445908,  -1.93079596,   4.51103173]]]
+
+   # Reference DFT energies in eV, one per frame.
+   y3: ℝ[3] = [-39.9157861, -39.91789224, -39.91789594]
+
+   nframes3: ℕ = 3
+   nep: ℕ = 10
+   lr0: ℝ = 0.0001
+
+   # loss before training
+   mse_loss(net(r, Pc), y3[0])
+
+   # train, returning the final mean loss
+   net.train(X3, y3, nframes3, Pc, nep, lr0)
+
+   # predictions after training, against targets
+   net(X3[0], Pc)
+   net(X3[1], Pc)
+   net(X3[2], Pc)
+
+   # optional: fit rs as well, with train_all
+
+   lrd0: ℝ = 0.0001
+   dsc2: Descriptor = Descriptor(0.0, ζ1, lam_p)
+   net2: BPNet = BPNet(dsc2, Subnet([[0.1, -0.2], [0.3, 0.4], [-0.5, 0.6]], [0.05, -0.1, 0.15], [0.7, -0.8, 0.9], 0.25, nin0, nhid0))
+   net2.train_all(X3, y3, nframes3, Pc, nep, lr0, lrd0)
+
+   dsc2.rs
 
 References
 ----------

@@ -5,7 +5,11 @@
 
 π: ℝ = 3.141592653589793
 
-# A single configuration
+# A single configuration: the first frame of a Materials Project GGA
+# relaxation of 8 silicon atoms, Cartesian positions in Å. Row a of r is the
+# position of atom a, so r[a] - r[j] is a separation vector, and the shape
+# ℝ[Pc, 3] ties the row count to Pc.
+
 Pc: ℕ = 8
 r: ℝ[Pc, 3] = [[ 3.69468256,  2.44237664,  1.57337608],
             [ 1.22577221,  0.73713025,  6.56769165],
@@ -30,9 +34,7 @@ def dist(pa: ℝ[3], pb: ℝ[3]): ℝ:
     return sqrt(d @ d)
 
 # Fixed symmetry-function constants.
-η0: ℝ = 0.05
-ηa: ℝ = 0.005
-rcut: ℝ = 4.0
+η0, ηa, rcut: ℝ = 0.05, 0.005, 4.0
 
 # Eq. (4): radial symmetry function
 def G1(a: ℕ, pos: ℝ[na, 3], natoms: ℕ, η: ℝ, rs: ℝ, rc: ℝ): ℝ:
@@ -91,10 +93,7 @@ def mse_loss(pred: ℝ, target: ℝ): ℝ:
 #   η0    global  must stay > 0, or exp(-η R²) turns into a divergent
 #   ηa    global  exp(+|η| R²)
 #   rcut  global  decides which neighbours exist at all, and must stay > 0
-#
-# The two mechanisms: ℕ and ℤ parameters never become an nn.Parameter (only
-# ℝ and tensor ones do), and a global cannot be differentiated against. Both
-# exclude by construction, so update_params has nothing to guard.
+
 class Descriptor(rs: ℝ, ζ: ℕ, lam: ℤ):
     def λ(a: ℕ, pos: ℝ[na, 3], natoms: ℕ) → ℝ[2]:
         return [G1(a, pos, natoms, η0, this.rs, rcut), G2(a, pos, natoms, ηa, this.ζ, this.lam, rcut)]
@@ -113,9 +112,7 @@ class Subnet(w1: ℝ[3, 2], b1: ℝ[3], w2: ℝ[3], b2: ℝ, nin: ℕ, nhid: ℕ
         this.b2 = this.b2 - lr * learnable_grads[3]
 
 # Eq. (2): E = Σ(i) Ei
-class BPNet:
-    desc: Descriptor
-    sub: Subnet
+class BPNet(desc: Descriptor, sub: Subnet):
     def λ(pos: ℝ[na, 3], natoms: ℕ) → ℝ:
         total: ℝ = 0.0
         for a: ℕ(natoms):
@@ -182,7 +179,12 @@ net.desc_grads(r, Pc)
 net.sub_grads(r, Pc)
 
 # BPNet Training
-# Training on 3 frames of the 8 Si atoms MD simulation trajectory
+#
+# The first three frames of a Materials Project GGA relaxation trajectory for 8 Si atoms.
+# The ionic positions are being minimised, so successive frames are close together.
+# X3[0] is the configuration r above, and X3[1] and X3[2] differ by at most
+# 5.6e-4 Å. Axis 0 of ℝ[3, 8, 3] indexes the frame, axis 1 the atom and
+# axis 2 the coordinate.
 X3: ℝ[3, 8, 3] = [[[  3.69468256,   2.44237664,   1.57337608],
         [  1.22577221,   0.73713025,   6.56769165],
         [  0.94713127,   0.27985289,   2.65383696],
@@ -208,7 +210,7 @@ X3: ℝ[3, 8, 3] = [[[  3.69468256,   2.44237664,   1.57337608],
         [ -0.41274385,   1.69901599,   5.08948123],
         [ -1.40445908,  -1.93079596,   4.51103173]]]
 
-# Target Energy values
+# Reference DFT energies in eV, one per frame.
 y3: ℝ[3] = [-39.9157861, -39.91789224, -39.91789594]
 
 nframes3: ℕ = 3
