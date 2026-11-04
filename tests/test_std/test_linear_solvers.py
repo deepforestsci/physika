@@ -70,20 +70,19 @@ class TestGaussianElimination:
 
     def test_gaussian_solve_differentiability(self):
         # Test differerentiability of gaussian_solve.
-        src = (
-            "from std.linear_solvers import gaussian_solve\n"
-            "def f(alpha: ℝ): ℝ:\n"
-            "    A: ℝ[3, 3] = [\n"
-            "        [1, 2, 1],\n"
-            "        [3, 1, -1],\n"
-            "        [2, -1, 1]\n"
-            "    ]\n"
-            "    b: ℝ[3] = [8 * alpha, 2, 3]\n"
-            "    ans: ℝ[3] = gaussian_solve(A, b)\n"
-            "    return ans[0]**2 + ans[1]**2 + ans[2]**2\n"
-            "\n"
-            "alpha: ℝ = 1.0\n"
-            "results: ℝ = grad(f, alpha)\n")
+        src = ("from std.linear_solvers import gaussian_solve\n"
+               "def f(alpha: ℝ): ℝ:\n"
+               "    A: ℝ[3, 3] = [\n"
+               "        [1, 2, 1],\n"
+               "        [3, 1, -1],\n"
+               "        [2, -1, 1]\n"
+               "    ]\n"
+               "    b: ℝ[3] = [8 * alpha, 2, 3]\n"
+               "    ans: ℝ[3] = gaussian_solve(A, b)\n"
+               "    return ans[0]**2 + ans[1]**2 + ans[2]**2\n"
+               "\n"
+               "alpha: ℝ = 1.0\n"
+               "results: ℝ = grad(f, alpha)\n")
         ns = run_phyk(src, "physika/std/linear_solvers.phyk")
         res = ns["results"]
         expected = torch.tensor([26.6667])
