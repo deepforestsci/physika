@@ -8,8 +8,10 @@ from io import StringIO
 from contextlib import redirect_stdout
 from typing import Optional
 from physika.runtime import compute_grad
+import physika
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
+STDLIB_PATH = Path(physika.__file__).resolve().parent / "std"
 
 
 def exec_phyk(stem: str) -> dict:
@@ -18,6 +20,10 @@ def exec_phyk(stem: str) -> dict:
     ``ns`` dict.
     """
     phyk_file = (EXAMPLES_DIR / f"{stem}.phyk")
+
+    if not phyk_file.exists():
+        phyk_file = (STDLIB_PATH / f"{stem}.phyk")
+
     source = phyk_file.read_text()
 
     symbol_table.clear()
