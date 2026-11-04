@@ -568,27 +568,27 @@ class TestMatmulResult:
 
     def test_matrix_vector(self):
         """
-        ℝ[m,n] @ ℝ[n] should raise an error (mixed rank)
+        ℝ[m,n] @ ℝ[n] should return ℝ[m].
         """
         m, n = 2, 3
         t1 = TTensor(((m, "invariant"), (n, "invariant")))
         t2 = TTensor(((n, "invariant"), ))
-        errors, cb = self.fresh_errors()
-        assert matmul_op(t1, t2, cb) is None
-        assert len(errors) == 1
-        assert "rank mismatch" in errors[0]
-        err_msg = "; use ℝ[%s,%s] @ ℝ[%s,1]" % (m, n, n)
-        assert err_msg in errors[0]
 
-        n, p = 3, 4
-        t1 = TTensor(((n, "invariant"), ))
-        t2 = TTensor(((n, "invariant"), (p, "invariant")))
         errors, cb = self.fresh_errors()
-        assert matmul_op(t1, t2, cb) is None
-        assert len(errors) == 1
-        assert "rank mismatch" in errors[0]
-        err_msg = "; use ℝ[1,%s] @ ℝ[%s,%s]" % (n, n, p)
-        assert err_msg in errors[0]
+        assert matmul_op(t1, t2, cb) == make_tensor([m])
+        assert errors == []
+
+    def test_vector_matrix(self):
+        """
+        ℝ[n] @ ℝ[n,m] should return ℝ[m].
+        """
+        n, m = 3, 4
+        t1 = TTensor(((n, "invariant"), ))
+        t2 = TTensor(((n, "invariant"), (m, "invariant")))
+
+        errors, cb = self.fresh_errors()
+        assert matmul_op(t1, t2, cb) == make_tensor([m])
+        assert errors == []
 
     def test_2d_2d(self):
         """

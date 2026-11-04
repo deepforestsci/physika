@@ -1244,19 +1244,23 @@ class TestExprMatmul:
         t, _ = expr_matmul(("matmul", ("var", "A"), ("var", "B")), ctx)
         assert t == TTensor(((3, "invariant"), (3, "invariant")))
 
-    def test_error_report(self):
-        # ℝ[2,3] @ ℝ[3] should raise error rank mismatch
-        errors = []
-        ctx = make_ctx(env={
-            "A": TTensor(((2, "invariant"), (3, "invariant"))),
-            "v": TTensor(((3, "invariant"), )),
-        },
-                       errors=errors)
+        # ℝ[2,3] @ ℝ[3] → ℝ[2]
+        ctx = make_ctx(
+            env={
+                "A": TTensor(((2, "invariant"), (3, "invariant"))),
+                "v": TTensor(((3, "invariant"), )),
+            })
         t, _ = expr_matmul(("matmul", ("var", "A"), ("var", "v")), ctx)
-        assert len(errors) == 1
-        assert errors[
-            0] == "Matmul rank mismatch: ℝ[2,3] @ ℝ[3]; use ℝ[2,3] @ ℝ[3,1] for an explicit matrix form"  # noqa: E501
-        assert t is None
+        assert t == TTensor(((2, "invariant"), ))
+
+        # ℝ[3] @ ℝ[3,2] → ℝ[2]
+        ctx = make_ctx(
+            env={
+                "v": TTensor(((3, "invariant"), )),
+                "A": TTensor(((3, "invariant"), (2, "invariant"))),
+            })
+        t, _ = expr_matmul(("matmul", ("var", "v"), ("var", "A")), ctx)
+        assert t == TTensor(((2, "invariant"), ))
 
 
 class TestExprPow:
