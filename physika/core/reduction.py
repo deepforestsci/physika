@@ -1,4 +1,5 @@
-from typing import List, Optional, Tuple
+import operator
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from physika.core.level import Level, LMVar
 from physika.core.expr import (
@@ -240,10 +241,14 @@ def whnf(expr: Expr, env: Environment, lctx: LocalContext,
             return expr
 
         if isinstance(expr, App):
-            # try literal fast path, then β, then iota reductions
+            # try literal fast paths, then beta, then iota reductions
             fast = try_nat_literal_binop(expr, env, lctx, mctx)
             if fast is not None:
                 expr = fast
+                continue
+            fast_int = try_int_literal_op(expr, env, lctx, mctx)
+            if fast_int is not None:
+                expr = fast_int
                 continue
             fn = whnf(expr.func, env, lctx, mctx)
             if isinstance(fn, Lam):
@@ -663,6 +668,106 @@ def try_nat_literal_binop(expr: Expr, env: Environment, lctx: LocalContext,
     return Lit(NAT_LITERAL_BINOPS[head.name](a, b))
 
 
+def nat_value(e: Expr, env: Environment, lctx: LocalContext,
+              mctx: MetaVarContext) -> Optional[int]:
+    """
+    Value of a ``Nat`` term as a Python ``int``, or ``None`` if it does
+    not reduce to a literal or a ``Nat.succ`` chain.
+
+    Examples
+    --------
+    >>> from physika.core.expr import App, Const, Lit
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> from physika.core.reduction import nat_value
+    >>> n = App(Const("Nat.succ", ()), Lit(4))
+    >>> nat_value(n, mk_builtin_env(), LocalContext(), MetaVarContext())
+    5
+    """
+    w = whnf(e, env, lctx, mctx)
+    n = lit_nat_int(w)
+    return n if n is not None else succ_chain_nat_int(w, env, lctx, mctx)
+
+
+def lit_int(e: Expr, env: Environment, lctx: LocalContext,
+            mctx: MetaVarContext) -> Optional[int]:
+    """
+    Value of an ``Int`` term as a Python ``int``, or ``None`` if it does
+    not reduce to ``Int.ofNat n`` / ``Int.negSucc n`` with a literal ``n``.
+
+    Examples
+    --------
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> from physika.core.reduction import lit_int
+    >>> from physika.utils.cic_utils.inductive_utils import int_lit
+    >>> lit_int(int_lit(-3), mk_builtin_env(), LocalContext(),
+    ...         MetaVarContext())
+    -3
+    """
+    head, args = get_app_fn_args(whnf(e, env, lctx, mctx))
+    if not (isinstance(head, Const) and len(args) == 1
+            and head.name in ("Int.ofNat", "Int.negSucc")):
+        return None
+    n = nat_value(args[0], env, lctx, mctx)
+    if n is None:
+        return None
+    return n if head.name == "Int.ofNat" else -(n + 1)
+
+
+# Int operations computed directly on literal operands
+INT_LITERAL_OPS: Dict[str, Callable[..., Any]] = {
+    "Int.add": operator.add,
+    "Int.sub": operator.sub,
+    "Int.mul": operator.mul,
+    "Int.neg": operator.neg,
+    "Int.eqb": operator.eq,
+    "Int.subNatNat": operator.sub,
+}
+
+
+def try_int_literal_op(expr: Expr, env: Environment, lctx: LocalContext,
+                       mctx: MetaVarContext) -> Optional[Expr]:
+    """
+    Computes an ``Int`` operation (``INT_LITERAL_OPS``) on literal
+    operands in Python, the ``Int`` counterpart of
+    ``try_nat_literal_binop``. The result is the same as unfolding the
+    ``Int.rec`` definitions, whose cost grows with the operands' values.
+    Returns ``None`` when *expr* is not such an operation.
+
+    Examples
+    --------
+    >>> from physika.core.expr import App, Const
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> from physika.core.reduction import try_int_literal_op
+    >>> from physika.utils.cic_utils.inductive_utils import int_lit
+    >>> env, lctx, mctx = mk_builtin_env(), LocalContext(), MetaVarContext()
+    >>> mul = App(App(Const("Int.mul", ()), int_lit(-4)), int_lit(10**6))
+    >>> lit_int(try_int_literal_op(mul, env, lctx, mctx), env, lctx, mctx)
+    -4000000
+    >>> eqb = App(App(Const("Int.eqb", ()), int_lit(7)), int_lit(7))
+    >>> try_int_literal_op(eqb, env, lctx, mctx)
+    Const(name='Bool.true', levels=())
+    """
+    from physika.utils.cic_utils.inductive_utils import int_lit
+
+    head, args = get_app_fn_args(expr)
+    if not (isinstance(head, Const) and head.name in INT_LITERAL_OPS):
+        return None
+    if len(args) != (1 if head.name == "Int.neg" else 2):
+        return None
+    vals = []
+    for a in args:
+        # Int.subNatNat takes Nat operands, the others take Int operands
+        v = (nat_value(a, env, lctx, mctx)
+             if head.name == "Int.subNatNat" else lit_int(a, env, lctx, mctx))
+        if v is None:
+            return None
+        vals.append(v)
+    result = INT_LITERAL_OPS[head.name](*vals)
+    if isinstance(result, bool):
+        return Const("Bool.true" if result else "Bool.false", ())
+    return int_lit(result)
+
+
 def try_iota(fn: Expr, last_arg: Expr, env: Environment, lctx: LocalContext,
              mctx: MetaVarContext) -> Optional[Expr]:
     """
@@ -685,32 +790,16 @@ def try_iota(fn: Expr, last_arg: Expr, env: Environment, lctx: LocalContext,
     Example
     -------
     >>> from physika.core.reduction import try_iota
-    >>> from physika.core.expr import Const, App, Lit, BVar, TYPE_0
-    >>> from physika.core.inductive import InductiveDecl, Constructor, Recursor, RecursorRule
-    >>> from physika.core.environment import Environment, InductiveInfo, ConstantInfo
+    >>> from physika.core.expr import Const, App, Lit
+    >>> from physika.core.inductive import mk_builtin_env
     >>> from physika.core.local_context import LocalContext
     >>> from physika.core.metavar import MetaVarContext
+    >>> env = mk_builtin_env()
     >>> nat = Const("Nat", ())
-    >>> nat_decl = InductiveDecl(
-    ...     name="Nat", level_params=(), num_params=0, type=TYPE_0,
-    ...     constructors=(Constructor("Nat.zero", nat), Constructor("Nat.succ", nat)),
-    ...     is_recursive=True,
-    ... )
-    >>> zero_rule = RecursorRule("Nat.zero", nfields=0, rhs=BVar(1))
-    >>> nat_rec = Recursor(
-    ...     name="Nat.rec", type=TYPE_0, num_params=0, num_indices=0,
-    ...     num_motives=1, num_minors=2, rules=(zero_rule,),
-    ... )
-    >>> env = Environment()
-    >>> env.add_inductive(InductiveInfo(
-    ...     decl=nat_decl,
-    ...     ctors={"Nat.zero": ConstantInfo("Nat.zero", (), nat, None),
-    ...            "Nat.succ": ConstantInfo("Nat.succ", (), nat, None)},
-    ...     recursor=ConstantInfo("Nat.rec", (), TYPE_0, None),
-    ...     rec_info=nat_rec,
-    ... ))
+    >>> # Nat.rec motive (zero case = 10) (succ case) applied to Nat.zero
     >>> fn = App(App(App(Const("Nat.rec", ()), nat), Lit(10)), nat)
-    >>> try_iota(fn, Const("Nat.zero", ()), env, LocalContext(), MetaVarContext())  # noqa: E501
+    >>> try_iota(fn, Const("Nat.zero", ()), env, LocalContext(),
+    ...          MetaVarContext())
     Lit(val=10)
     """
     head, args = get_app_fn_args(App(fn, last_arg))
