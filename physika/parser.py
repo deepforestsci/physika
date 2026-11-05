@@ -300,8 +300,12 @@ def p_import_list_multiple(p):
 
 # Statements
 def p_statement_function(p):
-    """statement : DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT RETURN func_expr NEWLINE DEDENT"""  # noqa: E501
-    name, params, return_type, body = p[2], p[4], p[7], p[12]
+    """statement : DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT RETURN func_expr NEWLINE DEDENT
+       statement : DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT func_expr NEWLINE DEDENT"""  # noqa: E501
+    if len(p) == 15:
+        name, params, return_type, body = p[2], p[4], p[7], p[12]
+    else:
+        name, params, return_type, body = p[2], p[4], p[7], p[11]
 
     func_def = {
         "params": params,
@@ -316,16 +320,18 @@ def p_statement_function(p):
 
 
 def p_statement_function_with_body(p):
-    """statement : DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts RETURN func_expr NEWLINE DEDENT"""  # noqa: E501
+    """statement : DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts RETURN func_expr NEWLINE DEDENT
+       statement : DEF ID LPAREN params RPAREN COLON type_spec COLON NEWLINE INDENT func_body_stmts func_expr NEWLINE DEDENT"""  # noqa: E501
     # def funcname(params): return_type:
     #     stmt1
     #     stmt2
     #     return expr
-    name = p[2]
-    params = p[4]
-    return_type = p[7]
-    body_stmts = p[11]
-    final_expr = p[13]
+    if len(p) == 16:
+        name, params, return_type, body_stmts, final_expr = p[2], p[4], p[
+            7], p[11], p[13]
+    else:
+        name, params, return_type, body_stmts, final_expr = p[2], p[4], p[
+            7], p[11], p[12]
 
     func_def = {
         "params": params,
