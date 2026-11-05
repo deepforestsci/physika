@@ -46,9 +46,9 @@ def σ(x: ℝ[a,b]): ℝ[a,b]:
 # ============================================================
 class OneLayerNet(W0: ℝ[m, n], b0: ℝ[m, o], W1: ℝ[o, m], b1: ℝ):
     def λ(x: ℝ[n, o]) → ℝ[o, o]:
-        return W1 @ σ(W0 @ x + b0) + b1
+        W1 @ σ(W0 @ x + b0) + b1
     def loss(y: ℝ, target: ℝ) → ℝ:
-        return (y - target) ** 2.0
+        (y - target) ** 2.0
 
 W0: ℝ[2,3] = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
 c0: ℝ[2,1] = [[0.1],[0.2]]
@@ -67,9 +67,9 @@ class FullyConnectedNetwork(W: ℝ[m, n, n], B: ℝ[m, n, o], w: ℝ[o, n], b: �
     def λ(x: ℝ[n, o]) → ℝ[m, n]:
         for k:
             x = σ(W[k] @ x + B[k])
-        return w @ x + b
+        w @ x + b
     def loss(y: ℝ, target: ℝ) → ℝ:
-        return (y - target) ** 2.0
+        (y - target) ** 2.0
 
 # 2-layer network: ℝ[3] -> ℝ[3] -> ℝ[3] -> ℝ
 W: ℝ[2,3,3] = [[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]],
