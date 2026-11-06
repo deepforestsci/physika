@@ -1,0 +1,47 @@
+def pushrow(M: ℝ[m,n], row: ℝ[n], m: ℕ): ℝ[m,n]:
+    Mn: ℝ[m,n] = M
+    for j:ℕ(m-1):
+        Mn[j,:] = Mn[j+1,:]
+    Mn[m-1,:] = row
+    return Mn
+
+class LBFGS(g: ℝ[n], S: ℝ[m,n], Y: ℝ[m,n], step: ℝ, m: ℕ, n: ℕ):
+    def direction() -> ℝ[n]:
+        c: ℝ = this.step
+        if c > this.m * 1.0:
+            c = this.m * 1.0
+        α: ℝ[m] = for i:ℕ(this.m) → i*0
+        q: ℝ[n] = this.g
+        for p:ℕ(c):
+            ix = this.m-1-p
+            ρ = 1.0 / (this.Y[ix] @ this.S[ix])
+            α[ix] = ρ * (this.S[ix] @ q)
+            q = q - α[ix] * this.Y[ix]
+        γ: ℝ = 1.0
+        if c > 0:
+            j = this.m-1
+            γ = (this.S[j] @ this.Y[j]) / (this.Y[j] @ this.Y[j])
+        z: ℝ[n] = γ * q
+        for p:ℕ(c):
+            ix = this.m-c+p
+            ρ = 1.0 / (this.Y[ix] @ this.S[ix])
+            β = ρ * (this.Y[ix] @ z)
+            z = z + this.S[ix] * (α[ix] - β)
+        return -z
+
+
+g: ℝ[3] = [1.0, 2.0, 3.0]
+S: ℝ[4,3] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+Y: ℝ[4,3] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0]]
+
+opt0: LBFGS = LBFGS(g, S, Y, 0.0, 4, 3)
+d0: ℝ[3] = opt0.direction()
+print(d0[0])
+print(d0[1])
+print(d0[2])
+
+opt2: LBFGS = LBFGS(g, S, Y, 2.0, 4, 3)
+d2: ℝ[3] = opt2.direction()
+print(d2[0])
+print(d2[1])
+print(d2[2])
