@@ -138,3 +138,20 @@ obj_B: B = B(obj_A)
 obj_B.access_member()
 obj_B.access_memeber_in_loop()
 
+
+
+# -----------------------------------------------------------
+# Example of implicit this 
+# works for both class vars and class methods
+# -----------------------------------------------------------
+
+class C(value: ℝ):
+    def square(y: ℝ): ℝ:
+        return y * y
+    def calculate(): ℝ:
+        result: ℝ = value + 2
+        return square(result)
+
+obj_C: C = C(2.0)
+
+print(obj_C.calculate())
