@@ -1,4 +1,4 @@
-# Dummy weights: every weight is set to 1/128 so the tutorial runs without loading the MACE-MP-0 model.
+# Dummy weights: every weight is set to 1/128 so the tutorial runs without the released MACE-MP-0 model.
 
 water_positions: ℝ[3, 3] = [[0.0000, 0.0000, 0.0000], [1.3035, 0.1210, -0.0361], [0.0387, 1.0143, -0.0409]]
 water_numbers: ℝ[3] = [8.0, 1.0, 1.0]
@@ -53,7 +53,7 @@ def neighbor_search(positions: ℝ[n, 3], cutoff: ℝ): ℝ[2, m]:
 
 positions: ℝ[3, 3] = water_positions
 node_attrs: ℝ[3, 89] = one_hot(water_numbers, z_table)
-edge_index: ℝ[2, 6] = neighbor_search(positions, r_cut)
+edge_index = neighbor_search(positions, r_cut)
 
 print(positions)
 print(edge_index)
@@ -92,14 +92,12 @@ lengths: ℝ[6] = edge_lengths(vectors)
 edge_feats: ℝ[6, 10] = radial_embedding(lengths)
 
 def Y0(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 1]:
-    num_edges: ℕ = len(lengths)
-    results: ℝ[num_edges, 1] = zeros(num_edges, 1)
+    results: ℝ[e, 1] = zeros(len(lengths), 1)
     results[:, 0] = 1.0
     return results
 
 def Y1(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 3]:
-    num_edges: ℕ = len(lengths)
-    results: ℝ[num_edges, 3] = zeros(num_edges, 3)
+    results: ℝ[e, 3] = zeros(len(lengths), 3)
     x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
     results[:, 0] = sqrt(3.0) * x
     results[:, 1] = sqrt(3.0) * y
@@ -107,8 +105,7 @@ def Y1(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 3]:
     return results
 
 def Y2(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 5]:
-    num_edges: ℕ = len(lengths)
-    results: ℝ[num_edges, 5] = zeros(num_edges, 5)
+    results: ℝ[e, 5] = zeros(len(lengths), 5)
     x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
     results[:, 0] = sqrt(15.0) * x * z
     results[:, 1] = sqrt(15.0) * x * y
@@ -118,8 +115,7 @@ def Y2(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 5]:
     return results
 
 def Y3(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 7]:
-    num_edges: ℕ = len(lengths)
-    results: ℝ[num_edges, 7] = zeros(num_edges, 7)
+    results: ℝ[e, 7] = zeros(len(lengths), 7)
     x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
     results[:, 0] = sqrt(35.0 / 8.0) * (3.0 * x * z * z - x * x * x)
     results[:, 1] = sqrt(105.0) * x * y * z
@@ -332,11 +328,11 @@ def neighbor_sum_second(mji: ℝ[e, k, 40], edge_index: ℝ[2, e], num_atoms: �
 def conv_tp_second(up: ℝ[n, k], up_vecs: ℝ[n, k, 3], edge_attrs: ℝ[e, 16], tp_weights: ℝ[e, t], edge_index: ℝ[2, e]): ℝ[e, k, 40]:
     num_edges: ℕ = len(edge_attrs)
     mji: ℝ[num_edges, num_channels, 40] = zeros(num_edges, num_channels, 40)
-    y1: ℝ[3, 1] = zeros(3, 1)
-    y2: ℝ[5, 1] = zeros(5, 1)
-    y3: ℝ[7, 1] = zeros(7, 1)
     for edge:ℕ(num_edges):
         sender: ℝ, receiver: ℝ = edge_index[:, edge]
+        y1 = zeros(3, 1)
+        y2 = zeros(5, 1)
+        y3 = zeros(7, 1)
         s, v = up[sender], up_vecs[sender]
         y1[:, 0] = edge_attrs[edge, 1:4]
         y2[:, 0] = edge_attrs[edge, 4:9]
@@ -431,3 +427,6 @@ predictions: ℝ[3] = [water_energy, methane_energy, formaldehyde_energy]
 print(predictions)
 print(reference_energies)
 print(predictions - reference_energies)
+
+forces = -grad(mace_energy(water_positions, water_numbers), water_positions)
+print(forces)

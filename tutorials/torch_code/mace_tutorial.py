@@ -4,6 +4,7 @@ import torch.optim as optim
 from physika.runtime import DEVICE
 
 from physika.runtime import print
+from physika.runtime import compute_grad
 
 # === Functions ===
 def one_hot(numbers, table):
@@ -63,14 +64,12 @@ def radial_embedding(lengths):
     return edge_feats
 
 def Y0(vectors, lengths):
-    num_edges = len(lengths)
-    results = torch.zeros(int(num_edges), int(1), device=DEVICE)
+    results = torch.zeros(int(len(lengths)), int(1), device=DEVICE)
     results[:, int(0)] = 1.0
     return results
 
 def Y1(vectors, lengths):
-    num_edges = len(lengths)
-    results = torch.zeros(int(num_edges), int(3), device=DEVICE)
+    results = torch.zeros(int(len(lengths)), int(3), device=DEVICE)
     x, y, z = (vectors[:, int(0)] / lengths), (vectors[:, int(1)] / lengths), (vectors[:, int(2)] / lengths)
     results[:, int(0)] = (torch.sqrt(3.0 if isinstance(3.0, torch.Tensor) else torch.tensor(float(3.0))) * x)
     results[:, int(1)] = (torch.sqrt(3.0 if isinstance(3.0, torch.Tensor) else torch.tensor(float(3.0))) * y)
@@ -78,8 +77,7 @@ def Y1(vectors, lengths):
     return results
 
 def Y2(vectors, lengths):
-    num_edges = len(lengths)
-    results = torch.zeros(int(num_edges), int(5), device=DEVICE)
+    results = torch.zeros(int(len(lengths)), int(5), device=DEVICE)
     x, y, z = (vectors[:, int(0)] / lengths), (vectors[:, int(1)] / lengths), (vectors[:, int(2)] / lengths)
     results[:, int(0)] = ((torch.sqrt(15.0 if isinstance(15.0, torch.Tensor) else torch.tensor(float(15.0))) * x) * z)
     results[:, int(1)] = ((torch.sqrt(15.0 if isinstance(15.0, torch.Tensor) else torch.tensor(float(15.0))) * x) * y)
@@ -89,8 +87,7 @@ def Y2(vectors, lengths):
     return results
 
 def Y3(vectors, lengths):
-    num_edges = len(lengths)
-    results = torch.zeros(int(num_edges), int(7), device=DEVICE)
+    results = torch.zeros(int(len(lengths)), int(7), device=DEVICE)
     x, y, z = (vectors[:, int(0)] / lengths), (vectors[:, int(1)] / lengths), (vectors[:, int(2)] / lengths)
     results[:, int(0)] = (torch.sqrt((35.0 / 8.0) if isinstance((35.0 / 8.0), torch.Tensor) else torch.tensor(float((35.0 / 8.0)))) * ((((3.0 * x) * z) * z) - ((x * x) * x)))
     results[:, int(1)] = (((torch.sqrt(105.0 if isinstance(105.0, torch.Tensor) else torch.tensor(float(105.0))) * x) * y) * z)
@@ -247,11 +244,11 @@ def neighbor_sum_second(mji, edge_index, num_atoms):
 def conv_tp_second(up, up_vecs, edge_attrs, tp_weights, edge_index):
     num_edges = len(edge_attrs)
     mji = torch.zeros(int(num_edges), int(num_channels), int(40), device=DEVICE)
-    y1 = torch.zeros(int(3), int(1), device=DEVICE)
-    y2 = torch.zeros(int(5), int(1), device=DEVICE)
-    y3 = torch.zeros(int(7), int(1), device=DEVICE)
     for edge in range(int(0), int(num_edges)):
         sender, receiver = edge_index[:, int(edge)]
+        y1 = torch.zeros(int(3), int(1), device=DEVICE)
+        y2 = torch.zeros(int(5), int(1), device=DEVICE)
+        y3 = torch.zeros(int(7), int(1), device=DEVICE)
         s, v = up[int(sender)], up_vecs[int(sender)]
         y1[:, int(0)] = edge_attrs[int(edge), int(1):int(4)]
         y2[:, int(0)] = edge_attrs[int(edge), int(4):int(9)]
@@ -318,7 +315,7 @@ def mace_energy(positions, numbers):
     return energy
 
 # === Program ===
-water_positions = torch.tensor([[0.0, 0.0, 0.0], [1.3035, 0.121, (-0.0361)], [0.0387, 1.0143, (-0.0409)]], device=DEVICE)
+water_positions = torch.as_tensor(torch.tensor([[0.0, 0.0, 0.0], [1.3035, 0.121, (-0.0361)], [0.0387, 1.0143, (-0.0409)]], device=DEVICE)).requires_grad_(True).to(DEVICE)
 water_numbers = torch.tensor([8.0, 1.0, 1.0], device=DEVICE)
 methane_positions = torch.tensor([[0.0, 0.0, 0.0], [0.629, 0.629, 0.629], [(-0.629), (-0.629), 0.629], [(-0.629), 0.629, (-0.629)], [0.629, (-0.629), (-0.629)]], device=DEVICE)
 methane_numbers = torch.tensor([6.0, 1.0, 1.0, 1.0, 1.0], device=DEVICE)
@@ -405,3 +402,5 @@ predictions = torch.stack([torch.as_tensor(water_energy), torch.as_tensor(methan
 print(print(predictions))
 print(print(reference_energies))
 print(print((predictions - reference_energies)))
+forces = (-compute_grad(lambda _dwater_positions: mace_energy(_dwater_positions, water_numbers), water_positions))
+print(print(forces))

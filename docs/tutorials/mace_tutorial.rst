@@ -45,7 +45,6 @@ For :math:`\ell = 0, 1, 2, 3` we compute the harmonics for all valid :math:`m` a
 
    \left[ Y_0^0,\;\; Y_1^{-1},\, Y_1^0,\, Y_1^1,\;\; Y_2^{-2},\, Y_2^{-1},\, Y_2^0,\, Y_2^1,\, Y_2^2,\;\; Y_3^{-3},\, Y_3^{-2},\, Y_3^{-1},\, Y_3^0,\, Y_3^1,\, Y_3^2,\, Y_3^3 \right]
 
-
 Dataset
 -------
 
@@ -81,7 +80,6 @@ We load the weights of the released model and compute the predicted energies of 
       _MACE_URL = ("https://github.com/ACEsuit/mace-foundations/releases/download/"
                    "mace_mp_0/2023-12-03-mace-128-L1_epoch-199.model")
       _MACE_WEIGHTS = []
-
 
       def load_mace_weights(index):
           if not _MACE_WEIGHTS:
@@ -154,7 +152,6 @@ where :math:`E^{(1)}_i` and :math:`E^{(2)}_i` are the node energies of the two l
 
    scale: ℝ, shift: ℝ = 0.8041538754478097, 0.16409696359187365
 
-
 MACE Feature Construction
 -------------------------
 
@@ -216,7 +213,7 @@ Now we can build the three data tensors of our example molecule:
 
    positions: ℝ[3, 3] = water_positions
    node_attrs: ℝ[3, 89] = one_hot(water_numbers, z_table)
-   edge_index: ℝ[2, 6] = neighbor_search(positions, r_cut)
+   edge_index = neighbor_search(positions, r_cut)
 
    print(positions)
    print(edge_index)
@@ -232,7 +229,6 @@ Step 1: Embeddings
 
 We now take this information about the molecule and turn it into a set of features that the model can work with. These are called embeddings.
 
-
 The equation for the initial node features is given by:
 
 .. math::
@@ -245,7 +241,6 @@ In MACE, :math:`K` is the number of channels. This is the fundamental 'size' of 
 The atom's chemical species is embedded through a length-:math:`K` vector, and we also embed the lengths and directions of the edges.
 The lengths of the edges are mapped through a set of 10 radial Bessel functions, and the directions of the edges are mapped through a set of 16 spherical harmonics.
 
-
 The three embeddings are shown in Figure 2.
 
 .. figure:: /_static/tutorial_files/mace_embedding.png
@@ -254,7 +249,6 @@ The three embeddings are shown in Figure 2.
    :width: 700px
 
    Figure 2: The creation of the node and edge embeddings [MACETutorials]_.
-
 
 Node features
 ^^^^^^^^^^^^^
@@ -367,14 +361,12 @@ Here we use *component* normalization: the :math:`2\ell + 1` numbers of :math:`Y
 .. code-block:: text
 
    def Y0(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 1]:
-       num_edges: ℕ = len(lengths)
-       results: ℝ[num_edges, 1] = zeros(num_edges, 1)
+       results: ℝ[e, 1] = zeros(len(lengths), 1)
        results[:, 0] = 1.0
        return results
 
    def Y1(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 3]:
-       num_edges: ℕ = len(lengths)
-       results: ℝ[num_edges, 3] = zeros(num_edges, 3)
+       results: ℝ[e, 3] = zeros(len(lengths), 3)
        x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
        results[:, 0] = sqrt(3.0) * x
        results[:, 1] = sqrt(3.0) * y
@@ -382,8 +374,7 @@ Here we use *component* normalization: the :math:`2\ell + 1` numbers of :math:`Y
        return results
 
    def Y2(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 5]:
-       num_edges: ℕ = len(lengths)
-       results: ℝ[num_edges, 5] = zeros(num_edges, 5)
+       results: ℝ[e, 5] = zeros(len(lengths), 5)
        x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
        results[:, 0] = sqrt(15.0) * x * z
        results[:, 1] = sqrt(15.0) * x * y
@@ -393,8 +384,7 @@ Here we use *component* normalization: the :math:`2\ell + 1` numbers of :math:`Y
        return results
 
    def Y3(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 7]:
-       num_edges: ℕ = len(lengths)
-       results: ℝ[num_edges, 7] = zeros(num_edges, 7)
+       results: ℝ[e, 7] = zeros(len(lengths), 7)
        x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
        results[:, 0] = sqrt(35.0 / 8.0) * (3.0 * x * z * z - x * x * x)
        results[:, 1] = sqrt(105.0) * x * y * z
@@ -448,7 +438,6 @@ We start by mixing the :math:`K` channels of every atom with a learned matrix:
 
    \tilde h_{i,k} = \frac{1}{\sqrt{K}} \sum_{k'} W_{k'k}\, h_{i,k'}
 
-
 .. code-block:: text
 
    w_up: ℝ[128, 128] = load_mace_weights(2)
@@ -475,7 +464,6 @@ e3nn rescales silu so that its second moment is one. This is defined by the cons
 
    def silu(x: ℝ[e, h]): ℝ[e, h]:
        return silu_norm * x / (1.0 + exp(-x))
-
 
 Radial network
 ^^^^^^^^^^^^^^
@@ -529,7 +517,7 @@ For better explanation see the TFN tutorial [PhysikaTFN]_ .
 
    \mathrm{out}_{m_3} = \sum_{m_1,\, m_2} C_{m_1 m_2 m_3}\; a_{m_1}\, b_{m_2}
 
-In the first layer of MACE-MP-0 the node features are scalars (:math:`\ell = 0`). 
+In the first layer of MACE-MP-0 the node features are scalars (:math:`\ell = 0`). Since the product of a scalar with a spherical harmonic does not mix angular components, the Clebsch-Gordan coefficient is the identity and each :math:`\ell` of the edge direction is simply scaled. The second layer, where the node features also have :math:`\ell = 1`, needs the full Clebsch-Gordan coupling and is treated in Step 5.
 
 .. code-block:: text
 
@@ -555,7 +543,6 @@ In the first layer, the message is just a product of three numbers:
 
    \phi_{ji,k,lm} = R_{kl}(r_{ji})\, Y_l^m(\hat{\mathbf r}_{ji})\, \tilde h_{j,k}
 
-
 Message Passing
 ^^^^^^^^^^^^^^^
 
@@ -566,7 +553,6 @@ We use the average number of neighbors from the training set of MACE-MP-0, which
 .. math::
 
    A_{i,k,lm} = \frac{1}{\bar n}\,\frac{1}{\sqrt{K}} \sum_{k'} W^{(l)}_{kk'} \sum_{j \in \mathcal{N}(i)} m_{ji,k',lm}
-
 
 Step 3: The Product
 ~~~~~~~~~~~~~~~~~~~
@@ -605,6 +591,7 @@ The index :math:`\eta_\nu` labels the different ways of coupling the :math:`\nu`
 A 'path' is one particular way of combining the pieces of :math:`A` (the summary of the atom's neighborhood)
 into a result of a certain angular order :math:`L`.
 For example, a scalar (:math:`L = 0`) can be made from the scalar :math:`A_0` on its own, from its square :math:`A_0 \otimes A_0`, or from the dot product of two vectors, :math:`A_1 \cdot A_1`, :math:`A_2 \cdot A_2` or :math:`A_3 \cdot A_3`. A vector (:math:`L = 1`) can be made, for example, from :math:`A_1` on its own or from the product of a scalar and a vector, :math:`A_0 \otimes A_1`.
+The released model keeps the outputs :math:`L = 0` and :math:`L = 1`, which gives the hidden features of the first layer one number per channel for :math:`L = 0` and three numbers per channel for :math:`L = 1`.
 
 ======================  ==================  ==================  ==================
 Output                  :math:`\nu = 1`      :math:`\nu = 2`      :math:`\nu = 3`
@@ -613,7 +600,8 @@ Output                  :math:`\nu = 1`      :math:`\nu = 2`      :math:`\nu = 3
 :math:`L = 1` (vector)  1 path              6 paths             51 paths
 ======================  ==================  ==================  ==================
 
-The Clebsch-Gordan tables, generated with the e3nn library [e3nn]_, are stored as weights.
+The Clebsch-Gordan tables, generated with the e3nn library [e3nn]_, are stored as weights in the released model. Hence, they are loaded instead of typed. The tables of the vector output have an extra leading index of size 3, one for each component :math:`M` of the output.
+
 .. code-block:: text
 
    U1: ℝ[16, 1] = load_mace_weights(11)
@@ -623,7 +611,7 @@ The Clebsch-Gordan tables, generated with the e3nn library [e3nn]_, are stored a
    U2v: ℝ[3, 16, 16, 6] = load_mace_weights(15)
    U3v: ℝ[3, 16, 16, 16, 51] = load_mace_weights(16)
 
-We define one function for each :math:`\nu`. 
+We define one function for each :math:`\nu`. They work for any number of paths, which is read from the shape of the table, so the same three functions serve both the scalar and the vector output.
 
 .. code-block:: text
 
@@ -674,6 +662,7 @@ The sum over paths is written as a sum over :math:`\nu` and a sum over :math:`\e
    m^{(t)}_{i,kLM} = \sum_{\nu} \sum_{\eta_\nu} W^{(t)}_{z_i kL,\, \eta_\nu}\, B^{(t)}_{i,\eta_\nu kLM}
 
 The weights are selected per element: the one-hot ``node_attrs`` of atom :math:`i` picks the row of the weight tensor that belongs to its element :math:`z_i`.
+The scalar and the vector output have their own weights. The three components of the vector output share the same weights, which is what keeps the vector output equivariant. The ``weighted_sum`` function does not change for the two outputs, only the tables and weights that are given to it.
 
 .. code-block:: text
 
@@ -760,7 +749,7 @@ The :math:`L = 1` part gets only the linear mixing of :math:`m`, with its own ma
            out[atom] = wp @ mv[atom] / sqrt(num_channels)
        return out
 
-The outputn scalars are used by the readout layer, and both are the input of the second layer.
+The output ``node_feats1`` has one number per channel and ``node_vecs1`` has three numbers per channel. The scalars are used by the readout layer, and both are the input of the second layer.
 
 Step 4: The Readout
 ~~~~~~~~~~~~~~~~~~~
@@ -772,6 +761,7 @@ The readout is a single linear layer on the scalar part of the features:
 
    E_i = \frac{1}{\sqrt{K}} \sum_{k} W_k\, h^{(1)}_{i,k,\ell = 0}, \qquad E = \sum_i E_i
 
+Since energy is an invariant scalar quantity, only scalars are needed here. The vector part :math:`h^{(1)}_{i,k,\ell = 1}` is not read out, it is only passed on to the second layer.
 The total energy is simply the sum of the individual atomic contributions.
 
 .. figure:: /_static/tutorial_files/mace_readout.png
@@ -780,7 +770,6 @@ The total energy is simply the sum of the individual atomic contributions.
    :width: 600px
 
    Figure 6: The readout layer [MACETutorials]_.
-
 
 .. code-block:: text
 
@@ -796,7 +785,7 @@ The second layer repeats Steps 2 to 4 while taking the output of the first layer
 The second layer makes MACE more expressive because:
 
 - Each node now receives messages from neighbors which already summarize their own neighborhood.
-- The neighbors now also send directional information (the :math:`\ell = 1` features) to each other.
+- The neighbors now also send directional information (the :math:`\ell = 1` features), not only scalars.
 
 .. figure:: /_static/tutorial_files/mace_interaction_second_layer.png
    :alt: The interaction block of a general layer s
@@ -888,9 +877,14 @@ Each allowed way of coupling is one path with its own Clebsch-Gordan coefficient
      - :math:`\sqrt{7}` times ``cg_123``
      - 33 to 39
 
-In the coupling column, the first factor is the scalar :math:`s_{j,k}` (:math:`0`) or the vector :math:`\mathbf{v}_{j,k}` (:math:`1`), and the second factor is always a spherical harmonic of the edge. 
+In the coupling column, the first factor is the scalar :math:`s_{j,k}` (:math:`0`) or the vector :math:`\mathbf{v}_{j,k}` (:math:`1`), and the second factor is always a spherical harmonic of the edge. The constant is the Clebsch-Gordan coefficient times the path normalization :math:`\sqrt{2\ell_3 + 1}` of e3nn. For the couplings that involve a scalar the coefficient is a plain number and the two cancel, so the constant is 1.
+The columns of the ten paths add up to :math:`2 \cdot 1 + 3 \cdot 3 + 3 \cdot 5 + 2 \cdot 7 = 40`.
+
+.. math::
 
    m_{ji,k,\ell_3 m_3} = \sum_{\text{paths}} R_{k,\text{path}}(r_{ji}) \, c_{\text{path}} \sum_{m_1, m_2} C^{\ell_3 m_3}_{\ell_1 m_1, \ell_2 m_2}\; h_{j,k,\ell_1 m_1}\, Y_{\ell_2 m_2}(\hat{\mathbf r}_{ji})
+
+The coefficients with a vector on the left, which are the only non-trivial ones, are stored in the released model as well, so we load them as ``cg_121``, ``cg_112``, ``cg_132`` and ``cg_123``. The first index of each table is the vector component of the neighbor feature.
 
 .. code-block:: text
 
@@ -899,7 +893,7 @@ In the coupling column, the first factor is the scalar :math:`s_{j,k}` (:math:`0
    cg_132: ℝ[3, 7, 5] = load_mace_weights(35)
    cg_123: ℝ[3, 5, 7] = load_mace_weights(36)
 
-The messages of the second layer have 40 columns, so the the tensor product itself is written out path by path:
+The messages of the second layer have 40 columns, so the sum over the neighbors needs a version of ``neighbor_sum`` with a different size, and the tensor product itself is written out path by path:
 
 .. code-block:: text
 
@@ -916,11 +910,11 @@ The messages of the second layer have 40 columns, so the the tensor product itse
    def conv_tp_second(up: ℝ[n, k], up_vecs: ℝ[n, k, 3], edge_attrs: ℝ[e, 16], tp_weights: ℝ[e, t], edge_index: ℝ[2, e]): ℝ[e, k, 40]:
        num_edges: ℕ = len(edge_attrs)
        mji: ℝ[num_edges, num_channels, 40] = zeros(num_edges, num_channels, 40)
-       y1: ℝ[3, 1] = zeros(3, 1)
-       y2: ℝ[5, 1] = zeros(5, 1)
-       y3: ℝ[7, 1] = zeros(7, 1)
        for edge:ℕ(num_edges):
            sender: ℝ, receiver: ℝ = edge_index[:, edge]
+           y1 = zeros(3, 1)
+           y2 = zeros(5, 1)
+           y3 = zeros(7, 1)
            s, v = up[sender], up_vecs[sender]
            y1[:, 0] = edge_attrs[edge, 1:4]
            y2[:, 0] = edge_attrs[edge, 4:9]
@@ -945,7 +939,7 @@ The messages of the second layer have 40 columns, so the the tensor product itse
                mji[edge, :, 33 + m] = tp_weights[edge, 1152:1280] * sqrt(7.0) * d3[:, 0]
        return mji
 
-Then the columns are mixed by learned matrices, one for each path, and added into the 16 columns of the output of the layer.
+Then the 40 columns are mixed by the ten learned matrices, one for each path, and added into the 16 columns of the output of the layer: paths with the same output :math:`\ell_3` go to the same block. As in the first layer, the result is divided by the average number of neighbors.
 
 .. code-block:: text
 
@@ -974,7 +968,7 @@ Then the columns are mixed by learned matrices, one for each path, and added int
 Product, update and readout
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The product of the second layer only produces scalars, The skip connection acts only on the scalar part of the first layer's output.
+The product of the second layer only produces scalars: the output of the second layer is only read out, so there is no :math:`L = 1` part to build. It uses the same tables ``U1``, ``U2`` and ``U3`` and the same functions as the first layer, with its own weights. The skip connection now acts on the scalar part of the first layer's output, and the vectors are not carried further.
 
 The readout of the last layer uses a small network instead of a single linear layer. It uses a hidden layer of 16 neurons and the silu activation function to output a single number per atom:
 
@@ -982,7 +976,7 @@ The readout of the last layer uses a small network instead of a single linear la
 
    E^{(2)}_i = \frac{1}{\sqrt{16}} \sum_{u=1}^{16} V_u\; \mathrm{silu}\!\left( \frac{1}{\sqrt{K}} \sum_{k} U_{ku}\, h^{(2)}_{i,k} \right)
 
-The model's final energy combines the contributions from both layers with the scale and shift and the isolated atom energies.
+The model's final energy combines the contributions from both layers with the scale, the shift and the isolated atom energies, as given in "Scale and Shift".
 
 .. code-block:: text
 
@@ -1064,6 +1058,19 @@ Output:
 
 The energies match to about :math:`2 \times 10^{-6}` eV.
 
+We get forces by differentiating the energy with respect to the positions, :math:`F = -\partial E / \partial \mathbf{x}`.
+
+.. code-block:: text
+
+   forces = -grad(mace_energy(water_positions, water_numbers), water_positions)
+   print(forces)
+
+Output:
+
+.. code-block:: text
+
+   [[6.337779998779297, 2.4823429584503174, -0.25015920400619507], [-5.194238185882568, -1.3380225896835327, 0.17757883667945862], [-1.1435420513153076, -1.1443203687667847, 0.07258036732673645]] ∈ ℝ[3,3]
+
 Full Code
 ---------
 
@@ -1128,7 +1135,7 @@ Full Code
 
    positions: ℝ[3, 3] = water_positions
    node_attrs: ℝ[3, 89] = one_hot(water_numbers, z_table)
-   edge_index: ℝ[2, 6] = neighbor_search(positions, r_cut)
+   edge_index = neighbor_search(positions, r_cut)
 
    print(positions)
    print(edge_index)
@@ -1170,14 +1177,12 @@ Full Code
 
    # Angular features
    def Y0(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 1]:
-       num_edges: ℕ = len(lengths)
-       results: ℝ[num_edges, 1] = zeros(num_edges, 1)
+       results: ℝ[e, 1] = zeros(len(lengths), 1)
        results[:, 0] = 1.0
        return results
 
    def Y1(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 3]:
-       num_edges: ℕ = len(lengths)
-       results: ℝ[num_edges, 3] = zeros(num_edges, 3)
+       results: ℝ[e, 3] = zeros(len(lengths), 3)
        x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
        results[:, 0] = sqrt(3.0) * x
        results[:, 1] = sqrt(3.0) * y
@@ -1185,8 +1190,7 @@ Full Code
        return results
 
    def Y2(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 5]:
-       num_edges: ℕ = len(lengths)
-       results: ℝ[num_edges, 5] = zeros(num_edges, 5)
+       results: ℝ[e, 5] = zeros(len(lengths), 5)
        x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
        results[:, 0] = sqrt(15.0) * x * z
        results[:, 1] = sqrt(15.0) * x * y
@@ -1196,8 +1200,7 @@ Full Code
        return results
 
    def Y3(vectors: ℝ[e, 3], lengths: ℝ[e]): ℝ[e, 7]:
-       num_edges: ℕ = len(lengths)
-       results: ℝ[num_edges, 7] = zeros(num_edges, 7)
+       results: ℝ[e, 7] = zeros(len(lengths), 7)
        x, y, z = vectors[:, 0] / lengths, vectors[:, 1] / lengths, vectors[:, 2] / lengths
        results[:, 0] = sqrt(35.0 / 8.0) * (3.0 * x * z * z - x * x * x)
        results[:, 1] = sqrt(105.0) * x * y * z
@@ -1419,11 +1422,11 @@ Full Code
    def conv_tp_second(up: ℝ[n, k], up_vecs: ℝ[n, k, 3], edge_attrs: ℝ[e, 16], tp_weights: ℝ[e, t], edge_index: ℝ[2, e]): ℝ[e, k, 40]:
        num_edges: ℕ = len(edge_attrs)
        mji: ℝ[num_edges, num_channels, 40] = zeros(num_edges, num_channels, 40)
-       y1: ℝ[3, 1] = zeros(3, 1)
-       y2: ℝ[5, 1] = zeros(5, 1)
-       y3: ℝ[7, 1] = zeros(7, 1)
        for edge:ℕ(num_edges):
            sender: ℝ, receiver: ℝ = edge_index[:, edge]
+           y1 = zeros(3, 1)
+           y2 = zeros(5, 1)
+           y3 = zeros(7, 1)
            s, v = up[sender], up_vecs[sender]
            y1[:, 0] = edge_attrs[edge, 1:4]
            y2[:, 0] = edge_attrs[edge, 4:9]
@@ -1522,6 +1525,9 @@ Full Code
    print(reference_energies)
    print(predictions - reference_energies)
 
+   forces = -grad(mace_energy(water_positions, water_numbers), water_positions)
+   print(forces)
+
 References
 ----------
 
@@ -1536,3 +1542,4 @@ References
 .. [MACETutorials] ACEsuit. *MACE tutorials*, in particular ``T03_MACE_Theory.ipynb`` and ``MACE_developer.ipynb``. https://github.com/ACEsuit/mace-tutorials
 
 .. [MACEMP0] Batatia, I., Benner, P., Chiang, Y., Elena, A. M., Kovács, D. P., Riebesell, J., et al. (2023). *A foundation model for atomistic materials chemistry*. arXiv:2401.00096. https://arxiv.org/abs/2401.00096
+
