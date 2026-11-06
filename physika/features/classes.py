@@ -66,7 +66,7 @@ def replace_class_params(code: str, all_params: list) -> str:
     return code
 
 
-def replace_class_methods(code: str, method_names: list) -> str:
+def replace_class_methods(code: str, method_names: Collection[str]) -> str:
     """
     Add `self.` prefix to class methods to match Python code.
 
