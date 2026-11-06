@@ -97,6 +97,21 @@ class B(nn.Module):
             self.objA.x = 3.0
         return self.objA.x
 
+class C(nn.Module):
+    def __init__(self, value):
+        super().__init__()
+        self.value = torch.as_tensor(value).float()
+
+    def square(self, y):
+        this = self
+        y = torch.as_tensor(y, device=DEVICE).float()
+        return (y * y)
+
+    def calculate(self):
+        this = self
+        result = (self.value + 2)
+        return self.square(result)
+
 # === Program ===
 obj_example_class = ExampleClass().to(DEVICE)
 print(obj_example_class.class_method())
@@ -142,3 +157,5 @@ obj_A = A(1.0).to(DEVICE)
 obj_B = B(obj_A).to(DEVICE)
 print(obj_B.access_member())
 print(obj_B.access_memeber_in_loop())
+obj_C = C(2.0).to(DEVICE)
+print(print(obj_C.calculate()))
