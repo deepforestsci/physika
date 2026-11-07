@@ -225,10 +225,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
             func_def = unified_ast["functions"].get(name, {})
             param_order = term[3]
             dependent = len(param_order) > len(func_def.get("params", []))
-            ast_only = body_mutates_in_place(func_def) or any(
-                isinstance(s, tuple) and s and s[0] in AST_CODEGEN_STMT_TAGS
-                for s in func_def.get("statements", []))
-            if dependent and not ast_only:
+            if dependent:
                 kept[name] = term
         resolved_bodies = kept
 
