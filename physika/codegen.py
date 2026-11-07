@@ -1,5 +1,5 @@
 from typing import Dict, Optional, Set, Any
-from physika.core.torch_lowering import lower_expr, body_mutates_in_place
+from physika.core.torch_lowering import lower_expr
 from physika.core.environment import Environment
 from physika.core.expr import FVarId
 from physika.utils.ast_utils import (ast_uses_solve, ast_uses_func,
