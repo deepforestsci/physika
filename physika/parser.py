@@ -1413,6 +1413,13 @@ def p_factor_nabla_call(p):
     p[0] = ("call", "grad", args)
 
 
+def p_factor_abs(p):
+    """factor      : PIPE expr PIPE
+       func_factor : PIPE func_expr PIPE"""
+    # AST node for ``abs`` function call
+    p[0] = ("call", "abs", [p[2]])
+
+
 def p_factor_call(p):
     """factor : ID LPAREN args RPAREN"""
     # Return AST node for function call
