@@ -799,7 +799,7 @@ def ast_to_torch_expr(node: ASTNode,
             return f"compute_grad({', '.join(arg_strs)})"
 
         elif func_name == "sum":
-            return f"torch.sum({arg})"
+            return f"torch.sum({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa
 
         elif func_name == "subs":
             # Substitution is used in mathematical expression which replace
