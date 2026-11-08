@@ -57,3 +57,12 @@ class ModifierLetters:
     def test_tranpose(self, numeric_ns):
         # Test matrix transpose correctness
         assert numeric_ns["x_T"].tolist() == [[1, 4], [2, 5], [3, 6]]
+
+
+class MathematicalOperators:
+    """Tests for mathematical operator symbols."""
+
+    def test_summation(self, numeric_ns):
+        # Test for summation ∑ symbol
+        assert numeric_ns["sum_p"] == 6
+        assert numeric_ns["dot_p_q"] == 32
