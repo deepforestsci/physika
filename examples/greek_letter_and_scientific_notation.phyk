@@ -69,9 +69,9 @@ p: ℝ[3] = [1, 2, 3]
 q: ℝ[3] = [4, 5, 6]
 
 
-sum_p: R = ∑(p)
+sum_p: ℝ = ∑(p)
 print(sum_p)
 
 # dot product of `p` and `q` array
-dot_p_q = ∑(for i:N(3) -> p[i] * q[i])
+dot_p_q: ℝ = ∑(for i:N(3) -> p[i] * q[i])
 print(dot_p_q)
