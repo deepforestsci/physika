@@ -73,4 +73,14 @@ EXPECTED = {'functions': {'f': {'params': [('x', ('tensor', [('m', 'invariant')]
               ('tensor', [(3, 'invariant'), (2, 'invariant')]),
               ('transpose', ('var', 'a')),
               62),
-             ('expr', ('call', 'print', [('var', 'a_T')]), 0)]}
+             ('expr', ('call', 'print', [('var', 'a_T')]), 0),
+             ('decl', 'v', 'ℝ', ('neg', ('num', 1)), 70),
+             ('decl', 'abs_v', 'ℝ', ('call', 'abs', [('var', 'v')]), 72),
+             ('expr', ('call', 'print', [('var', 'abs_v')]), 0),
+             ('decl', 'v_expr', 'ℝ', ('add', ('var', 'z'), ('num', 2)), 76),
+             ('decl',
+              'abs_v_expr',
+              'ℝ',
+              ('call', 'abs', [('var', 'v_expr')]),
+              77),
+             ('expr', ('call', 'print', [('var', 'abs_v_expr')]), 0)]}

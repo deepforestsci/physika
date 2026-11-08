@@ -61,3 +61,18 @@ a: ℝ[2, 3] = [
 
 a_T: ℝ[3, 2] = aᵀ
 print(a_T)
+
+
+# ---------------------
+# abs value |..|
+# ---------------------
+
+v: R = -1
+
+abs_v: R = |v|
+print(abs_v)
+
+
+v_expr: R = z + 2
+abs_v_expr: R = |v_expr|
+print(abs_v_expr)
