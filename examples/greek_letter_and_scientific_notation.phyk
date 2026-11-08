@@ -67,12 +67,12 @@ print(a_T)
 # abs value |..|
 # ---------------------
 
-v: R = -1
+v: ℝ = -1
 
-abs_v: R = |v|
+abs_v: ℝ = |v|
 print(abs_v)
 
 
-v_expr: R = z + 2
-abs_v_expr: R = |v_expr|
+v_expr: ℝ = z + 2
+abs_v_expr: ℝ = |v_expr|
 print(abs_v_expr)
