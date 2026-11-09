@@ -1,3 +1,5 @@
+from std.linear_solvers import gaussian_solve
+
 # --------------------------------
 # Helper functions
 # --------------------------------
@@ -99,9 +101,6 @@ def assemble_matrix(k: ℝ, n: ℕ): list:
 # Define solver
 # -------------------------------------
 
-# importing gaussian_solve function from `tutorials/`, in future gaussian_solve will
-# get imported from stdlib
-from tutorials.linear_solve_gaussian_elimination import gaussian_solve
 
 def solver(k: ℝ, n: ℕ): R[n]:
     results: list = assemble_matrix(k, n)
