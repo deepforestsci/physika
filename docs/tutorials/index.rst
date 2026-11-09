@@ -75,6 +75,7 @@ Tutorials
    :caption: Fluid Dynamics
 
    learn_flux_limiter_euler_equations
+   differentiable_bathymetry
    shallow_water_rk3
 
 .. toctree::

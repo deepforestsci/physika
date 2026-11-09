@@ -1,0 +1,84 @@
+# Differentiable 1D shallow-water bathymetry inversion on a periodic unit interval.
+# h = η - b > 0, b is upward-positive, and q = [h, hu].
+# This entirely wet, hydrostatic teaching model omits friction, wind, rotation,
+# wetting/drying, adaptive steps, and any claim that the three parameters are unique.
+
+Nx: ℕ = 32
+g: ℝ = 1.0
+Δx: ℝ = 1.0 / Nx
+Δt: ℝ = 0.002
+steps: ℕ = 30
+x: ℝ[32] = for i:ℕ(Nx) -> (i + 0.5) / Nx
+
+# b_θ(x) = A exp(-(x - x0)^2 / (2 σ^2)), θ = [A, x0, σ].
+def bathymetry(θ: ℝ[3]): ℝ[32]:
+    A, x0, σ: ℝ = θ[0], θ[1], θ[2]
+    return for i:ℕ(Nx) -> A * exp(-(x[i] - x0)**2 / (2.0 * σ**2))
+
+# Hydrostatic reconstruction at each right face i + 1/2.
+# The corrected left/right momentum fluxes below both equal g h_i² / 2 at rest,
+# so their cell difference vanishes for a constant free surface η.
+def rhs(q: ℝ[2, 32], b: ℝ[32]): ℝ[2, 32]:
+    h, hu: ℝ[32] = q[0], q[1]
+    η: ℝ[32] = h + b
+    h_right, hu_right: ℝ[32] = roll(h, -1, 0), roll(hu, -1, 0)
+    b_right, η_right: ℝ[32] = roll(b, -1, 0), roll(η, -1, 0)
+    z_face: ℝ[32] = for i:ℕ(Nx) -> 0.5 * (b[i] + b_right[i] + abs(b[i] - b_right[i]))
+    h_left_face: ℝ[32] = for i:ℕ(Nx) -> 0.5 * (η[i] - z_face[i] + abs(η[i] - z_face[i]))
+    h_right_face: ℝ[32] = for i:ℕ(Nx) -> 0.5 * (η_right[i] - z_face[i] + abs(η_right[i] - z_face[i]))
+    u: ℝ[32] = hu / h
+    u_right: ℝ[32] = hu_right / h_right
+    a: ℝ[32] = for i:ℕ(Nx) -> 0.5 * (abs(u[i]) + sqrt(g * h_left_face[i])
+                                     + abs(u_right[i]) + sqrt(g * h_right_face[i])
+                                     + abs(abs(u[i]) + sqrt(g * h_left_face[i])
+                                           - abs(u_right[i]) - sqrt(g * h_right_face[i])))
+    Fh: ℝ[32] = 0.5 * (hu + hu_right) - 0.5 * a * (h_right_face - h_left_face)
+    Fhu: ℝ[32] = 0.5 * (hu * u + 0.5 * g * h_left_face**2
+                         + hu_right * u_right + 0.5 * g * h_right_face**2)
+    Fhu: ℝ[32] = Fhu - 0.5 * a * (hu_right - hu)
+    Fhu_right: ℝ[32] = Fhu + 0.5 * g * (h**2 - h_left_face**2)
+    Fhu_left: ℝ[32] = roll(Fhu, 1, 0) + 0.5 * g * (
+        h**2 - roll(h_right_face**2, 1, 0))
+    dh: ℝ[32] = -(Fh - roll(Fh, 1, 0)) / Δx
+    dhu: ℝ[32] = -(Fhu_right - Fhu_left) / Δx
+    return [dh, dhu]
+
+# SSPRK(3,3) advances the semidiscrete, hydrostatically balanced finite-volume ODE.
+def rk3_step(q: ℝ[2, 32], b: ℝ[32]): ℝ[2, 32]:
+    q1: ℝ[2, 32] = q + Δt * rhs(q, b)
+    q2: ℝ[2, 32] = 0.75 * q + 0.25 * (q1 + Δt * rhs(q1, b))
+    return q / 3.0 + (2.0 / 3.0) * (q2 + Δt * rhs(q2, b))
+
+# A small surface pulse supplies the synthetic wave experiment.
+def initial_state(b: ℝ[32]): ℝ[2, 32]:
+    η0: ℝ[32] = for i:ℕ(Nx) -> 1.0 + 0.025 * exp(-(x[i] - 0.25)**2 / 0.008)
+    h0: ℝ[32] = η0 - b
+    zero: ℝ[32] = 0.0 * h0
+    return [h0, zero]
+
+def solve(θ: ℝ[3]): ℝ[2, 32]:
+    b: ℝ[32] = bathymetry(θ)
+    q: ℝ[2, 32] = initial_state(b)
+    for step:ℕ(steps):
+        q = rk3_step(q, b)
+    return q
+
+# Three fixed gauge positions observe η = h + b after the wave crosses the bump.
+def gauges(q: ℝ[2, 32], b: ℝ[32]): ℝ[3]:
+    η: ℝ[32] = q[0] + b
+    return [η[6], η[16], η[26]]
+
+# Synthetic observations are formed once from fixed true parameters, outside loss.
+θ_true: ℝ[3] = [0.14, 0.58, 0.11]
+b_true: ℝ[32] = bathymetry(θ_true)
+gauge_obs: ℝ[3] = gauges(solve(θ_true), b_true)
+
+def loss(θ: ℝ[3]): ℝ:
+    b: ℝ[32] = bathymetry(θ)
+    predicted: ℝ[3] = gauges(solve(θ), b)
+    return mean((predicted - gauge_obs)**2)
+
+# Reverse-mode AD differentiates through every RK3 stage and time-loop iteration.
+θ: ℝ[3] = [0.09, 0.45, 0.14]
+loss_gradient: ℝ[3] = grad(loss, θ)
+loss_gradient
