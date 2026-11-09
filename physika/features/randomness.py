@@ -118,17 +118,17 @@ def sample(dist_expr: str, shape_args: List[Tuple], mode: str,
     >>> from physika.features.randomness import sample
     >>> # Scalar reparam sample
     >>> sample("torch.distributions.Normal(0.0, 1.0)", [], "none", "reparam", str)
-    'torch.distributions.Normal(0.0, 1.0).rsample()'
+    'torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)'
 
     >>> shape_nodes = [("num", 20.0), ("num", 1.0)]
     >>> to_expr = lambda node: str(node[1])
     >>> # 2D reparam normal sample, shape (20, 1)
     >>> sample("torch.distributions.Normal(0.0, 1.0)", shape_nodes, "none", "reparam", to_expr)  # noqa: E501
-    'torch.distributions.Normal(0.0, 1.0).rsample((int(20.0), int(1.0),))'
+    'torch.distributions.Normal(0.0, 1.0).rsample((int(20.0), int(1.0),)).to(DEVICE)'
 
     >>> # Bernoulli (score function sample)
     >>> sample("torch.distributions.Bernoulli(0.3)", [], "score", "score", str)
-    'torch.distributions.Bernoulli(0.3).sample().detach()'
+    'torch.distributions.Bernoulli(0.3).sample().detach().to(DEVICE)'
     """
     if mode != "none":
         effective = mode
@@ -140,12 +140,14 @@ def sample(dist_expr: str, shape_args: List[Tuple], mode: str,
     else:
         shape = None
 
+    # Distributions built from Python scalars live on the CPU, so the
+    # sample is moved to DEVICE to match the rest of the generated program
     if effective == "reparam":
-        return f"{dist_expr}.rsample({shape or ''})"
+        return f"{dist_expr}.rsample({shape or ''}).to(DEVICE)"
     elif effective == "score":
-        return f"{dist_expr}.sample({shape or ''}).detach()"
+        return f"{dist_expr}.sample({shape or ''}).detach().to(DEVICE)"
     else:
-        return f"{dist_expr}.sample({shape or ''})"
+        return f"{dist_expr}.sample({shape or ''}).to(DEVICE)"
 
 
 def normal_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
@@ -168,7 +170,7 @@ def normal_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     >>> from physika.utils.ast_utils import ast_to_torch_expr
     >>> args = [('num', 0.0), ('num', 1.0)]
     >>> normal_dist(args, ast_to_torch_expr)
-    'torch.distributions.Normal(0.0, 1.0).rsample()'
+    'torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)'
     """
     param_args, shape_args, mode = extract_dist_args(args, n_params=2)
     mu = to_expr(param_args[0])
@@ -197,7 +199,7 @@ def uniform_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     >>> from physika.utils.ast_utils import ast_to_torch_expr
     >>> args = [('num', 0.0), ('num', 1.0)]
     >>> normal_dist(args, ast_to_torch_expr)
-    'torch.distributions.Normal(0.0, 1.0).rsample()'
+    'torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)'
     """
     param_args, shape_args, mode = extract_dist_args(args, n_params=2)
     lo = to_expr(param_args[0])
@@ -226,7 +228,7 @@ def beta_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     >>> from physika.utils.ast_utils import ast_to_torch_expr
     >>> args = [('num', 0.0), ('num', 1.0)]
     >>> beta_dist(args, ast_to_torch_expr)
-    'torch.distributions.Beta(0.0, 1.0).rsample()'
+    'torch.distributions.Beta(0.0, 1.0).rsample().to(DEVICE)'
     """
     param_args, shape_args, mode = extract_dist_args(args, n_params=2)
     alpha = to_expr(param_args[0])
@@ -255,7 +257,7 @@ def gamma_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     >>> from physika.utils.ast_utils import ast_to_torch_expr
     >>> args = [('num', 0.0), ('num', 1.0)]
     >>> gamma_dist(args, ast_to_torch_expr)
-    'torch.distributions.Gamma(0.0, 1.0).rsample()'
+    'torch.distributions.Gamma(0.0, 1.0).rsample().to(DEVICE)'
     """
     param_args, shape_args, mode = extract_dist_args(args, n_params=2)
     conc = to_expr(param_args[0])
@@ -284,7 +286,7 @@ def bernoulli_dist(args: List[Tuple], to_expr: Callable, **ctx) -> str:
     >>> from physika.utils.ast_utils import ast_to_torch_expr
     >>> args = [('num', 0.0)]
     >>> bernoulli_dist(args, ast_to_torch_expr)
-    'torch.distributions.Bernoulli(0.0).sample().detach()'
+    'torch.distributions.Bernoulli(0.0).sample().detach().to(DEVICE)'
     """
     # Bernoulli has no reparametrization trick sampling (non-continours)
     # always score function estimator mode
@@ -996,7 +998,7 @@ class RandomnessFeature(ELF):
         >>> # x ~ Normal(0.0, 1.0)
         >>> node = ("sample", "x", ("call", "Normal", [("num", 0.0), ("num", 1.0)]))  # noqa: E501
         >>> rules["sample"](node, ast_to_torch_expr)
-        'x = torch.distributions.Normal(0.0, 1.0).rsample()'
+        'x = torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)'
         """
 
         def sample_expr_emit(node: Tuple, to_expr: Callable, **ctx):
@@ -1027,7 +1029,7 @@ class RandomnessFeature(ELF):
             >>> rules = RandomnessFeature().forward_rules()
             >>> node = ("sample_expr", "ε", ("call", "Normal", [("num", 0.0), ("num", 1.0), ("num", 2)]))  # noqa: E501
             >>> rules["sample_expr"](node, ast_to_torch_expr)
-            'torch.distributions.Normal(0.0, 1.0).rsample((int(2),))'
+            'torch.distributions.Normal(0.0, 1.0).rsample((int(2),)).to(DEVICE)'
             """
             if node[0] == "typed_sample_expr":
                 call_node = node[3]
@@ -1065,7 +1067,7 @@ class RandomnessFeature(ELF):
             >>> rules = RandomnessFeature().forward_rules()
             >>> node = ("sample", "x", ("call", "Normal", [("num", 0.0), ("num", 1.0)]))  # noqa: E501
             >>> rules["sample"](node, ast_to_torch_expr)
-            'x = torch.distributions.Normal(0.0, 1.0).rsample()'
+            'x = torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)'
             """
             name = node[1]
             typed = node[0] in ("typed_sample", "body_typed_sample",
@@ -1171,7 +1173,7 @@ class RandomnessFeature(ELF):
             >>> rules = RandomnessFeature().forward_rules()
             >>> node = ("call", "Normal", [("num", 0.0), ("num", 1.0)])
             >>> rules["call:Normal"](node, ast_to_torch_expr)
-            'torch.distributions.Normal(0.0, 1.0).rsample()'
+            'torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)'
             """
 
             def wrapper(node: Tuple, to_expr: Callable, **ctx):

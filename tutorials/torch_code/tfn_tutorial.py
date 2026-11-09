@@ -180,11 +180,11 @@ def moi_tensor(points, masses, center_idx):
     return moi
 
 def random_points(n, max_coord):
-    pts = torch.stack([torch.distributions.Uniform((-max_coord), max_coord).rsample((int(3),)) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    pts = torch.stack([torch.distributions.Uniform((-max_coord), max_coord).rsample((int(3),)).to(DEVICE) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return pts
 
 def random_masses(n, min_mass, max_mass):
-    masses = torch.distributions.Uniform(min_mass, max_mass).rsample((int(n),))
+    masses = torch.distributions.Uniform(min_mass, max_mass).rsample((int(n),)).to(DEVICE)
     return masses
 
 def transpose3x3(M):
@@ -325,13 +325,13 @@ cg_202 = torch.tensor([[[1.0, 0.0, 0.0, 0.0, 0.0]], [[0.0, 1.0, 0.0, 0.0, 0.0]],
 center_idx = 0.0
 max_coord, min_mass, max_mass = 0.5, 0.5, 2.0
 w_init_low, w_init_high = (-0.2), 0.2
-w1_0 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(16), int(30),))
+w1_0 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(16), int(30),)).to(DEVICE)
 b1_0 = zero_2d(16, 1)
-w2_0 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(1), int(16),))
+w2_0 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(1), int(16),)).to(DEVICE)
 b2_0 = zero_2d(1, 1)
-w1_2 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(16), int(30),))
+w1_2 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(16), int(30),)).to(DEVICE)
 b1_2 = zero_2d(16, 1)
-w2_2 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(1), int(16),))
+w2_2 = torch.distributions.Uniform(w_init_low, w_init_high).rsample((int(1), int(16),)).to(DEVICE)
 b2_2 = zero_2d(1, 1)
 moi_object = MOIModel(w1_0, b1_0, w2_0, b2_0, w1_2, b1_2, w2_2, b2_2).to(DEVICE)
 eval_samples = 30

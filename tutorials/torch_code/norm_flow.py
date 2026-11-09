@@ -38,7 +38,7 @@ def unflatten(x, rows, cols):
 
 def dequantize(x, d):
     a, b = torch.tensor([0.0], device=DEVICE), torch.tensor([1.0], device=DEVICE)
-    u = torch.distributions.Uniform(a[int(0)], b[int(0)]).rsample((int(d),))
+    u = torch.distributions.Uniform(a[int(0)], b[int(0)]).rsample((int(d),)).to(DEVICE)
     return ((x + u) / 256.0)
 
 def log_pz(x, d):
@@ -111,7 +111,7 @@ class RealNVP(nn.Module):
 
     def sample(self):
         this = self
-        z = torch.distributions.Normal(0.0, 1.0).rsample((int(self.d),))
+        z = torch.distributions.Normal(0.0, 1.0).rsample((int(self.d),)).to(DEVICE)
         return self.inverse(z)
 
     def loss(self, x):
@@ -181,12 +181,12 @@ test_X = torch.stack([torch.stack([torch.stack([(k * 0) for _fi_k in range(int(2
 len_train, len_test = 10, 11
 d, h, n = 784, 128, 392
 s1, s2 = torch.sqrt((2.0 / n) if isinstance((2.0 / n), torch.Tensor) else torch.tensor(float((2.0 / n)))), (torch.sqrt((2.0 / h) if isinstance((2.0 / h), torch.Tensor) else torch.tensor(float((2.0 / h)))) * 0.01)
-W1_s = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W1_m = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W1_s = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)).to(DEVICE) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W1_m = torch.stack([torch.distributions.Normal(0.0, s1).rsample((int(n),)).to(DEVICE) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 b1_s = torch.stack([(i * 0) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 b1_m = torch.stack([(i * 0) for _fi_i in range(int(h)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W2_s = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W2_m = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W2_s = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)).to(DEVICE) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W2_m = torch.stack([torch.distributions.Normal(0.0, s2).rsample((int(h),)).to(DEVICE) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 b2_s = torch.stack([(i * 0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 b2_m = torch.stack([(i * 0) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 realnvp = RealNVP(W1_s, b1_s, W2_s, b2_s, W1_m, b1_m, W2_m, b2_m, n, d).to(DEVICE)

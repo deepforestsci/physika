@@ -149,8 +149,8 @@ class GCNModel(nn.Module):
 # === Program ===
 μ = 0.0
 σ = 1.0
-W1 = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(4),)) for _fi_i in range(int(30)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W2 = torch.distributions.Normal(μ, σ).rsample((int(4),))
+W1 = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(4),)).to(DEVICE) for _fi_i in range(int(30)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W2 = torch.distributions.Normal(μ, σ).rsample((int(4),)).to(DEVICE)
 gcn_object = GCNModel(W1, W2).to(DEVICE)
 train_A = zero_3d_A(513)
 train_H = zero_3d_H(513)

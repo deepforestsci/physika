@@ -26,11 +26,11 @@ def E_n(q, x, x2):
     return total
 
 def sample_normal1D(x):
-    t = torch.distributions.Normal(0, 1).rsample((int(x),))
+    t = torch.distributions.Normal(0, 1).rsample((int(x),)).to(DEVICE)
     return t
 
 def sample_normal3D(x):
-    t = torch.stack([torch.distributions.Normal(0, 1).rsample((int(3),)) for _fi_i in range(int(x)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    t = torch.stack([torch.distributions.Normal(0, 1).rsample((int(3),)).to(DEVICE) for _fi_i in range(int(x)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     return t
 
 def dV_dt(V, Capa, Ress):

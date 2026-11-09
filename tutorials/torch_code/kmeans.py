@@ -85,7 +85,7 @@ def data_max(X):
     return m
 
 def rand_centroid(lo, hi):
-    s = torch.distributions.Uniform(0.0, 1.0).rsample((int(DIM),))
+    s = torch.distributions.Uniform(0.0, 1.0).rsample((int(DIM),)).to(DEVICE)
     return (lo + (s * (hi - lo)))
 
 def kmeans(X):
@@ -124,7 +124,7 @@ SEED, K, DIM, NPTS = 2, 2, 2, 15
 ITERS = 50
 torch.manual_seed(int(SEED))
 X_MEAN, X_STD = 3.0, 0.7
-X = torch.stack([torch.distributions.Normal(X_MEAN, X_STD).rsample((int(DIM),)) for _fi_i in range(int(NPTS)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+X = torch.stack([torch.distributions.Normal(X_MEAN, X_STD).rsample((int(DIM),)).to(DEVICE) for _fi_i in range(int(NPTS)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 C = kmeans(X)
 labels = assign_labels(X, C)
 print(print(labels))
