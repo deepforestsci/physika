@@ -162,3 +162,23 @@ class TestImportManager:
 
         # original program expression preserved
         assert resolved[1] == ("expr", ("call", "fact", [("num", 1.0)]), 0)
+
+    def test_import_function_and_its_helper_any_order(self):
+        """
+        Importing a function together with one of its helper functions
+        should work regardless of the order in the import statement.
+        """
+
+        src = (
+            "from tutorials.linear_solve_gaussian_elimination import gaussian_solve, get_2d_array_num_rows\n"  # noqa
+            "a: ℝ[2, 2] = [[1, 2], [3, 4]]\n"
+            "num_rows: ℝ = get_2d_array_num_rows(a)")
+        ns = run_phyk(src, "tutorials/linear_solve_gaussian_elimination.phyk")
+        assert ns["num_rows"] == 2
+
+        src = (
+            "from tutorials.linear_solve_gaussian_elimination import get_2d_array_num_rows, gaussian_solve\n"  # noqa
+            "a: ℝ[2, 2] = [[1, 2], [3, 4]]\n"
+            "num_rows: ℝ = get_2d_array_num_rows(a)")
+        ns = run_phyk(src, "tutorials/linear_solve_gaussian_elimination.phyk")
+        assert ns["num_rows"] == 2
