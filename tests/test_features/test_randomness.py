@@ -78,16 +78,18 @@ class TestRandomessHelpers:
                         mode=estimator,
                         default_mode=estimator,
                         to_expr=to_expr)
-        assert result == 'torch.distributions.Normal(%s, %s).rsample().to(DEVICE)' % (
-            mean, std)
+        assert result == (
+            'torch.distributions.Normal(%s, %s).rsample().to(DEVICE)' %
+            (mean, std))
 
         # estimator node is none, but default reparam used
         result = sample("torch.distributions.Normal(%s, %s)" % (mean, std), [],
                         mode="none",
                         default_mode=estimator,
                         to_expr=to_expr)
-        assert result == 'torch.distributions.Normal(%s, %s).rsample().to(DEVICE)' % (
-            mean, std)
+        assert result == (
+            'torch.distributions.Normal(%s, %s).rsample().to(DEVICE)' %
+            (mean, std))
 
         # sample a tensor with shape ℝ[20, 1]
         shape_args = [20, 1]
@@ -115,8 +117,9 @@ class TestRandomessHelpers:
                         mode="none",
                         default_mode="none",
                         to_expr=to_expr)
-        assert result == 'torch.distributions.Normal(%s, %s).sample().to(DEVICE)' % (mean,
-                                                                          std)
+        assert result == (
+            'torch.distributions.Normal(%s, %s).sample().to(DEVICE)' %
+            (mean, std))
 
         # Bernoulli distribution with score function estimator
         p = "0.5"
@@ -149,7 +152,8 @@ class TestProbDistributionsCodegen:
 
         # scalar sample
         result = normal_dist([mu, sigma], to_expr)
-        assert result == "torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)"
+        assert result == (
+            "torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)")
 
         # vector sample ℝ[20]
         n = ("num", 20.0)
@@ -175,7 +179,8 @@ class TestProbDistributionsCodegen:
 
         # scalar sample — reparam by default
         result = uniform_dist([lo, hi], to_expr)
-        assert result == "torch.distributions.Uniform(0.0, 1.0).rsample().to(DEVICE)"
+        assert result == (
+            "torch.distributions.Uniform(0.0, 1.0).rsample().to(DEVICE)")
 
         # vector sample ℝ[10]
         n = ("num", 10.0)
@@ -201,7 +206,8 @@ class TestProbDistributionsCodegen:
 
         # scalar sample — reparam by default
         result = beta_dist([alpha, beta], to_expr)
-        assert result == "torch.distributions.Beta(0.5, 0.5).rsample().to(DEVICE)"
+        assert result == (
+            "torch.distributions.Beta(0.5, 0.5).rsample().to(DEVICE)")
 
         # vector sample ℝ[8]
         n = ("num", 8.0)
@@ -227,7 +233,8 @@ class TestProbDistributionsCodegen:
 
         # scalar sample — reparam by default
         result = gamma_dist([concentration, rate], to_expr)
-        assert result == "torch.distributions.Gamma(1.0, 1.0).rsample().to(DEVICE)"
+        assert result == (
+            "torch.distributions.Gamma(1.0, 1.0).rsample().to(DEVICE)")
 
         # vector sample ℝ[5]
         n = ("num", 5.0)
@@ -254,7 +261,8 @@ class TestProbDistributionsCodegen:
 
         # scalar sample
         result = bernoulli_dist([p], to_expr)
-        assert result == "torch.distributions.Bernoulli(0.5).sample().detach().to(DEVICE)"
+        assert result == (
+            "torch.distributions.Bernoulli(0.5).sample().detach().to(DEVICE)")
 
         # vector sample ℝ[20]
         n = ("num", 20.0)
@@ -268,10 +276,12 @@ class TestProbDistributionsCodegen:
 
         # score function estimator
         result = bernoulli_dist([p, ("string", "score")], to_expr)
-        assert result == "torch.distributions.Bernoulli(0.5).sample().detach().to(DEVICE)"
+        assert result == (
+            "torch.distributions.Bernoulli(0.5).sample().detach().to(DEVICE)")
         # reparam grad is ignored
         result = bernoulli_dist([p, ("string", "reparam")], to_expr)
-        assert result == "torch.distributions.Bernoulli(0.5).sample().detach().to(DEVICE)"
+        assert result == (
+            "torch.distributions.Bernoulli(0.5).sample().detach().to(DEVICE)")
 
 
 class TestGetShapeArgs:
@@ -590,7 +600,8 @@ class TestForwardRules:
         node = ast["program"][0]
         assert node[0] == "sample"
         result = rules["sample"](node, ast_to_torch_expr)
-        assert result == "x = torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)"
+        assert result == (
+            "x = torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)")
 
     def test_typed_sample_stmt_emit(self):
         """
@@ -676,7 +687,8 @@ class TestForwardRules:
         code = from_ast_to_torch(ast, print_code=False)
         expected = (
             "z = torch.stack(["
-            "torch.distributions.Normal(0.0, 1.0).rsample((int(3),)).to(DEVICE) "
+            "torch.distributions.Normal(0.0, 1.0)"
+            ".rsample((int(3),)).to(DEVICE) "
             # ε : ℝ[3] ~ 𝒩(0.0, 1.0, 3)
             "for _fi_i in range(int(3)) "  # for i : ℕ(3)
             "for i in [torch.tensor(float(_fi_i), device=DEVICE)]])")
