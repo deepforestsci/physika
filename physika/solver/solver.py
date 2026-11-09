@@ -90,7 +90,7 @@ def solve_block(node: tuple,
 
 def solve_equations(unified_ast: dict, cic_env: Environment) -> List[str]:
     """
-    Run ``solve`` statements in *unified_ast* through the CIC kernel aned
+    Run ``solve`` statements in *unified_ast* through the CIC kernel and
     return the results. This functions is called after CIC dimensional analysis
     checker.
 
