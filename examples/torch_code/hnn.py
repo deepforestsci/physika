@@ -75,7 +75,8 @@ class HamiltonianNet(nn.Module):
         this = self
         lr = torch.as_tensor(lr, device=DEVICE).float()
         for idx in range(len(learnable_grads)):
-            self.learnable_params[int(idx)] = (self.learnable_params[int(idx)] - (lr * learnable_grads[int(idx)]))
+            with torch.no_grad():
+                self.learnable_params[int(idx)].copy_((self.learnable_params[int(idx)] - (lr * learnable_grads[int(idx)])))
 
 # === Program ===
 X = torch.tensor([[[0.0], [1.0]], [[1.0], [0.0]], [[0.0], [(-1.0)]], [[(-1.0)], [0.0]], [[0.5], [0.5]], [[(-0.5)], [(-0.5)]], [[0.7], [(-0.7)]], [[(-0.7)], [0.7]]], device=DEVICE)

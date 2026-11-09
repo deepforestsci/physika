@@ -308,21 +308,46 @@ def emit_method(
 
             line_sub = replace_class_params(line_sub, all_params)
 
-            # check if this is a field assignment on a learnable param
-            field_assign = re.match(r'^(\s+)(self\.[\w]+)\s*=\s*(.+)$',
-                                    line_sub)
-            if field_assign:
-                indent = field_assign.group(1)
-                field = field_assign.group(2)
-                expr = field_assign.group(3)
-                field_name = field.split('.')[1]
-                if field_name in learnable_param_name_set:
-                    method_lines.append(f"{indent}with torch.no_grad():")
-                    method_lines.append(f"{indent}    {field}.copy_({expr})")
+            # Handle indexed assignment on learnable_params
+            # e.g -
+            # def update_params(lr: R, learnable_grads: list):
+            #   for idx:
+            #       this.learnable_params[idx] = this.learnable_params[idx] - lr * learnable_grads[idx]
+            indexed_assign = re.match(
+                r'^(\s+)self\.learnable_params((?:\[[^\]]+\])+)\s*=\s*(.+)$',
+                line_sub)
+
+            if indexed_assign:
+                indent = indexed_assign.group(1)
+                indices = indexed_assign.group(2)
+                expr = indexed_assign.group(3)
+
+                target = f"self.learnable_params{indices}"
+
+                method_lines.append(f"{indent}with torch.no_grad():")
+                method_lines.append(f"{indent}    {target}.copy_({expr})")
+
+            else:
+                # check if this is a field assignment on a learnable param
+                # e.g -
+                # def update_params(lr: R, learnable_grads: list):
+                #   this.W = this.W - lr * learnable_grads[0]
+                #   ....
+                field_assign = re.match(r'^(\s+)(self\.[\w]+)\s*=\s*(.+)$',
+                                        line_sub)
+                if field_assign:
+                    indent = field_assign.group(1)
+                    field = field_assign.group(2)
+                    expr = field_assign.group(3)
+                    field_name = field.split('.')[1]
+                    if field_name in learnable_param_name_set:
+                        method_lines.append(f"{indent}with torch.no_grad():")
+                        method_lines.append(
+                            f"{indent}    {field}.copy_({expr})")
+                    else:
+                        method_lines.append(line_sub)
                 else:
                     method_lines.append(line_sub)
-            else:
-                method_lines.append(line_sub)
 
     if body is not None:
         this_re = r'\bthis\b'
