@@ -1,0 +1,166 @@
+# Gauss-Jordan matrix inverse in two pivoting strategies
+
+# Build the augmented matrix [M | I_k].
+def augment(M: ℝ[x, y], k: ℕ): ℝ[a, b]:
+    aug: ℝ[a, b] = zeros(k, 2*k)
+    for i: ℕ(k):
+        for j: ℕ(2*k):
+            if j < k:
+                aug[i, j] = M[i, j]
+            else:
+                if j-k == i:
+                    aug[i, j] = 1.0
+    return aug
+
+# Permutation swapping rows ra and rb. Constant, so it carries no gradient -
+# the pivot choice is piecewise constant and has none to carry. When ra == rb
+# the four writes collapse back to P[ra, ra] = 1.0.
+def swap_matrix(ra: ℝ, rb: ℝ, k: ℕ): ℝ[a, a]:
+    P: ℝ[a, a] = zeros(k, k)
+    for i: ℕ(k):
+        P[i, i] = 1.0
+    P[ra, ra] = 0.0
+    P[rb, rb] = 0.0
+    P[ra, rb] = 1.0
+    P[rb, ra] = 1.0
+    return P
+
+# Elementary matrix scaling row r by 1/piv and clearing column c in every other
+# row, so that E @ aug performs the scale and the elimination in one product.
+def elim_matrix(aug: ℝ[x, y], r: ℕ, c: ℕ, k: ℕ): ℝ[a, a]:
+    piv: ℝ = aug[r, c]
+    E: ℝ[a, a] = zeros(k, k)
+    for i: ℕ(k):
+        E[i, i] = 1.0
+    E[r, r] = 1.0/piv
+    for i: ℕ(k):
+        if i != r:
+            E[i, r] = 0.0 - aug[i, c]/piv
+    return E
+
+# Gauss-Jordan elimination with naive pivoting.
+def gje_naive(M: ℝ[x, y], k: ℕ): ℝ[a, b]:
+    aug: ℝ[a, b] = augment(M, k)
+    r: ℕ = 0
+    for c: ℕ(k):
+        if r < k:
+            found = 0.0
+            cand = r
+            if aug[r, c] != 0:
+                found = 1.0
+            for i: ℕ(r+1, k):
+                if found < 0.5:
+                    if aug[i, c] != 0:
+                        cand = i
+                        found = 1.0
+            if found > 0.5:
+                Pm = swap_matrix(r, cand, k)
+                aug = Pm @ aug
+                Em = elim_matrix(aug, r, c, k)
+                aug = Em @ aug
+                r = r + 1
+    return aug
+
+# Gauss-Jordan elimination with partial pivoting.
+def gje_pp(M: ℝ[x, y], k: ℕ, ptol: ℝ): ℝ[a, b]:
+    aug: ℝ[a, b] = augment(M, k)
+    r: ℕ = 0
+    for c: ℕ(k):
+        if r < k:
+            p = r
+            pmax = abs(aug[r, c])
+            for i: ℕ(r+1, k):
+                if abs(aug[i, c]) > pmax:
+                    pmax = abs(aug[i, c])
+                    p = i
+            if pmax > ptol:
+                Pm = swap_matrix(r, p, k)
+                aug = Pm @ aug
+                Em = elim_matrix(aug, r, c, k)
+                aug = Em @ aug
+                r = r + 1
+    return aug
+
+# How far the left block is from the identity: sum of |aug[i,j] - delta_ij|
+# over the whole block. Zero exactly when the reduction produced B = I_k.
+# This is the test from Step 2 of Ma & Li, J. Comput. Appl. Math. 321 (2017) 26-43
+def identity_defect(aug: ℝ[x, y], k: ℕ): ℝ:
+    total: ℝ = 0.0
+    for i: ℕ(k):
+        for j: ℕ(k):
+            if i == j:
+                total += abs(aug[i, j] - 1.0)
+            else:
+                total += abs(aug[i, j])
+    return total
+
+# Right half of a reduced augmented matrix.
+def extract_inv(aug: ℝ[x, y], k: ℕ): ℝ[a, b]:
+    out: ℝ[a, b] = zeros(k, k)
+    out[:, :] = aug[:, k:2*k]
+    return out
+
+# A k x k all-NaN matrix.
+def nan_matrix(k: ℕ): ℝ[a, b]:
+    out: ℝ[a, b] = zeros(k, k)
+    for i: ℕ(k):
+        for j: ℕ(k):
+            out[i, j] = sqrt(0.0 - 1.0)
+    return out
+
+def inverse_naive(M: ℝ[x, y], k: ℕ, tol: ℝ): ℝ[a, b]:
+    red: ℝ[u, v] = gje_naive(M, k)
+    if identity_defect(red, k) < tol:
+        return extract_inv(red, k)
+    else:
+        return nan_matrix(k)
+
+def inverse_pp(M: ℝ[x, y], k: ℕ, tol: ℝ, ptol: ℝ): ℝ[a, b]:
+    red: ℝ[u, v] = gje_pp(M, k, ptol)
+    if identity_defect(red, k) < tol:
+        return extract_inv(red, k)
+    else:
+        return nan_matrix(k)
+
+
+n: ℕ = 3
+tol: ℝ = 0.001
+ptol: ℝ = 1.0e-6
+
+A: ℝ[n, n] = [[5.0, 7.0, 9.0], [4.0, 3.0, 8.0], [7.0, 5.0, 6.0]]
+A
+inverse_naive(A, n, tol)
+inverse_pp(A, n, tol, ptol)
+
+# Singular
+B: ℝ[n, n] = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
+B
+inverse_naive(B, n, tol)
+inverse_pp(B, n, tol, ptol)
+
+# Zero in the pivot position
+n2: ℕ = 2
+P: ℝ[n2, n2] = [[0.0, 1.0], [1.0, 0.0]]
+P
+inverse_naive(P, n2, tol)
+inverse_pp(P, n2, tol, ptol)
+
+# The pivot is nonzero but tiny, so naive
+# pivoting never swaps and loses the information to cancellation.
+S: ℝ[n2, n2] = [[1.0e-20, 1.0], [1.0, 2.0]]
+S
+inverse_naive(S, n2, tol)
+inverse_pp(S, n2, tol, ptol)
+
+# Both strategies are differentiable
+def total_naive(M: ℝ[x, y], k: ℕ, tol: ℝ): ℝ:
+    return sum(inverse_naive(M, k, tol))
+
+def total_pp(M: ℝ[x, y], k: ℕ, tol: ℝ, ptol: ℝ): ℝ:
+    return sum(inverse_pp(M, k, tol, ptol))
+
+grad(total_naive(A, n, tol), A)
+grad(total_pp(A, n, tol, ptol), A)
+
+grad(total_naive(P, n2, tol), P)
+grad(total_pp(P, n2, tol, ptol), P)
