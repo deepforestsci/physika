@@ -89,6 +89,11 @@ Matrix inverse
 .. literalinclude:: ../examples/matrix_inverse.phyk
    :language: text
 
+Gauss-Jordan matrix inverse
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: ../examples/gauss_jordan_matrix_inverse.phyk
+   :language: text
+
 Dimensional analysis
 ~~~~~~~~~~~~~~~~~~~~
 .. literalinclude:: ../examples/units_basic.phyk
