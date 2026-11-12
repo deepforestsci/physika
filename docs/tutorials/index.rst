@@ -107,6 +107,7 @@ Tutorials
    kmeans
    neural_ode
    vae_mnist
+   group_convnets
 
 .. toctree::
    :maxdepth: 1

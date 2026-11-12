@@ -1061,3 +1061,26 @@ def detach_grad(x):
     True
     """
     return x.detach().requires_grad_(True)
+
+
+def size(x):
+    """
+    Return the shape of a tensor.
+
+    Parameters
+    ----------
+    x: torch.Tensor
+        Input tensor
+
+    Returns
+    -------
+    torch.Size
+        Shape of the input tensor
+
+    Examples
+    --------
+    >>> x = tensor([[1.0, 2.0], [3.0, 4.0]])
+    >>> size(x)
+    torch.Size([2, 2])
+    """
+    return x.size()

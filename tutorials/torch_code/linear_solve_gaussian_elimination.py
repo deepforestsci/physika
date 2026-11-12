@@ -88,7 +88,7 @@ def gaussian_solve(A, b):
         for j in range(int((idx + 1)), int(a_row)):
             total = (total - (aug[int(idx), int(j)] * x[int(((j - idx) - 1))]))
         val = (total / aug[int(idx), int(idx)])
-        val = torch.reshape(val, (1,) if isinstance(1, int) else 1)
+        val = torch.reshape(val, (1,))
         x = torch.cat([val, x])
     return x
 
