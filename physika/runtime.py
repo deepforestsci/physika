@@ -1061,3 +1061,60 @@ def detach_grad(x):
     True
     """
     return x.detach().requires_grad_(True)
+
+
+def size(x):
+    """
+    Return the shape of a tensor.
+
+    Parameters
+    ----------
+    x: torch.Tensor
+        Input tensor
+
+    Returns
+    -------
+    torch.Size
+        Shape of the input tensor
+
+    Examples
+    --------
+    >>> x = tensor([[1.0, 2.0], [3.0, 4.0]])
+    >>> size(x)
+    torch.Size([2, 2])
+    """
+    return x.size()
+
+
+def max(x, dim=None):
+    """
+    Return the maximum value of a tensor.
+
+    If ``dim`` is specified, return the maximum values along that dimension.
+    Otherwise, return the maximum value across all elements.
+
+    Parameters
+    ----------
+    x: torch.Tensor
+        Input tensor
+    dim: int, optional
+        Dimension along which to compute the maximum
+
+    Returns
+    -------
+    torch.Tensor
+        Maximum value or tensor of maximum values along the specified dimension
+
+    Examples
+    --------
+    >>> x = tensor([[1.0, 4.0], [3.0, 2.0]])
+    >>> max(x)
+    tensor(4.)
+    >>> max(x, dim=0)
+    tensor([3., 4.])
+    >>> max(x, dim=1)
+    tensor([4., 3.])
+    """
+    if dim is None:
+        return torch.max(x)
+    return torch.max(x, dim=dim).values
