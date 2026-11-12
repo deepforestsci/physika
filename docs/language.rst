@@ -1240,7 +1240,7 @@ Greek uppercase Letters
      - U+03A9
      - Omega
 
-Greek uowercase Letters
+Greek lowercase Letters
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 .. list-table::
