@@ -1,0 +1,327 @@
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+
+def rand_5d_array(m: N, n: N, o: N, p: N, q: N, μ:ℝ): ℝ[m, n, o, p, q]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → for s:N(p) → for b:N(q) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_4d_array(m: N, n: N, o: N, p: N, μ:ℝ): ℝ[m, n, o, p]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → for s:N(p) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_3d_array(m: N, n: N, o: N, μ:ℝ): ℝ[m, n, o]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_2d_array(n:N, m:N, μ:ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_array(n: N, μ:ℝ): R[n]:
+    return for i:ℕ(n) → μ * eps ~ 𝒩(0.0, 1.0)
+
+
+def pad2d(x: ℝ[B, C, H, W], p: ℕ): ℝ[B, C, m, n]:
+    B, C, H, W = size(x)
+    m: ℕ = H + 2 * p
+    n: ℕ = W + 2 * p
+    Y: ℝ[B, C, m, n] = zeros(B, C, m, n)
+    Y[:, :, p:p + H, p:p + W] = x
+    return Y
+
+def cross_entropy(probs: ℝ[B, M], labels: ℝ[B]): ℝ:
+    B, M: ℝ = size(probs)
+    q: ℝ[B] = for i:ℕ(B) -> probs[i, labels[i]]
+    l = -sum(log(q)) / B
+    return l
+
+def softmax(x: ℝ[B, M]): ℝ[B, M]:
+    B, M: ℝ = size(x)
+    E: ℝ[B, M] = zeros(B, M)
+    Y: ℝ[B, M] = zeros(B, M)
+    for i: ℕ(B):
+        for j: ℕ(M):
+            E[i, j] = exp(x[i, j])
+    for i: ℕ(B):
+        S: ℝ = sum(E[i])
+        for j: ℕ(M):
+            Y[i, j] = E[i, j] / S
+    return Y
+
+
+def argmax1d(iterable: ℝ[m]): ℝ:
+    idx: ℝ = 0
+    max_val: ℝ = iterable[0]
+    len_iterable: ℝ = get_1d_array_length(iterable)
+    for i:ℕ(1, len_iterable):
+        if iterable[i] > max_val:
+            max_val: ℝ = iterable[i]
+            idx: ℝ = i
+    return idx
+
+def argmax(x: ℝ[B, C]): ℝ[B]:
+    B, C: ℝ = size(x)
+    I: ℝ[B] = zeros(B)
+    for b: ℕ(B):
+        I[b] = argmax1d(x[b])
+    return I
+
+
+def relu(x: ℝ): ℝ:
+    if x > 0.0:
+        return x
+    else:
+        return 0.0
+
+def relu5d(x: ℝ[B, O, 4, H, W]): ℝ[B, O, 4, H, W]:
+    B, O, r, H, W = size(x)
+    results: ℝ[B, O, 4, H, W] = zeros(B, O, 4, H, W)
+    for b: ℕ(B):
+        for o: ℕ(O):
+            for r: ℕ(r):
+                for i: ℕ(H):
+                    for j: ℕ(W):
+                        results[b, o, r, i, j] = relu(x[b, o, r, i, j])
+    return results
+
+
+
+
+def conv2d(input: ℝ[B, I, H, W], kernel: ℝ[O, I, K, K]): ℝ[B, O, m, n]:
+    B, I, H, W: ℝ = size(input)
+    O, I, K, K: ℝ = size(kernel)
+    H_out: ℕ = H - K + 1
+    W_out: ℕ = W - K + 1
+    results: ℝ[B, O, m, n] = zeros(B, O, H_out, W_out)
+    for b: ℕ(B):
+        for o: ℕ(O):
+            for h: ℕ(H_out):
+                for w: ℕ(W_out):
+                    patch: ℝ[I, K, K] = input[b, :, h:h+K, w:w+K]
+                    weights: ℝ[I, K, K] = kernel[o]
+                    results[b, o, h, w] = sum(patch * weights)
+    return results
+
+
+
+
+def maxpool2d(x: ℝ[B, C, H, W]): ℝ[B, C, m, n]:
+    B, C, H, W: ℝ = size(x)
+    m: ℕ = H / 2
+    n: ℕ = W / 2
+    Y: ℝ[B, C, m, n] = zeros(B, C, m, n)
+    for b: ℕ(B):
+        for i: ℕ(m):
+            for j: ℕ(n):
+                patch: ℝ[C, 2, 2] = x[b, :, i*2:i*2+2, j*2:j*2+2]
+                patch = max(patch, 2)
+                patch = max(patch, 1)
+                Y[b, :, i, j] = patch
+    return Y
+
+
+
+def gconv2d_maxpooling(x: ℝ[B, O, 4, H, W]): ℝ[B, O, m, n]:
+    return max(p4_maxpooling(x), 2)
+
+
+def p4_maxpooling(x: ℝ[B, O, 4, H, W]): ℝ[B, O, 4, m, n]:
+    B, O, r, H, W: ℝ = size(x)
+    x: ℝ[B, O*4, H, W] = view(x, B, O * 4, H, W)
+    x = maxpool2d(x)
+    B, C, m, n: ℝ = size(x)
+    x = view(x, B, O, 4, m, n)
+    return x
+
+
+
+def sort_and_flatten(x: ℝ[B, O, H, W]): ℝ[B, n]:
+    B, O, H, W: ℝ = size(x)
+    x: ℝ[B, O, H*W] = view(x, B, O, H * W)
+    x = sort(x, 2)
+    x: ℝ[B, n] = view(x, B, O * H * W)
+    return x
+
+
+
+class Z2P4Conv2d(w: ℝ[O, I, K, K], b: ℝ[O]):
+    def λ(x: ℝ[B, I, H, W]) -> ℝ[B, O, 4, m, n]:
+        B, I, H, W: ℝ = size(x)
+        m: ℕ = H - K + 1
+        n: ℕ = W - K + 1
+        y: ℝ[B, O, 4, m, n] = zeros(B, O, 4, m, n)
+        bias: ℝ[1, O, 1, 1] = reshape(b, 1, O, 1, 1)
+        for r: ℕ(4):
+            w_r: ℝ[O, I, K, K] = rot90(w, r, [2, 3])
+            z: ℝ[B, O, m, n] = conv2d(x, w_r)
+            y[:, :, r, :, :] = z + bias
+        return y
+    def update_params(lr: R, learnable_grads: list):
+        this.w = this.w - lr * learnable_grads[0]
+        this.b = this.b - lr * learnable_grads[1]
+
+
+
+class P4P4GConv2d(w: ℝ[O, I, 4, K, K], b: ℝ[O]):
+    def λ(x: ℝ[B, I, 4, H, W]) -> ℝ[B, O, 4, m, n]:
+        B, I, r, H, W: ℝ = size(x)
+        m: ℕ = H - K + 1
+        n: ℕ = W - K + 1
+        x: ℝ[B, I*4, H, W] = reshape(x, B, I * 4, H, W)
+        y: ℝ[B, O, 4, m, n] = zeros(B, O, 4, m, n)
+        bias: ℝ[1, O, 1, 1] = reshape(b, 1, O, 1, 1)
+        for r: ℕ(4):
+            w_r: ℝ[O, I, 4, K, K] = roll(w, r, 2)
+            w_r = rot90(w_r, r, [3, 4])
+            w_r: ℝ[O, I*4, K, K] = reshape(w_r, O, I * 4, K, K)
+            y[:, :, r, :, :] = conv2d(x, w_r) + bias
+        return y
+    def update_params(lr: R, learnable_grads: list):
+        this.w = this.w - lr * learnable_grads[0]
+        this.b = this.b - lr * learnable_grads[1]
+
+
+
+
+class Linear(w: ℝ[O, I], b: ℝ[O]):
+    def λ(x: ℝ[B, in]) -> ℝ[B, O]:
+        B, I: ℝ = size(x)
+        O, I: ℝ = size(w)
+        y: ℝ[B, O] = zeros(B, O)
+        for i: ℕ(B):
+            xb = reshape(x[i], I, 1)
+            yb = w @ xb
+            y[i] = reshape(yb, O) + b
+        return y
+    def update_params(lr: R, learnable_grads: list):
+        this.w = this.w - lr * learnable_grads[0]
+        this.b = this.b - lr * learnable_grads[1]
+
+
+
+
+class P4GConvNet(gconv1: Z2P4Conv2d, gconv2: P4P4GConv2d, fc: Linear):
+    def λ(x: ℝ[B, 1, H, W]) -> ℝ[B, 10]:
+        x: ℝ[B, O, 4, H, W] = relu5d(gconv1(pad2d(x, 1)))
+        x: ℝ[B, O, 4, H, W] = p4_maxpooling(x)
+        x: ℝ[B, O, 4, H, W] = relu5d(gconv2(x))
+        x: ℝ[B, O, H, W] = gconv2d_maxpooling(x)
+        x: ℝ[B, n] = sort_and_flatten(x)
+        x: ℝ[B, 10] = fc(x)
+        return softmax(x)
+    def train(train_X: ℝ[nB, B, 1, H, W], train_y: ℝ[nB, B], epochs: ℕ, lr: ℝ) -> ℝ:
+        nB, B, C, H, W: ℝ = size(train_X)
+        print(nB)
+        loss: ℝ = 0
+        for epoch: ℕ(epochs):
+            print(epoch)
+            epoch_loss: ℝ = 0
+            for bidx: ℕ(nB):
+                x: ℝ[B, C, H, W] = train_X[bidx]
+                y: ℝ[B] = train_y[bidx]
+                z: ℝ[B, 10] = this(x)
+                current_loss: ℝ = cross_entropy(z, y)
+                epoch_loss += current_loss
+                learnable_grads: list = ∇(
+                    current_loss,
+                    this.learnable_params
+                )
+                this.update_params(lr, learnable_grads)
+            epoch_loss = epoch_loss / nB
+            print(epoch_loss)
+        loss  = epoch_loss
+        return loss
+    def evaluate(test_X: ℝ[nB, B, 1, H, W], test_y: ℝ[nB, B]) -> ℝ:
+        nB, B, C, H, W: ℝ = size(test_X)
+        correct: ℕ = 0
+        total: ℕ = 0
+        for bidx: ℕ(nB):
+            x: ℝ[B, C, H, W] = test_X[bidx]
+            y: ℝ[B] = test_y[bidx]
+            logits: ℝ[B, 10] = this(x)
+            predictions: ℝ[B] = argmax(logits)
+            for idx: ℕ(B):
+                if predictions[idx] == y[idx]:
+                    correct = correct + 1
+            total = total + B
+        print(correct)
+        accuracy: ℝ = correct / total
+        return accuracy * 100.0
+    def update_params(lr: N, learnable_grads: list):
+        this.gconv1.update_params(lr, learnable_grads[:2])
+        this.gconv2.update_params(lr, learnable_grads[2:4])
+        this.fc.update_params(lr, learnable_grads[4:6])
+
+I: ℕ = 1
+O: ℕ = 6
+K: ℕ = 3
+
+H: ℕ = 28
+W: ℕ = 28
+B: ℕ = 4
+
+gconv1: Z2P4Conv2d = Z2P4Conv2d(
+    rand_4d_array(O, I, K, K, 0.1),
+    rand_array(O, 0.1)
+)
+gconv2: P4P4GConv2d = P4P4GConv2d(
+    rand_5d_array(O, O, 4, K, K, 0.1),
+    rand_array(O, 0.1)
+)
+
+
+
+H1: ℕ = H / 2
+W1: ℕ = W / 2
+H2: ℕ = H1 - K + 1
+W2: ℕ = W1 - K + 1
+H3: ℕ = H2 / 2
+W3: ℕ = W2 / 2
+flattened_size: ℕ = O * H3 * W3
+
+
+fc: Linear = Linear(
+    rand_2d_array(10, flattened_size, 0.1),
+    rand_array(10, 0.1)
+)
+
+
+model: P4GConvNet = P4GConvNet(gconv1, gconv2, fc)
+
+
+# ----------------------------------------------
+# code snippet for dataset (MNIST), and using 
+# dummy dataset to run on CI
+# ----------------------------------------------
+
+#ataset = create_dataset(80, 10, 2)
+#train_data = dataset[0]
+#test_data = dataset[1]
+#train_X: ℝ[nB, B, 1, 28, 28] = train_data[0]
+#train_y: ℝ[nB, B] = train_data[1]
+#test_X: ℝ[nB, B, 1, 28, 28] = test_data[0]
+#test_y: ℝ[nB, B] = test_data[1]
+
+# ----------------------------------------------
+nB: N = 1
+B: N = 1
+train_X: ℝ[nB, B, 1, 28, 28]  = rand_5d_array(1, 1, 1, 28, 28, 0.1)
+train_y: ℝ[nB, B] = rand_2d_array(1, 10, 0.1)
+test_X: ℝ[nB, B, 1, 28, 28] = rand_5d_array(1, 1, 1, 28, 28, 0.1)
+test_y: ℝ[nB, B] = rand_2d_array(1, 10, 0.1)
+
+# ----------------------------------------------
+
+
+epochs: ℕ = 1
+lr: ℝ = 0.1
+
+
+train_loss: ℝ = model.train(train_X, train_y, epochs, lr)
+print(train_loss)
+
+#test_loss: ℝ = model.evaluate(test_X, test_y)
+accuracy: ℝ = model.evaluate(train_X, train_y)
+print(accuracy)
