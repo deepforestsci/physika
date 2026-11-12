@@ -158,15 +158,10 @@ def gaussian_solve(A, b):
         idx = ((a_col - 1) - i)
         total = aug[int(idx), int(a_col)]
         for j in range(int((idx + 1)), int(a_row)):
-            total = (total - (aug[int(idx), int(j)] * x[int(j)]))
-        solved_val = (total / aug[int(idx), int(idx)])
-        x_next = zero_1d_array(a_col)
-        for c in range(int(0), int(a_col)):
-            if c == idx:
-                x_next[int(c)] = solved_val
-            else:
-                x_next[int(c)] = x[int(c)]
-        x = x_next
+            total = (total - (aug[int(idx), int(j)] * x[int(((j - idx) - 1))]))
+        val = (total / aug[int(idx), int(idx)])
+        val = torch.reshape(val, (1,))
+        x = torch.cat([val, x])
     return x
 
 # === Program ===
