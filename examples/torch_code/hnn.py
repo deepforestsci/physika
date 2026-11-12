@@ -19,8 +19,7 @@ def tanh(x):
 def mse_loss(symplectic_gradient, target_gradient, N=None):
     if N is None:
         N = int(target_gradient.shape[0])
-    loss = (((symplectic_gradient[int(0)] - target_gradient[int(0)]) ** 2.0) + ((symplectic_gradient[int((1 + 0))] - target_gradient[int(1)]) ** 2.0))
-    return loss
+    return (((symplectic_gradient[int(0)] - target_gradient[int(0)]) ** 2.0) + ((symplectic_gradient[int((1 + 0))] - target_gradient[int(1)]) ** 2.0))
 
 def rand_array(n, m, μ):
     return torch.stack([torch.stack([(μ * torch.distributions.Normal(0.0, 1.0).rsample()) for _fi_j in range(int(m)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])

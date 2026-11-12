@@ -762,13 +762,17 @@ def make_parser_rules():
             }
 
     def p_class_method_return_single(p):
-        """class_method_return : RETURN func_expr NEWLINE"""
+        """class_method_return : RETURN func_expr NEWLINE
+                               | func_expr NEWLINE"""
         # Single value return at the end of a class method.
         # Example:
         #   return this.x * this.x + this.y * this.y
         # Parameters:
         #   p[2] - return expression
-        p[0] = ("return_single", p[2])
+        if len(p) == 4:
+            p[0] = ("return_single", p[2])
+        else:
+            p[0] = ("return_single", p[1])
 
     def p_class_method_return_tuple(p):
         """class_method_return : RETURN return_expr_list NEWLINE"""
