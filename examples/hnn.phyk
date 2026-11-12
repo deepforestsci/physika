@@ -2,8 +2,30 @@
 # Hamiltonian Neural Network (HNN) in Physika
 # ============================================================
 # Learning the dynamics of a Simple Harmonic Oscillator
-# True Hamiltonian: H(q, p) = (q² + p²) / 2
-# Hamilton's equations: dq/dt = ∂H/∂p = p, dp/dt = -∂H/∂q = -q
+# True Hamiltonian: H(q, p) = p²/(2m) + mω²q²/2
+# Hamilton's equations:
+#   dq/dt = ∂H/∂p = p/m
+#   dp/dt = -∂H/∂q = -mω²q
+# where, m, ω = 1
+
+
+def hamiltonian(x: ℝ[2]): ℝ:
+    q, p: ℝ = x[0], x[1]
+    m, ω: ℝ = 1, 1
+    H: ℝ = p**2 / (2 * m) + (m * ω**2 * q**2) / 2
+    return H
+
+
+x: ℝ[2] = [1, 0.5]
+H: ℝ = hamiltonian(x)
+∂H⁄∂x: ℝ[2] = grad(H, x)
+∂H⁄∂q: ℝ = ∂H⁄∂x[0]
+∂H⁄∂p: ℝ = ∂H⁄∂x[1]
+
+print(∂H⁄∂x)
+print(∂H⁄∂q)
+print(∂H⁄∂p)
+
 
 def get_1d_array_length(x: ℝ[m]): ℝ:
     total, temp: ℝ = 0, 0
@@ -23,34 +45,33 @@ def tanh(x: ℝ): ℝ:
 # ------------------------------------------------------------
 
 
-def mse_loss(symplectic_gradient: ℝ[2], target_gradient: ℝ[N]): ℝ:
-    loss : ℝ = (symplectic_gradient[0] - target_gradient[0]) ** 2.0 + (symplectic_gradient[1] - target_gradient[1]) ** 2.0
-    return loss
+def loss(pred: ℝ[N], true: ℝ[N]): ℝ:
+    return (pred[0] - true[0]) ** 2.0 + (pred[1] - true[1]) ** 2.0
 
 
 class HamiltonianNet(W1: ℝ[M,N], b1: ℝ[M,1], W2: ℝ[1,M], b2: ℝ):
     def λ(x: ℝ[N, 1]) → ℝ[2]:
-        h: ℝ[1, 1] = W2 @ tanh(W1 @ x + b1) + b2
-        dh_grad: ℝ[2, 1] = ∇(h, x)
-        dh_dp: ℝ = dh_grad[1, 0]
-        dh_dq: ℝ = -dh_grad[0, 0]
-        return [dh_dp, dh_dq]
+        H: ℝ[1, 1] = W2 @ tanh(W1 @ x + b1) + b2
+        ∂H⁄∂x: ℝ[2, 1] = ∇(H, x)
+        ∂h⁄∂q: ℝ = ∂H⁄∂x[0, 0]
+        ∂h⁄∂p: ℝ = ∂H⁄∂x[1, 0]
+        return [∂h⁄∂p, -∂h⁄∂q]
     def train(train_X: ℝ[8, 2, 1], train_y: ℝ[8, 2], epochs: ℕ, lr: R) → ℝ:
         for epoch:ℕ(epochs):
-            loss: ℝ = 0
+            lo: ℝ = 0
             for i:ℕ(8)
                 state: ℝ[2, 1] = train_X[i]
                 target: ℝ[2, 1] = train_y[i]
                 prediction: ℝ[2] = this(state)
-                loss: ℝ = mse_loss(prediction, target)
-                learnable_grads: list = ∇(loss, this.learnable_params)
+                lo: ℝ = loss(prediction, target)
+                learnable_grads: list = ∇(lo, this.learnable_params)
                 this.update_params(lr, learnable_grads)
-        return loss
+        return lo
     def evaluate(X: ℝ[8,2,1], y: ℝ[8,2]) → ℝ:
         total_loss: ℝ = 0
         for j:ℕ(8):
             pred: ℝ[2] = this(X[j])
-            current_loss: ℝ = mse_loss(pred, y[j])
+            current_loss: ℝ = loss(pred, y[j])
             total_loss: ℝ = total_loss + current_loss
         return total_loss / 8
     def update_params(lr: ℝ, learnable_grads: list):

@@ -1152,13 +1152,13 @@ Physika supports scientific notation natively for numeric literals such as ``1e5
    G: ℝ = 6.674e-11    # gravitational constant (m³·kg⁻¹·s⁻²)
    c: ℝ = 3e8          # speed of light (m·s⁻¹)
 
-Greek Letters
--------------
+Mathematical Symbols as Identifiers
+-----------------------------------
 
-Physika supports Greek letters as valid symbols and variables.
+Physika allows mathematical symbols inside variable names. This are further divided as:
 
-Uppercase Letters
-~~~~~~~~~~~~~~~~~
+Greek uppercase Letters
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -1240,8 +1240,8 @@ Uppercase Letters
      - U+03A9
      - Omega
 
-Lowercase Letters
-~~~~~~~~~~~~~~~~~
+Greek lowercase Letters
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -1340,6 +1340,73 @@ Letterlike Symbols
    * - ℏ
      - U+210F
      - Planck Constant Over Two Pi
+
+Mathematical Symbols
+~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 15 30 20
+
+   * - Symbol
+     - Unicode
+     - Name
+     - Renamed To
+   * - ∂
+     - U+2202
+     - Partial Differential
+     - ``partial_``
+   * - ²
+     - U+00B2
+     - Superscript Two
+     - ``_sq``
+   * - ⁄
+     - U+2044
+     - Fraction Slash
+     - ``_over_``
+
+
+Mathematical Alphanumeric Symbols
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 15 30
+
+   * - Symbol
+     - Unicode
+     - Name
+   * - 𝐋
+     - U+1D40B
+     - Mathematical Bold Capital L
+   * - 𝘓
+     - U+1D613
+     - Mathematical Sans-Serif Italic Capital L
+   * - 𝜕
+     - U+1D715
+     - Mathematical Italic Partial Differential
+
+
+Additional Identifier Characters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 15 30
+
+   * - Symbol
+     - Unicode
+     - Name
+   * - ᵢ
+     - U+1D62
+     - Latin Subscript Small Letter I
+   * - ◌̇
+     - U+0307
+     - Combining Dot Above (e.g - q̇)
+   * - ◌̈
+     - U+0308
+     - Combining Diaeresis (e.g - q̈)
+
 
 
 Modifier letters
