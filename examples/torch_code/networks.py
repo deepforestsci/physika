@@ -27,12 +27,13 @@ def zero_2d_array(rows, cols):
     return results
 
 def σ(x):
-    rows = get_2d_array_num_rows(x)
-    cols = get_1d_array_length(x[int(0)])
-    results = zero_2d_array(rows, cols)
-    for i in range(int(0), int(rows)):
-        for j in range(int(0), int(cols)):
-            results[int(i), int(j)] = (1.0 / (1.0 + torch.exp(x[int(i), int(j)] if isinstance(x[int(i), int(j)], torch.Tensor) else torch.tensor(float(x[int(i), int(j)])))))
+    return (1.0 / (1.0 + torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))))
+
+def σ1d(x):
+    len_x = get_1d_array_length(x)
+    results = torch.zeros(int(len_x), device=DEVICE)
+    for i in range(int(0), int(len_x)):
+        results[int(i)] = (1.0 / (1.0 + torch.exp(x[int(i)] if isinstance(x[int(i)], torch.Tensor) else torch.tensor(float(x[int(i)])))))
     return results
 
 # === Classes ===
@@ -48,7 +49,7 @@ class OneLayerNet(nn.Module):
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        return ((self.W1 @ σ(((self.W0 @ x) + self.b0))) + self.b1)
+        return σ(((self.W1 * σ(((self.W0 @ x) + self.b0))) + self.b1))
 
     def loss(self, y, target):
         this = self
@@ -57,20 +58,19 @@ class OneLayerNet(nn.Module):
         return ((y - target) ** 2.0)
 
 class FullyConnectedNetwork(nn.Module):
-    def __init__(self, W, B, w, b, n):
+    def __init__(self, W, B, w, b):
         super().__init__()
         self.W = nn.Parameter(torch.as_tensor(W))
         self.B = nn.Parameter(torch.as_tensor(B))
         self.w = nn.Parameter(torch.as_tensor(w))
         self.b = nn.Parameter(torch.as_tensor(b))
-        self.n = int(n)
         self.learnable_params = list(self.parameters())
 
     def forward(self, x):
         this = self
         x = torch.as_tensor(x, device=DEVICE).float()
-        for k in range(len(self.W)):
-            x = σ(((self.W[int(k)] @ x) + self.B[int(k)]))
+        for i in range(len(self.W)):
+            x = σ1d(((self.W[int(i)] @ x) + self.B[int(i)]))
         return ((self.w @ x) + self.b)
 
     def loss(self, y, target):
@@ -80,18 +80,18 @@ class FullyConnectedNetwork(nn.Module):
         return ((y - target) ** 2.0)
 
 # === Program ===
-W0 = torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], device=DEVICE)
-c0 = torch.tensor([[0.1], [0.2]], device=DEVICE)
-w1 = torch.tensor([[0.7, 0.8]], device=DEVICE)
+W0 = torch.tensor([0.1, 0.2], device=DEVICE)
+b0 = 0.1
+w1 = 0.1
 b1 = 0.3
-net1 = OneLayerNet(W0, c0, w1, b1)
-x = torch.tensor([[1.0], [2.0], [3.0]], device=DEVICE)
+net1 = OneLayerNet(W0, b0, w1, b1)
+x = torch.tensor([1.0, 2.0], device=DEVICE)
 print(net1(x))
 W = torch.tensor([[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], [[0.2, 0.3, 0.4], [0.5, 0.6, 0.7], [0.8, 0.9, 0.1]]], device=DEVICE)
-B = torch.tensor([[[0.1], [0.2], [0.3]], [[0.1], [0.2], [0.3]]], device=DEVICE)
-w = torch.tensor([[0.5, 0.5, 0.5]], device=DEVICE)
+B = torch.tensor([[0.1, 0.2, 0.3], [0.1, 0.2, 0.3]], device=DEVICE)
+w = torch.tensor([0.5, 0.5, 0.5], device=DEVICE)
 b = 0.1
-net2 = FullyConnectedNetwork(W, B, w, b, 2)
-print(net2(torch.tensor([[1.0], [2.0], [3.0]], device=DEVICE)))
-print(net2(torch.tensor([[0.0], [0.0], [0.0]], device=DEVICE)))
-print(net2(torch.tensor([[1.0], [1.0], [1.0]], device=DEVICE)))
+net2 = FullyConnectedNetwork(W, B, w, b)
+print(net2(torch.tensor([1.0, 2.0, 3.0], device=DEVICE)))
+print(net2(torch.tensor([0.0, 0.0, 0.0], device=DEVICE)))
+print(net2(torch.tensor([1.0, 1.0, 1.0], device=DEVICE)))

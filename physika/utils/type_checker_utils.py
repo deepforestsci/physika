@@ -1194,8 +1194,24 @@ def matmul_op(t1: Optional[Type], t2: Optional[Type],
                       f"; different dims {s1[0]} ≠ {s2[0]}")
         return T_REAL
 
+    # Matrix-vector multiplication
+    # ℝ[m,n] @ ℝ[n] -> ℝ[m]
+    if r1 == 2 and r2 == 1:
+        if not dims_compatible(s1[1], s2[0]):
+            add_error(f"Matmul inner dimension mismatch: {lhs} @ {rhs}"
+                      f"; different dims {s1[1]} ≠ {s2[0]}")
+        return make_tensor([s1[0]])
+
+    # Vector-matrix multiplication
+    # ℝ[n] @ ℝ[n,m] -> ℝ[m]
+    if r1 == 1 and r2 == 2:
+        if not dims_compatible(s1[0], s2[0]):
+            add_error(f"Matmul inner dimension mismatch: {lhs} @ {rhs}"
+                      f"; different dims {s1[0]} ≠ {s2[0]}")
+        return make_tensor([s2[1]])
+
     # Mixed rank:
-    # if one 1D and one 2D or higher, returns error.
+    # if one 1D and one 3D or higher, returns error.
     # suggest explicit 2D form
     if r1 == 1 or r2 == 1:
         if r1 == 1:
