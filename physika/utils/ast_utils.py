@@ -763,12 +763,27 @@ def ast_to_torch_expr(node: ASTNode,
                     f"device=DEVICE)")
 
         elif func_name == "reshape":
-            # tensor node
             x = arg_strs[0]
-            # dim node
-            dim = arg_strs[1]
-            return (f"torch.reshape({x}, "
-                    f"({dim},) if isinstance({dim}, int) else {dim})")
+            dims = ", ".join(arg_strs[1:])
+            if len(arg_strs[1:]) == 1:
+                dims += ","
+            return f"torch.reshape({x}, ({dims}))"
+
+        elif func_name == "view":
+            x = arg_strs[0]
+            dims = ", ".join(arg_strs[1:])
+            return f"{x}.view({dims})"
+
+        elif func_name == "rot90":
+            x = arg_strs[0]
+            k = arg_strs[1]
+            dims = ", ".join(arg_strs[2:])
+            return f"torch.rot90({x}, k={k}, dims=tuple(int(d) for d in {dims}))"  # noqa
+
+        elif func_name == "sort":
+            x = arg_strs[0]
+            dim = arg_strs[1] if len(arg_strs) > 1 else "-1"
+            return f"torch.sort({x}, dim={dim}).values"
 
         elif func_name in multi_arg_funcs:
             return f"{multi_arg_funcs[func_name]}({', '.join(arg_strs)})"
