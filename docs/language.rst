@@ -1361,6 +1361,23 @@ notation.
      - Modifier Letter Capital T
 
 
+Mathematical operators
+----------------------
+
+Physika supports mathematical operator symbols for expressing mathematical operations.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 15 35
+
+   * - Symbol
+     - Unicode
+     - Name
+   * - ``|..|``
+     - U+007C
+     - VERTICAL LINE (used as a pair for absolute value)
+
+
 Import statements
 -----------------
 
