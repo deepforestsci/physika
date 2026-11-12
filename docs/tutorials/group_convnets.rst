@@ -367,7 +367,7 @@ we select the maximum value among the four orientations.
 .. code-block:: text
 
    def gconv2d_maxpooling(x: ℝ[B, O, 4, H, W]) -> ℝ[B, O, m, n]:
-       return max(p4_maxpooling(x), 2)
+       return max_value(p4_maxpooling(x), 2)
 
 The ``p4_maxpooling`` function first reduces the spatial dimensions.
 We then take the maximum over the orientation dimension, producing
@@ -623,8 +623,8 @@ Full code
             for i: ℕ(m):
                 for j: ℕ(n):
                     patch: ℝ[C, 2, 2] = x[b, :, i*2:i*2+2, j*2:j*2+2]
-                    patch = max(patch, 2)
-                    patch = max(patch, 1)
+                    patch = max_value(patch, 2)
+                    patch = max_value(patch, 1)
                     Y[b, :, i, j] = patch
         return Y
 
@@ -638,7 +638,7 @@ Full code
         return x
 
     def gconv2d_maxpooling(x: ℝ[B, O, 4, H, W]): ℝ[B, O, m, n]:
-        return max(p4_maxpooling(x), 2)
+        return max_value(p4_maxpooling(x), 2)
 
     def sort_and_flatten(x: ℝ[B, O, H, W]): ℝ[B, n]:
         B, O, H, W: ℝ = size(x)

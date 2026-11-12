@@ -1,3 +1,33 @@
+(CIC: 26 construct(s) not fully verified yet; switching to HM type checking and standard codegen for those)
+    - In function 'rand_5d_array': kernel check failed against declared return type ℝ[m, n, o, p, q]: Unresolved MVar '_for_expr.17'term must be fully elaborated before kernel checking
+    - In function 'rand_4d_array': kernel check failed against declared return type ℝ[m, n, o, p]: Unresolved MVar '_for_expr.23'term must be fully elaborated before kernel checking
+    - In function 'rand_3d_array': kernel check failed against declared return type ℝ[m, n, o]: Unresolved MVar '_for_expr.28'term must be fully elaborated before kernel checking
+    - In function 'rand_2d_array': kernel check failed against declared return type ℝ[n, m]: Unresolved MVar '_for_expr.32'term must be fully elaborated before kernel checking
+    - In function 'rand_array': kernel check failed against declared return type ℝ[n]: Unresolved MVar '_for_expr.35'term must be fully elaborated before kernel checking
+    - In function 'pad2d': kernel check failed against declared return type ℝ[B, C, ?, ?]: inferred type does not match declared type
+    - In call to 'log': expected ℝ but got ℝ[B]
+    - In function 'cross_entropy': kernel check failed against declared return type ℝ: Unresolved MVar 'l.39'term must be fully elaborated before kernel checking
+    - In function 'softmax': kernel check failed against declared return type ℝ[B, M]: Unresolved MVar '_unelaborated_Y.43'term must be fully elaborated before kernel checking
+    - In function 'argmax': kernel check failed against declared return type ℝ[B]: Unresolved MVar '_unelaborated_I.46'term must be fully elaborated before kernel checking
+    - In function 'relu5d': kernel check failed against declared return type ℝ[B, O, 4, H, W]: Unresolved MVar '_unelaborated_results.48'term must be fully elaborated before kernel checking
+    - In function 'conv2d': kernel check failed against declared return type ℝ[B, O, 0, 0]: Unresolved MVar '_unelaborated_results.50'term must be fully elaborated before kernel checking
+    - In function 'maxpool2d': kernel check failed against declared return type ℝ[B, C, ?, ?]: Unresolved MVar '_unelaborated_Y.54'term must be fully elaborated before kernel checking
+    - In function 'gconv2d_maxpooling': kernel check failed against declared return type ℝ[B, O, ?, ?]: Unresolved MVar 'max_value_result.59'term must be fully elaborated before kernel checking
+    - In function 'p4_maxpooling': variable 'x' reassigned value of type ℝ[B, Nat.rec ? Nat.rec ? Nat.zero ? ? ? ?, ?, ?], previously ℝ[B, Nat.mul ? ?, H, W]
+    - In function 'p4_maxpooling': kernel check failed against declared return type ℝ[B, O, 4, ?, ?]: Unresolved MVar '_unelaborated_x.68'term must be fully elaborated before kernel checking
+    - In method 'Z2P4Conv2d.λ': kernel check failed against declared return type ℝ[B, O, 4, m, n]: Unresolved MVar '_unelaborated_y.75'term must be fully elaborated before kernel checking
+    - In method 'P4P4GConv2d.λ': kernel check failed against declared return type ℝ[B, O, 4, m, n]: Unresolved MVar '_unelaborated_y.79'term must be fully elaborated before kernel checking
+    - In method 'Linear.λ': kernel check failed against declared return type ℝ[B, O]: Unresolved MVar '_unelaborated_y.81'term must be fully elaborated before kernel checking
+    - In method 'P4GConvNet.λ': variable 'x' declared ℝ[B, 0, 4, H, W] but assigned value of type ℝ[B, 0, 4, ?, ?]
+    - In method 'P4GConvNet.λ': variable 'x' declared ℝ[B, 0, H, W] but assigned value of type ℝ[B, 0, ?, ?]
+    - In method 'P4GConvNet.train': kernel check failed against declared return type ℝ: Unresolved MVar '_unelaborated_loss.112'term must be fully elaborated before kernel checking
+    - At top level ('gconv1'): inferred type does not match declared type
+    - At top level ('gconv2'): inferred type does not match declared type
+    - At top level ('train_y'): inferred type does not match declared type
+    - At top level ('test_y'): inferred type does not match declared type
+✓ No type errors found
+
+=== Physika generated Pytorch code ===
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -114,13 +144,13 @@ def maxpool2d(x):
         for i in range(int(0), int(m)):
             for j in range(int(0), int(n)):
                 patch = x[int(b), :, int((i * 2)):int(((i * 2) + 2)), int((j * 2)):int(((j * 2) + 2))]
-                patch = max(patch, 2)
-                patch = max(patch, 1)
+                patch = torch.max(patch, dim=int(2)).values
+                patch = torch.max(patch, dim=int(1)).values
                 Y[int(b), :, int(i), int(j)] = patch
     return Y
 
 def gconv2d_maxpooling(x):
-    return max(p4_maxpooling(x), 2)
+    return torch.max(p4_maxpooling(x), dim=int(2)).values
 
 def p4_maxpooling(x):
     B, O, r, H, W = size(x)
@@ -324,3 +354,11 @@ train_loss = model.train(train_X, train_y, epochs, lr)
 print(print(train_loss))
 accuracy = model.evaluate(train_X, train_y)
 print(print(accuracy))
+=== End Pytorch code ===
+
+1 ∈ ℝ
+0 ∈ ℝ
+2.179105043411255 ∈ ℝ
+2.179105043411255 ∈ ℝ
+0 ∈ ℝ
+0.0 ∈ ℝ

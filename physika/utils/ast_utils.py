@@ -785,7 +785,7 @@ def ast_to_torch_expr(node: ASTNode,
             dim = arg_strs[1] if len(arg_strs) > 1 else "-1"
             return f"torch.sort({x}, dim={dim}).values"
 
-        elif func_name == "max":
+        elif func_name == "max_value":
             x = arg_strs[0]
             if len(arg_strs) == 1:
                 return f"torch.max({x})"
