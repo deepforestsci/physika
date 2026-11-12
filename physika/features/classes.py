@@ -66,6 +66,41 @@ def replace_class_params(code: str, all_params: list) -> str:
     return code
 
 
+def replace_class_methods(code: str, method_names: Collection[str]) -> str:
+    """
+    Add `self.` prefix to class methods to match Python code.
+
+    Parameters
+    ----------
+    code: str
+        Converted Python code using `emit_body_stmts` that contains method
+        calls as bare method names and needs `self.` prefix to run in Python.
+    method_names: list
+        List of class method names.
+    
+    Returns
+    -------
+    code: str
+        Same Pythonic code with `self.` prefix added to class method calls.
+    
+    Examples
+    --------
+    >>> from physika.features.classes import replace_class_methods
+    >>> replace_class_methods("f(value)", ["f"])
+    'self.f(value)'
+    >>> replace_class_methods("this.f(value)", ["f"])
+    'this.f(value)'
+    >>> replace_class_methods("obj.f(value)", ["f"])
+    'obj.f(value)'
+    >>> replace_class_methods("f + 1", ["f"])
+    'f + 1'
+    """
+    for method_name in method_names:
+        code = re.sub(rf'(?<![.\w]){re.escape(method_name)}(?=\s*\()',
+                      f'self.{method_name}', code)
+    return code
+
+
 def unwrap_return(ret: Optional[tuple]) -> Optional[tuple]:
     """
     Helper function to build a return expression that will be used
@@ -160,14 +195,15 @@ def build_class(constructor_params: Optional[list], body_items: list) -> dict:
 
 
 def emit_method(
-    method: dict,
-    all_params: list,
-    constructor_params: list,
-    to_expr: Callable,
-    scalar_only: bool,
-    resolved: Optional[tuple] = None,
-    resolved_names: Collection[str] = (),
-    grad_targets: Collection[str] = ()
+        method: dict,
+        all_params: list,
+        constructor_params: list,
+        to_expr: Callable,
+        scalar_only: bool,
+        resolved: Optional[tuple] = None,
+        resolved_names: Collection[str] = (),
+        grad_targets: Collection[str] = (),
+        method_names: Collection[str] = (),
 ) -> list[str]:
     """
     Emit code for a class method as an ``nn.Module`` class.
@@ -305,8 +341,8 @@ def emit_method(
         }
         for line in stmt_method_lines:
             line_sub = re.sub(r'\bthis\b', 'self', line)
-
             line_sub = replace_class_params(line_sub, all_params)
+            line_sub = replace_class_methods(line_sub, method_names)
 
             # Handle indexed assignment on learnable_params
             # e.g -
@@ -359,6 +395,7 @@ def emit_method(
             method_lines.append(f"        return ({', '.join(parts)})")
         else:
             body_sub = re.sub(this_re, 'self', to_expr(body))
+            body_sub = replace_class_methods(body_sub, method_names)
             ret = replace_class_params(body_sub, all_params)
             method_lines.append(f"        return {ret}")
 
@@ -429,6 +466,7 @@ def generate_class(
     constructor_params = class_def["class_params"]
     fields = class_def.get("fields", [])
     methods = class_def["methods"]
+    method_names = [m["name"] for m in methods]
 
     all_params = list(constructor_params) + list(fields)
 
@@ -546,7 +584,8 @@ def generate_class(
                                   scalar_only,
                                   resolved=method_resolved,
                                   resolved_names=resolved_names,
-                                  grad_targets=grad_targets)
+                                  grad_targets=grad_targets,
+                                  method_names=method_names)
         except Exception as e:
             # Method was CIC verified but torch_lowering failed
             # fall back to raw-AST codegen for this method.

@@ -1,7 +1,7 @@
 from physika.features.classes import (is_learnable, replace_class_params,
-                                      unwrap_return, build_class, emit_method,
-                                      generate_class, make_parser_rules,
-                                      ClassFeature)
+                                      replace_class_methods, unwrap_return,
+                                      build_class, emit_method, generate_class,
+                                      make_parser_rules, ClassFeature)
 import re
 import pytest
 from physika.utils.ast_utils import build_unified_ast, ast_to_torch_expr
@@ -162,6 +162,33 @@ class TestReplaceClassParams:
                                     [("mass", "ℝ")]) == "x + y * z"
         # empty param list also dont change code
         assert replace_class_params("mass * 0.5", []) == "mass * 0.5"
+
+
+class TestReplaceClassMethods:
+    """
+    Tests for ``replace_class_methods`` helper function to add 'self.' prefix.
+    """
+
+    def test_method_replacement(self):
+        """method call generates as elf.method()."""
+        assert replace_class_methods("f(value)", ["f"]) == "self.f(value)"
+
+        # Explicit object references should never be modified
+        assert replace_class_methods("self.f(value)", ["f"]) == "self.f(value)"
+
+        assert replace_class_methods("this.f(value)", ["f"]) == "this.f(value)"
+
+        assert replace_class_methods("obj.f(value)", ["f"]) == "obj.f(value)"
+
+        # Multiple method replacements
+        result = replace_class_methods("f(x) + g(y)", ["f", "g"])
+        assert result == "self.f(x) + self.g(y)"
+
+        # No matching methods returns code unchanged
+        assert replace_class_methods("g(value)", ["f"]) == "g(value)"
+
+        # Empty method list also doesn't change code
+        assert replace_class_methods("f(value)", []) == "f(value)"
 
 
 class TestUnwrapReturn:
