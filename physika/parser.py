@@ -1413,6 +1413,14 @@ def p_factor_nabla_call(p):
     p[0] = ("call", "grad", args)
 
 
+def p_factor_summation_call(p):
+    """factor      : SUMMATION LPAREN args RPAREN
+       func_factor : SUMMATION LPAREN func_args RPAREN"""
+    # AST node for ``sum`` function call
+    args = p[3]
+    p[0] = ("call", "sum", args)
+
+
 def p_factor_call(p):
     """factor : ID LPAREN args RPAREN"""
     # Return AST node for function call

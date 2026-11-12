@@ -732,7 +732,6 @@ def ast_to_torch_expr(node: ASTNode,
             "cos": "torch.cos",
             "sqrt": "torch.sqrt",
             "abs": "torch.abs",
-            "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
         }
@@ -798,6 +797,9 @@ def ast_to_torch_expr(node: ASTNode,
                 inner_call = f"{inner_func}({', '.join(new_arg_strs)})"
                 return f"compute_grad(lambda {lamb_var}: {inner_call}, {arg_strs[1]})"  # noqa
             return f"compute_grad({', '.join(arg_strs)})"
+
+        elif func_name == "sum":
+            return f"torch.sum({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa
 
         elif func_name == "subs":
             # Substitution is used in mathematical expression which replace
