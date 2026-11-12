@@ -303,7 +303,7 @@ def from_ast_to_torch(unified_ast: Dict[str, Any],
     # Generate program statements
     code_lines.append("# === Program ===")
 
-    unit_env: Dict[str, Any] = {} 
+    unit_env: Dict[str, Any] = {}
     for idx, stmt in enumerate(unified_ast["program"]):
         resolved_expr_code = None
         # lookup if there are any CIC elaborated terms from top level program
