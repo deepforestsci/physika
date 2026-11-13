@@ -45,8 +45,10 @@ def tensor_contraction(A, B, C):
     T = torch.stack([torch.stack([torch.stack([torch.sum(torch.stack([((A[int(i), int(k)] * B[int(k), int(j)]) * C[int(k), int(l)]) for k in range(A.shape[1])])) for l in range(C.shape[1])]) for j in range(B.shape[1])]) for i in range(A.shape[0])])
     return T
 
-def sum_or_sum_sq(arr, sq):
-    return torch.where(torch.as_tensor(sq > 0.0), torch.sum(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]) if isinstance(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]), torch.Tensor) else torch.tensor(float(torch.stack([(arr[int(i)] ** 2) for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])))), torch.sum(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]) if isinstance(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device=DEVICE)]]), torch.Tensor) else torch.tensor(float(torch.stack([arr[int(i)] for _fi_i in range(int(len(arr))) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])))))
+def sum_or_sum_sq(arr, sq, n=None):
+    if n is None:
+        n = int(arr.shape[0])
+    return (torch.sum(torch.stack([torch.as_tensor((arr[int(i)] ** 2)) for i in range(int(n))]).float()) if (sq > 0.0) else torch.sum(torch.stack([torch.as_tensor(arr[int(i)]) for i in range(int(n))]).float()))
 
 def abs_sum(arr):
     total = 0.0
@@ -215,8 +217,8 @@ print(chain_mm(A2, B2))
 C_mat = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], device=DEVICE)
 print(tensor_contraction(A2, B2, C_mat))
 w = torch.tensor([1.0, 2.0, 3.0, 4.0], device=DEVICE)
-print(sum_or_sum_sq(w, 1.0))
-print(sum_or_sum_sq(w, (0.0 - 1.0)))
+print(sum_or_sum_sq(w, 1.0, 4))
+print(sum_or_sum_sq(w, (0.0 - 1.0), 4))
 pos = torch.tensor([1.0, 2.0, 3.0, 4.0], device=DEVICE)
 neg = torch.stack([torch.as_tensor((0.0 - 1.0)), torch.as_tensor((0.0 - 2.0)), torch.as_tensor((0.0 - 3.0)), torch.as_tensor((0.0 - 4.0))])
 print(abs_sum(pos))
