@@ -1,0 +1,101 @@
+# DFN-local Gaussian elimination with partial pivoting.
+# Block copies, cached pivot magnitudes and tensor back substitution
+# retain the forward-solve speedup without changing other tutorials.
+
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def get_2d_array_num_cols(x: ℝ[m, n]): ℝ:
+    return get_1d_array_length(x[0])
+
+def max(x: ℝ, y: ℝ): ℝ:
+    if x>y:
+        return x
+    else:
+        return y
+
+def min(x: ℝ, y: ℝ): ℝ:
+    if x<y:
+        return x
+    else:
+        return y
+
+
+def gaussian_solve(A: R[m, n], b: R[n]): R[n]:
+    a_row: ℝ = get_2d_array_num_rows(A)
+    a_col: ℝ = get_2d_array_num_cols(A)
+    # -------------------------
+    # Create augmented matrix
+    # -------------------------
+    new_col: ℝ = a_col + 1
+    aug: ℝ[a_row, new_col] = zeros(a_row, new_col)
+    aug[:, :a_col] = A
+    aug[:, a_col] = b
+    # -------------------------
+    # Forward elimination
+    # -------------------------
+    for i:ℕ(a_row):
+        # -------------------------
+        # Partial pivoting
+        # -------------------------
+        max_row = i
+        # Evaluate the column magnitudes once, retaining the first maximum
+        # on ties as in the scalar partial-pivoting algorithm.
+        magnitudes = abs(aug[i:, i])
+        largest = magnitudes[0]
+        for k:ℕ(i + 1, a_row):
+            if magnitudes[k-i] > largest:
+                max_row = k
+                largest = magnitudes[k-i]
+        # ----------------------------------------
+        # Swap max_row with the current i-th row
+        # ----------------------------------------
+        if max_row != i:
+            lo = min(i, max_row)
+            hi = max(i, max_row)
+            rows_above = aug[:lo, :]
+            pivot_row = aug[hi:hi+1, :]
+            rows_between = aug[lo+1:hi, :]
+            current_row = aug[lo:lo+1, :]
+            rows_below = aug[hi+1:, :]
+            aug = concat(
+                rows_above,
+                pivot_row,
+                rows_between,
+                current_row,
+                rows_below,
+            )
+        # -------------------------
+        # Forward elimination
+        # -------------------------
+        pivot_row = aug[i:i+1, :]
+        pivot_value = aug[i, i]
+        rows_below = aug[i+1:, :]
+        elimination_factors = rows_below[:, i:i+1] / pivot_value
+        eliminated_rows = rows_below - elimination_factors * pivot_row
+        aug = concat(aug[:i+1, :], eliminated_rows)
+    # -------------------------
+    # Back substitution
+    # -------------------------
+    x = zeros(0)
+    for i:N(a_row):
+        idx = a_col - 1 - i
+        total = aug[idx, a_col] - sum(aug[idx, idx+1:a_col] * x)
+        val = total / aug[idx, idx]
+        val = reshape(val, 1)
+        x = concat(val, x)
+    return x
+

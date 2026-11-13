@@ -1,0 +1,145 @@
+# Chen2020 lumped thermal balance, matching PyBaMM's arbitrary cell geometry.
+# Entropic coefficients are zero; mixing, hysteresis and contact heat are off.
+cooling_coefficient: ℝ = 10.0
+cooling_area: ℝ = 0.00531
+cell_volume: ℝ = 2.42e-5
+collector_length_n: ℝ = 1.2e-5
+collector_length_p: ℝ = 1.6e-5
+collector_sigma_n: ℝ = 58411000.0
+collector_sigma_p: ℝ = 36914000.0
+thermal_length: ℝ = collector_length_n+length_n+length_s+length_p+collector_length_p
+thermal_capacity: ℝ = cell_volume*(collector_length_n*8960.0*385.0+length_n*1657.0*700.0+length_s*397.0*700.0+length_p*3262.0*700.0+collector_length_p*2700.0*897.0)/thermal_length
+temperature_index: ℕ = ns_n+ns_p+ne
+heat_scale: ℝ = 1.0
+heat_sharpness: ℝ = 1000.0
+
+def cell_temperature(x: ℝ[nd]): ℝ:
+    return temperature+x[temperature_index]
+
+def exchange_n_thermal(ce: ℝ[m], cs: ℝ[m], T: ℝ): ℝ[m]:
+    q: ℝ[m] = maximum(minimum(cs,cmax_n),0.0)
+    return 6.48e-7*exp(35000.0/gas_constant*(1.0/298.15-1.0/T))*sqrt(maximum(ce,0.0))*sqrt(q)*sqrt(cmax_n-q)
+
+def exchange_p_thermal(ce: ℝ[m], cs: ℝ[m], T: ℝ): ℝ[m]:
+    q: ℝ[m] = maximum(minimum(cs,cmax_p),0.0)
+    return 3.42e-6*exp(17800.0/gas_constant*(1.0/298.15-1.0/T))*sqrt(maximum(ce,0.0))*sqrt(q)*sqrt(cmax_p-q)
+
+def edge_average(v: ℝ[m], cells: ℕ): ℝ[cells]:
+    return 0.5*(v[0:cells]+v[1:cells+1])
+
+# PyBaMM's finite-volume inner product maps each edge operand to centres
+# before multiplication. Apply the same convention to the heat sources.
+# [solid Ohmic, electrolyte Ohmic, reaction, collectors, reversible, total] W.
+def heat_components(x: ℝ[nd], z: ℝ[na], theta: ℝ[n_parameters]): ℝ[6]:
+    grad_n: ℝ[nx_n+1] = gradient_values(z[0:nx_n],width_n,nx_n)
+    grad_n[0] = 2.0*z[0]/width_n[0]
+    grad_p: ℝ[nx_p+1] = gradient_values(positive_profile(z),width_p,nx_p)
+    grad_p[nx_p] = -z[nv]/(area*sigma_p)
+    gn: ℝ[nx_n] = edge_average(grad_n,nx_n)
+    gp: ℝ[nx_p] = edge_average(grad_p,nx_p)
+    solid: ℝ = area*(sum(width_n*sigma_n*gn**2)+sum(width_p*sigma_p*gp**2))
+    grad_e: ℝ[ne+1] = gradient_values(z[nx_n+nx_p:nv],width,ne)
+    ionic: ℝ[ne+1] = electrolyte_current(0.0,x,z,theta)
+    electrolyte: ℝ = -area*sum(width*edge_average(ionic,ne)*edge_average(grad_e,ne))
+    reaction: ℝ = area*(sum(width_n*a_n*reaction_n(0.0,x,z)*reaction_overpotential_n(x,z))+sum(width_p*a_p*reaction_p(0.0,x,z)*reaction_overpotential_p(x,z)))
+    collectors: ℝ = z[nv]**2/area*(collector_length_n/collector_sigma_n+collector_length_p/collector_sigma_p)
+    return [solid,electrolyte,reaction,collectors,0.0,solid+electrolyte+reaction+collectors]
+
+def thermal_rate(x: ℝ[nd], z: ℝ[na], theta: ℝ[n_parameters]): ℝ:
+    heat: ℝ[6] = heat_components(x,z,theta)
+    return (heat[5]-cooling_coefficient*cooling_area*x[temperature_index])/thermal_capacity
+
+def local_heat_state(u: ℝ[nb], theta: ℝ[n_parameters]): ℝ:
+    w: ℝ[nb] = u*solver_scale
+    heat: ℝ[6] = heat_components(w[0:nd],w[nd:nb],theta)
+    return heat[5]/heat_scale
+
+def local_heat_parameter(theta: ℝ[n_parameters], u: ℝ[nb]): ℝ:
+    return local_heat_state(u,theta)
+
+# Integrate exp(rho*H) exactly on each linearly interpolated heat interval.
+# This avoids a separate trapezoid error when rho makes the peak narrow.
+def heat_interval_exponential(v: ℝ[2], shift: ℝ): ℝ:
+    d: ℝ = heat_sharpness*(v[1]-v[0])
+    if abs(d) < 0.05:
+        return exp(heat_sharpness*(v[0]-shift))*(1.0+d/2.0+d**2/6.0+d**3/24.0+d**4/120.0+d**5/720.0)
+    if d > 0.0:
+        return exp(heat_sharpness*(v[1]-shift))*(1.0-exp(-d))/d
+    return exp(heat_sharpness*(v[0]-shift))*(1.0-exp(d))/(-d)
+
+def mission_heat_values(theta: ℝ[n_parameters], tape: ℝ[max_nodes,tape_columns]): ℝ[max_nodes]:
+    values: ℝ[max_nodes] = zeros(max_nodes)
+    w: ℝ[nb] = zeros(nb)
+    heat: ℝ[6] = zeros(6)
+    for node:ℕ(1,tape[0,0]+1.0):
+        w = tape[node,6:tape_columns]
+        heat = heat_components(w[0:nd],w[nd:nb],theta)
+        values[node] = heat[5]/heat_scale
+    return values
+
+def heat_objective(theta: ℝ[n_parameters], tape: ℝ[max_nodes,tape_columns]): ℝ:
+    last: ℝ = tape[0,0]
+    values: ℝ[max_nodes] = mission_heat_values(theta,tape)
+    shift: ℝ = -1e6
+    total: ℝ = 0.0
+    duration: ℝ = max(1e-9,tape[last,0]-tape[1,0])
+    for node:ℕ(1,last+1.0):
+        shift = max(shift,values[node])
+    for node:ℕ(2,last+1.0):
+        if tape[node,1] > 0.0:
+            total = total+tape[node,1]*heat_interval_exponential([values[node-1],values[node]],shift)
+    return shift+log(total/duration)/heat_sharpness
+
+# These are dJ/dH at the physical saved states. Their sum is analytically one;
+# normalization removes the rounding error in the common exponential shift.
+def heat_objective_weights(theta: ℝ[n_parameters], tape: ℝ[max_nodes,tape_columns], objective: ℝ): ℝ[max_nodes]:
+    values: ℝ[max_nodes] = mission_heat_values(theta,tape)
+    weights: ℝ[max_nodes] = zeros(max_nodes)
+    pair: ℝ[2] = zeros(2)
+    derivative: ℝ[2] = zeros(2)
+    last: ℝ = tape[0,0]
+    duration: ℝ = max(1e-9,tape[last,0]-tape[1,0])
+    for node:ℕ(2,last+1.0):
+        if tape[node,1] > 0.0:
+            pair = [values[node-1],values[node]]
+            derivative = tape[node,1]/(duration*heat_sharpness)*grad(heat_interval_exponential(pair,objective),pair)
+            weights[node-1] = weights[node-1]+derivative[0]
+            weights[node] = weights[node]+derivative[1]
+    if sum(weights) > 0.0:
+        weights = weights/sum(weights)
+    return weights
+
+# [peak W, peak K, Q Ah, generated J, removed J, stored J, balance error J,
+#  heat peak time s, final K, solid/electrolyte/reaction W at the heat peak].
+def thermal_metrics(theta: ℝ[n_parameters], tape: ℝ[max_nodes,tape_columns]): ℝ[12]:
+    result: ℝ[12] = [-1e6,temperature,0.0,0.0,0.0,0.0,0.0,0.0,temperature,0.0,0.0,0.0]
+    w: ℝ[nb] = zeros(nb)
+    x: ℝ[nd] = zeros(nd)
+    heat: ℝ[6] = zeros(6)
+    increment_heat: ℝ = 0.0
+    increment_cooling: ℝ = 0.0
+    removed: ℝ = 0.0
+    last: ℕ = tape[0,0]
+    for node:ℕ(1,last+1):
+        w = tape[node,6:tape_columns]
+        x = w[0:nd]
+        heat = heat_components(x,w[nd:nb],theta)
+        result[1] = max(result[1],cell_temperature(x))
+        if heat[5] > result[0]:
+            result[0] = heat[5]
+            result[7] = tape[node,0]
+            result[9:12] = heat[0:3]
+        if tape[node,1] > 0.0:
+            removed = cooling_coefficient*cooling_area*x[temperature_index]
+            increment_heat = (tape[node,1]*heat[5]+tape[node,4]*increment_heat)/tape[node,2]
+            increment_cooling = (tape[node,1]*removed+tape[node,4]*increment_cooling)/tape[node,2]
+            result[3] = result[3]+increment_heat
+            result[4] = result[4]+increment_cooling
+        else:
+            increment_heat = 0.0
+            increment_cooling = 0.0
+    result[2] = tape[last,6+nd-1]
+    result[5] = thermal_capacity*(tape[last,6+temperature_index]-tape[1,6+temperature_index])
+    result[6] = abs(result[3]-result[4]-result[5])
+    result[8] = temperature+tape[last,6+temperature_index]
+    return result

@@ -1,0 +1,353 @@
+# BDF2 for this fixed DFN. All iteration and time-step decisions live
+# here; the existing Physika Gaussian solver supplies the linear solves.
+newton_tolerance: ℝ = 2e-6
+algebraic_tolerance: ℝ = 2e-3
+relative_tolerance: ℝ = 1e-4
+absolute_tolerance: ℝ = 1e-6
+
+def max_norm(v: ℝ[m], n: ℕ): ℝ:
+    result: ℝ = 0.0
+    for k:ℕ(n):
+        if abs(v[k]) > result:
+            result = abs(v[k])
+    return result
+
+# NaN comparisons are false; infinities exceed the magnitude bound below.
+def finite_values(v: ℝ[m], n: ℕ): ℝ:
+    valid: ℝ = 1.0
+    for k:ℕ(n):
+        if abs(v[k]) <= 3.402823466e38:
+            valid = valid
+        else:
+            valid = 0.0
+    return valid
+
+def initial_residual(u: ℝ[na], x: ℝ[nd], t: ℝ): ℝ[na]:
+    return dfn_algebraic(t,x,u*z_scale)/g_scale * (newton_tolerance/algebraic_tolerance)
+
+def initial_component(u: ℝ[na], x: ℝ[nd], t: ℝ, k: ℕ): ℝ:
+    r: ℝ[na] = initial_residual(u,x,t)
+    return r[k]
+
+def initial_jacobian(u: ℝ[na], x: ℝ[nd], t: ℝ): ℝ[na,na]:
+    # The runtime already returns a Jacobian; state its matrix shape here
+    # because the current grad type inference reports only the input shape.
+    shape: list = [na,na]
+    return reshape(grad(initial_residual(u,x,t),u),shape)
+
+# Pack the state, a success flag, and the number of Newton corrections.
+def consistent_potentials(x: ℝ[nd], guess: ℝ[na], t: ℝ): ℝ[na+2]:
+    tolerance: ℝ = newton_tolerance
+    last_iteration: ℕ = 20
+    u: ℝ[na] = guess/z_scale
+    active: ℝ = 1.0
+    success: ℝ = 0.0
+    iterations: ℝ = 0.0
+    alpha: ℝ = 1.0
+    found: ℝ = 0.0
+    r: ℝ[na] = zeros(na)
+    trial: ℝ[na] = zeros(na)
+    delta: ℝ[na] = zeros(na)
+    J: ℝ[na,na] = zeros(na,na)
+    rnorm: ℝ = 0.0
+    for iteration:ℕ(21):
+        if active > 0.0:
+            r = initial_residual(u,x,t)
+            if finite_values(r,na) > 0.0:
+                rnorm = max_norm(r,na)
+                if rnorm <= tolerance:
+                    success = 1.0
+                    active = 0.0
+                else:
+                    if iteration < last_iteration:
+                        J = initial_jacobian(u,x,t)
+                        iterations = iterations+1.0
+                        delta = gaussian_solve(J,-r)
+                        if finite_values(delta,na) > 0.0:
+                            alpha = 1.0
+                            found = 0.0
+                            for search:ℕ(16):
+                                if found < 1.0:
+                                    trial = initial_residual(u+alpha*delta,x,t)
+                                    if finite_values(trial,na) > 0.0:
+                                        if max_norm(trial,na) < rnorm:
+                                            found = 1.0
+                                    if found < 1.0:
+                                        alpha = alpha*0.5
+                            if found > 0.0:
+                                u = u+alpha*delta
+                            else:
+                                active = 0.0
+                        else:
+                            active = 0.0
+            else:
+                active = 0.0
+    return concat(u*z_scale,[success,iterations])
+
+def step_residual(u: ℝ[nb], a: ℝ[nd], history: ℝ[nd], t: ℝ, h: ℝ, alpha: ℝ): ℝ[nb]:
+    y: ℝ[nb] = u*solver_scale
+    increment: ℝ[nd] = y[0:nd]
+    z: ℝ[na] = y[nd:nb]
+    x: ℝ[nd] = a+increment
+    return concat((alpha*increment+history-h*dfn_rhs(t+h,x,z))/x_scale, dfn_algebraic(t+h,x,z)/g_scale*(newton_tolerance/algebraic_tolerance))
+
+# Evaluate only the relevant residual block for each scalar gradient.
+def step_component(u: ℝ[nb], a: ℝ[nd], history: ℝ[nd], t: ℝ, h: ℝ, alpha: ℝ, k: ℕ): ℝ:
+    differential_size: ℕ = nd
+    y: ℝ[nb] = u*solver_scale
+    increment: ℝ[nd] = y[0:nd]
+    z: ℝ[na] = y[nd:nb]
+    x: ℝ[nd] = a+increment
+    r: ℝ[nd] = zeros(nd)
+    g: ℝ[na] = zeros(na)
+    if k < differential_size:
+        r = (alpha*increment+history-h*dfn_rhs(t+h,x,z))/x_scale
+    if k < differential_size:
+        return r[k]
+    g = dfn_algebraic(t+h,x,z)/g_scale*(newton_tolerance/algebraic_tolerance)
+    return g[k-nd]
+
+def step_jacobian(u: ℝ[nb], a: ℝ[nd], history: ℝ[nd], t: ℝ, h: ℝ, alpha: ℝ): ℝ[nb,nb]:
+    shape: list = [nb,nb]
+    return reshape(grad(step_residual(u,a,history,t,h,alpha),u),shape)
+
+def step_newton(a: ℝ[nd], b: ℝ[na], history: ℝ[nd], t: ℝ, h: ℝ, alpha: ℝ): ℝ[nb+2]:
+    tolerance: ℝ = newton_tolerance
+    last_iteration: ℕ = 20
+    u: ℝ[nb] = concat(zeros(nd),b)/solver_scale
+    active: ℝ = 1.0
+    success: ℝ = 0.0
+    iterations: ℝ = 0.0
+    r: ℝ[nb] = zeros(nb)
+    delta: ℝ[nb] = zeros(nb)
+    defect: ℝ[nb] = zeros(nb)
+    tangent: ℝ[nb] = zeros(nb)
+    J: ℝ[nb,nb] = zeros(nb,nb)
+    rnorm: ℝ = 0.0
+    gnorm: ℝ = 0.0
+    correction: ℝ = 0.0
+    for iteration:ℕ(21):
+        if active > 0.0:
+            r = step_residual(u,a,history,t,h,alpha)
+            if finite_values(r,nb) > 0.0:
+                rnorm = max_norm(r,nb)
+                if rnorm <= tolerance:
+                    success = 1.0
+                    active = 0.0
+                else:
+                    if iteration < last_iteration:
+                        J = step_jacobian(u,a,history,t,h,alpha)
+                        iterations = iterations+1.0
+                        delta = gaussian_solve(J,-r)
+                        if finite_values(delta,nb) > 0.0:
+                            gnorm = max_norm(r[nd:nb],na)
+                            correction = max_norm(delta[0:nd],nd)
+                            if gnorm <= tolerance:
+                                if correction > tolerance:
+                                    defect = concat(r[0:nd],zeros(na))
+                                    tangent = gaussian_solve(J,-defect)
+                                    if finite_values(tangent,nb) > 0.0:
+                                        correction = max_norm(tangent[0:nd],nd)
+                                    else:
+                                        active = 0.0
+                                if correction <= tolerance:
+                                    success = 1.0
+                                    active = 0.0
+                            if active > 0.0:
+                                u = u+delta
+                        else:
+                            active = 0.0
+            else:
+                active = 0.0
+    return concat(u*solver_scale,[success,iterations])
+
+def bdf_step(t: ℝ, a: ℝ[nd], b: ℝ[na], h: ℝ, previous: ℝ[nd], previous_h: ℝ, started: ℝ): ℝ[nb+2]:
+    alpha: ℝ = 1.0
+    ratio: ℝ = 0.0
+    history: ℝ[nd] = zeros(nd)
+    if started > 0.0:
+        ratio = h/previous_h
+        alpha = (1.0+2.0*ratio)/(1.0+ratio)
+        history = ratio**2/(1.0+ratio)*(previous-a)
+    result: ℝ[nb+2] = step_newton(a,b,history,t,h,alpha)
+    return concat(a+result[0:nd],result[nd:nb],result[nb:nb+2])
+
+def step_factor(error: ℝ): ℝ:
+    factor: ℝ = 2.0
+    if error > 0.03:
+        factor = 1.6
+    if error > 0.2:
+        factor = 1.2
+    if error > 0.7:
+        factor = 0.95
+    return factor
+
+def attempt_step(t: ℝ, x: ℝ[nd], z: ℝ[na], h: ℝ, previous: ℝ[nd], previous_h: ℝ, started: ℝ): ℝ[nb+3]:
+    full: ℝ[nb+2] = bdf_step(t,x,z,h,previous,previous_h,started)
+    half: ℝ[nb+2] = zeros(nb+2)
+    small: ℝ[nb+2] = zeros(nb+2)
+    success: ℝ = 0.0
+    error: ℝ = 2.0
+    count: ℝ = full[nb+1]
+    a: ℝ[nd] = full[0:nd]
+    b: ℝ[na] = full[nd:nb]
+    magnitude: ℝ[nd] = zeros(nd)
+    weight: ℝ[nd] = zeros(nd)
+    divisor: ℝ = 1.0
+    if full[nb] > 0.0:
+        half = bdf_step(t,x,z,h/2.0,previous,previous_h,started)
+        count = count+half[nb+1]
+        if half[nb] > 0.0:
+            small = bdf_step(t+h/2.0,half[0:nd],half[nd:nb],h/2.0,x,h/2.0,1.0)
+            count = count+small[nb+1]
+            if small[nb] > 0.0:
+                magnitude = 0.5*(abs(a/x_scale)+abs(x/x_scale)+abs(abs(a/x_scale)-abs(x/x_scale)))
+                weight = absolute_tolerance+relative_tolerance*magnitude
+                if started > 0.0:
+                    divisor = 3.0
+                error = sqrt(sum(((a-small[0:nd])/x_scale/(divisor*weight))**2)/nd)
+                if error <= 1.0:
+                    success = 1.0
+    return concat(a,b,[success,error,count])
+
+# Row zero is metadata: saved count, status, accepted/rejected steps,
+# Newton corrections, maximum saved algebraic residual, initialization count.
+# Subsequent rows contain [time, differential states, algebraic states].
+# Status 1 is cutoff, 0 is final time, negative statuses identify failures.
+def integrate_dfn(): ℝ[82,nb+1]:
+    output: ℝ[82,nb+1] = zeros(82,nb+1)
+    x: ℝ[nd] = x0
+    z: ℝ[na] = z0
+    previous: ℝ[nd] = x0
+    initial: ℝ[na+2] = consistent_potentials(x,z,0.0)
+    result: ℝ[nb+3] = zeros(nb+3)
+    root: ℝ[nb+2] = zeros(nb+2)
+    a: ℝ[nd] = x0
+    b: ℝ[na] = z0
+    live: ℝ = initial[na]
+    status: ℝ = -1.0
+    saved: ℕ = 1
+    t: ℝ = 0.0
+    h: ℝ = 0.1
+    hh: ℝ = 0.1
+    previous_h: ℝ = 0.1
+    started: ℝ = 0.0
+    stop: ℝ = 0.0
+    interval_done: ℝ = 0.0
+    retries: ℕ = 0
+    retry_limit: ℕ = 15
+    accepted: ℝ = 0.0
+    rejected: ℝ = 0.0
+    iterations: ℝ = initial[na+1]
+    max_algebraic: ℝ = 0.0
+    algebraic_norm: ℝ = 0.0
+    algebraic_limit: ℝ = algebraic_tolerance*1.01
+    lo: ℝ = 0.0
+    hi: ℝ = 0.0
+    mid: ℝ = 0.0
+    new_t: ℝ = 0.0
+    root_ok: ℝ = 1.0
+    if live > 0.0:
+        status = 0.0
+        z = initial[0:na]
+        max_algebraic = max_norm(dfn_algebraic(0.0,x,z)/g_scale,na)
+    output[1,0] = 0.0
+    output[1,1:nd+1] = x
+    output[1,nd+1:nb+1] = z
+    for point:ℕ(1,81):
+        if live > 0.0:
+            stop = 50.0*point
+            interval_done = 0.0
+            retries = 0
+            for attempt:ℕ(10000):
+                if interval_done < 1.0:
+                    hh = h
+                    if hh > stop-t:
+                        hh = stop-t
+                    if hh < 1e-9:
+                        status = -2.0
+                        live = 0.0
+                        interval_done = 1.0
+                    if live > 0.0:
+                        result = attempt_step(t,x,z,hh,previous,previous_h,started)
+                        iterations = iterations+result[nb+2]
+                        if result[nb] > 0.0:
+                            a = result[0:nd]
+                            b = result[nd:nb]
+                            new_t = t+hh
+                            root_ok = 1.0
+                            if dfn_cutoff(new_t,a,b) <= 0.0:
+                                lo = 0.0
+                                hi = hh
+                                for bracket:ℕ(32):
+                                    if hi-lo > 1e-5:
+                                        if root_ok > 0.0:
+                                            mid = (lo+hi)/2.0
+                                            root = bdf_step(t,x,z,mid,previous,previous_h,started)
+                                            iterations = iterations+root[nb+1]
+                                            if root[nb] > 0.0:
+                                                if dfn_cutoff(t+mid,root[0:nd],root[nd:nb]) <= 0.0:
+                                                    hi = mid
+                                                    a = root[0:nd]
+                                                    b = root[nd:nb]
+                                                else:
+                                                    lo = mid
+                                            else:
+                                                root_ok = 0.0
+                                new_t = t+hi
+                                if root_ok > 0.0:
+                                    status = 1.0
+                                    live = 0.0
+                                    interval_done = 1.0
+                            if root_ok > 0.0:
+                                previous = x
+                                previous_h = hh
+                                started = 1.0
+                                t = new_t
+                                x = a
+                                z = b
+                                accepted = accepted+1.0
+                                retries = 0
+                                h = hh*step_factor(result[nb+1])
+                                if h > 50.0:
+                                    h = 50.0
+                                if t >= stop-1e-10:
+                                    interval_done = 1.0
+                            else:
+                                rejected = rejected+1.0
+                                retries = retries+1
+                                h = hh/2.0
+                        else:
+                            rejected = rejected+1.0
+                            retries = retries+1
+                            h = hh/2.0
+                        if retries > retry_limit:
+                            status = -3.0
+                            live = 0.0
+                            interval_done = 1.0
+                        if accepted >= 10000.0:
+                            status = -4.0
+                            live = 0.0
+                            interval_done = 1.0
+            if interval_done < 1.0:
+                status = -5.0
+                live = 0.0
+            if status >= 0.0:
+                saved = saved+1
+                output[saved,0] = t
+                output[saved,1:nd+1] = x
+                output[saved,nd+1:nb+1] = z
+                algebraic_norm = max_norm(dfn_algebraic(t,x,z)/g_scale,na)
+                if algebraic_norm > max_algebraic:
+                    max_algebraic = algebraic_norm
+                if algebraic_norm > algebraic_limit:
+                    status = -6.0
+                    live = 0.0
+    output[0,0] = saved
+    output[0,1] = status
+    output[0,2] = accepted
+    output[0,3] = rejected
+    output[0,4] = iterations
+    output[0,5] = max_algebraic
+    output[0,6] = initial[na+1]
+    return output

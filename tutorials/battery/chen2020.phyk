@@ -1,0 +1,83 @@
+# Chen et al. (2020), LG M50; at 298.15 K.
+faraday: ℝ = 96485.33212
+gas_constant: ℝ = 8.31446261815324
+temperature: ℝ = 298.15
+length_n: ℝ = 85.2e-6
+length_s: ℝ = 12e-6
+length_p: ℝ = 75.6e-6
+area: ℝ = 0.065 * 1.58
+radius_n: ℝ = 5.86e-6
+radius_p: ℝ = 5.22e-6
+diffusivity_n: ℝ = 3.3e-14
+diffusivity_p: ℝ = 4e-15
+sigma_n: ℝ = 215.0
+sigma_p: ℝ = 0.18
+porosity_n: ℝ = 0.25
+porosity_s: ℝ = 0.47
+porosity_p: ℝ = 0.335
+active_n: ℝ = 0.75
+active_p: ℝ = 0.665
+cmax_n: ℝ = 33133.0
+cmax_p: ℝ = 63104.0
+initial_n: ℝ = 29866.0
+initial_p: ℝ = 17038.0
+initial_e: ℝ = 1000.0
+t_plus: ℝ = 0.2594
+
+# Elementary helpers use existing Physika operations. The branches
+# implement concentration bounds and stable evaluation in Newton trials.
+def minimum(q: ℝ[m], b: ℝ): ℝ[m]:
+    result: ℝ[m] = q + 0.0
+    for k:
+        if q[k] > b:
+            result[k] = b
+    return result
+
+def maximum(q: ℝ[m], b: ℝ): ℝ[m]:
+    result: ℝ[m] = q + 0.0
+    for k:
+        if q[k] < b:
+            result[k] = b
+    return result
+
+def softplus(q: ℝ[m]): ℝ[m]:
+    return maximum(q,0.0) + log(1.0+exp(-abs(q)))
+
+def sinh(q: ℝ[m]): ℝ[m]:
+    return (exp(q)-exp(-q))/2.0
+
+def tanh(q: ℝ[m]): ℝ[m]:
+    result: ℝ[m] = q + 0.0
+    for k:
+        if q[k] >= 0.0:
+            result[k] = (1.0-exp(-2.0*q[k]))/(1.0+exp(-2.0*q[k]))
+        else:
+            result[k] = (exp(2.0*q[k])-1.0)/(exp(2.0*q[k])+1.0)
+    return result
+
+def ocp_barrier(theta: ℝ[m]): ℝ[m]:
+    return 205.0568621937484 * (softplus(-6910.192179565431 * (theta + 7.7e-4)) - softplus(-6910.192179565431 * (1.0 - theta + 7.7e-4)))
+
+def ocp_n(theta: ℝ[m]): ℝ[m]:
+    q: ℝ[m] = maximum(minimum(theta, 1.0 - 1e-10), 1e-10)
+    return 1.9793 * exp(-39.3631*q) + 0.2482 - 0.0909*tanh(29.8538*(q-0.1234)) - 0.04478*tanh(14.9159*(q-0.2769)) - 0.0205*tanh(30.4444*(q-0.6103)) + ocp_barrier(theta)
+
+def ocp_p(theta: ℝ[m]): ℝ[m]:
+    q: ℝ[m] = maximum(minimum(theta, 1.0 - 1e-10), 1e-10)
+    return -0.8090*q + 4.4875 - 0.0428*tanh(18.5138*(q-0.5542)) - 17.7326*tanh(15.7890*(q-0.3117)) + 17.5842*tanh(15.9308*(q-0.3120)) + ocp_barrier(theta)
+
+def exchange_n(ce: ℝ[m], cs: ℝ[m]): ℝ[m]:
+    q: ℝ[m] = maximum(minimum(cs, cmax_n), 0.0)
+    return 6.48e-7 * exp(35000.0/gas_constant*(1.0/298.15-1.0/temperature)) * sqrt(maximum(ce, 0.0)) * sqrt(q) * sqrt(cmax_n-q)
+
+def exchange_p(ce: ℝ[m], cs: ℝ[m]): ℝ[m]:
+    q: ℝ[m] = maximum(minimum(cs, cmax_p), 0.0)
+    return 3.42e-6 * exp(17800.0/gas_constant*(1.0/298.15-1.0/temperature)) * sqrt(maximum(ce, 0.0)) * sqrt(q) * sqrt(cmax_p-q)
+
+def electrolyte_diffusivity(ce: ℝ[m]): ℝ[m]:
+    q: ℝ[m] = maximum(ce, 10.0) / 1000.0
+    return 8.794e-11*q**2 - 3.972e-10*q + 4.862e-10
+
+def electrolyte_conductivity(ce: ℝ[m]): ℝ[m]:
+    q: ℝ[m] = maximum(ce, 10.0) / 1000.0
+    return 0.1297*q**3 - 2.51*q**1.5 + 3.329*q
