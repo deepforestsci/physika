@@ -1,0 +1,245 @@
+def get_1d_array_length(x: ℝ[m]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def get_2d_array_num_rows(x: ℝ[m, n]): ℝ:
+    total: ℝ = 0
+    temp: ℝ = 0
+    for i:
+        temp = x[i]
+        total += 1
+    return total
+
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+def zero_2d_array(rows: ℝ, cols: ℝ): ℝ[m, n]:
+    results: ℝ[rows, cols] = for i:N(rows) -> for j:N(cols) -> j*0
+    return results
+
+def get_sum_of_1d_array(x: ℝ[m]): ℝ:
+    total = 0
+    for i:
+        total += x[i]
+    return total
+
+def max(x: ℝ, y: ℝ): ℝ:
+    if x>y:
+        return x
+    else:
+        return y
+
+def relu(x: ℝ): ℝ:
+    if x>0:
+        return x
+    else: 
+        return 0.0
+
+def relu2d(x: ℝ[H, W]): ℝ[H, W]:
+    rows: ℝ = get_2d_array_num_rows(x)
+    cols: ℝ = get_1d_array_length(x[0])
+    results: ℝ[rows, cols] = zero_2d_array(rows, cols)
+    for i:N(rows):
+        for j:N(cols):
+            results[i, j] = relu(x[i, j])
+    return results
+
+def softmax(x: ℝ[m]): ℝ[m]:
+    len_x: ℝ = get_1d_array_length(x)
+    exps_array: ℝ[m] = for i:N(len_x) -> exp(x[i])
+    total: ℝ = get_sum_of_1d_array(exps_array)
+    results: ℝ[len_x] = for i:N(len_x) -> exps_array[i] / total
+    return results
+
+
+
+
+def conv2d(input: ℝ[H, W], kernel: ℝ[K, K], b: ℝ): ℝ[m, n]:
+    H_out: ℝ = get_2d_array_num_rows(input) - get_2d_array_num_rows(kernel) + 1
+    W_out: ℝ = get_1d_array_length(input[0]) - get_1d_array_length(kernel[0]) + 1
+    results: ℝ[H_out, W_out] = zeros(H_out, W_out)
+    for i:ℕ(H_out):
+        for j:ℕ(W_out):
+            s: ℝ = 0
+            for ki:ℕ(len(kernel)):
+                for kj:ℕ(len(kernel[0])):
+                    s += input[i+ki, j+kj] * kernel[ki, kj]
+            results[i, j] = s + b
+    return results
+
+
+
+def maxpool2d(x: ℝ[m, n]): ℝ[m, n]:
+    S: ℝ = 2
+    r: ℝ = get_2d_array_num_rows(x) / 2
+    c: ℝ = get_1d_array_length(x[0]) / 2
+    Y: ℝ[r, c] = zeros(r, c)
+    for i:ℕ(r):
+        for j:ℕ(c):
+            a = x[i*S, j*S]
+            b = x[i*S, j*S + 1]
+            c = x[i*2+1, j*2]
+            d = x[i*2+1, j*2+1]
+            Y[i, j] = max(a, max(b, max(c, d)))
+    return Y
+
+def flatten(x: ℝ[m, n]): ℝ[n]:
+    m: ℝ = get_2d_array_num_rows(x)
+    n: ℝ = get_1d_array_length(x[0])
+    L: ℝ = m*n
+    z: ℝ[L] = zeros(L)
+    for i:ℕ(m):
+        for j:ℕ(n):
+            z[i*n + j] = x[i, j]
+    return z
+
+def linear(x: ℝ[I], weight: ℝ[O, I], bias: ℝ[O]): ℝ[O]:
+    O: ℝ = get_1d_array_length(bias)
+    I: ℝ = get_1d_array_length(x)
+    results: ℝ[O] = zeros(O)
+    for i:ℕ(O):
+        s: ℝ = 0
+        for j:ℕ(I):
+            s += weight[i, j] * x[j]
+        results[i] = s + bias[i]
+    return results
+
+
+class ConvNets(kernel1: ℝ[K, K], b1: ℝ, kernel2: ℝ[K, K], b2: ℝ, w: ℝ[m, n], b3: ℝ[m]):
+    def λ(input: ℝ[H, W]) -> ℝ[m]:
+        # layer 1
+        conv1 = conv2d(input, kernel1, b1)
+        relu1 = relu2d(conv1)
+        pool1 = maxpool2d(relu1)
+        # layer 2
+        conv2 = conv2d(pool1, kernel2, b2)
+        relu2 = relu2d(conv2)
+        pool2 = maxpool2d(relu2)
+        flat = flatten(pool2)
+        out = linear(flat, w, b3)
+        results = softmax(out)
+        return results
+    def train(train_X: R[D, 28, 28], train_y: R[D], epochs: N, lr: R, train_dataset_len: R): R:
+        loss: ℝ = 0
+        for epoch:ℕ(epochs):
+            print(epoch)
+            epoch_loss: ℝ = 0
+            for j:ℕ(train_dataset_len):
+                input = train_X[j]
+                label = train_y[j]
+                z = this(input)
+                current_loss = cross_entropy(z, label)
+                epoch_loss += current_loss
+                learnable_grads: list = ∇(current_loss, this.learnable_params)
+                this.update_params(lr, learnable_grads)
+            epoch_loss: ℝ = epoch_loss / train_dataset_len
+            print(epoch_loss)
+        loss: ℝ = epoch_loss
+        return loss
+    def update_params(lr: R, learnable_grads: list):
+        this.kernel1 = this.kernel1 - lr * learnable_grads[0]
+        this.b1 = this.b1 - lr * learnable_grads[1]
+        this.kernel2 = this.kernel2 - lr * learnable_grads[2]
+        this.b2 = this.b2 - lr * learnable_grads[3]
+        this.w = this.w - lr * learnable_grads[4]
+        this.b3 = this.b3 - lr * learnable_grads[5]
+
+
+
+def rand_1d_array(n: ℝ, μ: ℝ): ℝ[n]:
+    return for i:ℕ(n) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_2d_array(n: ℝ, m: ℝ, μ: ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_3d_array(n: ℝ, m: ℝ, o: ℝ, μ: ℝ): ℝ[n, m, o]:
+    return for i:ℕ(n) → for j:ℕ(m) → for k:ℕ(o) → μ * eps ~ 𝒩(0.0, 1.0)
+
+
+kernel1: ℝ[3, 3] = rand_2d_array(3, 3, 0.01)
+kernel2: ℝ[3, 3] = rand_2d_array(3, 3, 0.01)
+
+b1: ℝ = 0.0
+b2: ℝ = 0.0
+
+w: ℝ[10, 25] = rand_2d_array(10, 25, 0.1)
+
+b3: ℝ[10] = zeros(10)
+
+cnn_object: ConvNets = ConvNets(kernel1, b1, kernel2, b2, w, b3)
+
+
+
+# ----------------------------------------------------------
+# code snippet to create_dataset is commented for CI
+# here we are using random arrays to run full code in CI
+# see the actual tutorial for full script
+# ----------------------------------------------------------
+#dataset = create_dataset(80, 20)
+#train_dataset = dataset[0]
+#test_dataset = dataset[1]
+
+#train_dataset_len: ℝ = get_1d_array_length(train_dataset[0])
+#test_dataset_len: ℝ = get_1d_array_length(test_dataset[0])
+
+#train_X: ℝ[train_dataset_len, 28, 28] = train_dataset[0]
+#train_y: ℝ[train_dataset_len] = train_dataset[1]
+#test_X = test_dataset[0]
+#test_y = test_dataset[1]
+# ----------------------------------------------------------
+
+train_dataset_len: ℝ = 1
+test_dataset_len: ℝ = 1
+
+train_X: ℝ[20, 28, 28] = rand_3d_array(20, 28, 28, 0.5)
+train_y: ℝ[20] = rand_1d_array(20, 0.0)
+
+test_X: ℝ[10, 28, 28] = rand_3d_array(10, 28, 28, 0.5)
+test_y: ℝ[10] = rand_1d_array(10, 0.0)
+
+# ----------------------------------------------------------
+
+
+
+def cross_entropy(probs: ℝ[m], label: ℝ): ℝ:
+    p: ℝ = probs[label]
+    return -log(p)
+
+
+epochs: ℕ = 1
+lr: ℝ = 0.1
+
+
+cnn_object.train(train_X, train_y, epochs, lr, train_dataset_len)
+
+
+
+def argmax(iterable: R[m]): R:
+    idx: ℝ = 0
+    max_val: ℝ = iterable[0]
+    len_iterable: ℝ = get_1d_array_length(iterable)
+    for i:ℕ(1, len_iterable):
+        if iterable[i] > max_val:
+            max_val = iterable[i]
+            idx = i
+    return idx
+
+
+correct: ℝ = 0
+len_test_X: ℝ = len(test_X[0])
+y_true: ℝ = 0
+
+for i:ℕ(test_dataset_len):
+    x: ℝ[28, 28] = test_X[i]
+    y_true = test_y[i]
+    y_pred = cnn_object(x)
+    pred_class = argmax(y_pred)
+    if pred_class == y_true:
+        correct += 1
+accuracy: ℝ = correct / len_test_X
+print(accuracy)
