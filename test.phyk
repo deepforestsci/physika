@@ -1,0 +1,82 @@
+def zero_1d_array(len: ℝ): ℝ[m]:
+    results: ℝ[len] = for i: ℕ(len) -> i*0
+    return results
+
+# Linspace create a array of equally spaced values based on its inputs.
+def linspace(start: ℝ, end: ℝ, n: ℕ): ℝ[n]:
+    x: ℝ[n] = zero_1d_array(n)
+    dx: ℝ = (end - start) / (n - 1)
+    for i:ℕ(0, n):
+        x[i] = start + i * dx
+    return x
+
+x: ℝ[100] = linspace(-5, 5, 100)
+dx: R = x[1] - x[0]
+
+def psi(x: R): R:
+    return exp(- x ** 2)
+
+total: R = 0.0
+for i: N(100):
+    total += abs(psi(x[i]))**2
+
+norm = 1/(total*dx)**(0.5)
+
+# Our objective is to have a wavefunction representation whose total probability density
+# its operating range is equal to unity.
+def norm_psi(x: R): R:
+    return norm * psi(x)
+
+total: R = 0.0
+for i: N(100):
+    total += abs(norm_psi(x[i]))**2
+
+total * dx
+
+# Probability Density
+def rho(x: R): R:
+    return abs(norm_psi(x)) ** 2
+
+rho(0.01)
+
+h: R = 6.582e-16
+
+# Momentum
+def mom(x: R): ℂ:
+    value: R = grad(psi(x), x)
+    return -1j * h * value
+
+mom(0.001) * 1e10
+
+# First derivative
+def dpsi_dx(x: R): R:
+    return grad(norm_psi(x), x)
+
+# Second derivative
+def d2psi_dx2(x: R): R:
+    return grad(dpsi_dx(x), x)
+
+# Potential energy
+def V(x: R): R:
+    return 0.0
+
+# Electron mass in eV s^2 / Å^2
+m: R = 5.6856e-32
+
+# Hamiltonian
+def hamiltonian(x: R): R:
+    kinetic: R = -(h ** 2) / (2 * m) * d2psi_dx2(x)
+    potential: R = V(x) * norm_psi(x)
+    return kinetic + potential
+
+hamiltonian(0.001)
+
+energy_numerator: R = 0.0
+energy_denominator: R = 0.0
+
+for i: N(100):
+    energy_numerator += (norm_psi(x[i]) * hamiltonian(x[i]))
+    energy_denominator += (norm_psi(x[i]) ** 2)
+
+E: R = energy_numerator / energy_denominator
+E

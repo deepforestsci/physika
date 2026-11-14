@@ -670,6 +670,30 @@ def ast_to_torch_expr(node: ASTNode,
                     return ast_to_torch_expr(arr_node, indent,
                                              current_loop_var)
 
+            def is_constant(arr_node):
+                if isinstance(arr_node, tuple) and arr_node[0] == "array":
+                    return all(is_constant(e) for e in arr_node[1])
+                return isinstance(arr_node, tuple) and (
+                    arr_node[0] in ("num", "complex") or
+                    (arr_node[0] == "neg" and isinstance(arr_node[1], tuple)
+                     and arr_node[1][0] == "num"))
+
+            # Leaves may be tensors (e.g., [[1, R1]]): build with
+            # torch.stack so autograd keeps track of them
+            if not contains_complex and not is_constant(node):
+
+                def array_to_stack(arr_node):
+                    if isinstance(arr_node, tuple) and arr_node[0] == "array":
+                        inner = [array_to_stack(e) for e in arr_node[1]]
+                        return f"torch.stack([{', '.join(inner)}])"
+                    leaf = ast_to_torch_expr(arr_node, indent,
+                                             current_loop_var)
+                    return (f"torch.as_tensor({leaf}, "
+                            f"dtype=torch.get_default_dtype(), "
+                            f"device=DEVICE)")
+
+                return array_to_stack(node)
+
             inner_lists = [array_to_list(e) for e in elements]
             if contains_complex:
                 return f"torch.tensor([{', '.join(inner_lists)}], dtype=torch.complex64)"  # noqa

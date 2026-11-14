@@ -946,3 +946,27 @@ class TestGenerateStatement:
                                                         ("complex", 2j),
                                                         ("complex", 3j)]), 1),
             set()) == 't = torch.tensor([1j, 2j, 3j], dtype=torch.complex64)'
+
+
+def test_nested_array_literal_keeps_grad():
+    """
+    A nested array literal with non-constant entries is built with
+    ``torch.stack`` so gradients flow through it, while an all-constant
+    literal still becomes a plain ``torch.tensor``.
+    """
+    const = ("array", [("array", [("num", 1.0), ("num", 2.0)]),
+                       ("array", [("num", 3.0), ("neg", ("num", 4.0))])])
+    assert ast_to_torch_expr(const).startswith("torch.tensor(")
+
+    node = ("array", [("array", [("num", 1.0), ("var", "r")]),
+                      ("array", [("num", 2.0), ("mul", ("var", "r"),
+                                                ("var", "r"))])])
+    code = ast_to_torch_expr(node)
+    assert code.startswith("torch.stack(")
+
+    r = torch.tensor(3.0, requires_grad=True)
+    M = eval(code, {"torch": torch, "DEVICE": "cpu", "r": r})
+    assert M.shape == (2, 2)
+    torch.sum(M).backward()
+    # d/dr (1 + r + 2 + r**2) = 1 + 2r
+    assert r.grad.item() == pytest.approx(7.0)

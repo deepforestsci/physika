@@ -1,0 +1,185 @@
+# =====================================================================
+# Nodal analysis of linear RC circuits
+#
+# Nodes are numbered 1..num_nodes, node 0 is ground.
+# Each resistor row is       [node1, node2, resistance]
+# Each capacitor row is      [node1, node2, capacitance]
+# Each current source row is [node1, node2, current], current flows node1 -> node2
+#
+# * nodal_analysis           : DC steady state (capacitors are open circuits)
+# * nodal_analysis_transient : time stepping with backward Euler, each
+#   capacitor is replaced by a conductance C/dt in parallel with a
+#   history current (C/dt) * v_C(previous)
+#
+# Everything is differentiable, so voltages can be differentiated with
+# respect to component values (see the design example at the end).
+# =====================================================================
+
+def zeros_1d(n: ℕ): ℝ[n]:
+    return for i: ℕ(n) -> i * 0.0
+
+def zeros_2d(n: ℕ): ℝ[n, n]:
+    return for i: ℕ(n) -> for j: ℕ(n) -> i * 0.0
+
+# Add a branch conductance g between nodes n1 and n2 to G
+def stamp_conductance(G: ℝ[n, n], n1: ℝ, n2: ℝ, g: ℝ): ℝ[n, n]:
+    if n1 != 0.0:
+        G[n1 - 1, n1 - 1] = G[n1 - 1, n1 - 1] + g
+    if n2 != 0.0:
+        G[n2 - 1, n2 - 1] = G[n2 - 1, n2 - 1] + g
+    if n1 != 0.0:
+        if n2 != 0.0:
+            G[n1 - 1, n2 - 1] = G[n1 - 1, n2 - 1] - g
+            G[n2 - 1, n1 - 1] = G[n2 - 1, n1 - 1] - g
+    return G
+
+# Current flows from n1 to n2, positive current is drawn from n1
+def stamp_current_source(I: ℝ[n], n1: ℝ, n2: ℝ, current: ℝ): ℝ[n]:
+    if n1 != 0.0:
+        I[n1 - 1] = I[n1 - 1] - current
+    if n2 != 0.0:
+        I[n2 - 1] = I[n2 - 1] + current
+    return I
+
+def stamp_resistors(G: ℝ[n, n], resistors: ℝ[k, 3], num_resistors: ℕ): ℝ[n, n]:
+    for r: ℕ(num_resistors):
+        G = stamp_conductance(G, resistors[r, 0], resistors[r, 1], 1.0 / resistors[r, 2])
+    return G
+
+def stamp_sources(I: ℝ[n], sources: ℝ[k, 3], num_sources: ℕ): ℝ[n]:
+    for s: ℕ(num_sources):
+        I = stamp_current_source(I, sources[s, 0], sources[s, 1], sources[s, 2])
+    return I
+
+def eye(n: ℕ): ℝ[n, n]:
+    E: ℝ[n, n] = zeros_2d(n)
+    for i: ℕ(n):
+        E[i, i] = 1.0
+    return E
+
+# Solve A x = b by Gauss-Jordan elimination.
+# Every step builds a new A and b instead of updating them in place, so
+# autograd can differentiate the solution with respect to A and b.
+# No pivoting: the matrices here (resistor and capacitor conductances of a
+# grounded circuit) are symmetric positive definite, so pivots never vanish.
+def linear_solve(n: ℕ, A: ℝ[n, n], b: ℝ[n]): ℝ[n]:
+    E: ℝ[n, n] = eye(n)
+    for c: ℕ(n):
+        b = for i: ℕ(n) -> b[i] - (A[i, c] - E[i, c]) * b[c] / A[c, c]
+        A = for i: ℕ(n) -> for j: ℕ(n) -> A[i, j] - (A[i, c] - E[i, c]) * A[c, j] / A[c, c]
+    return b
+
+# DC steady state, capacitors are open circuits
+def nodal_analysis(num_nodes: ℕ, resistors: ℝ[k, 3], num_resistors: ℕ, sources: ℝ[m, 3], num_sources: ℕ): ℝ[num_nodes]:
+    G: ℝ[num_nodes, num_nodes] = stamp_resistors(zeros_2d(num_nodes), resistors, num_resistors)
+    I: ℝ[num_nodes] = stamp_sources(zeros_1d(num_nodes), sources, num_sources)
+    return linear_solve(num_nodes, G, I)
+
+# Backward Euler transient simulation.
+# num_points = num_steps + 1. Returns the voltage history, row t holds the
+# node voltages at time t * dt.
+def nodal_analysis_transient(num_nodes: ℕ, resistors: ℝ[k, 3], num_resistors: ℕ, capacitors: ℝ[c, 3], num_capacitors: ℕ, sources: ℝ[m, 3], num_sources: ℕ, dt: ℝ, num_points: ℕ, initial_voltages: ℝ[num_nodes]): ℝ[num_points, num_nodes]:
+    history: ℝ[num_points, num_nodes] = for t: ℕ(num_points) -> for j: ℕ(num_nodes) -> t * 0.0
+    previous: ℝ[num_nodes] = initial_voltages
+    for j: ℕ(num_nodes):
+        history[0, j] = previous[j]
+    # Resistors and sources are constant, stamp them once
+    G_static: ℝ[num_nodes, num_nodes] = stamp_resistors(zeros_2d(num_nodes), resistors, num_resistors)
+    I_static: ℝ[num_nodes] = stamp_sources(zeros_1d(num_nodes), sources, num_sources)
+    G: ℝ[num_nodes, num_nodes] = zeros_2d(num_nodes)
+    I: ℝ[num_nodes] = zeros_1d(num_nodes)
+    n1: ℝ = 0.0
+    n2: ℝ = 0.0
+    g_eq: ℝ = 0.0
+    v1_previous: ℝ = 0.0
+    v2_previous: ℝ = 0.0
+    i_history: ℝ = 0.0
+    for step: ℕ(1, num_points):
+        G = G_static * 1.0
+        I = I_static * 1.0
+        # Capacitors: g_eq = C / dt in parallel with a history current source
+        for q: ℕ(num_capacitors):
+            n1 = capacitors[q, 0]
+            n2 = capacitors[q, 1]
+            g_eq = capacitors[q, 2] / dt
+            G = stamp_conductance(G, n1, n2, g_eq)
+            v1_previous = 0.0
+            v2_previous = 0.0
+            if n1 != 0.0:
+                v1_previous = previous[n1 - 1]
+            if n2 != 0.0:
+                v2_previous = previous[n2 - 1]
+            i_history = g_eq * (v1_previous - v2_previous)
+            # history current is injected into n1 and drawn out of n2
+            I = stamp_current_source(I, n2, n1, i_history)
+        previous = linear_solve(num_nodes, G, I)
+        for j: ℕ(num_nodes):
+            history[step, j] = previous[j]
+    return history
+
+
+# ---------------------------------------------------------------------
+# Test 1: DC circuit
+# ---------------------------------------------------------------------
+
+resistors: ℝ[3, 3] = [
+    [1, 2, 1000],
+    [1, 0, 1000],
+    [2, 0, 1000]
+]
+
+# 1 mA from ground -> node 1, 1 mA from ground -> node 2
+current_sources: ℝ[2, 3] = [
+    [0, 1, 0.001],
+    [0, 2, 0.001]
+]
+
+dc_voltages: ℝ[2] = nodal_analysis(2, resistors, 3, current_sources, 2)
+dc_voltages
+
+# ---------------------------------------------------------------------
+# Test 2: 1 kΩ resistor in parallel with 1 µF capacitor, driven by 1 mA
+# ---------------------------------------------------------------------
+
+rc_resistors: ℝ[1, 3] = [[1, 0, 1000.0]]
+rc_capacitors: ℝ[1, 3] = [[1, 0, 1e-6]]
+rc_sources: ℝ[1, 3] = [[0, 1, 1e-3]]
+dt: ℝ = 1e-5
+num_steps: ℕ = 500
+v0: ℝ[1] = [0.0]
+
+voltage_history: ℝ[501, 1] = nodal_analysis_transient(1, rc_resistors, 1, rc_capacitors, 1, rc_sources, 1, dt, num_steps + 1, v0)
+
+final_time: ℝ = num_steps * dt
+simulated_final: ℝ = voltage_history[500, 0]
+exact_final: ℝ = 1e-3 * 1000.0 * (1.0 - exp(- final_time / (1000.0 * 1e-6)))
+abs_error: ℝ = abs(simulated_final - exact_final)
+
+final_time
+simulated_final
+exact_final
+abs_error
+
+# ---------------------------------------------------------------------
+# Design: choose the capacitor of the RC circuit above so that V1 reaches
+# 0.9 V at t = 2 ms. Newton's method, with dV1/dC computed by autodiff
+# through all the time steps of the simulation.
+# Exact answer: C = t / (R ln 10) ≈ 0.8686 µF (backward Euler is close).
+# ---------------------------------------------------------------------
+
+target_time: ℝ = 2e-3
+target_voltage: ℝ = 0.9
+
+# V1 at t = 2 ms (200 steps of 10 µs) as a function of C in µF
+def v1_at_2ms(C_uF: ℝ): ℝ:
+    caps: ℝ[1, 3] = [[1, 0, C_uF * 1e-6]]
+    h: ℝ[201, 1] = nodal_analysis_transient(1, rc_resistors, 1, caps, 1, rc_sources, 1, dt, 201, v0)
+    return h[200, 0]
+
+C_uF: ℝ = 1.0
+for it: ℕ(5):
+    C_uF = C_uF - (v1_at_2ms(C_uF) - target_voltage) / grad(v1_at_2ms(C_uF), C_uF)
+
+C_uF
+v1_at_2ms(C_uF)
+target_time / (1000.0 * log(10.0)) * 1e6
