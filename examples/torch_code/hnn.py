@@ -23,7 +23,7 @@ def mse_loss(symplectic_gradient, target_gradient, N=None):
     return loss
 
 def rand_array(n, m, μ):
-    return torch.stack([torch.stack([(μ * torch.distributions.Normal(0.0, 1.0).rsample()) for _fi_j in range(int(m)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    return torch.stack([torch.stack([(μ * torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)) for _fi_j in range(int(m)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 
 # === Classes ===
 class HamiltonianNet(nn.Module):

@@ -173,9 +173,9 @@ y0 = torch.tensor([[1.0], [0.0]], device=DEVICE)
 true_trajectory = generate_dataset(y0, Δt, timesteps)
 n_neurons = 128
 μ, σ = 0.0, 0.01
-W1 = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(2),)) for _fi_i in range(int(n_neurons)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W1 = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(2),)).to(DEVICE) for _fi_i in range(int(n_neurons)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 B1 = torch.stack([torch.tensor([0.01], device=DEVICE) for _fi_i in range(int(n_neurons)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-W2 = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(n_neurons),)) for _fi_i in range(int(2)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+W2 = torch.stack([torch.distributions.Normal(μ, σ).rsample((int(n_neurons),)).to(DEVICE) for _fi_i in range(int(2)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 B2 = torch.tensor([[0.01], [0.01]], device=DEVICE)
 model = ODEFunc(W1, B1, W2, B2).to(DEVICE)
 lr = 0.01

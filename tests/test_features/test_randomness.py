@@ -78,16 +78,18 @@ class TestRandomessHelpers:
                         mode=estimator,
                         default_mode=estimator,
                         to_expr=to_expr)
-        assert result == 'torch.distributions.Normal(%s, %s).rsample()' % (
-            mean, std)
+        assert result == (
+            'torch.distributions.Normal(%s, %s).rsample().to(DEVICE)' %
+            (mean, std))
 
         # estimator node is none, but default reparam used
         result = sample("torch.distributions.Normal(%s, %s)" % (mean, std), [],
                         mode="none",
                         default_mode=estimator,
                         to_expr=to_expr)
-        assert result == 'torch.distributions.Normal(%s, %s).rsample()' % (
-            mean, std)
+        assert result == (
+            'torch.distributions.Normal(%s, %s).rsample().to(DEVICE)' %
+            (mean, std))
 
         # sample a tensor with shape ℝ[20, 1]
         shape_args = [20, 1]
@@ -96,7 +98,7 @@ class TestRandomessHelpers:
                         mode="none",
                         default_mode=estimator,
                         to_expr=to_expr)
-        assert result == 'torch.distributions.Normal(%s, %s).rsample((int(%s), int(%s),))' % (  # noqa: E501
+        assert result == 'torch.distributions.Normal(%s, %s).rsample((int(%s), int(%s),)).to(DEVICE)' % (  # noqa: E501
             mean, std, shape_args[0], shape_args[1])
 
         # sample a tensor with shape ℝ[20, 1, 3] and mean/std 3, 0.5
@@ -107,7 +109,7 @@ class TestRandomessHelpers:
                         mode="none",
                         default_mode=estimator,
                         to_expr=to_expr)
-        assert result == 'torch.distributions.Normal(%s, %s).rsample((int(%s), int(%s), int(%s),))' % (  # noqa: E501
+        assert result == 'torch.distributions.Normal(%s, %s).rsample((int(%s), int(%s), int(%s),)).to(DEVICE)' % (  # noqa: E501
             mean_d, std_d, shape_args[0], shape_args[1], shape_args[2])
 
         # none estimator produces .sample()
@@ -115,8 +117,9 @@ class TestRandomessHelpers:
                         mode="none",
                         default_mode="none",
                         to_expr=to_expr)
-        assert result == 'torch.distributions.Normal(%s, %s).sample()' % (mean,
-                                                                          std)
+        assert result == (
+            'torch.distributions.Normal(%s, %s).sample().to(DEVICE)' %
+            (mean, std))
 
         # Bernoulli distribution with score function estimator
         p = "0.5"
@@ -124,7 +127,7 @@ class TestRandomessHelpers:
                         mode="score",
                         default_mode="none",
                         to_expr=to_expr)
-        assert result == 'torch.distributions.Bernoulli(%s).sample().detach()' % (  # noqa: E501
+        assert result == 'torch.distributions.Bernoulli(%s).sample().detach().to(DEVICE)' % (  # noqa: E501
             p)
 
 
@@ -149,21 +152,22 @@ class TestProbDistributionsCodegen:
 
         # scalar sample
         result = normal_dist([mu, sigma], to_expr)
-        assert result == "torch.distributions.Normal(0.0, 1.0).rsample()"
+        assert result == (
+            "torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)")
 
         # vector sample ℝ[20]
         n = ("num", 20.0)
         result = normal_dist([mu, sigma, n], to_expr)
-        assert result == "torch.distributions.Normal(0.0, 1.0).rsample((int(20.0),))"  # noqa: E501
+        assert result == "torch.distributions.Normal(0.0, 1.0).rsample((int(20.0),)).to(DEVICE)"  # noqa: E501
 
         # vector sample ℝ[20, 3, 3]
         n0, n1, n2 = ("num", 20.0), ("num", 3.0), ("num", 3.0)
         result = normal_dist([mu, sigma, n0, n1, n2], to_expr)
-        assert result == "torch.distributions.Normal(0.0, 1.0).rsample((int(20.0), int(3.0), int(3.0),))"  # noqa: E501
+        assert result == "torch.distributions.Normal(0.0, 1.0).rsample((int(20.0), int(3.0), int(3.0),)).to(DEVICE)"  # noqa: E501
 
         # grad mode ooverride
         result = normal_dist([mu, sigma, ("string", "score")], to_expr)
-        assert result == "torch.distributions.Normal(0.0, 1.0).sample().detach()"  # noqa: E501
+        assert result == "torch.distributions.Normal(0.0, 1.0).sample().detach().to(DEVICE)"  # noqa: E501
 
     def test_uniform_dist(self):
         """
@@ -175,21 +179,22 @@ class TestProbDistributionsCodegen:
 
         # scalar sample — reparam by default
         result = uniform_dist([lo, hi], to_expr)
-        assert result == "torch.distributions.Uniform(0.0, 1.0).rsample()"
+        assert result == (
+            "torch.distributions.Uniform(0.0, 1.0).rsample().to(DEVICE)")
 
         # vector sample ℝ[10]
         n = ("num", 10.0)
         result = uniform_dist([lo, hi, n], to_expr)
-        assert result == "torch.distributions.Uniform(0.0, 1.0).rsample((int(10.0),))"  # noqa: E501
+        assert result == "torch.distributions.Uniform(0.0, 1.0).rsample((int(10.0),)).to(DEVICE)"  # noqa: E501
 
         # vector sample ℝ[20, 3, 3]
         n0, n1, n2 = ("num", 20.0), ("num", 3.0), ("num", 3.0)
         result = uniform_dist([lo, hi, n0, n1, n2], to_expr)
-        assert result == "torch.distributions.Uniform(0.0, 1.0).rsample((int(20.0), int(3.0), int(3.0),))"  # noqa: E501
+        assert result == "torch.distributions.Uniform(0.0, 1.0).rsample((int(20.0), int(3.0), int(3.0),)).to(DEVICE)"  # noqa: E501
 
         # explicit score override
         result = uniform_dist([lo, hi, ("string", "score")], to_expr)
-        assert result == "torch.distributions.Uniform(0.0, 1.0).sample().detach()"  # noqa: E501
+        assert result == "torch.distributions.Uniform(0.0, 1.0).sample().detach().to(DEVICE)"  # noqa: E501
 
     def test_beta_dist(self):
         """
@@ -201,21 +206,22 @@ class TestProbDistributionsCodegen:
 
         # scalar sample — reparam by default
         result = beta_dist([alpha, beta], to_expr)
-        assert result == "torch.distributions.Beta(0.5, 0.5).rsample()"
+        assert result == (
+            "torch.distributions.Beta(0.5, 0.5).rsample().to(DEVICE)")
 
         # vector sample ℝ[8]
         n = ("num", 8.0)
         result = beta_dist([alpha, beta, n], to_expr)
-        assert result == "torch.distributions.Beta(0.5, 0.5).rsample((int(8.0),))"  # noqa: E501
+        assert result == "torch.distributions.Beta(0.5, 0.5).rsample((int(8.0),)).to(DEVICE)"  # noqa: E501
 
         # vector sample ℝ[20, 3, 3]
         n0, n1, n2 = ("num", 20.0), ("num", 3.0), ("num", 3.0)
         result = beta_dist([alpha, beta, n0, n1, n2], to_expr)
-        assert result == "torch.distributions.Beta(0.5, 0.5).rsample((int(20.0), int(3.0), int(3.0),))"  # noqa: E501
+        assert result == "torch.distributions.Beta(0.5, 0.5).rsample((int(20.0), int(3.0), int(3.0),)).to(DEVICE)"  # noqa: E501
 
         # explicit score override
         result = beta_dist([alpha, beta, ("string", "score")], to_expr)
-        assert result == "torch.distributions.Beta(0.5, 0.5).sample().detach()"  # noqa: E501
+        assert result == "torch.distributions.Beta(0.5, 0.5).sample().detach().to(DEVICE)"  # noqa: E501
 
     def test_gamma_dist(self):
         """
@@ -227,22 +233,23 @@ class TestProbDistributionsCodegen:
 
         # scalar sample — reparam by default
         result = gamma_dist([concentration, rate], to_expr)
-        assert result == "torch.distributions.Gamma(1.0, 1.0).rsample()"
+        assert result == (
+            "torch.distributions.Gamma(1.0, 1.0).rsample().to(DEVICE)")
 
         # vector sample ℝ[5]
         n = ("num", 5.0)
         result = gamma_dist([concentration, rate, n], to_expr)
-        assert result == "torch.distributions.Gamma(1.0, 1.0).rsample((int(5.0),))"  # noqa: E501
+        assert result == "torch.distributions.Gamma(1.0, 1.0).rsample((int(5.0),)).to(DEVICE)"  # noqa: E501
 
         # vector sample ℝ[20, 3, 3]
         n0, n1, n2 = ("num", 20.0), ("num", 3.0), ("num", 3.0)
         result = gamma_dist([concentration, rate, n0, n1, n2], to_expr)
-        assert result == "torch.distributions.Gamma(1.0, 1.0).rsample((int(20.0), int(3.0), int(3.0),))"  # noqa: E501
+        assert result == "torch.distributions.Gamma(1.0, 1.0).rsample((int(20.0), int(3.0), int(3.0),)).to(DEVICE)"  # noqa: E501
 
         # explicit score override
         result = gamma_dist([concentration, rate, ("string", "score")],
                             to_expr)
-        assert result == "torch.distributions.Gamma(1.0, 1.0).sample().detach()"  # noqa: E501
+        assert result == "torch.distributions.Gamma(1.0, 1.0).sample().detach().to(DEVICE)"  # noqa: E501
 
     def test_bernoulli_dist(self):
         """
@@ -254,24 +261,27 @@ class TestProbDistributionsCodegen:
 
         # scalar sample
         result = bernoulli_dist([p], to_expr)
-        assert result == "torch.distributions.Bernoulli(0.5).sample().detach()"
+        assert result == (
+            "torch.distributions.Bernoulli(0.5).sample().detach().to(DEVICE)")
 
         # vector sample ℝ[20]
         n = ("num", 20.0)
         result = bernoulli_dist([p, n], to_expr)
-        assert result == "torch.distributions.Bernoulli(0.5).sample((int(20.0),)).detach()"  # noqa: E501
+        assert result == "torch.distributions.Bernoulli(0.5).sample((int(20.0),)).detach().to(DEVICE)"  # noqa: E501
 
         # vector sample ℝ[20, 3, 3]
         n0, n1, n2 = ("num", 20.0), ("num", 3.0), ("num", 3.0)
         result = bernoulli_dist([p, n0, n1, n2], to_expr)
-        assert result == "torch.distributions.Bernoulli(0.5).sample((int(20.0), int(3.0), int(3.0),)).detach()"  # noqa: E501
+        assert result == "torch.distributions.Bernoulli(0.5).sample((int(20.0), int(3.0), int(3.0),)).detach().to(DEVICE)"  # noqa: E501
 
         # score function estimator
         result = bernoulli_dist([p, ("string", "score")], to_expr)
-        assert result == "torch.distributions.Bernoulli(0.5).sample().detach()"
+        assert result == (
+            "torch.distributions.Bernoulli(0.5).sample().detach().to(DEVICE)")
         # reparam grad is ignored
         result = bernoulli_dist([p, ("string", "reparam")], to_expr)
-        assert result == "torch.distributions.Bernoulli(0.5).sample().detach()"
+        assert result == (
+            "torch.distributions.Bernoulli(0.5).sample().detach().to(DEVICE)")
 
 
 class TestGetShapeArgs:
@@ -590,7 +600,8 @@ class TestForwardRules:
         node = ast["program"][0]
         assert node[0] == "sample"
         result = rules["sample"](node, ast_to_torch_expr)
-        assert result == "x = torch.distributions.Normal(0.0, 1.0).rsample()"
+        assert result == (
+            "x = torch.distributions.Normal(0.0, 1.0).rsample().to(DEVICE)")
 
     def test_typed_sample_stmt_emit(self):
         """
@@ -602,7 +613,7 @@ class TestForwardRules:
         node = ast["program"][0]
         assert node[0] == "typed_sample"
         result = rules["typed_sample"](node, ast_to_torch_expr)
-        assert result == "x = torch.distributions.Normal(0.0, 1.0).rsample((int(5),))"  # noqa: E501
+        assert result == "x = torch.distributions.Normal(0.0, 1.0).rsample((int(5),)).to(DEVICE)"  # noqa: E501
 
     def test_sample_expr_emit(self):
         """
@@ -615,7 +626,7 @@ class TestForwardRules:
         node = ast["functions"]["f"]["body"]
         assert node[0] == "sample_expr"
         result = rules["sample_expr"](node, ast_to_torch_expr)
-        assert result == "torch.distributions.Normal(mu, 1.0).rsample((int(2.0),))"  # noqa: E501
+        assert result == "torch.distributions.Normal(mu, 1.0).rsample((int(2.0),)).to(DEVICE)"  # noqa: E501
 
     def test_seed_emit(self):
         """
@@ -676,7 +687,8 @@ class TestForwardRules:
         code = from_ast_to_torch(ast, print_code=False)
         expected = (
             "z = torch.stack(["
-            "torch.distributions.Normal(0.0, 1.0).rsample((int(3),)) "
+            "torch.distributions.Normal(0.0, 1.0)"
+            ".rsample((int(3),)).to(DEVICE) "
             # ε : ℝ[3] ~ 𝒩(0.0, 1.0, 3)
             "for _fi_i in range(int(3)) "  # for i : ℕ(3)
             "for i in [torch.tensor(float(_fi_i), device=DEVICE)]])")
