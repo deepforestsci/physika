@@ -204,6 +204,8 @@ def infer_unit(expr: Any,
     op = expr[0]
     if op == "num":
         return {}
+    if op in ("imaginary", "complex"):
+        return {}
     if op == "var":
         return unit_env.get(expr[1])
     if op == "neg":
@@ -241,7 +243,11 @@ def infer_unit(expr: Any,
         return None
     if op == "call":
         fname, args = expr[1], expr[2]
-        if fname in ("sum", "abs") and len(args) == 1:
+        if fname in ("sum", "abs", "real", "imag") and len(args) == 1:
+            # projections that keep the argument's dimension: |x| keeps
+            # x's unit, and real(z)/imag(z) keep z's unit too (splitting
+            # a complex quantity into its two real components doesn't
+            # change what physical dimension either component carries).
             return infer_unit(args[0], unit_env, fs)
         if fname == "sqrt" and len(args) == 1:
             u = infer_unit(args[0], unit_env, fs)
@@ -261,6 +267,49 @@ def infer_unit(expr: Any,
             # declared/inferred return unit
             return fs[fname][1]
     return None
+
+
+def dim_sqrt_cic(d: Expr, env: Environment) -> Optional[Expr]:
+    """
+    ``DimVec`` of ``sqrt`` applied to a quantity of dimension *d*.
+
+    ``DimVec`` exponents are integers, so ``dim_pow`` cannot take ``1/2``
+    directly.  The candidate ``h`` is computed and accepted only when
+    the kernel proves ``dim_pow h 2 ≡ d``.
+
+    Examples
+    --------
+    >>> from physika.units import dim_sqrt_cic, unit_to_dimvec_cic
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> from physika.core.local_context import LocalContext
+    >>> from physika.core.metavar import MetaVarContext
+    >>> from physika.utils.cic_utils.inductive_utils import (
+    ...     read_dim_vec_literal)
+    >>> env = mk_builtin_env()
+    >>> gh = unit_to_dimvec_cic({"m": 2, "s": -2}, env)   # g·h
+    >>> read_dim_vec_literal(dim_sqrt_cic(gh, env), env, LocalContext(),
+    ...                      MetaVarContext())             # m·s⁻¹
+    [0, 1, -1, 0, 0, 0, 0]
+    >>> dim_sqrt_cic(unit_to_dimvec_cic({"m": 1}, env), env) is None
+    True
+    """
+    from physika.core.local_context import LocalContext
+    from physika.core.metavar import MetaVarContext
+    from physika.core.reduction import is_def_eq
+    from physika.utils.cic_utils.inductive_utils import (
+        int_lit,
+        mk_dim_vec_literal,
+        read_dim_vec_literal,
+    )
+
+    lctx, mctx = LocalContext(), MetaVarContext()
+    exps = read_dim_vec_literal(d, env, lctx, mctx)
+    if exps is None or any(e % 2 for e in exps):
+        return None
+    half = mk_dim_vec_literal([e // 2 for e in exps])
+    squared = App(App(Const("dim_pow", ()), half), int_lit(2))
+    ok, _ = is_def_eq(squared, d, env, lctx, mctx, allow_assign=False)
+    return half if ok else None
 
 
 def expr_unit_to_dimvec_cic(
@@ -325,6 +374,8 @@ def expr_unit_to_dimvec_cic(
     op = expr[0]
     if op == "num":
         return dim_one
+    if op in ("imaginary", "complex"):
+        return dim_one
     if op == "var":
         return unit_cic_env.get(expr[1])
     if op == "neg":
@@ -372,7 +423,7 @@ def expr_unit_to_dimvec_cic(
         return None
     if op == "call":
         fname, args = expr[1], expr[2]
-        if fname in ("sum", "abs") and len(args) == 1:
+        if fname in ("sum", "abs", "real", "imag") and len(args) == 1:
             return expr_unit_to_dimvec_cic(args[0], unit_cic_env, env, fd)
         if (fname in ("sqrt", "exp", "log", "sin", "cos", "tan")
                 and len(args) == 1):
@@ -388,7 +439,7 @@ def expr_unit_to_dimvec_cic(
             if dimensionless:
                 return dim_one
             if fname == "sqrt":
-                return None
+                return dim_sqrt_cic(d, env)
             raise UnitError(f"{fname}() requires a dimensionless argument")
         # a call to a function whose return dimension is known
         if fname in fd:

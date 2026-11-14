@@ -1614,7 +1614,8 @@ def generate_statement(stmt: ASTNode,
                        grad_target_vars: set[str],
                        resolved_expr_code: str | None = None,
                        unit_env: dict | None = None,
-                       func_sigs: dict | None = None) -> str | None:
+                       func_sigs: dict | None = None,
+                       solve_bindings: dict | None = None) -> str | None:
     """Generate a PyTorch code string for a program-level statement.
 
     Handles ``decl`` (variable declaration), ``unit_decl`` (for dimensional
@@ -1642,6 +1643,10 @@ def generate_statement(stmt: ASTNode,
         Unit environment mapping variabl names to AST unit exprssions
     func_sigs : dict
         Function name to ``(param units, return units)`` mapping.
+    solve_bindings : dict
+        ``{name: physika-AST}`` of unambiguous ``Solve`` closed forms, from
+        ``physika.solver.solve_bindings``.  A ``solve_decl`` naming one of
+        these variables emits a real assignment instead of being skipped.
 
     Returns
     -------
@@ -1760,6 +1765,17 @@ def generate_statement(stmt: ASTNode,
 
     elif op == "class_def":
         return None  # Already generated
+
+    elif op == "solve_decl":
+        # Kernel-verified symbolic equations
+        variables = stmt[1]
+        if not solve_bindings:
+            return None
+        lines = [
+            f"{v} = {ast_to_torch_expr(solve_bindings[v])}" for v in variables
+            if v in solve_bindings
+        ]
+        return "\n".join(lines) if lines else None
 
     elif op == "for_loop":
         # For loop: ("for_loop", loop_var, body_statements,
