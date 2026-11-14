@@ -53,6 +53,7 @@ BUILTIN_ARITY = {
     "Vec.vmul": 3,
     "Vec.scale": 3,
     "Mat.matmul": 5,
+    "Mat.inv": 2,
     "Mat.madd": 4,
     "Mat.add_scalar": 4,
     "Fin.ofNat": 2,
@@ -583,6 +584,10 @@ def lower(expr: Expr, names: Dict[FVarId, str], env: Environment,
                 return (
                     f"torch.matmul({lower(args[3], names, env, resolved_names)}, "  # noqa: E501
                     f"{lower(args[4], names, env, resolved_names)})")
+            if name == "Mat.inv":
+                # args[0] is the implicit {n} dimension — skipped.
+                return (f"torch.linalg.inv("
+                        f"{lower(args[1], names, env, resolved_names)})")
             if name in ("Mat.madd", "Mat.add_scalar"):
                 return (f"({lower(args[2], names, env, resolved_names)} + "
                         f"{lower(args[3], names, env, resolved_names)})")
