@@ -425,8 +425,8 @@ def typespec_to_cic_resolved(ts: Union[str, tuple],
 def bvar_resolver(
     binder_names: List[str],
     depth: int,
-    return_only_mvars: Optional[Dict[str, Expr]] = None
-) -> Callable[[str], Expr]:
+    return_only_mvars: Optional[Dict[str,
+                                     Expr]] = None) -> Callable[[str], Expr]:
     """
     Returns a function from binder name to ``Expr``. A dim var resolves
     to its ``BVar`` at the current depth, or to a ``return_only_mvars`` entry

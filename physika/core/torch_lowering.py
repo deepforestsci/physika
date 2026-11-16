@@ -47,15 +47,19 @@ BUILTIN_ARITY = {
     "Vec.tabulate": 3,
     "Vec.sum": 2,
     "Vec.get": 4,
+    "Vec.set": 5,
     "Vec.cons": 4,
     "Vec.dot": 3,
     "Vec.vadd": 3,
     "Vec.vmul": 3,
     "Vec.scale": 3,
     "Mat.matmul": 5,
+    "Mat.vecmul": 4,
+    "Mat.mulvec": 4,
     "Mat.madd": 4,
     "Mat.add_scalar": 4,
     "Fin.ofNat": 2,
+    "Fin.val": 2,
     "Fin.zero": 1,
     "Fin.succ": 2,
     "Vec.foldl": 4,
@@ -512,6 +516,11 @@ def lower(expr: Expr, names: Dict[FVarId, str], env: Environment,
         if fields is None or expr.idx >= len(fields):
             raise NotImplementedError(f"Cannot resolve field {expr.idx} of "
                                       f"'{expr.type_name}'")
+        size_fields = env.struct_size_fields.get(expr.type_name, {})
+        if fields[expr.idx] in size_fields:
+            # a field shape
+            field, axis = size_fields[fields[expr.idx]]
+            return f"int({obj_src}.{field}.shape[{axis}])"
         return f"{obj_src}.{fields[expr.idx]}"
 
     if isinstance(expr, LetE):
@@ -530,6 +539,10 @@ def lower(expr: Expr, names: Dict[FVarId, str], env: Environment,
         child_names[fresh.id] = expr.binder_name
         body_src = lower(opened, child_names, env, resolved_names)
         return f"torch.as_tensor({body_src}) for {expr.binder_name} in {{range_expr}}"  # noqa: E501
+
+    if isinstance(expr, Const) and expr.name in env.program_vars:
+        # top level var in a body
+        return expr.name
 
     if isinstance(expr, (Const, App)):
         head, args = get_app_fn_args(expr)
@@ -562,6 +575,14 @@ def lower(expr: Expr, names: Dict[FVarId, str], env: Environment,
                 vec_src = lower(args[2], names, env, resolved_names)
                 idx_src = lower(args[3], names, env, resolved_names)
                 return f"{vec_src}[int({idx_src})]"
+            if name == "Vec.set":
+                # mutatation inplce
+                vec_src = lower(args[2], names, env, resolved_names)
+                idx_src = lower(args[3], names, env, resolved_names)
+                val_src = lower(args[4], names, env, resolved_names)
+                return (f"{vec_src}.index_put("
+                        f"(torch.as_tensor(int({idx_src})),), "
+                        f"torch.as_tensor({val_src}, dtype={vec_src}.dtype))")
             if name == "Vec.cons":
                 hd_src = lower(args[2], names, env, resolved_names)
                 tl_src = lower(args[3], names, env, resolved_names)
@@ -579,6 +600,10 @@ def lower(expr: Expr, names: Dict[FVarId, str], env: Environment,
             if name == "Vec.scale":
                 return (f"({lower(args[1], names, env, resolved_names)} * "
                         f"{lower(args[2], names, env, resolved_names)})")
+            if name in ("Mat.vecmul", "Mat.mulvec"):
+                return (
+                    f"torch.matmul({lower(args[2], names, env, resolved_names)}, "  # noqa: E501
+                    f"{lower(args[3], names, env, resolved_names)})")
             if name == "Mat.matmul":
                 return (
                     f"torch.matmul({lower(args[3], names, env, resolved_names)}, "  # noqa: E501
@@ -586,7 +611,8 @@ def lower(expr: Expr, names: Dict[FVarId, str], env: Environment,
             if name in ("Mat.madd", "Mat.add_scalar"):
                 return (f"({lower(args[2], names, env, resolved_names)} + "
                         f"{lower(args[3], names, env, resolved_names)})")
-            if name == "Fin.ofNat":
+            if name in ("Fin.ofNat", "Fin.val"):
+                # an index is the same int as a Nat and as a Fin n
                 return lower(args[1], names, env, resolved_names)
             if name == "Fin.zero":
                 # index 0 at runtime
