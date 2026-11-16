@@ -1,5 +1,5 @@
 from physika.core.expr import (App, BVar, BinderInfo, Const, ForallE, FVar,
-                               Lit, MVar, Proj)
+                               FVarId, Lit, MVar, Proj)
 from physika.core.elab.elab import Elab
 from physika.core.environment import Environment, ConstantInfo
 from physika.core.level import LSucc, LZero
@@ -40,7 +40,17 @@ from physika.utils.cic_utils.elab_utils import (
     expected_elem_type_of,
     head_const_of,
     vec_shape_of,
+    fin_to_nat,
+    coerce_scalar_arg,
+    loop_assigned_order,
+    first_assign_rhs,
+    elab_loop_block,
+    mutating_methods,
+    explicit_this_methods,
+    receiver_update_stmts,
+    rebind_projections,
 )
+from physika.core.inductive import mk_builtin_env
 from physika.core.elab.dim_typespec import (_NAT_CONST, _REAL_CONST,
                                             _VEC_CONST, _NAT_ADD)
 
@@ -123,6 +133,10 @@ class TestFlattenLoopandBodyAssignments:
         assert flatten_loop_assigns([("loop_assign", "x", ("num", 1.0))
                                      ]) == [[("x", ("num", 1.0))]]
 
+        assert flatten_loop_assigns([("loop_pluseq", "x", ("num", 1.0))]) == [[
+            ("x", ("add", ("var", "x"), ("num", 1.0)))
+        ]]
+
         result = flatten_loop_assigns([
             ("loop_tuple_unpack", ["a", "b"], ("expr_list", [("var", "x"),
                                                              ("var", "y")])),
@@ -139,6 +153,23 @@ class TestFlattenLoopandBodyAssignments:
             [("x", ("num", 1.0))],
             [("a", ("var", "x")), ("b", ("var", "y"))],
         ]
+
+        # ``x = index_update(x, [k], e)``
+        assert flatten_loop_assigns([
+            ("loop_index_assign_nd", "x", [("index_item", ("var", "k"))],
+             ("num", 1.0)),
+        ]) == [[("x", ("index_update", "x", [("var", "k")], ("num", 1.0)))]]
+
+        # ``x[k] += e`` is ``x = index_update(x, [k], x[k] + e)``
+        entry = ("indexN", "x", [("index_item", ("var", "k"))])
+        assert flatten_loop_assigns([
+            ("loop_index_pluseq", "x", [("index_item", ("var", "k"))], ("num",
+                                                                        1.0)),
+        ]) == [[("x", ("index_update", "x", [("var", "k")], ("add", entry,
+                                                             ("num", 1.0))))]]
+
+        # if branches and nested loops are elaborated by elab_loop_block
+        assert flatten_loop_assigns([("loop_if", ("cond", ), [])]) is None
 
     def test_body_loop_assigned_names(self):
         """
@@ -172,6 +203,98 @@ class TestBodyStmtsAssignedNames:
     """
     Tests for ``body_stmts_assigned_names``.
     """
+
+    def test_mutating_methods(self):
+        """
+        A method changing ``this``is mutatting in place. Calls on ``this``
+        become ``this = this.m(...)`` and names bound to ``this``'s fields
+        read the updated object.
+        """
+        set_x = {
+            "name":
+            "set_x",
+            "body":
+            None,
+            "return_type":
+            None,
+            "statements":
+            [("body_field_assign", ("var", "this"), "x", ("num", 1.0))]
+        }
+        call = ("method_call", ("var", "this"), "set_x", [])
+        reset = {
+            "name": "reset",
+            "body": None,
+            "return_type": None,
+            "statements": [("body_expr", call)]
+        }
+        getter = {
+            "name": "get",
+            "body": ("var", "x"),
+            "return_type": "ℝ",
+            "statements": []
+        }
+        assert mutating_methods([set_x, reset, getter]) == {"set_x", "reset"}
+        assert receiver_update_stmts([("body_expr", call)], "this",
+                                     {"set_x"}) == [("body_assign", "this",
+                                                     call)]
+        old, new = FVar(FVarId("this.0")), FVar(FVarId("this.1"))
+        env = {"n": Proj("G", 0, old), "u": Lit(1.0)}
+        assert rebind_projections(env, old, new) == {
+            "n": Proj("G", 0, new),
+            "u": Lit(1.0)
+        }
+
+    def test_implicit_this(self):
+        """
+        A parameter or an earlier local of a field's name keeps oroginal
+        values.
+        """
+        clear = {
+            "name": "clear",
+            "params": [],
+            "body": None,
+            "return_type": None,
+            "statements": [("body_assign", "x", ("num", 0.0))]
+        }
+        reset = {
+            "name": "reset",
+            "params": [],
+            "body": None,
+            "return_type": None,
+            "statements": [("body_call", "clear", [])]
+        }
+        shadow = {
+            "name": "shadow",
+            "params": [("x", "ℝ")],
+            "body": None,
+            "return_type": None,
+            "statements": [("body_assign", "x", ("num", 1.0))]
+        }
+        local = {
+            "name":
+            "local",
+            "params": [],
+            "body": ("var", "x"),
+            "return_type":
+            "ℝ",
+            "statements": [("body_decl", "x", "ℝ", ("num", 1.0)),
+                           ("body_assign", "x", ("num", 2.0))]
+        }
+        class_def = {
+            "class_params": [],
+            "fields": [("x", "ℝ")],
+            "methods": [clear, reset, shadow, local]
+        }
+        methods = explicit_this_methods(class_def)
+        assert methods[0]["statements"] == [
+            ("body_field_assign", ("var", "this"), "x", ("num", 0.0))
+        ]
+        assert methods[1]["statements"] == [
+            ("body_expr", ("method_call", ("var", "this"), "clear", []))
+        ]
+        assert methods[2]["statements"] == shadow["statements"]
+        assert methods[3]["statements"] == local["statements"]
+        assert mutating_methods(methods) == {"clear", "reset"}
 
     def test_body_assign(self):
         """
@@ -466,6 +589,50 @@ class TestTryElaborateDependentFoldLoop:
         assert head == Const("Nat.rec", (LSucc(LZero()), ))
         assert args[-1] == Lit(3)
 
+    def test_nested_loops_and_branches(self):
+        """
+        A body with a local declaration, a nested loop and a multi-statement
+        ``if`` is a sequence of ``let``.
+        """
+        cond = ("cond_gt", ("var", "k"), ("num", 1))
+        body = [
+            ("loop_decl", "d", "ℝ", ("num", 0)),
+            ("loop_for_range", "j", ("num", 0), ("num", 2),
+             [("loop_pluseq", "d", ("num", 1.0))]),
+            ("loop_if_else", cond, [("loop_pluseq", "acc", ("var", "d")),
+                                    ("loop_assign", "c", ("var", "acc"))],
+             [("loop_assign", "c", ("num", 0.0))]),
+        ]
+        assert loop_assigned_order(body) == ["d", "acc", "c"]
+        assert first_assign_rhs(body, "c") == ("var", "acc")
+
+        elab = Elab(mk_builtin_env())
+        elab, acc_fv = elab.with_local("acc", _REAL_CONST)
+        elab, c_fv = elab.with_local("c", _REAL_CONST)
+        elab, k_fv = elab.with_local("k", _NAT_CONST)
+        env = {"acc": acc_fv, "c": c_fv, "k": k_fv}
+        fvars = []
+        new_env, elab = elab_loop_block(body, env, elab, fvars, [])
+        # d's inner loop is a Nat.rec fold
+        lets = {elab.state.lctx.find(fv.id).user_name: fv for fv in fvars}
+        d_value = elab.state.lctx.find(new_env["d"].id).value
+        assert get_app_fn_args(d_value)[0] == Const("Nat.rec",
+                                                    (LSucc(LZero()), ))
+        # acc and c after the if are conditional values
+        for name in ("acc", "c"):
+            value = elab.state.lctx.find(new_env[name].id).value
+            assert get_app_fn_args(value)[0] == Const("Real.ite", ())
+        assert set(lets) >= {"d", "acc", "c"}
+
+        # a loop starting at 1 binds its variable to 1 + k
+        updates = try_elaborate_dependent_fold_loop("i",
+                                                    [("loop_pluseq", "acc",
+                                                      ("var", "i"))], Lit(2),
+                                                    {"acc": acc_fv}, elab, [],
+                                                    Lit(1))
+        assert get_app_fn_args(updates["acc"])[0] == Const(
+            "Nat.rec", (LSucc(LZero()), ))
+
 
 class TestCoerceToFin:
     """
@@ -491,6 +658,12 @@ class TestCoerceToFin:
         assert isinstance(coerce_to_fin(i_fv, Lit(3), elab), FVar)
         assert isinstance(i_fv, FVar)
         assert coerce_to_fin(i_fv, Lit(3), elab) is i_fv
+
+        # an index of another range reads at a checked ``Fin.ofNat``
+        elab, k_fv = elab.with_local("k", App(Const("Fin", ()), Lit(4)))
+        assert coerce_to_fin(k_fv, Lit(3), elab) == App(
+            App(Const("Fin.ofNat", ()), Lit(3)),
+            App(App(Const("Fin.val", ()), Lit(4)), k_fv))
 
     def test_out_of_range_index_error(self):
         """
@@ -541,6 +714,23 @@ class TestElaborateBinop:
         elab = Elab(Environment())
         mv = elab.new_mvar("_x", _REAL_CONST)
         assert isinstance(elaborate_binop("add", mv, Lit(1.0), elab), MVar)
+
+    def test_index_operand_is_a_number(self):
+        """
+        An index ``i : Fin n`` is ``Fin.val i : ℕ`` in arithmetic, so
+        ``i * x`` with ``x : ℝ`` is ``Real.mul (Nat.toReal (Fin.val i)) x``.
+        """
+        elab = Elab(mk_builtin_env())
+        fin3 = App(Const("Fin", ()), Lit(3))
+        elab, i_fv = elab.with_local("i", fin3)
+        elab, x_fv = elab.with_local("x", _REAL_CONST)
+        result = elaborate_binop("mul", i_fv, x_fv, elab)
+        head, args = get_app_fn_args(result)
+        assert head == Const("Real.mul", ())
+        to_real, (val, ) = get_app_fn_args(args[0])
+        assert to_real == Const("Nat.toReal", ())
+        assert get_app_fn_args(val)[0] == Const("Fin.val", ())
+        assert fin_to_nat(x_fv, _REAL_CONST) == (x_fv, _REAL_CONST)
 
 
 class TestElaborateConditionBool:
@@ -648,6 +838,30 @@ class TestElaborateCall:
 
         elab = Elab(Environment())
         assert isinstance(elaborate_call("missing", [], elab, []), MVar)
+
+    def test_index_argument_coerced(self):
+        """
+        An index ``i : Fin n`` passed for a ``ℕ`` parameter is
+        ``Fin.val i``, for a ``ℝ`` parameter ``Nat.toReal (Fin.val i)``.
+        """
+        env = mk_builtin_env()
+        env.add_constant(
+            ConstantInfo("half", (), ForallE("x", _REAL_CONST, _REAL_CONST),
+                         None))
+        env.add_constant(
+            ConstantInfo("succ_n", (), ForallE("k", _NAT_CONST, _NAT_CONST),
+                         None))
+        elab = Elab(env)
+        elab, i_fv = elab.with_local("i", App(Const("Fin", ()), Lit(3)))
+        errors = []
+        half = elaborate_call("half", [i_fv], elab, errors)
+        assert get_app_fn_args(half.arg)[0] == Const("Nat.toReal", ())
+        succ = elaborate_call("succ_n", [i_fv], elab, errors)
+        assert get_app_fn_args(succ.arg)[0] == Const("Fin.val", ())
+        assert errors == []
+        # non scalar parameters are left as is
+        assert coerce_scalar_arg(i_fv, App(Const("Fin", ()), Lit(3)),
+                                 elab) is i_fv
 
 
 class TestFindAccumLoopIndex:

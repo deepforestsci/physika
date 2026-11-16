@@ -2240,7 +2240,8 @@ def reg_vec_ops(env: Environment) -> None:
     Arithmetics (``Vec.vadd``/``vmul``/``dot``/``scale``/
     ``norm_sq``/``sum``), ``Vec.ite`` branch, the ``Vec.zeros``
     zero-decl target, ``Vec.concat`` (different-length ``+``),
-    element-type-polymorphic ``Vec.get`` / ``Vec.tabulate`` / ``Vec.foldl``
+    element-type-polymorphic ``Vec.get`` / ``Vec.set`` / ``Vec.tabulate`` /
+    ``Vec.foldl``
     ``Vec`` for a matrix ``ℝ[m,n]``, and ``Fin.ofNat`` coercion non-literal
     index.
 
@@ -2255,7 +2256,8 @@ def reg_vec_ops(env: Environment) -> None:
     >>> from physika.core.inductive import mk_builtin_env
     >>> env = mk_builtin_env()
     >>> all(n in env.constants for n in
-    ...     ("Vec.dot", "Vec.get", "Vec.tabulate", "Vec.foldl", "Fin.ofNat"))
+    ...     ("Vec.dot", "Vec.get", "Vec.set", "Vec.tabulate", "Vec.foldl",
+    ...      "Fin.ofNat"))
     True
     """
     real = Const("Real", ())
@@ -2379,7 +2381,20 @@ def reg_vec_ops(env: Environment) -> None:
             ForallE("f", vec_tab_f_type, App(App(vec, BVar(2)), BVar(1)),
                     BinderInfo.DEFAULT), BinderInfo.DEFAULT),
         BinderInfo.IMPLICIT)
-    for name, tp in [("Vec.get", vec_get_type),
+    # Vec.set :
+    # ∀ {α:Type₀} (n:Nat), Vec α n → Fin n → α → Vec α n
+    vec_set_type = ForallE(
+        "α", TYPE_0,
+        ForallE(
+            "n", NAT,
+            ForallE(
+                "v", App(App(vec, BVar(1)), BVar(0)),
+                ForallE(
+                    "i", App(fin, BVar(1)),
+                    ForallE("x", BVar(3), App(App(vec, BVar(4)), BVar(3)),
+                            BinderInfo.DEFAULT), BinderInfo.DEFAULT),
+                BinderInfo.DEFAULT), BinderInfo.DEFAULT), BinderInfo.IMPLICIT)
+    for name, tp in [("Vec.get", vec_get_type), ("Vec.set", vec_set_type),
                      ("Vec.tabulate", vec_tabulate_type)]:
         env.add_constant(
             ConstantInfo(name=name, level_params=(), type=tp, value=None))
@@ -2392,6 +2407,17 @@ def reg_vec_ops(env: Environment) -> None:
                      type=ForallE(
                          "n", NAT,
                          ForallE("i", NAT, App(fin, BVar(1)),
+                                 BinderInfo.DEFAULT), BinderInfo.IMPLICIT),
+                     value=None))
+
+    # Fin.val :
+    # ∀ {n : Nat}, Fin n → Nat
+    env.add_constant(
+        ConstantInfo(name="Fin.val",
+                     level_params=(),
+                     type=ForallE(
+                         "n", NAT,
+                         ForallE("i", App(fin, BVar(0)), NAT,
                                  BinderInfo.DEFAULT), BinderInfo.IMPLICIT),
                      value=None))
 
@@ -2436,7 +2462,8 @@ def reg_mat_ops(env: Environment) -> None:
     >>> from physika.core.inductive import mk_builtin_env
     >>> env = mk_builtin_env()
     >>> all(n in env.constants for n in
-    ...     ("Mat.matmul", "Mat.madd", "Mat.add_scalar", "Mat.concat_rows"))
+    ...     ("Mat.matmul", "Mat.vecmul", "Mat.mulvec", "Mat.madd",
+    ...      "Mat.add_scalar", "Mat.concat_rows"))
     True
     """
     real = Const("Real", ())
@@ -2474,6 +2501,32 @@ def reg_mat_ops(env: Environment) -> None:
                      level_params=(),
                      type=mat_matmul_type,
                      value=None))
+
+    # Mat.vecmul : row vector times matrix
+    # ∀ (k n : Nat), Vec Real k → Vec (Vec Real n) k → Vec Real n
+    mat_vecmul_type = ForallE(
+        "k", NAT,
+        ForallE(
+            "n", NAT,
+            ForallE(
+                "x", vr(BVar(1)),
+                ForallE("B", App(App(vec, vr(BVar(1))), BVar(2)), vr(BVar(2)),
+                        BinderInfo.DEFAULT), BinderInfo.DEFAULT),
+            BinderInfo.DEFAULT), BinderInfo.DEFAULT)
+    # Mat.mulvec : matrix times column vector
+    # ∀ (m k : Nat), Vec (Vec Real k) m → Vec Real k → Vec Real m
+    mat_mulvec_type = ForallE(
+        "m", NAT,
+        ForallE(
+            "k", NAT,
+            ForallE("A", App(App(vec, vr(BVar(0))), BVar(1)),
+                    ForallE("x", vr(BVar(1)), vr(BVar(3)), BinderInfo.DEFAULT),
+                    BinderInfo.DEFAULT), BinderInfo.DEFAULT),
+        BinderInfo.DEFAULT)
+    for name, tp in [("Mat.vecmul", mat_vecmul_type),
+                     ("Mat.mulvec", mat_mulvec_type)]:
+        env.add_constant(
+            ConstantInfo(name=name, level_params=(), type=tp, value=None))
 
     # Mat.madd :
     #  ∀ (m k : Nat), Vec (Vec Real k) m → Vec (Vec Real k) m

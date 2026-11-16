@@ -35,6 +35,7 @@ _NAT_CONST = Const("Nat", ())
 _REAL_CONST = Const("Real", ())
 _VEC_CONST = Const("Vec", ())
 _NAT_ADD = Const("Nat.add", ())
+_NAT_SUB = Const("Nat.sub", ())
 _TYPE_0_LEVEL = Sort(LSucc(LZero()))
 
 
@@ -90,8 +91,10 @@ def flatten_loop_assigns(
         loop_body: list) -> Optional[List[List[Tuple[str, ASTNode]]]]:
     """
     Helper function to flatten loop body of ``loop_assign``/
-    ``loop_tuple_unpack`` statements into ordered groups of
-    ``(name, rhs_node)`` pairs.
+    ``loop_pluseq``/``loop_tuple_unpack``/``loop_index_assign_nd``/
+    ``loop_index_pluseq`` statements into ordered groups of
+    ``(name, rhs_node)`` pairs. ``x += e`` is ``x = x + e`` and
+    ``x[i] = e`` is ``x = index_update(x, [i], e)``.
 
     Parameters
     ----------
@@ -102,6 +105,11 @@ def flatten_loop_assigns(
     -------
     >>> flatten_loop_assigns([("loop_assign", "x", ("num", 1.0))])
     [[('x', ('num', 1.0))]]
+    >>> flatten_loop_assigns([("loop_pluseq", "x", ("num", 1.0))])
+    [[('x', ('add', ('var', 'x'), ('num', 1.0)))]]
+    >>> flatten_loop_assigns([("loop_index_assign_nd", "x",
+    ...                        [("index_item", ("var", "k"))], ("num", 1.0))])
+    [[('x', ('index_update', 'x', [('var', 'k')], ('num', 1.0)))]]
     >>> flatten_loop_assigns([("loop_if", None, [])]) is None
     True
     """
@@ -111,6 +119,25 @@ def flatten_loop_assigns(
             return None
         if stmt[0] == "loop_assign" and len(stmt) == 3:
             groups.append([(stmt[1], stmt[2])])
+        elif stmt[0] == "loop_pluseq" and len(stmt) == 3:
+            groups.append([(stmt[1], ("add", ("var", stmt[1]), stmt[2]))])
+        elif stmt[0] == "loop_index_assign_nd" and len(stmt) == 4:
+            idx_nodes = [
+                item[1] if (isinstance(item, tuple) and len(item) == 2
+                            and item[0] == "index_item") else item
+                for item in stmt[2]
+            ]
+            groups.append([(stmt[1], ("index_update", stmt[1], idx_nodes,
+                                      stmt[3]))])
+        elif stmt[0] == "loop_index_pluseq" and len(stmt) == 4:
+            idx_nodes = [
+                item[1] if (isinstance(item, tuple) and len(item) == 2
+                            and item[0] == "index_item") else item
+                for item in stmt[2]
+            ]
+            entry = ("indexN", stmt[1], [("index_item", n) for n in idx_nodes])
+            groups.append([(stmt[1], ("index_update", stmt[1], idx_nodes,
+                                      ("add", entry, stmt[3])))])
         elif stmt[0] == "loop_tuple_unpack" and len(stmt) == 3:
             names, expr_list_node = stmt[1], stmt[2]
             if not (isinstance(expr_list_node, tuple) and len(expr_list_node)
@@ -651,9 +678,231 @@ def mk_prod_chain(values: List[Expr], elab: ElabT) -> Optional[Expr]:
     return result
 
 
-def try_elaborate_dependent_fold_loop(loop_var: str, loop_body: list,
-                                      n_cic: Expr, cur_env: dict, elab: ElabT,
-                                      errors: List[str]) -> Optional[dict]:
+def loop_assigned_order(stmts: list) -> List[str]:
+    """
+    Names a loop body assigns, nested ``if`` branches and loops included,
+    in order of first assignment.
+
+    Parameters
+    ----------
+    stmts : list
+        A loop's statement list.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import loop_assigned_order
+    >>> loop_assigned_order([
+    ...     ("loop_assign", "b", ("num", 1.0)),
+    ...     ("loop_for_range", "j", ("num", 0), ("num", 2),
+    ...      [("loop_pluseq", "a", ("num", 1.0))]),
+    ... ])
+    ['b', 'a']
+    """
+    order: List[str] = []
+    for stmt in stmts or []:
+        if not (isinstance(stmt, tuple) and stmt):
+            continue
+        tag = stmt[0]
+        if tag in ("loop_assign", "loop_pluseq", "loop_decl",
+                   "loop_index_assign_nd", "loop_index_pluseq"):
+            names = [stmt[1]]
+        elif tag == "loop_tuple_unpack":
+            names = list(stmt[1])
+        elif tag == "loop_if":
+            names = loop_assigned_order(stmt[2])
+        elif tag == "loop_if_else":
+            names = loop_assigned_order(stmt[2] + stmt[3])
+        elif tag == "loop_for_range":
+            names = loop_assigned_order(stmt[4])
+        else:
+            names = []
+        order += [n for n in names if n not in order]
+    return order
+
+
+def first_assign_rhs(stmts: list, name: str) -> Optional[ASTNode]:
+    """
+    Right-hand side of the first ``name = rhs`` in a loop body, searching
+    nested ``if`` branches and loops.
+
+    Parameters
+    ----------
+    stmts : list
+        A loop's statement list.
+    name : str
+        Assigned variable name.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import first_assign_rhs
+    >>> first_assign_rhs([("loop_if", ("cond",),
+    ...                    [("loop_assign", "x", ("num", 1.0))])], "x")
+    ('num', 1.0)
+    """
+    for stmt in stmts or []:
+        if not (isinstance(stmt, tuple) and stmt):
+            continue
+        tag = stmt[0]
+        if tag == "loop_assign" and stmt[1] == name:
+            return stmt[2]
+        if tag == "loop_if":
+            found = first_assign_rhs(stmt[2], name)
+        elif tag == "loop_if_else":
+            found = first_assign_rhs(stmt[2] + stmt[3], name)
+        elif tag == "loop_for_range":
+            found = first_assign_rhs(stmt[4], name)
+        else:
+            found = None
+        if found is not None:
+            return found
+    return None
+
+
+def elab_loop_block(
+        stmts: list, comp_env: Dict[str, Expr], step_elab: ElabT,
+        all_fvars: List[FVar],
+        errors: List[str]) -> Optional[Tuple[Dict[str, Expr], ElabT]]:
+    """
+    Elaborate a loop body's statements in order, each new value a ``let``
+    (appended to ``all_fvars``). An ``if`` elaborates both branches and
+    gives each name they assign a conditional value, a nested loop is its
+    own ``Nat.rec`` fold. ``None`` when a statement has no translation.
+
+    Parameters
+    ----------
+    stmts : list
+        Statements of a loop body or of an ``if`` branch.
+    comp_env : Dict[str, Expr]
+        Name to CIC value map before ``stmts``.
+    step_elab : Elab
+        Elaborator of the step function being built.
+    all_fvars : List[FVar]
+        The step function's binders, ``let`` s are appended to it.
+    errors : List[str]
+        List forwarded to ``elaborate_expr``.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import elab_loop_block
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.elab.dim_typespec import _REAL_CONST
+    >>> elab = Elab(Environment())
+    >>> elab, x_fv = elab.with_local("x", _REAL_CONST)
+    >>> fvars = []
+    >>> env, _ = elab_loop_block([("loop_assign", "x", ("num", 1.0))],
+    ...                          {"x": x_fv}, elab, fvars, [])
+    >>> env["x"] is fvars[-1]
+    True
+    """
+    from physika.core.elab.body_elab import (elaborate_expr,
+                                             resolve_dim_or_fresh)
+    from physika.core.elab.dim_typespec import typespec_to_cic_resolved
+
+    for stmt in stmts:
+        if not (isinstance(stmt, tuple) and stmt):
+            return None
+        tag = stmt[0]
+        if tag == "loop_decl":
+            _, name, type_spec, rhs_node = stmt
+            decl_type = typespec_to_cic_resolved(
+                type_spec, lambda d: resolve_dim_or_fresh(
+                    d, comp_env, step_elab, {}, errors))
+            rhs_cic = elaborate_expr(rhs_node,
+                                     comp_env,
+                                     step_elab,
+                                     errors,
+                                     expected_type=decl_type)
+            if isinstance(rhs_cic, MVar):
+                return None
+            step_elab, new_fv = step_elab.with_let(name, decl_type, rhs_cic)
+            all_fvars.append(new_fv)
+            comp_env = {**comp_env, name: new_fv}
+        elif tag in ("loop_if", "loop_if_else"):
+            cond_cic = elaborate_condition_bool(stmt[1], comp_env, step_elab,
+                                                errors)
+            if isinstance(cond_cic, MVar):
+                return None
+            then_block = elab_loop_block(stmt[2], comp_env, step_elab,
+                                         all_fvars, errors)
+            if then_block is None:
+                return None
+            then_env, step_elab = then_block
+            else_stmts = stmt[3] if tag == "loop_if_else" else []
+            else_block = elab_loop_block(else_stmts, comp_env, step_elab,
+                                         all_fvars, errors)
+            if else_block is None:
+                return None
+            else_env, step_elab = else_block
+            # names in scope before the if, changed by a branch
+            for name, prev in list(comp_env.items()):
+                then_val = then_env.get(name, prev)
+                else_val = else_env.get(name, prev)
+                if then_val is prev and else_val is prev:
+                    continue
+                prev_type = safe_infer_type(step_elab, prev)
+                val_type = safe_infer_type(step_elab,
+                                           then_val,
+                                           whnf_reduce=True)
+                if prev_type is None:
+                    return None
+                merged = build_ite_term(cond_cic, then_val, else_val, val_type)
+                step_elab, new_fv = step_elab.with_let(name, prev_type, merged)
+                all_fvars.append(new_fv)
+                comp_env = {**comp_env, name: new_fv}
+        elif tag == "loop_for_range":
+            _, range_var, start_node, end_node, body = stmt
+            start_cic = elaborate_expr(start_node, comp_env, step_elab, errors)
+            end_cic = elaborate_expr(end_node, comp_env, step_elab, errors)
+            if isinstance(start_cic, MVar) or isinstance(end_cic, MVar):
+                return None
+            updates = try_elaborate_dependent_fold_loop(
+                range_var, body, App(App(_NAT_SUB, end_cic), start_cic),
+                comp_env, step_elab, errors, start_cic)
+            if updates is None:
+                return None
+            for name, val in updates.items():
+                val_type = safe_infer_type(step_elab, val)
+                if val_type is None:
+                    return None
+                step_elab, new_fv = step_elab.with_let(
+                    name, step_elab.state.mctx.instantiate_mvars(val_type),
+                    val)
+                all_fvars.append(new_fv)
+                comp_env = {**comp_env, name: new_fv}
+        else:
+            groups = flatten_loop_assigns([stmt])
+            if groups is None:
+                return None
+            for group in groups:
+                computed = []
+                for var_name, rhs_node in group:
+                    rhs_cic = elaborate_expr(rhs_node, comp_env, step_elab,
+                                             errors)
+                    rhs_type = (None if isinstance(rhs_cic, MVar) else
+                                safe_infer_type(step_elab, rhs_cic))
+                    if rhs_type is None:
+                        return None
+                    computed.append(
+                        (var_name,
+                         step_elab.state.mctx.instantiate_mvars(rhs_type),
+                         step_elab.state.mctx.instantiate_mvars(rhs_cic)))
+                for var_name, rhs_type, rhs_cic in computed:
+                    step_elab, new_fv = step_elab.with_let(
+                        var_name, rhs_type, rhs_cic)
+                    all_fvars.append(new_fv)
+                    comp_env = {**comp_env, var_name: new_fv}
+    return comp_env, step_elab
+
+
+def try_elaborate_dependent_fold_loop(
+        loop_var: str,
+        loop_body: list,
+        n_cic: Expr,
+        cur_env: dict,
+        elab: ElabT,
+        errors: List[str],
+        start_cic: Optional[Expr] = None) -> Optional[dict]:
     """
     A loop that reassigns bound locals together at each iteration, and elaborate
     via ``Nat.rec``.
@@ -678,6 +927,9 @@ def try_elaborate_dependent_fold_loop(loop_var: str, loop_body: list,
     errors : List[str]
         List to append any elaboration errors raised while building the
         step function's body.
+    start_cic : Optional[Expr]
+        First value of the loop variable (``a`` in ``for i:ℕ(a, b)``),
+        ``0`` when ``None``.
 
     Example
     -------
@@ -690,20 +942,10 @@ def try_elaborate_dependent_fold_loop(loop_var: str, loop_body: list,
     ...     "k", [], Lit(3), {}, elab, []) is None
     True
     """
-    from physika.core.elab.body_elab import elaborate_expr
-
-    groups = flatten_loop_assigns(loop_body)
-    if not groups:
-        return None
-
-    assigned_order: List[str] = []
-    seen = set()
-    for group in groups:
-        for name, _ in group:
-            if name not in seen:
-                assigned_order.append(name)
-                seen.add(name)
-    carried = [n for n in assigned_order if isinstance(cur_env.get(n), FVar)]
+    carried = [
+        n for n in loop_assigned_order(loop_body)
+        if isinstance(cur_env.get(n), FVar)
+    ]
     if not carried:
         return None
 
@@ -716,7 +958,7 @@ def try_elaborate_dependent_fold_loop(loop_var: str, loop_body: list,
         if prev_decl is None:
             return None
         prev_type = prev_decl.type
-        rhs_node = next(r for group in groups for n, r in group if n == name)
+        rhs_node = first_assign_rhs(loop_body, name)
         is_growth = False
         if (isinstance(rhs_node, tuple) and len(rhs_node) == 3
                 and rhs_node[0] == "call"):
@@ -806,24 +1048,17 @@ def try_elaborate_dependent_fold_loop(loop_var: str, loop_body: list,
         if next_remaining is not None:
             remaining = next_remaining
 
-    for group in groups:
-        computed = []
-        for var_name, rhs_node in group:
-            rhs_cic = elaborate_expr(rhs_node, comp_env, step_elab, errors)
-            if isinstance(rhs_cic, MVar):
-                return None
-            try:
-                rhs_type = step_elab.infer_type(rhs_cic)
-            except Exception:
-                return None
+    if start_cic is not None and lit_nat_int(start_cic) != 0:
+        # the k-th step's loop variable is ``start + k``
+        step_elab, i_fv = step_elab.with_let(
+            loop_var, _NAT_CONST, App(App(_NAT_ADD, start_cic), k_fv))
+        all_fvars.append(i_fv)
+        comp_env[loop_var] = i_fv
 
-            rhs_cic = step_elab.state.mctx.instantiate_mvars(rhs_cic)
-            rhs_type = step_elab.state.mctx.instantiate_mvars(rhs_type)
-            computed.append((var_name, rhs_type, rhs_cic))
-        for var_name, rhs_type, rhs_cic in computed:
-            step_elab, new_fv = step_elab.with_let(var_name, rhs_type, rhs_cic)
-            all_fvars.append(new_fv)
-            comp_env[var_name] = new_fv
+    block = elab_loop_block(loop_body, comp_env, step_elab, all_fvars, errors)
+    if block is None:
+        return None
+    comp_env, step_elab = block
 
     new_acc = mk_prod_chain([comp_env[n] for n in carried], step_elab)
     if new_acc is None:
@@ -902,19 +1137,27 @@ def coerce_to_fin(idx_cic: Expr,
     >>> from physika.utils.cic_utils.elab_utils import coerce_to_fin
     >>> from physika.core.elab.elab import Elab
     >>> from physika.core.environment import Environment
-    >>> from physika.core.expr import Lit
+    >>> from physika.core.expr import App, Const, Lit
     >>> elab = Elab(Environment())
     >>> coerce_to_fin(Lit(0), Lit(3), elab)  # noqa: E501
     App(func=Const(name='Fin.zero', levels=()), arg=Lit(val=2))
+    >>> elab, i_fv = elab.with_local("i", App(Const("Fin", ()), Lit(4)))
+    >>> coerce_to_fin(i_fv, Lit(3), elab).func.func
+    Const(name='Fin.ofNat', levels=())
     """
     try:
         idx_type = whnf(elab.infer_type(idx_cic), elab.state.env,
                         elab.state.lctx, elab.state.mctx)
     except Exception:
         return idx_cic
-    head, _ = get_app_fn_args(idx_type)
+    head, fin_args = get_app_fn_args(idx_type)
     if isinstance(head, Const) and head.name == "Fin":
-        return idx_cic
+        if len(fin_args) != 1 or elab.unify(fin_args[0], n_expr):
+            return idx_cic
+        # An index of another range (``i : Fin (m+1)`` reading an
+        # ``ℝ[m]``) is a checked ``Fin.ofNat``, bounds hold at runtime.
+        idx_cic = App(App(Const("Fin.val", ()), fin_args[0]), idx_cic)
+        return App(App(Const("Fin.ofNat", ()), n_expr), idx_cic)
 
     # Literal index with bound should return Fin.succ/Fin.zero chain
     try:
@@ -933,6 +1176,73 @@ def coerce_to_fin(idx_cic: Expr,
         return elab.new_mvar("_fin_oob", _TYPE_0_LEVEL)
 
     return App(App(Const("Fin.ofNat", ()), n_expr), idx_cic)
+
+
+def fin_to_nat(cic: Expr, cic_type: Expr) -> Tuple[Expr, Expr]:
+    """
+    An index ``i : Fin n`` used as a number is ``Fin.val i : ℕ``. Other
+    terms are returned unchanged with their type.
+
+    Parameters
+    ----------
+    cic : Expr
+        Elaborated term.
+    cic_type : Expr
+        Its type, in whnf.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import fin_to_nat
+    >>> from physika.core.expr import App, Const, FVar, Lit
+    >>> i = FVar("i")
+    >>> val, val_type = fin_to_nat(i, App(Const("Fin", ()), Lit(3)))
+    >>> val.func.func, val_type
+    (Const(name='Fin.val', levels=()), Const(name='Nat', levels=()))
+    >>> fin_to_nat(Lit(1.0), Const("Real", ()))
+    (Lit(val=1.0), Const(name='Real', levels=()))
+    """
+    head, args = get_app_fn_args(cic_type)
+    if isinstance(head, Const) and head.name == "Fin" and len(args) == 1:
+        return App(App(Const("Fin.val", ()), args[0]), cic), _NAT_CONST
+    return cic, cic_type
+
+
+def coerce_scalar_arg(arg: Expr, expected: Expr, elab: ElabT) -> Expr:
+    """
+    Coerce a call argument to a scalar parameter type. An index
+    ``i : Fin n`` passed for ``ℕ`` is ``Fin.val i``, and a ``ℕ`` (or an
+    index) passed for ``ℝ`` is ``Nat.toReal``.
+
+    Parameters
+    ----------
+    arg : Expr
+        Elaborated argument.
+    expected : Expr
+        Parameter type.
+    elab : Elab
+        Elaborator used to infer and reduce the types.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import coerce_scalar_arg
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> from physika.core.expr import App, Const, Lit
+    >>> elab = Elab(mk_builtin_env())
+    >>> elab, i = elab.with_local("i", App(Const("Fin", ()), Lit(3)))
+    >>> coerce_scalar_arg(i, Const("Real", ()), elab).func
+    Const(name='Nat.toReal', levels=())
+    """
+    expected_w = whnf(expected, elab.state.env, elab.state.lctx,
+                      elab.state.mctx)
+    if expected_w not in (_NAT_CONST, _REAL_CONST):
+        return arg
+    arg_type = whnf(elab.infer_type(arg), elab.state.env, elab.state.lctx,
+                    elab.state.mctx)
+    arg, arg_type = fin_to_nat(arg, arg_type)
+    if expected_w == _REAL_CONST and arg_type == _NAT_CONST:
+        return App(Const("Nat.toReal", ()), arg)
+    return arg
 
 
 def elaborate_binop(tag: str, a_cic: Expr, b_cic: Expr, elab: ElabT) -> Expr:
@@ -980,6 +1290,8 @@ def elaborate_binop(tag: str, a_cic: Expr, b_cic: Expr, elab: ElabT) -> Expr:
                       elab.state.mctx)
     except Exception:
         return elab.new_mvar("_" + tag, _TYPE_0_LEVEL)
+    a_cic, a_type = fin_to_nat(a_cic, a_type)
+    b_cic, b_type = fin_to_nat(b_cic, b_type)
 
     a_len, b_len = vec_len(a_type), vec_len(b_type)
 
@@ -1151,9 +1463,19 @@ def elaborate_condition_bool(cond_node: Optional[tuple], fvar_env: Dict[str,
             try:
                 l_type = whnf(elab.infer_type(l_cic), elab.state.env,
                               elab.state.lctx, elab.state.mctx)
+                r_type = whnf(elab.infer_type(r_cic), elab.state.env,
+                              elab.state.lctx, elab.state.mctx)
             except Exception:
-                l_type = None
-            prefix = "Nat" if l_type == _NAT_CONST else "Real"
+                l_type = r_type = None
+            if l_type is not None and r_type is not None:
+                l_cic, l_type = fin_to_nat(l_cic, l_type)
+                r_cic, r_type = fin_to_nat(r_cic, r_type)
+            nat = l_type == _NAT_CONST and r_type == _NAT_CONST
+            if not nat and l_type == _NAT_CONST:
+                l_cic = App(Const("Nat.toReal", ()), l_cic)
+            if not nat and r_type == _NAT_CONST:
+                r_cic = App(Const("Nat.toReal", ()), r_cic)
+            prefix = "Nat" if nat else "Real"
             op = f"{prefix}.{COND_OP_SUFFIX[cond_node[0]]}"
             return App(App(Const(op, ()), l_cic), r_cic)
     return elab.new_mvar("_cond", Const("Bool", ()))
@@ -1459,6 +1781,7 @@ def elaborate_call(func_name: str, explicit_args: List[Expr], elab: ElabT,
             arg = lit_to_real(arg, cw.binder_type)
             if not isinstance(arg, MVar):
                 try:
+                    arg = coerce_scalar_arg(arg, cw.binder_type, elab)
                     arg_type = elab.infer_type(arg)
                     ok = elab.unify(arg_type, cw.binder_type)
                     if not ok:
@@ -2138,6 +2461,182 @@ def expected_elem_type_of(elab: ElabT,
         return None
     t = safe_whnf(elab, expected_type)
     return vec_elem_type(t) if t is not None else None
+
+
+def explicit_this_methods(class_def: dict) -> list:
+    """
+    A class's methods with implicit ``this`` made explicit. Assigning a
+    field by its name and calling a method by its name.
+    A parameter or a local declared earlier keeps the name.
+
+    Parameters
+    ----------
+    class_def : dict
+        Class definition of the unified AST.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import explicit_this_methods
+    >>> clear = {"name": "clear", "params": [], "body": None,
+    ...          "statements": [("body_assign", "x", ("num", 0.0))]}
+    >>> reset = {"name": "reset", "params": [], "body": None,
+    ...          "statements": [("body_call", "clear", [])]}
+    >>> class_def = {"class_params": [], "fields": [("x", "ℝ")],
+    ...              "methods": [clear, reset]}
+    >>> clear_, reset_ = explicit_this_methods(class_def)
+    >>> clear_["statements"]
+    [('body_field_assign', ('var', 'this'), 'x', ('num', 0.0))]
+    >>> reset_["statements"][0][1][:3]
+    ('method_call', ('var', 'this'), 'clear')
+    """
+    fields = {
+        f[0]
+        for f in class_def.get("class_params", []) +
+        class_def.get("fields", [])
+    }
+    names = {m["name"] for m in class_def.get("methods", [])}
+    methods = []
+    for method in class_def.get("methods", []):
+        bound = {p[0] for p in method.get("params", [])}
+        stmts = []
+        for stmt in method.get("statements", []):
+            tag = stmt[0] if isinstance(stmt, tuple) and stmt else None
+            if tag == "body_decl":
+                bound.add(stmt[1])
+            if (tag == "body_assign" and stmt[1] in fields
+                    and stmt[1] not in bound):
+                stmt = ("body_field_assign", ("var", "this"), stmt[1], stmt[2])
+            elif tag == "body_call" and stmt[1] in names:
+                stmt = ("body_expr", ("method_call", ("var", "this"), stmt[1],
+                                      stmt[2]))
+            stmts.append(stmt)
+        methods.append({**method, "statements": stmts})
+    return methods
+
+
+def updates_receiver(stmt: tuple, receiver: str, mutating: set) -> bool:
+    """
+    Whether ``stmt`` changes ``receiver`` from a mutating method.
+
+    Parameters
+    ----------
+    stmt : tuple
+        Method body statement.
+    receiver : str
+        Object variable name (``this``).
+    mutating : set
+        Names of the class's mutating methods.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import updates_receiver
+    >>> stmt = ("body_field_assign", ("var", "this"), "x", ("num", 1.0))
+    >>> updates_receiver(stmt, "this", set())
+    True
+    >>> call = ("body_expr", ("method_call", ("var", "this"), "step", []))
+    >>> updates_receiver(call, "this", {"step"})
+    True
+    """
+    if not (isinstance(stmt, tuple) and len(stmt) >= 2):
+        return False
+    if stmt[0] == "body_field_assign":
+        return stmt[1] == ("var", receiver)
+    call = stmt[1]
+    return (stmt[0] == "body_expr" and isinstance(call, tuple)
+            and len(call) >= 3 and call[0] == "method_call"
+            and call[1] == ("var", receiver) and call[2] in mutating)
+
+
+def mutating_methods(methods: list) -> set:
+    """
+    Names of the methods without a return value that change ``this``.
+
+    Parameters
+    ----------
+    methods : list
+        Method definitions of a class.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import mutating_methods
+    >>> set_x = {"name": "set_x", "body": None, "statements": [
+    ...     ("body_field_assign", ("var", "this"), "x", ("num", 1.0))]}
+    >>> reset = {"name": "reset", "body": None, "statements": [
+    ...     ("body_expr", ("method_call", ("var", "this"), "set_x", []))]}
+    >>> sorted(mutating_methods([set_x, reset]))
+    ['reset', 'set_x']
+    """
+    names: set = set()
+    changed = True
+    while changed:
+        changed = False
+        for method in methods:
+            if (method["name"] in names or method.get("body") is not None
+                    or method.get("return_type") is not None):
+                continue
+            if any(
+                    updates_receiver(stmt, "this", names)
+                    for stmt in method.get("statements", [])):
+                names.add(method["name"])
+                changed = True
+    return names
+
+
+def receiver_update_stmts(stmts: list, receiver: str, mutating: set) -> list:
+    """
+    ``receiver.m(...)`` calls of mutating methods as ``receiver =
+    receiver.m(...)``, the updated object they return.
+
+    Parameters
+    ----------
+    stmts : list
+        Method body statements.
+    receiver : str
+        Object variable name (``this``).
+    mutating : set
+        Names of the class's mutating methods.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import receiver_update_stmts
+    >>> call = ("method_call", ("var", "this"), "step", [])
+    >>> receiver_update_stmts([("body_expr", call)], "this", {"step"})
+    [('body_assign', 'this', ('method_call', ('var', 'this'), 'step', []))]
+    """
+    return [("body_assign", receiver, stmt[1]) if stmt[0] == "body_expr"
+            and updates_receiver(stmt, receiver, mutating) else stmt
+            for stmt in stmts]
+
+
+def rebind_projections(cur_env: Dict[str, Expr], prev: Expr,
+                       new: Expr) -> Dict[str, Expr]:
+    """
+    Names bound to a field of ``prev`` (a method's bare field names,
+    ``n`` is ``this.n``) read the same field of ``new`` once the object
+    is updated.
+
+    Parameters
+    ----------
+    cur_env : Dict[str, Expr]
+        Variable names in scope.
+    prev : Expr
+        Object before the update.
+    new : Expr
+        Updated object.
+
+    Example
+    -------
+    >>> from physika.utils.cic_utils.elab_utils import rebind_projections
+    >>> from physika.core.expr import FVar, FVarId, Proj
+    >>> old, new = FVar(FVarId("this.0")), FVar(FVarId("this.1"))
+    >>> rebind_projections({"n": Proj("G", 0, old)}, old, new)
+    {'n': Proj(type_name='G', idx=0, expr=FVar(id=FVarId(id='this.1')))}
+    """
+    return {
+        name: (Proj(val.type_name, val.idx, new)
+               if isinstance(val, Proj) and val.expr == prev else val)
+        for name, val in cur_env.items()
+    }
 
 
 def head_const_of(elab: ElabT, cic: Expr) -> Optional[Const]:
