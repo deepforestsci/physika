@@ -1174,12 +1174,13 @@ def dim_var_preamble(statements: list[ASTNode], body: ASTNode,
         for axis, dim_entry in enumerate(type_spec[1]):
             dim_value = dim_entry[0] if (isinstance(dim_entry, tuple) and
                                          len(dim_entry) == 2) else dim_entry
-            if dim_var_name(dim_value) not in wanted:
+            dim = dim_var_name(dim_value)
+            if dim is None or dim not in wanted:
                 continue
             extract_stmt = dim_extraction_stmt(dim_value, axis, src, indent)
             if extract_stmt is not None:
                 lines.append(extract_stmt)
-                wanted.discard(dim_var_name(dim_value))
+                wanted.discard(dim)
     return lines
 
 

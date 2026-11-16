@@ -1460,6 +1460,8 @@ def elaborate_condition_bool(cond_node: Optional[tuple], fvar_env: Dict[str,
         l_cic = elaborate_expr(cond_node[1], fvar_env, elab, errors)
         r_cic = elaborate_expr(cond_node[2], fvar_env, elab, errors)
         if not isinstance(l_cic, MVar) and not isinstance(r_cic, MVar):
+            l_type: Optional[Expr]
+            r_type: Optional[Expr]
             try:
                 l_type = whnf(elab.infer_type(l_cic), elab.state.env,
                               elab.state.lctx, elab.state.mctx)

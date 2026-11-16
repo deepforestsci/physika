@@ -32,6 +32,7 @@ from physika.utils.cic_utils.elab_utils import (
     head_const_of,
     elaborate_binop,
     vec_len,
+    rebind_projections,
 )
 from physika.core.expr import FVarId, Proj
 from physika.core.metavar import MetaVarKind
@@ -46,7 +47,8 @@ from physika.core.expr import (
     Lit,
     MVar,
 )
-from physika.utils.cic_utils.expr_utils import get_app_fn_args
+from physika.utils.cic_utils.expr_utils import (get_app_fn_args, has_mvar,
+                                                instantiate1)
 from physika.core.reduction import whnf
 
 from physika.core.elab.dim_typespec import (_REAL_CONST, _TYPE_0_LEVEL,
@@ -86,6 +88,48 @@ def expr_to_str(e: Expr) -> str:
     return "?"
 
 
+def dim_str(dim: Expr, elab: ElabT) -> str:
+    """
+    A ``Vec`` length for error messages. ``3`` for a literal or a
+    ``Nat.succ`` chain over one, ``n`` for a dim var and ``n+1`` for a
+    ``Nat.succ`` chain.
+
+    Parameters
+    ----------
+    dim : Expr
+        Length term of a ``Vec`` type.
+    elab : Elab
+        Elaborator used to instantiate solved MVars.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import dim_str
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.expr import App, Const, Lit
+    >>> two = App(Const("Nat.succ", ()), App(Const("Nat.succ", ()), Lit(0)))
+    >>> dim_str(two, Elab(Environment()))
+    '2'
+    """
+    succs = 0
+    while isinstance(dim, App) and isinstance(
+            dim.func, Const) and dim.func.name == "Nat.succ":
+        succs += 1
+        dim = elab.state.mctx.instantiate_mvars(dim.arg)
+    if isinstance(dim, Lit) and isinstance(dim.val, int):
+        return str(dim.val + succs)
+    if isinstance(dim, FVar):
+        decl = elab.state.lctx.find(dim.id)
+        base = decl.user_name if decl else "?"
+    elif isinstance(dim, MVar):
+        base = "?"
+    elif isinstance(dim, Lit):
+        base = str(dim.val)
+    else:
+        base = expr_to_str(dim)
+    return f"{base}+{succs}" if succs else base
+
+
 def error_type_str(t: Expr, elab: ElabT) -> str:
     """
     Convert a CIC type to Physika-style notation for error messages.
@@ -119,16 +163,7 @@ def error_type_str(t: Expr, elab: ElabT) -> str:
     if isinstance(t, App):
         head, args = get_app_fn_args(t)
         if isinstance(head, Const) and head.name == "Vec" and len(args) == 2:
-            dim = elab.state.mctx.instantiate_mvars(args[1])
-            if isinstance(dim, FVar):
-                decl = elab.state.lctx.find(dim.id)
-                dim_s = decl.user_name if decl else "?"
-            elif isinstance(dim, MVar):
-                dim_s = "?"
-            elif isinstance(dim, Lit):
-                dim_s = str(dim.val)
-            else:
-                dim_s = expr_to_str(dim)
+            dim_s = dim_str(elab.state.mctx.instantiate_mvars(args[1]), elab)
             inner = error_type_str(args[0], elab)
             if inner.startswith("ℝ["):
                 return f"ℝ[{dim_s}, {inner[2:-1]}]"
@@ -278,6 +313,162 @@ def elaborate_stmts_with_return(
     return body_cic, cur_elab, cur_env, local_decls, fvar_names
 
 
+def resolve_dim_or_fresh(name: str,
+                         env: Dict[str, Expr],
+                         elab: ElabT,
+                         fresh: Dict[str, Expr],
+                         errors: Optional[List[str]] = None,
+                         context_label: str = "") -> Expr:
+    """
+    A dim name in a declared type should be the value in ``env``, else a fresh
+    ``ℕ`` MVar recorded in ``fresh`` and during unifcaiton.
+
+    Parameters
+    ----------
+    name : str
+        Dim name in a declared type.
+    env : Dict[str, Expr]
+        Variable names in scope.
+    elab : Elab
+        Elaborator creating the fresh MVar.
+    fresh : Dict[str, Expr]
+        New dims of the declaration, extended in place.
+    errors : Optional[List[str]]
+        List to append a non ``ℕ`` dim error to.
+    context_label : str
+        Location prefix for any appended diagnostic.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import resolve_dim_or_fresh
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.expr import Lit
+    >>> fresh = {}
+    >>> resolve_dim_or_fresh("n", {"n": Lit(3)}, Elab(Environment()), fresh)
+    Lit(val=3)
+    >>> m = resolve_dim_or_fresh("m", {}, Elab(Environment()), fresh)
+    >>> list(fresh) == ["m"] and fresh["m"] is m
+    True
+    >>> errors = []
+    >>> _ = resolve_dim_or_fresh("x", {"x": Lit(1.0)}, Elab(Environment()),
+    ...                          fresh, errors, "f")
+    >>> errors
+    ["f: dimension 'x' must be ℕ"]
+    """
+    value = env.get(name)
+    if value is not None:
+        value_type = safe_infer_type(elab, value, whnf_reduce=True)
+        if (isinstance(value_type, Const) and value_type != _NAT_CONST):
+            if errors is not None:
+                errors.append(f"{context_label}: dimension '{name}' must be ℕ")
+            return elab.new_mvar(f"_dim_{name}", _NAT_CONST)
+        return value
+    if name not in fresh:
+        fresh[name] = elab.new_mvar(f"_dim_{name}", _NAT_CONST)
+    return fresh[name]
+
+
+def assign_fresh_dims(decl_type: Expr, value_type: Expr,
+                      fresh: Dict[str, Expr], elab: ElabT) -> None:
+    """
+    Solve the fresh dims of a declared type from its value's type.
+    ``unify`` reduces dimension values, so ``m`` reads back as its original
+    value.
+
+    Parameters
+    ----------
+    decl_type : Expr
+        Declared type containing the fresh dims.
+    value_type : Expr
+        Type of the declaration's value.
+    fresh : Dict[str, Expr]
+        Fresh dim MVars of the declaration.
+    elab : Elab
+        Elaborator whose MVar context gets the assignments.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import assign_fresh_dims
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.expr import App, Const, Lit
+    >>> elab = Elab(Environment())
+    >>> m = elab.new_mvar("_dim_m", _NAT_CONST)
+    >>> vec = lambda n: App(App(Const("Vec", ()), _REAL_CONST), n)
+    >>> assign_fresh_dims(vec(m), vec(Lit(4)), {"m": m}, elab)
+    >>> elab.state.mctx.instantiate_mvars(m)
+    Lit(val=4)
+    """
+    fresh_ids = {mv.id for mv in fresh.values() if isinstance(mv, MVar)}
+    mctx = elab.state.mctx
+    while True:
+        d_head, d_args = get_app_fn_args(decl_type)
+        v_head, v_args = get_app_fn_args(value_type)
+        if not (isinstance(d_head, Const) and d_head.name == "Vec"
+                and d_head == v_head and len(d_args) == len(v_args) == 2):
+            return
+        dim = mctx.instantiate_mvars(d_args[1])
+        if isinstance(dim, MVar) and dim.id in fresh_ids:
+            ok, _ = mctx.is_valid_assignment(dim.id, v_args[1])
+            if ok:
+                mctx.expr_assignments[dim.id.id] = v_args[1]
+        decl_type, value_type = d_args[0], v_args[0]
+
+
+def bind_solved_dims(fresh: Dict[str,
+                                 Expr], var_name: str, cur_env: Dict[str,
+                                                                     Expr],
+                     cur_elab: ElabT, local_decls: List[Tuple[str, Expr]],
+                     errors: List[str], context_label: str) -> Dict[str, Expr]:
+    """
+    Bind each dim a declaration introduced to the value unification solved it
+    to. A dim without unification solved is an error.
+
+    Parameters
+    ----------
+    fresh : Dict[str, Expr]
+        Fresh dim MVars of the declaration.
+    var_name : str
+        Declared variable, for the error message.
+    cur_env : Dict[str, Expr]
+        Variable names in scope.
+    cur_elab : Elab
+        Elaborator with dims solutions.
+    local_decls : List[Tuple[str, Expr]]
+        Local declarations, each solved dim is appended.
+    errors : List[str]
+        List to append an unsolved dim error to.
+    context_label : str
+        Location prefix for any appended diagnostic.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import bind_solved_dims
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.expr import Lit
+    >>> elab = Elab(Environment())
+    >>> m = elab.new_mvar("_dim_m", _NAT_CONST)
+    >>> elab.unify(m, Lit(4))
+    True
+    >>> decls = []
+    >>> bind_solved_dims({"m": m}, "x", {}, elab, decls, [], "f")
+    {'m': Lit(val=4)}
+    >>> decls
+    [('m', Lit(val=4))]
+    """
+    for name, mvar in fresh.items():
+        solved = cur_elab.state.mctx.instantiate_mvars(mvar)
+        if has_mvar(solved):
+            errors.append(f"{context_label}: cannot determine dimension "
+                          f"'{name}' of '{var_name}' from its value")
+            continue
+        cur_env = {**cur_env, name: solved}
+        local_decls.append((name, solved))
+    return cur_env
+
+
 def elab_body_decl(stmt: tuple, i: int, stmts: List[tuple],
                    body_node: Optional[ASTNode],
                    terminal_node: Optional[ASTNode], cur_env: Dict[str, Expr],
@@ -341,16 +532,31 @@ def elab_body_decl(stmt: tuple, i: int, stmts: List[tuple],
             return (cur_env, cur_elab, local_decls, fvar_names, ("skip_to",
                                                                  j + 1))
 
-    # A dim var in type_spec is resolved in local env
-    decl_type = typespec_to_cic_resolved(type_spec, cur_env.get)
+    # A dim var in type_spec is resolved in local env, a new one is
+    # solved from the value's type
+    fresh: Dict[str, Expr] = {}
+    decl_type = typespec_to_cic_resolved(
+        type_spec, lambda d: resolve_dim_or_fresh(d, cur_env, cur_elab, fresh,
+                                                  errors, context_label))
     rhs_cic = elaborate_expr(expr_node,
                              cur_env,
                              cur_elab,
                              errors,
                              expected_type=decl_type)
+    if fresh and not isinstance(rhs_cic, MVar):
+        try:
+            assign_fresh_dims(
+                decl_type,
+                cur_elab.state.mctx.instantiate_mvars(
+                    cur_elab.infer_type(rhs_cic)), fresh, cur_elab)
+        except Exception:
+            pass
     cur_env, cur_elab = bind_declared_local(var_name, decl_type, rhs_cic,
                                             cur_env, cur_elab, local_decls,
                                             fvar_names, errors, context_label)
+    if fresh and not isinstance(rhs_cic, MVar):
+        cur_env = bind_solved_dims(fresh, var_name, cur_env, cur_elab,
+                                   local_decls, errors, context_label)
     return cur_env, cur_elab, local_decls, fvar_names, None
 
 
@@ -418,11 +624,139 @@ def elab_body_assign(stmt: tuple, i: int, stmts: List[tuple],
                           f"previously {exp_s}")
         cur_env, cur_elab = bind_local(var_name, rhs_cic, rhs_type, cur_env,
                                        cur_elab, local_decls, fvar_names)
+        if prev_fv is not None:
+            # field new value
+            cur_env = rebind_projections(cur_env, prev_fv, cur_env[var_name])
     elif isinstance(prev_fv, FVar):
         # RHS failed elaboration
         # add var_name as an mvar
         cur_env = invalidate_local(var_name, cur_env, cur_elab)
     return cur_env, cur_elab, local_decls, fvar_names, None
+
+
+def elab_body_field_assign(stmt: tuple, i: int, stmts: List[tuple],
+                           body_node: Optional[ASTNode],
+                           terminal_node: Optional[ASTNode],
+                           cur_env: Dict[str, Expr], cur_elab: ElabT,
+                           local_decls: List[Tuple[str, Expr]],
+                           fvar_names: Dict[FVarId, str], errors: List[str],
+                           context_label: str) -> HandlerResult:
+    """
+    Elaborate ``obj.f = e`` a new object.
+
+    Parameters
+    ----------
+    stmt : tuple
+        ``("body_field_assign", obj_node, field, rhs_node)`` statement.
+    i : int
+        Statement's index within ``stmts``.
+    stmts : list
+        Function or /branch body's statement list.
+    body_node, terminal_node : object
+        Unused, present to match handlers format
+    cur_env: Dict[str, Expr]
+        Current environment with solved MVars
+    cur_elab: Elab
+        Threaded elaboration state.
+    local_decls: List[Tuple[str, Expr]]
+        List of tuples that contains solved and unsolved variables names with
+        its CIC term.
+    fvar_names: Dict[FVarId, str].
+        Free variables names present in current scope.
+    errors : list
+        Diagnostics list to append to.
+    context_label : str
+        Location prefix for any appended diagnostic.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import elab_body_field_assign
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.expr import MVar
+    >>> stmt = ("body_field_assign", ("var", "p"), "x", ("num", 1.0))
+    >>> env, _, _, _, ctrl = elab_body_field_assign(
+    ...     stmt, 0, [stmt], None, None, {}, Elab(Environment()), [], {}, [],
+    ...     "f")
+    >>> ctrl is None and env == {}
+    True
+    """
+    obj_node, field, rhs_node = stmt[1], stmt[2], stmt[3]
+    if not (isinstance(obj_node, tuple) and len(obj_node) == 2
+            and obj_node[0] == "var"):
+        return cur_env, cur_elab, local_decls, fvar_names, None
+    assign = ("body_assign", obj_node[1], ("field_update", obj_node, field,
+                                           rhs_node))
+    return elab_body_assign(assign, i, stmts, body_node, terminal_node,
+                            cur_env, cur_elab, local_decls, fvar_names, errors,
+                            context_label)
+
+
+def elab_body_index_assign(stmt: tuple, i: int, stmts: List[tuple],
+                           body_node: Optional[ASTNode],
+                           terminal_node: Optional[ASTNode],
+                           cur_env: Dict[str, Expr], cur_elab: ElabT,
+                           local_decls: List[Tuple[str, Expr]],
+                           fvar_names: Dict[FVarId, str], errors: List[str],
+                           context_label: str) -> HandlerResult:
+    """
+    Elaborate ``x[i] = e`` (``body_index_assign``) and ``x[i, j] = e``
+    (``body_index_assign_nd``) as ``x = index_update(x, [i, j], e)``.
+
+    Parameters
+    ----------
+    stmt : tuple
+        ``body_index_assign``/``body_index_assign_nd`` statement.
+    i : int
+        Statement's index within ``stmts``.
+    stmts : list
+        Function or branch body's statement list.
+    body_node, terminal_node : object
+        Unused by this handler — part of uniform handler signature
+        every ``TAG_HANDLERS`` entry shares (see that dict's docstring).
+    cur_env: Dict[str, Expr]
+        Current environment with solved MVars
+    cur_elab: Elab
+        Threaded elaboration state.
+    local_decls: List[Tuple[str, Expr]]
+        List of tuples that contains solved and unsolved variables names with
+        its CIC term.
+    fvar_names: Dict[FVarId, str].
+        Free variables names present in current scope.
+    errors : list
+        Diagnostics list to append to.
+    context_label : str
+        Location prefix for any appended diagnostic.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import elab_body_index_assign
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> from physika.core.elab.dim_typespec import _REAL_CONST
+    >>> from physika.core.expr import App, Const, Lit
+    >>> elab = Elab(mk_builtin_env())
+    >>> vec_ty = App(App(Const("Vec", ()), _REAL_CONST), Lit(3))
+    >>> elab, x_fv = elab.with_local("x", vec_ty)
+    >>> stmt = ("body_index_assign", "x", ("num", 0), ("num", 1.0))
+    >>> env, _, _, _, _ = elab_body_index_assign(
+    ...     stmt, 0, [stmt], None, None, {"x": x_fv}, elab, [], {}, [], "f")
+    >>> env["x"] is x_fv
+    False
+    """
+    if stmt[0] == "body_index_assign":
+        idx_nodes = [stmt[2]]
+    else:
+        idx_nodes = [
+            item[1] if (isinstance(item, tuple) and len(item) == 2
+                        and item[0] == "index_item") else item
+            for item in stmt[2]
+        ]
+    assign = ("body_assign", stmt[1], ("index_update", stmt[1], idx_nodes,
+                                       stmt[3]))
+    return elab_body_assign(assign, i, stmts, body_node, terminal_node,
+                            cur_env, cur_elab, local_decls, fvar_names, errors,
+                            context_label)
 
 
 def elab_body_for(stmt: tuple, i: int, stmts: List[tuple],
@@ -504,7 +838,8 @@ def elab_body_for(stmt: tuple, i: int, stmts: List[tuple],
         if not isinstance(start_cic, MVar) and not isinstance(end_cic, MVar):
             n_cic = App(App(_NAT_SUB, end_cic), start_cic)
             multi_updates = try_elaborate_dependent_fold_loop(
-                range_var, loop_body, n_cic, cur_env, cur_elab, errors)
+                range_var, loop_body, n_cic, cur_env, cur_elab, errors,
+                start_cic)
     if fold_cic is not None:
         cur_env = {**cur_env, loop_body[0][1]: fold_cic}
     elif index_write is not None:
@@ -979,6 +1314,37 @@ def elab_expr_array(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
     return vec
 
 
+def index_base(obj: ASTNode, fvar_env: Dict[str, Expr], elab: ElabT,
+               errors: List[str]) -> Expr:
+    """
+    CIC term of an indexed array. A name (``u[i]``) or an expression node,
+    such as a class field (``this.W[i]``).
+
+    Parameters
+    ----------
+    obj : Union[str, ASTNode]
+        Indexed array, a name or an expression node.
+    fvar_env : Dict[str, Expr]
+        Variable names in scope.
+    elab : Elab
+        Elaborator providing  with env/lctx/mctx and MVar/FVar information.
+    errors : List[str]
+        List that contains error messages.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import index_base
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.expr import Lit
+    >>> index_base("u", {"u": Lit(1.0)}, Elab(Environment()), [])
+    Lit(val=1.0)
+    """
+    if isinstance(obj, str):
+        return resolve_name(obj, fvar_env, elab)
+    return elaborate_expr(obj, fvar_env, elab, errors)
+
+
 def elab_expr_index(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
                     errors: List[str], expected_type: Optional[Expr]) -> Expr:
     """
@@ -1019,7 +1385,7 @@ def elab_expr_index(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
     False
     """
     obj_name, idx_node = node[1], node[2]
-    obj_cic = resolve_name(obj_name, fvar_env, elab)
+    obj_cic = index_base(obj_name, fvar_env, elab, errors)
     idx_cic = elaborate_expr(idx_node, fvar_env, elab, errors)
     if not isinstance(obj_cic, MVar) and not isinstance(idx_cic, MVar):
         obj_type = safe_infer_type(elab, obj_cic, whnf_reduce=True)
@@ -1079,7 +1445,7 @@ def elab_expr_indexn(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
                     and item[0] == "index_item") else item
         for item in raw_idx_nodes
     ]
-    obj_cic = resolve_name(obj_name, fvar_env, elab)
+    obj_cic = index_base(obj_name, fvar_env, elab, errors)
     if isinstance(obj_cic, MVar):
         return elab.new_mvar("_indexN", _TYPE_0_LEVEL)
     for idx_node in idx_nodes:
@@ -1097,6 +1463,112 @@ def elab_expr_indexn(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
             App(App(App(Const("Vec.get", ()), elem_type), n_expr), obj_cic),
             idx_cic)
     return obj_cic
+
+
+def index_update_term(obj_cic: Expr, idx_nodes: list, rhs_node: ASTNode,
+                      fvar_env: Dict[str, Expr], elab: ElabT,
+                      errors: List[str]) -> Expr:
+    """
+    Build ``obj`` with entry ``idx_nodes`` replaced by ``rhs_node``.
+    ``ℝ[a,b]`` is a nested ``Vec (Vec Real b) a`` and  ``x[i,j] = v`` would be
+    ``Vec.set x i (Vec.set x[i] j v)``.
+
+    Parameters
+    ----------
+    obj_cic : Expr
+        Elaborated vector being updated.
+    idx_nodes : list
+        Index AST nodes, outermost first.
+    rhs_node : ASTNode
+        New entry value.
+    fvar_env : Dict[str, Expr]
+        Variable names in scope.
+    elab : Elab
+        Elaborator providing env/lctx/mctx and MVar/FVar information.
+    errors : List[str]
+        List that contains error messages.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import index_update_term
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> from physika.core.elab.dim_typespec import _REAL_CONST
+    >>> from physika.core.expr import App, Const, Lit
+    >>> elab = Elab(mk_builtin_env())
+    >>> vec_ty = App(App(Const("Vec", ()), _REAL_CONST), Lit(3))
+    >>> elab, x_fv = elab.with_local("x", vec_ty)
+    >>> term = index_update_term(x_fv, [("num", 1)], ("num", 2.0),
+    ...                          {"x": x_fv}, elab, [])
+    >>> term.func.func.func.func.func
+    Const(name='Vec.set', levels=())
+    """
+    obj_type = safe_infer_type(elab, obj_cic, whnf_reduce=True)
+    if obj_type is None:
+        return elab.new_mvar("_index_update", _TYPE_0_LEVEL)
+    n_expr, elem_type = vec_shape_of(obj_type)
+    idx_cic = elaborate_expr(idx_nodes[0], fvar_env, elab, errors)
+    if n_expr is None or elem_type is None or isinstance(idx_cic, MVar):
+        return elab.new_mvar("_index_update", _TYPE_0_LEVEL)
+    idx_cic = coerce_to_fin(idx_cic, n_expr, elab, errors)
+    if len(idx_nodes) == 1:
+        val_cic = elaborate_expr(rhs_node,
+                                 fvar_env,
+                                 elab,
+                                 errors,
+                                 expected_type=elem_type)
+    else:
+        row = App(
+            App(App(App(Const("Vec.get", ()), elem_type), n_expr), obj_cic),
+            idx_cic)
+        val_cic = index_update_term(row, idx_nodes[1:], rhs_node, fvar_env,
+                                    elab, errors)
+    if isinstance(val_cic, MVar):
+        return elab.new_mvar("_index_update", _TYPE_0_LEVEL)
+    return App(
+        App(App(App(App(Const("Vec.set", ()), elem_type), n_expr), obj_cic),
+            idx_cic), val_cic)
+
+
+def elab_expr_index_update(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
+                           errors: List[str],
+                           expected_type: Optional[Expr]) -> Expr:
+    """
+    Handle an ``index_update`` node, the value of ``x`` after an indexed
+    write ``x[i] = v`` inside a loop (see ``flatten_loop_assigns``).
+
+    Parameters
+    ----------
+    node : tuple
+        ``("index_update", obj_name, idx_nodes, rhs_node)`` node.
+    fvar_env : Dict[str, Expr]
+        Variable names in scope.
+    elab : Elab
+        Elaborator providing env/lctx/mctx and MVar/FVar information.
+    errors : List[str]
+        List that contains error messages.
+    expected_type : Optional[Expr]
+        Unused, part of the uniform handler signature.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import elab_expr_index_update
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.inductive import mk_builtin_env
+    >>> from physika.core.elab.dim_typespec import _REAL_CONST
+    >>> from physika.core.expr import App, Const, Lit, MVar
+    >>> elab = Elab(mk_builtin_env())
+    >>> vec_ty = App(App(Const("Vec", ()), _REAL_CONST), Lit(3))
+    >>> elab, x_fv = elab.with_local("x", vec_ty)
+    >>> node = ("index_update", "x", [("num", 0)], ("num", 1.0))
+    >>> isinstance(elab_expr_index_update(node, {"x": x_fv}, elab, [], None),
+    ...            MVar)
+    False
+    """
+    obj_cic = index_base(node[1], fvar_env, elab, errors)
+    if isinstance(obj_cic, MVar):
+        return elab.new_mvar("_index_update", _TYPE_0_LEVEL)
+    return index_update_term(obj_cic, node[2], node[3], fvar_env, elab, errors)
 
 
 DEFAULT_OPEN_ALIASES = {
@@ -1345,6 +1817,21 @@ def elab_expr_matmul(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
                     App(
                         App(App(App(Const("Mat.matmul", ()), m_expr), k_expr),
                             n_expr), a_cic), b_cic)
+            # ℝ[k] @ ℝ[k, n], ℝ[m, k] @ ℝ[k] and ℝ[k] @ ℝ[k]
+            if (m_expr is not None and k_expr is None and k2_expr is not None
+                    and n_expr is not None):
+                return App(
+                    App(App(App(Const("Mat.vecmul", ()), m_expr), n_expr),
+                        a_cic), b_cic)
+            if (m_expr is not None and k_expr is not None
+                    and k2_expr is not None and n_expr is None):
+                return App(
+                    App(App(App(Const("Mat.mulvec", ()), m_expr), k_expr),
+                        a_cic), b_cic)
+            if (m_expr is not None and k_expr is None and k2_expr is not None
+                    and n_expr is None):
+                return App(App(App(Const("Vec.dot", ()), m_expr), a_cic),
+                           b_cic)
     return elab.new_mvar("_matmul", _TYPE_0_LEVEL)
 
 
@@ -1476,6 +1963,129 @@ def elab_expr_if_else_return(node: tuple, fvar_env: Dict[str, Expr],
     return build_ite_term(cond_cic, then_cic, else_cic, then_type)
 
 
+def field_size_value(value_type: Expr, axis: int,
+                     elab: ElabT) -> Optional[Expr]:
+    """
+    Length of axis ``axis`` of a ``Vec`` type, as written.
+
+    Parameters
+    ----------
+    value_type : Expr
+        Type of a field's new value.
+    axis : int
+        Axis of the size field.
+    elab : Elab
+        Elaborator used to whnf-reduce a layer when needed.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import field_size_value
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.expr import App, Const, Lit
+    >>> row = App(App(Const("Vec", ()), _REAL_CONST), Lit(3))
+    >>> field_size_value(App(App(Const("Vec", ()), row), Lit(2)), 1,
+    ...                  Elab(Environment()))
+    Lit(val=3)
+    """
+    for layer in range(axis + 1):
+        head, args = get_app_fn_args(value_type)
+        if not (isinstance(head, Const) and head.name == "Vec"):
+            reduced = safe_whnf(elab, value_type)
+            if reduced is None:
+                return None
+            head, args = get_app_fn_args(reduced)
+        if not (isinstance(head, Const) and head.name == "Vec"
+                and len(args) == 2):
+            return None
+        if layer == axis:
+            return args[1]
+        value_type = args[0]
+    return None
+
+
+def elab_expr_field_update(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
+                           errors: List[str],
+                           expected_type: Optional[Expr]) -> Expr:
+    """
+    Handle a ``field_update`` node, ``{ obj with f := e }``: the class
+    constructor applied to ``obj``'s fields, ``e`` for ``f``. A size field
+    of ``f`` (``n`` of ``adjacency: ℝ[n, n]``) takes ``e``'s length, so
+    ``this.adjacency = grow(k)`` gives ``this.n = k``.
+
+    Parameters
+    ----------
+    node : tuple
+        ``("field_update", obj_node, field_name, rhs_node)`` node.
+    fvar_env : Dict[str, Expr]
+        Variable names in scope.
+    elab : Elab
+        Elaborator providing env/lctx/mctx and MVar/FVar information.
+    errors : List[str]
+        List that contains error messages.
+    expected_type : Optional[Expr]
+        Unused, part of the uniform handler signature.
+
+    Example
+    -------
+    >>> from physika.core.elab.body_elab import elab_expr_field_update
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> from physika.core.expr import MVar
+    >>> node = ("field_update", ("var", "p"), "x", ("num", 1.0))
+    >>> isinstance(elab_expr_field_update(node, {}, Elab(Environment()), [],
+    ...                                   None), MVar)
+    True
+    """
+    obj_node, field, rhs_node = node[1], node[2], node[3]
+    obj_cic = elaborate_expr(obj_node, fvar_env, elab, errors)
+    head = None if isinstance(obj_cic, MVar) else head_const_of(elab, obj_cic)
+    ii = None if head is None else elab.state.env.inductives.get(head.name)
+    fnames = (None if head is None else struct_field_names(
+        head.name, elab.state.env))
+    if ii is None or not fnames or field not in fnames:
+        return elab.new_mvar("_field_update", _TYPE_0_LEVEL)
+    cname = head.name
+    obj_type = safe_infer_type(elab, obj_cic, whnf_reduce=True)
+    params = get_app_fn_args(obj_type)[1] if obj_type is not None else []
+    ctor = ii.decl.constructors[0]
+    # field types with the other fields kept
+    ctor_type = ctor.type
+    for p in params:
+        ctor_type = instantiate1(ctor_type.body, p)
+    field_type = None
+    for idx, fname in enumerate(fnames):
+        if fname == field:
+            field_type = ctor_type.binder_type
+            break
+        ctor_type = instantiate1(ctor_type.body, Proj(cname, idx, obj_cic))
+    scalar = isinstance(field_type, Const)
+    rhs_cic = elaborate_expr(rhs_node,
+                             fvar_env,
+                             elab,
+                             errors,
+                             expected_type=field_type if scalar else None)
+    rhs_type = None if isinstance(rhs_cic, MVar) else safe_infer_type(
+        elab, rhs_cic)
+    if rhs_type is None:
+        return elab.new_mvar("_field_update", _TYPE_0_LEVEL)
+    sizes = elab.state.env.struct_size_fields.get(cname, {})
+    value: Expr = Const(ctor.name, ())
+    for p in params:
+        value = App(value, p)
+    for idx, fname in enumerate(fnames):
+        if fname == field:
+            arg = rhs_cic
+        elif fname in sizes and sizes[fname][0] == field:
+            arg = field_size_value(rhs_type, sizes[fname][1], elab)
+            if arg is None:
+                return elab.new_mvar("_field_update", _TYPE_0_LEVEL)
+        else:
+            arg = Proj(cname, idx, obj_cic)
+        value = App(value, arg)
+    return value
+
+
 EXPR_TAG_HANDLERS = {
     "var": elab_expr_var,
     "num": elab_expr_num,
@@ -1483,7 +2093,10 @@ EXPR_TAG_HANDLERS = {
     "for_expr": elab_expr_for,
     "array": elab_expr_array,
     "index": elab_expr_index,
+    "chain_index": elab_expr_index,
     "indexN": elab_expr_indexn,
+    "index_update": elab_expr_index_update,
+    "field_update": elab_expr_field_update,
     "call": elab_expr_call,
     "field_access": elab_expr_field_access,
     "method_call": elab_expr_method_call,
@@ -1500,6 +2113,9 @@ EXPR_TAG_HANDLERS = {
 TAG_HANDLERS = {
     "body_decl": elab_body_decl,
     "body_assign": elab_body_assign,
+    "body_field_assign": elab_body_field_assign,
+    "body_index_assign": elab_body_index_assign,
+    "body_index_assign_nd": elab_body_index_assign,
     "body_for": elab_body_for,
     "body_for_range": elab_body_for,
     "body_if": elab_body_if,

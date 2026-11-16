@@ -426,7 +426,7 @@ def typespec_to_cic_resolved(ts: Union[str, tuple],
 def bvar_resolver(
     binder_names: List[str],
     depth: int,
-    return_only_mvars: Optional[Dict[str, "MVar"]] = None
+    return_only_mvars: Optional[Dict[str, Expr]] = None
 ) -> Callable[[str], Expr]:
     """
     Returns a function from binder name to ``Expr``. A dim var resolves
@@ -470,7 +470,7 @@ def typespec_to_cic(
         ts: Union[str, tuple],
         binder_names: List[str],
         depth: int,
-        return_only_mvars: Optional[Dict[str, "MVar"]] = None) -> Expr:
+        return_only_mvars: Optional[Dict[str, Expr]] = None) -> Expr:
     """
     Convert a Physika type spec to CIC ``Expr``.
 
