@@ -144,6 +144,16 @@ scalar-output functions and a full Jacobian matrix for vector-output functions.
 .. literalinclude:: ../examples/diff_for.phyk
    :language: text
 
+
+.. _half_open_interval_example:
+
+Half-open interval for loops
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../examples/half_open_interval_loops.phyk
+   :language: text
+
+
 Factorial (recursive)
 ~~~~~~~~~~~~~~~~~~~~~
 
