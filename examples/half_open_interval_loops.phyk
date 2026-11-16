@@ -1,0 +1,113 @@
+# =======================================================
+# Half open interval loops
+# 
+# This are the subsections:
+# * Basic declarations
+# * Function level
+# * Class level
+# * Differentiability
+# =======================================================
+
+
+
+# --------------------------------------
+# Basic declarations (Program level)
+# --------------------------------------
+
+
+sum_right: ℝ = 0.0
+
+for i ∈ [0, 4):
+    sum_right += i
+
+print(sum_right)
+
+
+sum_left: ℝ = 0.0
+
+for i ∈ (0, 4]:
+    sum_left += i
+
+print(sum_left)
+
+
+nested_sum: ℝ = 0.0
+
+for k ∈ [0, 4):
+    for l ∈ (0, k]:
+        nested_sum += k + l
+
+print(nested_sum)
+
+
+# --------------------------------------
+# Function level
+# --------------------------------------
+
+
+def sum_right_open(n: ℕ): ℝ:
+    right_func_sum : ℝ = 0.0
+    for i ∈ [0, n):
+        right_func_sum += i
+    return right_func_sum
+
+def sum_left_open(n: ℕ): ℝ:
+    left_func_sum : ℝ = 0.0
+    for i ∈ (0, n]:
+        left_func_sum += i
+    return left_func_sum
+
+
+def sum_nested_intervals(n: ℕ): ℝ:
+    function_nested_sum: ℝ = 0.0
+    for j ∈ [0, n):
+        for k ∈ (0, j]:
+            function_nested_sum += j + k
+    return function_nested_sum
+
+right_func_result: ℝ = sum_right_open(4)
+left_func_result: ℝ = sum_left_open(4)
+nested_func_result: ℝ = sum_nested_intervals(4)
+
+print(right_func_result)
+print(left_func_result)
+print(nested_func_result)
+
+
+
+# --------------------------------------
+# Class level
+# --------------------------------------
+
+
+class IntervalAccumulator(value: ℝ):
+    def λ(n: ℕ) -> ℝ:
+        class_interval_sum: ℝ = 0.0
+        for i ∈ [0, n):
+            class_interval_sum += i + this.value
+        return class_interval_sum
+
+obj: IntervalAccumulator = IntervalAccumulator(1.0)
+class_results: ℝ = obj(10)
+print(class_results)
+
+
+# --------------------------------------
+# Differentiability
+# --------------------------------------
+
+
+def dot_with_arr(s: ℝ): ℝ:
+    a3: ℝ[4] = [1.0, 2.0, 3.0, 4.0]
+    dot_result: ℝ = 0.0
+    for i ∈ [0, 4):
+        dot_result += s * a3[i]
+    return dot_result
+
+
+
+s2: ℝ = 1.0
+
+dot_gradient: ℝ = ∇(dot_with_arr(s2), s2)
+
+print(dot_gradient)

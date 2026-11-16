@@ -295,6 +295,50 @@ Output::
 
    10.0 ∈ ℝ
 
+
+Half-open interval for loops
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Physika supports Half-open interval style for loops, which contains both the
+right open and left open notations
+
+The right open notation is:
+
+.. math:: 
+
+   [a, b) = \{x \in \mathbb{N} \mid a \leq x < b\}
+
+In physika syntax we can write this as:
+
+.. code-block:: text
+
+   total: ℕ = 0.0
+
+   for i ∈ [0, 4):
+      sum_right += i
+   
+   print(total)
+
+Whereas, the left open notation is:
+
+.. math::
+
+   (a, b] = \{x \in \mathbb{N} \mid a < x \leq b\}
+
+and we can write this syntax in physika as:
+
+.. code-block:: text
+
+   total: ℕ = 0.0
+
+   for i ∈ (0, 4]:
+      total += i
+
+   print(total)
+
+For more examples see :ref:`Half-open interval loop examples <half_open_interval_example>`.
+
+
 Jacobian of vector output functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
