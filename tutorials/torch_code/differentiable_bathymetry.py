@@ -13,17 +13,19 @@ def bathymetry(θ):
     A, x0, σ = θ[int(0)], θ[int(1)], θ[int(2)]
     return torch.stack([(A * torch.exp(((-((x[int(i)] - x0) ** 2)) / (2.0 * (σ ** 2))) if isinstance(((-((x[int(i)] - x0) ** 2)) / (2.0 * (σ ** 2))), torch.Tensor) else torch.tensor(float(((-((x[int(i)] - x0) ** 2)) / (2.0 * (σ ** 2))))))) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 
-def rhs(q, b):
+def rhs(n, q, b):
     h, hu = q[int(0)], q[int(1)]
     η = (h + b)
     h_right, hu_right = torch.roll(h, (-1), 0), torch.roll(hu, (-1), 0)
     b_right, η_right = torch.roll(b, (-1), 0), torch.roll(η, (-1), 0)
-    z_face = torch.stack([(0.5 * ((b[int(i)] + b_right[int(i)]) + torch.abs((b[int(i)] - b_right[int(i)]) if isinstance((b[int(i)] - b_right[int(i)]), torch.Tensor) else torch.tensor(float((b[int(i)] - b_right[int(i)])))))) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-    h_left_face = torch.stack([(0.5 * ((η[int(i)] - z_face[int(i)]) + torch.abs((η[int(i)] - z_face[int(i)]) if isinstance((η[int(i)] - z_face[int(i)]), torch.Tensor) else torch.tensor(float((η[int(i)] - z_face[int(i)])))))) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
-    h_right_face = torch.stack([(0.5 * ((η_right[int(i)] - z_face[int(i)]) + torch.abs((η_right[int(i)] - z_face[int(i)]) if isinstance((η_right[int(i)] - z_face[int(i)]), torch.Tensor) else torch.tensor(float((η_right[int(i)] - z_face[int(i)])))))) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    z_face = torch.stack([(0.5 * ((b[int(i)] + b_right[int(i)]) + torch.abs((b[int(i)] - b_right[int(i)]) if isinstance((b[int(i)] - b_right[int(i)]), torch.Tensor) else torch.tensor(float((b[int(i)] - b_right[int(i)])))))) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    h_left_face = torch.stack([(0.5 * ((η[int(i)] - z_face[int(i)]) + torch.abs((η[int(i)] - z_face[int(i)]) if isinstance((η[int(i)] - z_face[int(i)]), torch.Tensor) else torch.tensor(float((η[int(i)] - z_face[int(i)])))))) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    h_right_face = torch.stack([(0.5 * ((η_right[int(i)] - z_face[int(i)]) + torch.abs((η_right[int(i)] - z_face[int(i)]) if isinstance((η_right[int(i)] - z_face[int(i)]), torch.Tensor) else torch.tensor(float((η_right[int(i)] - z_face[int(i)])))))) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     u = (hu / h)
     u_right = (hu_right / h_right)
-    a = torch.stack([(0.5 * ((((torch.abs(u[int(i)] if isinstance(u[int(i)], torch.Tensor) else torch.tensor(float(u[int(i)]))) + torch.sqrt((g * h_left_face[int(i)]) if isinstance((g * h_left_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_left_face[int(i)]))))) + torch.abs(u_right[int(i)] if isinstance(u_right[int(i)], torch.Tensor) else torch.tensor(float(u_right[int(i)])))) + torch.sqrt((g * h_right_face[int(i)]) if isinstance((g * h_right_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_right_face[int(i)]))))) + torch.abs((((torch.abs(u[int(i)] if isinstance(u[int(i)], torch.Tensor) else torch.tensor(float(u[int(i)]))) + torch.sqrt((g * h_left_face[int(i)]) if isinstance((g * h_left_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_left_face[int(i)]))))) - torch.abs(u_right[int(i)] if isinstance(u_right[int(i)], torch.Tensor) else torch.tensor(float(u_right[int(i)])))) - torch.sqrt((g * h_right_face[int(i)]) if isinstance((g * h_right_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_right_face[int(i)]))))) if isinstance((((torch.abs(u[int(i)] if isinstance(u[int(i)], torch.Tensor) else torch.tensor(float(u[int(i)]))) + torch.sqrt((g * h_left_face[int(i)]) if isinstance((g * h_left_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_left_face[int(i)]))))) - torch.abs(u_right[int(i)] if isinstance(u_right[int(i)], torch.Tensor) else torch.tensor(float(u_right[int(i)])))) - torch.sqrt((g * h_right_face[int(i)]) if isinstance((g * h_right_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_right_face[int(i)]))))), torch.Tensor) else torch.tensor(float((((torch.abs(u[int(i)] if isinstance(u[int(i)], torch.Tensor) else torch.tensor(float(u[int(i)]))) + torch.sqrt((g * h_left_face[int(i)]) if isinstance((g * h_left_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_left_face[int(i)]))))) - torch.abs(u_right[int(i)] if isinstance(u_right[int(i)], torch.Tensor) else torch.tensor(float(u_right[int(i)])))) - torch.sqrt((g * h_right_face[int(i)]) if isinstance((g * h_right_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_right_face[int(i)])))))))))) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    s_left = torch.stack([(torch.abs(u[int(i)] if isinstance(u[int(i)], torch.Tensor) else torch.tensor(float(u[int(i)]))) + torch.sqrt((g * h_left_face[int(i)]) if isinstance((g * h_left_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_left_face[int(i)]))))) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    s_right = torch.stack([(torch.abs(u_right[int(i)] if isinstance(u_right[int(i)], torch.Tensor) else torch.tensor(float(u_right[int(i)]))) + torch.sqrt((g * h_right_face[int(i)]) if isinstance((g * h_right_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_right_face[int(i)]))))) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
+    a = torch.stack([(0.5 * ((s_left[int(i)] + s_right[int(i)]) + torch.abs((s_left[int(i)] - s_right[int(i)]) if isinstance((s_left[int(i)] - s_right[int(i)]), torch.Tensor) else torch.tensor(float((s_left[int(i)] - s_right[int(i)])))))) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     Fh = ((0.5 * (hu + hu_right)) - ((0.5 * a) * (h_right_face - h_left_face)))
     Fhu = (0.5 * ((((hu * u) + ((0.5 * g) * (h_left_face ** 2))) + (hu_right * u_right)) + ((0.5 * g) * (h_right_face ** 2))))
     Fhu = (Fhu - ((0.5 * a) * (hu_right - hu)))
@@ -33,10 +35,10 @@ def rhs(q, b):
     dhu = ((-(Fhu_right - Fhu_left)) / Δx)
     return torch.stack([torch.as_tensor(dh), torch.as_tensor(dhu)])
 
-def rk3_step(q, b):
-    q1 = (q + (Δt * rhs(q, b)))
-    q2 = ((0.75 * q) + (0.25 * (q1 + (Δt * rhs(q1, b)))))
-    return ((q / 3.0) + ((2.0 / 3.0) * (q2 + (Δt * rhs(q2, b)))))
+def rk3_step(n, q, b):
+    q1 = (q + (Δt * rhs(n, q, b)))
+    q2 = ((0.75 * q) + (0.25 * (q1 + (Δt * rhs(n, q1, b)))))
+    return ((q / 3.0) + ((2.0 / 3.0) * (q2 + (Δt * rhs(n, q2, b)))))
 
 def initial_state(b):
     η0 = torch.stack([(1.0 + (0.025 * torch.exp(((-((x[int(i)] - 0.25) ** 2)) / 0.008) if isinstance(((-((x[int(i)] - 0.25) ** 2)) / 0.008), torch.Tensor) else torch.tensor(float(((-((x[int(i)] - 0.25) ** 2)) / 0.008)))))) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -48,10 +50,12 @@ def solve(θ):
     b = bathymetry(θ)
     q = initial_state(b)
     for step in range(int(0), int(steps)):
-        q = rk3_step(q, b)
+        q = rk3_step(Nx, q, b)
     return q
 
-def gauges(q, b):
+def gauges(q, b, Nx=None):
+    if Nx is None:
+        Nx = int(q.shape[1])
     η = (q[int(0)] + b)
     return torch.stack([torch.as_tensor(η[int(6)]), torch.as_tensor(η[int(16)]), torch.as_tensor(η[int(26)])])
 
@@ -62,10 +66,9 @@ def loss(θ):
 
 # === Program ===
 Nx = 32
-g = 1.0
-Δx = (1.0 / Nx)
-Δt = 0.002
 steps = 30
+g, Δt = 1.0, 0.002
+Δx = (1.0 / Nx)
 x = torch.stack([((i + 0.5) / Nx) for _fi_i in range(int(Nx)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 θ_true = torch.tensor([0.14, 0.58, 0.11], device=DEVICE)
 b_true = bathymetry(θ_true)
