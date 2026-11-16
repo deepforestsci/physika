@@ -1041,6 +1041,24 @@ def emit_func_loop_body(
             )
             emit_func_loop_body(inner_body, indent_level + 1, lines,
                                 active | {inner_var})
+        elif tag == "body_for_right_open":
+            _, inner_var, start_expr, end_expr, inner_body = loop_stmt
+            start_code = ast_to_torch_expr(start_expr, current_loop_var=active)
+            end_code = ast_to_torch_expr(end_expr, current_loop_var=active)
+            lines.append(
+                f"{prefix}for {inner_var} in range(int({start_code}), int({end_code})):"  # noqa
+            )
+            emit_func_loop_body(inner_body, indent_level + 1, lines,
+                                active | {inner_var})
+        elif tag == "body_for_left_open":
+            _, inner_var, start_expr, end_expr, inner_body = loop_stmt
+            start_code = ast_to_torch_expr(start_expr, current_loop_var=active)
+            end_code = ast_to_torch_expr(end_expr, current_loop_var=active)
+            lines.append(
+                f"{prefix}for {inner_var} in range(int({start_code}) + 1, int({end_code}) + 1):"  # noqa
+            )
+            emit_func_loop_body(inner_body, indent_level + 1, lines,
+                                active | {inner_var})
         elif tag == "loop_if":
             _, cond, then_body = loop_stmt
             lines.append(
@@ -1215,6 +1233,24 @@ def emit_body_stmts(
             lines.append(
                 f"{prefix}for {loop_var} in range(int({start_code}), int({end_code})):"  # noqa: E501
             )
+            emit_func_loop_body(loop_body, indent_level + 1, lines, loop_var)
+        elif stmt_op == "body_for_right_open":
+            _, loop_var, start_expr, end_expr, loop_body = stmt
+            start_code = ast_to_torch_expr(start_expr)
+            end_code = ast_to_torch_expr(end_expr)
+            lines.append(
+                f"{prefix}for {loop_var} in range(int({start_code}), int({end_code})):"  # noqa
+            )
+            emit_func_loop_body(loop_body, indent_level + 1, lines, loop_var)
+        elif stmt_op == "body_for_left_open":
+            _, loop_var, start_expr, end_expr, loop_body = stmt
+            start_code = ast_to_torch_expr(start_expr)
+            end_code = ast_to_torch_expr(end_expr)
+
+            lines.append(
+                f"{prefix}for {loop_var} in range(int({start_code}) + 1, int({end_code}) + 1):"  # noqa
+            )
+
             emit_func_loop_body(loop_body, indent_level + 1, lines, loop_var)
         elif stmt_op == "body_zeros_decl":
             # Type annotation for an accumulation target.
@@ -1570,6 +1606,41 @@ def emit_for_stmts(
             inner_loop_var = outer_vars | {inner_var}
             result.extend(
                 emit_for_stmts(inner_body, indent + 4, inner_loop_var))
+
+        elif body_op == "for_loop_right_open":
+            inner_var = s[1]
+            start_code = ast_to_torch_expr(s[2], current_loop_var=loop_var)
+            end_code = ast_to_torch_expr(s[3], current_loop_var=loop_var)
+            inner_body = s[4]
+
+            result.append(
+                f"{prefix}for {inner_var} in range(int({start_code}), int({end_code})):"  # noqa
+            )
+
+            outer_vars = loop_var if isinstance(
+                loop_var, set) else ({loop_var} if loop_var else set())
+
+            inner_loop_var = outer_vars | {inner_var}
+            result.extend(
+                emit_for_stmts(inner_body, indent + 4, inner_loop_var))
+
+        elif body_op == "for_loop_left_open":
+            inner_var = s[1]
+            start_code = ast_to_torch_expr(s[2], current_loop_var=loop_var)
+            end_code = ast_to_torch_expr(s[3], current_loop_var=loop_var)
+            inner_body = s[4]
+
+            result.append(
+                f"{prefix}for {inner_var} in range(int({start_code}) + 1, int({end_code}) + 1):"  # noqa
+            )
+
+            outer_vars = loop_var if isinstance(
+                loop_var, set) else ({loop_var} if loop_var else set())
+
+            inner_loop_var = outer_vars | {inner_var}
+            result.extend(
+                emit_for_stmts(inner_body, indent + 4, inner_loop_var))
+
         elif body_op == "for_loop":
             inner_var = s[1]
             inner_body = s[2]
