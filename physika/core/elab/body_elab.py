@@ -44,6 +44,7 @@ from physika.core.expr import (
     Const,
     Expr,
     FVar,
+    ForallE,
     Lit,
     MVar,
 )
@@ -2043,7 +2044,7 @@ def elab_expr_field_update(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
     ii = None if head is None else elab.state.env.inductives.get(head.name)
     fnames = (None if head is None else struct_field_names(
         head.name, elab.state.env))
-    if ii is None or not fnames or field not in fnames:
+    if head is None or ii is None or not fnames or field not in fnames:
         return elab.new_mvar("_field_update", _TYPE_0_LEVEL)
     cname = head.name
     obj_type = safe_infer_type(elab, obj_cic, whnf_reduce=True)
@@ -2052,9 +2053,13 @@ def elab_expr_field_update(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
     # field types with the other fields kept
     ctor_type = ctor.type
     for p in params:
+        if not isinstance(ctor_type, ForallE):
+            return elab.new_mvar("_field_update", _TYPE_0_LEVEL)
         ctor_type = instantiate1(ctor_type.body, p)
     field_type = None
     for idx, fname in enumerate(fnames):
+        if not isinstance(ctor_type, ForallE):
+            return elab.new_mvar("_field_update", _TYPE_0_LEVEL)
         if fname == field:
             field_type = ctor_type.binder_type
             break
@@ -2074,6 +2079,7 @@ def elab_expr_field_update(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
     for p in params:
         value = App(value, p)
     for idx, fname in enumerate(fnames):
+        arg: Optional[Expr]
         if fname == field:
             arg = rhs_cic
         elif fname in sizes and sizes[fname][0] == field:
