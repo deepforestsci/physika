@@ -16,12 +16,14 @@ def get_sum_of_1d_array(x):
     return total
 
 def sq_dist(a, b):
+    DIM = int(a.shape[0])
     acc = 0.0
     for c in range(int(0), int(DIM)):
         acc = acc + ((a[int(c)] - b[int(c)]) * (a[int(c)] - b[int(c)]))
     return acc
 
 def argmin_vec(v):
+    K = int(v.shape[0])
     av = absolute(v)
     best_j = 0.0
     best_v = av[int(0)]
@@ -49,6 +51,8 @@ def assign_labels(X, C, NPTS=None, DIM=None, K=None):
     return torch.stack([torch.as_tensor(assign_one(X[int(i)], C, DIM, K)) for i in range(int(NPTS))]).float()
 
 def new_centroid(X, labels, target, fallback):
+    NPTS = int(X.shape[0])
+    DIM = int(X.shape[1])
     sums = torch.stack([(c * 0.0) for _fi_c in range(int(DIM)) for c in [torch.tensor(float(_fi_c), device=DEVICE)]])
     cnt = 0.0
     for i in range(int(0), int(NPTS)):
@@ -57,13 +61,21 @@ def new_centroid(X, labels, target, fallback):
             cnt = cnt + 1.0
     return torch.where(torch.as_tensor(cnt > 0.0), (sums / cnt), fallback)
 
-def update_centroids(X, labels, C_old):
-    return torch.stack([new_centroid(X, labels, j, C_old[int(j)]) for _fi_j in range(int(K)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]])
+def update_centroids(X, labels, C_old, NPTS=None, DIM=None, K=None):
+    if NPTS is None:
+        NPTS = int(X.shape[0])
+    if DIM is None:
+        DIM = int(X.shape[1])
+    if K is None:
+        K = int(C_old.shape[0])
+    return torch.stack([torch.as_tensor(new_centroid(X, labels, float(j), C_old[int(j)])) for j in range(int(K))])
 
 def sgd_centroid_update(x, c, eta):
     return (c - (eta * compute_grad(lambda _dc: sq_dist(x, _dc), c)))
 
 def grad_cluster_centroid(X, labels, target):
+    NPTS = int(X.shape[0])
+    DIM = int(X.shape[1])
     c = torch.stack([(d * 0.0) for _fi_d in range(int(DIM)) for d in [torch.tensor(float(_fi_d), device=DEVICE)]])
     n = 0.0
     for i in range(int(0), int(NPTS)):
@@ -73,22 +85,26 @@ def grad_cluster_centroid(X, labels, target):
     return c
 
 def data_min(X):
+    NPTS = int(X.shape[0])
     m = X[int(0)]
     for i in range(int(0), int(NPTS)):
         m = (((m + X[int(i)]) - absolute((m - X[int(i)]))) * 0.5)
     return m
 
 def data_max(X):
+    NPTS = int(X.shape[0])
     m = X[int(0)]
     for i in range(int(0), int(NPTS)):
         m = (((m + X[int(i)]) + absolute((m - X[int(i)]))) * 0.5)
     return m
 
 def rand_centroid(lo, hi):
+    DIM = int(lo.shape[0])
     s = torch.distributions.Uniform(0.0, 1.0).rsample((int(DIM),))
     return (lo + (s * (hi - lo)))
 
 def kmeans(X):
+    NPTS = int(X.shape[0])
     lo_box, hi_box = data_min(X), data_max(X)
     C = torch.stack([rand_centroid(lo_box, hi_box) for _fi_j in range(int(K)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]])
     prev_labels = torch.stack([((i * 0.0) - 1.0) for _fi_i in range(int(NPTS)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
@@ -107,6 +123,7 @@ def kmeans(X):
     return C
 
 def kmeans_grad(X):
+    NPTS = int(X.shape[0])
     lo_box, hi_box = data_min(X), data_max(X)
     C = torch.stack([rand_centroid(lo_box, hi_box) for _fi_j in range(int(K)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]])
     prev_labels = torch.stack([((i * 0.0) - 1.0) for _fi_i in range(int(NPTS)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])

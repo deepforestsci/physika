@@ -11,7 +11,6 @@ from physika.core.expr import (
     Expr,
     ForallE,
     Lit,
-    MVar,
     NatLit,
     Proj,
     Sort,
