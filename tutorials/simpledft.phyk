@@ -1,0 +1,595 @@
+# ============================================================
+# SimpleDFT in Physika: a plane-wave Kohn-Sham DFT code
+# ============================================================
+# Notation:
+#   k   : total grid points (= s1 * s2 * s3)
+#   p   : number of active plane waves (|G|² ≤ 2 ecut)
+#   W   : un-normalized orbital coefficients, active subset, ℂ[p]
+#   Y   : normalized orbital coefficients, active subset, ℂ[p]
+#   n   : electron density, full real-space grid, ℝ[k]
+#   φ   : Hartree potential, full reciprocal-space grid, ℂ[k]
+# ============================================================
+
+π: ℝ = 3.141592653589793
+
+# ======================================================================
+# Simulation setup: dft_atoms
+# ======================================================================
+
+# Flattened linear grid indices.
+def flat_index(k: ℕ): ℝ[k]:
+    return arange(k)
+
+# Recover the grid index along one axis from the flattened index.
+def axis_index(ms: ℝ[k], axis_stride: ℕ, axis_length: ℕ): ℝ[k]:
+    return mod(floor(ms / axis_stride), axis_length)
+
+# Fold the upper half of an axis to negative (signed) FFT frequencies.
+def fold_freq(m: ℝ[k], axis_length: ℕ): ℝ[k]:
+    return m - gt(m, axis_length / 2) * axis_length
+
+# Volume of a cubic cell (Ω = a³).
+def cell_volume(a: ℝ): ℝ:
+    return a * a * a
+
+# Convert grid indices along one axis into real-space coordinates.
+def sample_coord(m: ℝ[k], a: ℝ, s: ℕ): ℝ[k]:
+    return m * (a / s)
+
+# Reciprocal-space scaling factor (2π/a).
+def recip_scale(a: ℝ): ℝ:
+    return 2 * π / a
+
+# Squared reciprocal-vector magnitude |G|² for every grid point.
+def g_squared(n1: ℝ[k], n2: ℝ[k], n3: ℝ[k], c: ℝ): ℝ[k]:
+    return c * c * (n1 * n1 + n2 * n2 + n3 * n3)
+
+# Plane-wave cutoff mask (|G|² ≤ 2·ecut).
+def active_mask(G2: ℝ[k], ecut: ℝ): ℝ[k]:
+    return le(G2, 2 * ecut)
+
+# Restrict |G|² to the active plane-wave basis.
+def active_subset(G2: ℝ[k], active: ℝ[k]): ℝ[p]:
+    return mask_select(G2, active)
+
+# Structure factor of one nucleus: exp(-i G · R).
+def structure_factor(n1: ℝ[k], n2: ℝ[k], n3: ℝ[k], c: ℝ, px: ℝ, py: ℝ, pz: ℝ): ℂ[k]:
+    phase: ℝ[k] = c * (n1 * px + n2 * py + n3 * pz)
+    return exp(-i * phase)
+
+class Atoms:
+    a: ℝ              # cubic cell side
+    ecut: ℝ           # kinetic-energy cutoff
+    s1: ℕ             # grid points, axis 1
+    s2: ℕ             # grid points, axis 2
+    s3: ℕ             # grid points, axis 3
+    Natoms: ℕ         # atom count
+    px: ℝ[Natoms]     # nuclear positions, x
+    py: ℝ[Natoms]     # nuclear positions, y
+    pz: ℝ[Natoms]     # nuclear positions, z
+    Nstate: ℕ         # occupied states
+    Z_nuc: ℝ[Natoms]  # nuclear charge per atom
+    f: ℝ[Nstate]      # occupation number per state
+    def volume(): ℝ:
+        return cell_volume(this.a)
+    def freq_x(): ℝ[k]:
+        ms: ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return fold_freq(axis_index(ms, this.s3 * this.s2, this.s1), this.s1)
+    def freq_y(): ℝ[k]:
+        ms: ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return fold_freq(axis_index(ms, this.s3, this.s2), this.s2)
+    def freq_z(): ℝ[k]:
+        ms: ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return fold_freq(axis_index(ms, 1, this.s3), this.s3)
+    def coord_x(): ℝ[k]:
+        ms: ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return sample_coord(axis_index(ms, this.s3 * this.s2, this.s1), this.a, this.s1)
+    def coord_y(): ℝ[k]:
+        ms: ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return sample_coord(axis_index(ms, this.s3, this.s2), this.a, this.s2)
+    def coord_z(): ℝ[k]:
+        ms: ℝ[k] = flat_index(this.s1 * this.s2 * this.s3)
+        return sample_coord(axis_index(ms, 1, this.s3), this.a, this.s3)
+    def gx(): ℝ[k]:
+        return recip_scale(this.a) * this.freq_x()
+    def gy(): ℝ[k]:
+        return recip_scale(this.a) * this.freq_y()
+    def gz(): ℝ[k]:
+        return recip_scale(this.a) * this.freq_z()
+    def g2(): ℝ[k]:
+        return g_squared(this.freq_x(), this.freq_y(), this.freq_z(), recip_scale(this.a))
+    def active(): ℝ[k]:
+        return active_mask(this.g2(), this.ecut)
+    def g2c(): ℝ[p]:
+        return active_subset(this.g2(), this.active())
+    def sf(): ℂ[k]:
+        n1: ℝ[k] = this.freq_x()
+        n2: ℝ[k] = this.freq_y()
+        n3: ℝ[k] = this.freq_z()
+        c: ℝ = recip_scale(this.a)
+        natoms: ℕ = this.Natoms
+        Sf: ℂ[k] = structure_factor(n1, n2, n3, c, this.px[0], this.py[0], this.pz[0]) * 0.0
+        for a: ℕ(natoms):
+            Sf = Sf + structure_factor(n1, n2, n3, c, this.px[a], this.py[a], this.pz[a])
+        return Sf
+
+# Example: hydrogen atom at the origin of a 16 Bohr cubic cell.
+a: ℝ = 16.0
+ecut: ℝ = 16.0
+s: ℕ = 60
+
+Natoms: ℕ = 1
+Nstate: ℕ = 1
+
+px: ℝ[1] = [0.0]
+py: ℝ[1] = [0.0]
+pz: ℝ[1] = [0.0]
+
+Z_nuc: ℝ[1] = [1.0]
+f: ℝ[1] = [1.0]
+
+H_atom: Atoms = Atoms(a, ecut, s, s, s, Natoms,
+                      px, py, pz, Nstate, Z_nuc, f)
+
+H_atom.volume()                 # 4096.0
+Sf: ℂ[k] = H_atom.sf()
+Sf[0]                           # (1+0j)
+
+# ======================================================================
+# Operators: dft_operators
+# ======================================================================
+
+# Embed active-basis coefficients into the full reciprocal grid
+# (inverse of mask_select; inactive entries are zero).
+def mask_embed(values: ℂ[p], mask: ℝ[k], n: ℕ): ℂ[k]:
+    empty: ℂ[k] = arange(n) * 0j
+    return masked_scatter(empty, mask, values)
+
+# Overlap operator: O W = Ω W.
+def op_O(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    return atoms.volume() * W
+
+# Laplacian operator: L(G) = -Ω |G|².
+def op_L(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    G2c: ℝ[p] = atoms.g2c()
+    if len(W) == len(G2c):
+        G2: ℝ[k] = G2c
+    else:
+        G2: ℝ[k] = atoms.g2()
+    return (-atoms.volume()) * G2 * W
+
+# Inverse Laplacian operator: L⁻¹(G) = -1 / (Ω |G|²), G ≠ 0.
+def op_Linv(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    G2: ℝ[k] = atoms.g2()
+    nonzero: ℝ[k] = gt(G2, 0.0) * 1.0
+    safe_G2: ℝ[k] = G2 + (1.0 - nonzero)
+    return (W / safe_G2 / (-atoms.volume())) * nonzero
+
+# Forward transform: real space -> reciprocal space.
+def op_J(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    s1: ℕ = atoms.s1
+    s2: ℕ = atoms.s2
+    s3: ℕ = atoms.s3
+    Ngrid: ℕ = s1 * s2 * s3
+    real_grid: ℂ[s1, s2, s3] = reshape(W, s1, s2, s3)
+    reciprocal_grid: ℂ[s1, s2, s3] = fftn(real_grid)
+    return reshape(reciprocal_grid, Ngrid) / Ngrid
+
+# Inverse transform: reciprocal space -> real space.
+def op_I(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    s1: ℕ = atoms.s1
+    s2: ℕ = atoms.s2
+    s3: ℕ = atoms.s3
+    Ngrid: ℕ = s1 * s2 * s3
+    active: ℝ[k] = atoms.active()
+    if len(W) == len(active):
+        reciprocal_grid: ℂ[k] = W
+    else:
+        reciprocal_grid: ℂ[k] = mask_embed(W, active, Ngrid)
+    reciprocal_grid3d: ℂ[s1, s2, s3] = reshape(
+        reciprocal_grid, s1, s2, s3
+    )
+    real_grid: ℂ[s1, s2, s3] = ifftn(reciprocal_grid3d)
+    return reshape(real_grid, Ngrid) * Ngrid
+
+# Adjoint of op_I: real space -> active plane-wave basis.
+def op_Idag(atoms: Atoms, W: ℂ[k]): ℂ[p]:
+    Ngrid: ℕ = atoms.s1 * atoms.s2 * atoms.s3
+    F: ℂ[k] = op_J(atoms, W)
+    return mask_select(F, atoms.active()) * Ngrid
+
+# Adjoint of op_J: reciprocal space -> real space.
+def op_Jdag(atoms: Atoms, W: ℂ[k]): ℂ[k]:
+    Ngrid: ℕ = atoms.s1 * atoms.s2 * atoms.s3
+    return op_I(atoms, W) / Ngrid
+
+# ======================================================================
+# Density and electrostatics: dft_density
+# ======================================================================
+
+# Löwdin normalization for a single state: Y = W / sqrt(Ω Σ |W_G|²).
+def orth(atoms: Atoms, W: ℂ[p]): ℂ[p]:
+    norm: ℝ = sqrt(atoms.volume() * sum(abs(W) ** 2.0))
+    return W / norm
+
+# Electron density: n(r) = f₀ |ψ(r)|².
+def get_n_total(atoms: Atoms, Y: ℂ[p]): ℝ[k]:
+    active: ℝ[k] = atoms.active()
+    n_full: ℕ = len(active)
+    Y_full: ℂ[k] = mask_embed(Y, active, n_full)
+    Yrs: ℂ[k] = op_I(atoms, Y_full)
+    f0: ℝ = atoms.f[0]
+    return f0 * abs(Yrs) ** 2.0
+
+# Hartree potential: φ = -4π L⁻¹ O J(n).
+def get_phi(atoms: Atoms, n: ℝ[k]): ℂ[k]:
+    n_c: ℂ[k] = n * (1.0 + 0j)
+    n_recip: ℂ[k] = op_J(atoms, n_c)
+    return (-4.0) * π * op_Linv(atoms, op_O(atoms, n_recip))
+
+# Example: Gaussian trial orbital for hydrogen.
+W0: ℂ[p] = exp(-0.5 * H_atom.g2c()) * (1.0 + 0j)
+Y0: ℂ[p] = orth(H_atom, W0)
+
+norm_check: ℝ = H_atom.volume() * sum(abs(Y0) ** 2.0)
+norm_check                      # 1.0
+
+n0: ℝ[k] = get_n_total(H_atom, Y0)
+φ0: ℂ[k] = get_phi(H_atom, n0)
+φ0[0]                           # 0.0
+φ0[1]                           # 0.019141973927617073
+
+# ======================================================================
+# All-electron Coulomb potential: dft_potentials
+# ======================================================================
+
+# V(G) = -4πZ / |G|², placed at the nuclei by the structure factor.
+def coulomb(atoms: Atoms): ℂ[k]:
+    G2: ℝ[k] = atoms.g2()
+    nonzero: ℝ[k] = gt(G2, 0.0) * 1.0
+    safe_G2: ℝ[k] = G2 + (1.0 - nonzero)
+    Vcoul: ℝ[k] = ((-4.0) * π * atoms.Z_nuc[0] / safe_G2) * nonzero
+    return op_J(atoms, Vcoul * atoms.sf())
+
+Vext: ℂ[k] = coulomb(H_atom)
+Vext[0]                         # -0.17032203078269958
+Vext[1]                         # -0.07142896205186844
+
+# ======================================================================
+# Exchange-correlation functional: dft_xc
+# ======================================================================
+
+# Slater exchange (spin-paired): returns [ex, vx].
+def lda_x(n: ℂ[k]): ℂ[2, k]:
+    cx: ℝ = (-3.0 / 4.0) * (3.0 / (2.0 * π)) ** (2.0 / 3.0)
+    rs: ℂ[k] = (3.0 / (4.0 * π * n)) ** (1.0 / 3.0)
+    ex: ℂ[k] = cx / rs
+    vx: ℂ[k] = (4.0 / 3.0) * ex
+    return [ex, vx]
+
+# Chachiyo correlation (spin-paired): returns [ec, vc].
+def lda_c_chachiyo(n: ℂ[k]): ℂ[2, k]:
+    a: ℝ = -0.01554535
+    b: ℝ = 20.4562557
+    rs: ℂ[k] = (3.0 / (4.0 * π * n)) ** (1.0 / 3.0)
+    ec: ℂ[k] = a * log(1.0 + b / rs + b / rs ** 2.0)
+    vc: ℂ[k] = ec + a * b * (2.0 + rs) / (3.0 * (b + b * rs + rs ** 2.0))
+    return [ec, vc]
+
+# Example: average density of one electron in the 4096 Bohr³ cell.
+n_avg: ℝ = 1.0 / 4096.0
+n: ℂ[4] = [n_avg, n_avg, n_avg, n_avg]
+
+ex_vx: ℂ[2, 4] = lda_x(n)
+ec_vc: ℂ[2, 4] = lda_c_chachiyo(n)
+
+ex: ℂ[4] = ex_vx[0]
+vx: ℂ[4] = ex_vx[1]
+ec: ℂ[4] = ec_vc[0]
+vc: ℂ[4] = ec_vc[1]
+
+exc: ℂ[4] = ex + ec
+vxc: ℂ[4] = vx + vc
+
+ex[0]                           # -0.04615992307662964
+vx[0]                           # -0.06154656410217285
+ec[0]                           # -0.01841130666434765
+vc[0]                           # -0.022336944937705994
+exc[0]                          # -0.06457123160362244
+vxc[0]                          # -0.08388350903987885
+
+# ======================================================================
+# Energy terms: dft_energies
+# ======================================================================
+
+# Kinetic energy: Ekin = -1/2 f₀ Re<Y|LY>.
+def get_Ekin(atoms: Atoms, Y: ℂ[p]): ℝ:
+    LY: ℂ[p] = op_L(atoms, Y)
+    real_inner_product: ℝ = sum(real(Y) * real(LY) + real(-i * Y) * real(-i * LY))
+    f0: ℝ = atoms.f[0]
+    return (-0.5) * f0 * real_inner_product
+
+# Hartree energy: Ecoul = 1/2 n · J† O φ.
+def get_Ecoul(atoms: Atoms, n: ℝ[k], φ: ℂ[k]): ℝ:
+    φ_rs: ℂ[k] = op_Jdag(atoms, op_O(atoms, φ))
+    return 0.5 * sum(n * real(φ_rs))
+
+# Exchange-correlation energy: Exc = n · J† O J(exc).
+def get_Exc(atoms: Atoms, n: ℝ[k], exc: ℂ[k]): ℝ:
+    exc_recip: ℂ[k] = op_J(atoms, exc)
+    exc_real: ℂ[k] = op_Jdag(atoms, op_O(atoms, exc_recip))
+    return sum(n * real(exc_real))
+
+# Electron-nucleus energy: Een = n · V_ion.
+def get_Een(n: ℝ[k], ionic_potential: ℂ[k]): ℝ:
+    return sum(n * real(ionic_potential))
+
+# Ewald ion-ion energy: Eewald = Eself + Eneutral + Ereal + Erecip.
+#   gcut  : reciprocal-space cutoff
+#   gamma : screening tolerance
+#   ν     : Ewald splitting parameter = 0.5 sqrt(gcut² / -log(gamma))
+def get_Eewald(atoms: Atoms, gcut: ℝ, gamma: ℝ): ℝ:
+    gexp: ℝ = (-1.0) * log(gamma)
+    ν: ℝ = 0.5 * sqrt(gcut ** 2.0 / gexp)
+    Ω: ℝ = atoms.volume()
+    natoms: ℕ = atoms.Natoms
+    # Self term uses Σ Zₐ², neutralizing background uses (Σ Zₐ)².
+    sum_z2: ℝ = sum(atoms.Z_nuc * atoms.Z_nuc)
+    total_z: ℝ = sum(atoms.Z_nuc)
+    self_term: ℝ = (-ν) * sum_z2 / sqrt(π)
+    neutral_term: ℝ = ((-π) * total_z * total_z) / (2.0 * Ω * ν ** 2.0)
+    # Real-space periodic image grid.
+    real_cutoff: ℝ = sqrt(0.5 * gexp) / ν
+    max_image_index: ℝ = floor(real_cutoff / atoms.a + 2.0)
+    images_per_axis: ℝ = 2.0 * max_image_index + 1.0
+    n_images: ℕ = images_per_axis * images_per_axis * images_per_axis
+    idx_r: ℝ[n_images] = arange(n_images)
+    di: ℝ[n_images] = axis_index(idx_r, images_per_axis * images_per_axis, images_per_axis) - max_image_index
+    dj: ℝ[n_images] = axis_index(idx_r, images_per_axis, images_per_axis) - max_image_index
+    dk: ℝ[n_images] = axis_index(idx_r, 1, images_per_axis) - max_image_index
+    Tx: ℝ[n_images] = atoms.a * di
+    Ty: ℝ[n_images] = atoms.a * dj
+    Tz: ℝ[n_images] = atoms.a * dk
+    # Reciprocal-space G-vector grid.
+    g_scale: ℝ = recip_scale(atoms.a)
+    max_g_index: ℝ = floor(gcut / g_scale + 2.0)
+    g_vectors_per_axis: ℝ = 2.0 * max_g_index + 1.0
+    n_g_vectors: ℕ = g_vectors_per_axis * g_vectors_per_axis * g_vectors_per_axis
+    idx_g: ℝ[n_g_vectors] = arange(n_g_vectors)
+    gi: ℝ[n_g_vectors] = axis_index(idx_g, g_vectors_per_axis * g_vectors_per_axis, g_vectors_per_axis) - max_g_index
+    gj: ℝ[n_g_vectors] = axis_index(idx_g, g_vectors_per_axis, g_vectors_per_axis) - max_g_index
+    gk: ℝ[n_g_vectors] = axis_index(idx_g, 1, g_vectors_per_axis) - max_g_index
+    Gx: ℝ[n_g_vectors] = g_scale * gi
+    Gy: ℝ[n_g_vectors] = g_scale * gj
+    Gz: ℝ[n_g_vectors] = g_scale * gk
+    G2: ℝ[n_g_vectors] = Gx * Gx + Gy * Gy + Gz * Gz
+    keep_g: ℝ[n_g_vectors] = gt(G2, 0.0) * 1.0
+    safe_G2: ℝ[n_g_vectors] = G2 + (1.0 - keep_g)
+    g_weight: ℝ[n_g_vectors] = keep_g * exp((-0.25) * G2 / ν ** 2.0) / safe_G2
+    # Pairwise ion-ion sum over (ia, ja).
+    Eewald: ℝ = self_term + neutral_term
+    for ia: ℕ(natoms):
+        for ja: ℕ(natoms):
+            dpos_x = atoms.px[ia] - atoms.px[ja]
+            dpos_y = atoms.py[ia] - atoms.py[ja]
+            dpos_z = atoms.pz[ia] - atoms.pz[ja]
+            zizj = atoms.Z_nuc[ia] * atoms.Z_nuc[ja]
+            rx = dpos_x - Tx
+            ry = dpos_y - Ty
+            rz = dpos_z - Tz
+            rmag = sqrt(rx * rx + ry * ry + rz * rz)
+            keep_r = gt(rmag, 0.0) * 1.0
+            safe_r = rmag + (1.0 - keep_r)
+            real_pair = 0.5 * zizj * sum(keep_r * erfc(ν * rmag) / safe_r)
+            gpos = Gx * dpos_x + Gy * dpos_y + Gz * dpos_z
+            recip_pair = (2.0 * π / Ω) * zizj * sum(g_weight * cos(gpos))
+            Eewald = Eewald + real_pair + recip_pair
+    return Eewald
+
+# Example: all five energy terms for the Gaussian trial orbital.
+gcut: ℝ = 2.0
+γ: ℝ = 1.0e-8
+Eewald0: ℝ = get_Eewald(H_atom, gcut, γ)
+
+n0_c: ℂ[k] = (n0 + 1.0e-10) * (1.0 + 0j)
+ex_vx0: ℂ[2, k] = lda_x(n0_c)
+ec_vc0: ℂ[2, k] = lda_c_chachiyo(n0_c)
+exc0: ℂ[k] = ex_vx0[0] + ec_vc0[0]
+ionic_potential0: ℂ[k] = coulomb(H_atom)
+
+Ekin0: ℝ = get_Ekin(H_atom, Y0)
+Ecoul0: ℝ = get_Ecoul(H_atom, n0, φ0)
+Exc0: ℝ = get_Exc(H_atom, n0, exc0)
+Een0: ℝ = get_Een(n0, ionic_potential0)
+
+E0: ℝ = Ekin0 + Ecoul0 + Exc0 + Een0 + Eewald0
+
+Ekin0                           # 0.7499999403953552
+Ecoul0                          # 0.3110436797142029
+Exc0                            # -0.31641221046447754
+Een0                            # -0.9518148899078369
+Eewald0                         # -0.08866553008556366
+E0                              # -0.2958490252494812
+
+# ======================================================================
+# Energy minimization: dft_scf
+# ======================================================================
+
+# SCF state: the system and the quantities needed to evaluate the energy.
+# The dummy method λ is required: a class with no methods loses the
+# complex types of its fields during codegen.
+class SCF:
+    atoms: Atoms                # system geometry, cell, grid, nuclei
+    ionic_potential: ℂ[k]       # ionic Coulomb potential, full grid
+    W: ℂ[p]                     # orbital coefficients, active subset
+    Y: ℂ[p]                     # normalized orbital, active subset
+    n: ℝ[k]                     # electron density, real-space grid
+    φ: ℂ[k]                     # Hartree potential, reciprocal grid
+    exc: ℂ[k]                   # XC energy density, full grid
+    vxc: ℂ[k]                   # XC potential, full grid
+    Eewald: ℝ                   # ion-ion Ewald energy (orbital-independent)
+    def λ(_unused: ℝ) → ℝ:
+        return _unused
+
+# Total energy of an SCF state: E = Ekin + Ecoul + Exc + Een + Eewald.
+def get_E(scf: SCF): ℝ:
+    Ekin: ℝ = get_Ekin(scf.atoms, scf.Y)
+    Ecoul: ℝ = get_Ecoul(scf.atoms, scf.n, scf.φ)
+    Exc: ℝ = get_Exc(scf.atoms, scf.n, scf.exc)
+    Een: ℝ = get_Een(scf.n, scf.ionic_potential)
+    return Ekin + Ecoul + Exc + Een + scf.Eewald
+
+# Total energy as a function of the orbital coefficients:
+#     W → Y → n → φ → exc → E
+def energy_of_W(W: ℂ[p], atoms: Atoms, ionic_potential: ℂ[k], Eewald: ℝ): ℝ:
+    Y: ℂ[p] = orth(atoms, W)
+    n: ℝ[k] = get_n_total(atoms, Y)
+    φ: ℂ[k] = get_phi(atoms, n)
+    n_c: ℂ[k] = (n + 1.0e-10) * (1.0 + 0j)
+    ex_vx: ℂ[2, k] = lda_x(n_c)
+    ec_vc: ℂ[2, k] = lda_c_chachiyo(n_c)
+    exc: ℂ[k] = ex_vx[0] + ec_vc[0]
+    Ekin: ℝ = get_Ekin(atoms, Y)
+    Ecoul: ℝ = get_Ecoul(atoms, n, φ)
+    Exc: ℝ = get_Exc(atoms, n, exc)
+    Een: ℝ = get_Een(n, ionic_potential)
+    return Ekin + Ecoul + Exc + Een + Eewald
+
+# Random, normalized starting orbital (reproducible via seed).
+def init_W(atoms: Atoms, seed: ℕ): ℂ[p]:
+    physika.seed(seed)
+    n_active: ℝ = len(atoms.g2c())
+    W: ℝ[n_active] ~ 𝒰(0.0, 1.0, n_active)
+    W: ℂ[p] = W * (1.0 + 0j)
+    return orth(atoms, W)
+
+# Steepest descent: W ← W - β ∇_W E(W). Once |ΔE| ≤ etol the orbital is
+# frozen for the remaining iterations. Returns the final total energy.
+def sd(scf: SCF, Nit: ℕ, beta: ℝ, etol: ℝ): ℝ:
+    atoms: Atoms = scf.atoms
+    ionic_potential: ℂ[k] = scf.ionic_potential
+    Eewald: ℝ = scf.Eewald
+    W: ℂ[p] = scf.W
+    g: ℂ[p] = scf.W * 0.0
+    E_prev: ℝ = 0.0
+    E_cur: ℝ = 0.0
+    has_stepped: ℝ = 0.0
+    converged: ℝ = 0.0
+    active: ℝ = 1.0
+    for it: ℕ(Nit):
+        E_cur = energy_of_W(W, atoms, ionic_potential, Eewald)
+        converged = converged + (1.0 - converged) * has_stepped * (le(abs(E_cur - E_prev), etol) * 1.0)
+        active = 1.0 - converged
+        g = grad(energy_of_W(W, atoms, ionic_potential, Eewald), W)
+        W = W - (beta * active) * g
+        E_prev = E_cur
+        has_stepped = 1.0
+    return E_prev
+
+# Build the initial SCF state and minimize the energy.
+def runSCF(atoms: Atoms, Eewald: ℝ, Nit: ℕ, β: ℝ, etol: ℝ, seed: ℕ): ℝ:
+    ionic_potential: ℂ[k] = coulomb(atoms)
+    W0: ℂ[p] = init_W(atoms, seed)
+    Y0: ℂ[p] = orth(atoms, W0)
+    n0: ℝ[k] = get_n_total(atoms, Y0)
+    φ0: ℂ[k] = get_phi(atoms, n0)
+    n0_c: ℂ[k] = (n0 + 1.0e-10) * (1.0 + 0j)
+    ex_vx0: ℂ[2, k] = lda_x(n0_c)
+    ec_vc0: ℂ[2, k] = lda_c_chachiyo(n0_c)
+    exc0: ℂ[k] = ex_vx0[0] + ec_vc0[0]
+    vxc0: ℂ[k] = ex_vx0[1] + ec_vc0[1]
+    scf: SCF = SCF(
+        atoms,
+        ionic_potential,
+        W0,
+        Y0,
+        n0,
+        φ0,
+        exc0,
+        vxc0,
+        Eewald
+    )
+    return sd(scf, Nit, β, etol)
+
+# ======================================================================
+# Running the calculation: dft_run
+# ======================================================================
+
+a: ℝ = 16.0             # cubic cell side (Bohr)
+ecut: ℝ = 16.0          # plane-wave cutoff (Hartree)
+s: ℕ = 60               # grid points per axis
+
+gcut: ℝ = 2.0           # Ewald reciprocal-space cutoff
+gamma: ℝ = 1.0e-8       # Ewald screening tolerance
+
+Nit: ℕ = 1001           # maximum steepest-descent iterations
+β: ℝ = 1.0e-5           # step size
+etol: ℝ = 1.0e-6        # convergence tolerance (Hartree)
+seed: ℕ = 1234          # RNG seed for the initial orbital
+
+Natoms1: ℕ = 1
+Nstate1: ℕ = 1
+px1: ℝ[1] = [0.0]
+py1: ℝ[1] = [0.0]
+pz1: ℝ[1] = [0.0]
+
+# Hydrogen atom: Z = 1, one electron. Reference: -0.438418 Eh
+Z_H: ℝ[1] = [1.0]
+f_H: ℝ[1] = [1.0]
+
+H_atom: Atoms = Atoms(a, ecut, s, s, s, Natoms1, px1, py1, pz1, Nstate1, Z_H, f_H)
+Eewald_H: ℝ = get_Eewald(H_atom, gcut, gamma)
+E_H: ℝ = runSCF(H_atom, Eewald_H, Nit, β, etol, seed)
+E_H
+
+# Helium atom: Z = 2, two electrons in one state. Reference: -2.632035 Eh
+Z_He: ℝ[1] = [2.0]
+f_He: ℝ[1] = [2.0]
+
+He_atom: Atoms = Atoms(a, ecut, s, s, s, Natoms1, px1, py1, pz1, Nstate1, Z_He, f_He)
+Eewald_He: ℝ = get_Eewald(He_atom, gcut, gamma)
+E_He: ℝ = runSCF(He_atom, Eewald_He, Nit, β, etol, seed)
+E_He
+
+# H2: nuclei 1.4 Bohr apart along x, two electrons in one state.
+# Reference: -1.113969 Eh
+Natoms2: ℕ = 2
+Nstate2: ℕ = 1
+
+px2: ℝ[2] = [0.0, 1.4]
+py2: ℝ[2] = [0.0, 0.0]
+pz2: ℝ[2] = [0.0, 0.0]
+
+Z_H2: ℝ[2] = [1.0, 1.0]
+f_H2: ℝ[1] = [2.0]
+
+H2_atom: Atoms = Atoms(a, ecut, s, s, s, Natoms2, px2, py2, pz2, Nstate2, Z_H2, f_H2)
+Eewald_H2: ℝ = get_Eewald(H2_atom, gcut, gamma)
+E_H2: ℝ = runSCF(H2_atom, Eewald_H2, Nit, β, etol, seed)
+E_H2
+
+# ======================================================================
+# Finding the H2 equilibrium bond length
+# ======================================================================
+# Same cell, cutoff, grid, and SCF settings as dft_run; only the H-H
+# distance d changes.
+
+def energy_at_d(d: ℝ): ℝ:
+    px: ℝ[2] = [0.0, d]
+    py: ℝ[2] = [0.0, 0.0]
+    pz: ℝ[2] = [0.0, 0.0]
+    H2: Atoms = Atoms(
+        a, ecut, s, s, s,
+        Natoms2, px, py, pz,
+        Nstate2, Z_H2, f_H2
+    )
+    Eewald: ℝ = get_Eewald(H2, gcut, gamma)
+    return runSCF(H2, Eewald, Nit, β, etol, seed)
+
+ds: ℝ[9] = [1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9]
+Es: ℝ[9] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+for i:
+    Es[i] = energy_at_d(ds[i])
+
+Es                              # minimum at d = 1.5 Bohr (-1.115552 Eh)
