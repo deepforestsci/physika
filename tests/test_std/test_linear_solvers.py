@@ -103,7 +103,7 @@ class TestInverseOperator:
         assert torch.allclose(ns["postfix"].cpu(), expected, atol=r_tol)
 
     def test_inverse_operator_in_function_body(self):
-        """``M⁻¹`` is available inside a function body, not just at top level."""
+        """``M⁻¹`` works inside a function body, not just at top level."""
         src = ("def solve(M: ℝ[n, n], b: ℝ[n, 1]): ℝ[n, 1]:\n"
                "    return M⁻¹ @ b\n"
                "\n"

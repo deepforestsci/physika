@@ -897,9 +897,9 @@ def expr_call(node: Any,
        ``abs``, ``tanh``, ``log``, ``real``, ``imag``) — preserve the shape
        of their first argument.
     2. Built-in reduction (``sum``) → ``ℝ``.
-    2b. ``inv(A)`` → the shape of ``A``; a non square ``A`` is an error.
-    3. ``grad(f, x)`` → same shape as ``x``.
-    4. User-defined functions in ``func_env`` — arity and argument types
+    3. ``inv(A)`` → the shape of ``A``; a non square ``A`` is an error.
+    4. ``grad(f, x)`` → same shape as ``x``.
+    5. User-defined functions in ``func_env`` — arity and argument types
        are checked; each argument is unified against its declared parameter
        type; the declared return type is returned.
 
