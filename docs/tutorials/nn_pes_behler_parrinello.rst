@@ -180,7 +180,7 @@ Part 1: The atomic environment descriptor
        total: ℝ = 0.0
        for j: ℕ(natoms):
            if j != a:
-               rij = dist(pos[a], pos[j])
+               rij: ℝ = dist(pos[a], pos[j])
                total += exp(-η * (rij - rs)**2) * fc(rij, rc)
        return total
 
@@ -196,13 +196,13 @@ Part 1: The atomic environment descriptor
                for k: ℕ(natoms):
                    if k != a:
                        if k != j:
-                           vij = pos[a] - pos[j]
-                           vik = pos[a] - pos[k]
-                           rij = dist(pos[a], pos[j])
-                           rik = dist(pos[a], pos[k])
-                           rjk = dist(pos[j], pos[k])
-                           cosθijk = (vij @ vik) / (rij * rik)
-                           gauss = exp(-η * (rij**2 + rik**2 + rjk**2))
+                           vij: ℝ[3] = pos[a] - pos[j]
+                           vik: ℝ[3] = pos[a] - pos[k]
+                           rij: ℝ = dist(pos[a], pos[j])
+                           rik: ℝ = dist(pos[a], pos[k])
+                           rjk: ℝ = dist(pos[j], pos[k])
+                           cosθijk: ℝ = (vij @ vik) / (rij * rik)
+                           gauss: ℝ = exp(-η * (rij**2 + rik**2 + rjk**2))
                            total += (1.0 + lam * cosθijk)**ζ * gauss * fc(rij, rc) * fc(rik, rc) * fc(rjk, rc)
        return 2.0**(1.0 - ζ) * total
 
@@ -220,7 +220,7 @@ The hidden layer activation is the hyperbolic tangent, written through the ident
 
 .. code-block:: text
 
-   # Eq. (1): activation
+   # Eq. (1): activation and the atomic subnet
    def fa(x: ℝ): ℝ:
        return 1.0 - 2.0 / (exp(2.0 * x) + 1.0)
 
@@ -232,7 +232,7 @@ The hidden layer activation is the hyperbolic tangent, written through the ident
    def S(g: ℝ[ng], nin: ℕ, nhid: ℕ, w1: ℝ[nh, ng], b1: ℝ[nh], w2: ℝ[nh], b2: ℝ): ℝ:
        total: ℝ = b2
        for j: ℕ(nhid):
-           z = b1[j]
+           z: ℝ = b1[j]
            for m: ℕ(nin):
                z += w1[j, m] * g[m]
            total += w2[j] * fa(z)
@@ -293,7 +293,7 @@ gradient step would break:
 
 .. code-block:: text
 
-   # Fixed symmetry-function constants
+   # Fixed symmetry-function constants.
    η0, ηa, rcut: ℝ = 0.05, 0.005, 4.0
 
 That leaves ``rs`` as the only differentiable symmetry-function parameter,
@@ -307,7 +307,11 @@ Part 3: Energy, forces and parameter gradients
 
 .. code-block:: text
 
-   # A single configuration
+   # A single configuration: the first frame of a Materials Project GGA
+   # relaxation of 8 silicon atoms, Cartesian positions in Å. Row a of r is the
+   # position of atom a, so r[a] - r[j] is a separation vector, and the shape
+   # ℝ[Pc, 3] ties the row count to Pc.
+
    Pc: ℕ = 8
    r: ℝ[Pc, 3] = [[ 3.69468256,  2.44237664,  1.57337608],
                [ 1.22577221,  0.73713025,  6.56769165],
@@ -349,7 +353,7 @@ The forces are :math:`\mathbf F_i=-\partial E/\partial\mathbf R_i`.
 
 .. code-block:: text
 
-   # Forces:
+   # Forces: pos is an argument of the call, so grad substitutes it directly
    grad(net(r, Pc), r)
 
 3.3 Parameter gradients
@@ -435,12 +439,12 @@ update per frame.
        def train(X: ℝ[nf, na, 3], y: ℝ[nf], nframes: ℕ, natoms: ℕ, epochs: ℕ, lr: ℝ) → ℝ:
            last: ℝ = 0.0
            for ep: ℕ(epochs):
-               epoch_loss = 0.0
+               epoch_loss: ℝ = 0.0
                for s: ℕ(nframes):
-                   pred = this(X[s], natoms)
-                   current_loss = mse_loss(pred, y[s])
-                   epoch_loss = epoch_loss + current_loss
-                   learnable_grads = grad(current_loss, this.sub.learnable_params)
+                   pred: ℝ = this(X[s], natoms)
+                   current_loss: ℝ = mse_loss(pred, y[s])
+                   epoch_loss: ℝ = epoch_loss + current_loss
+                   learnable_grads: ℝ[4] = grad(current_loss, this.sub.learnable_params)
                    this.sub.update_params(lr, learnable_grads)
                last = epoch_loss / nframes
            return last
@@ -480,13 +484,13 @@ Setting ``lrd`` to zero makes it identical to ``train``.
        def train_all(X: ℝ[nf, na, 3], y: ℝ[nf], nframes: ℕ, natoms: ℕ, epochs: ℕ, lr: ℝ, lrd: ℝ) → ℝ:
            last: ℝ = 0.0
            for ep: ℕ(epochs):
-               epoch_loss = 0.0
+               epoch_loss: ℝ = 0.0
                for s: ℕ(nframes):
-                   pred = this(X[s], natoms)
-                   current_loss = mse_loss(pred, y[s])
-                   epoch_loss = epoch_loss + current_loss
-                   sub_g = grad(current_loss, this.sub.learnable_params)
-                   desc_g = grad(current_loss, this.desc.learnable_params)
+                   pred: ℝ = this(X[s], natoms)
+                   current_loss: ℝ = mse_loss(pred, y[s])
+                   epoch_loss: ℝ = epoch_loss + current_loss
+                   sub_g: ℝ[4] = grad(current_loss, this.sub.learnable_params)
+                   desc_g: ℝ[1] = grad(current_loss, this.desc.learnable_params)
                    this.sub.update_params(lr, sub_g)
                    this.desc.update_params(lrd, desc_g)
                last = epoch_loss / nframes
@@ -527,9 +531,6 @@ potential in the following ways:
 
 Source code
 -----------
-
-The complete implementation follows. The same file is exercised by CI as
-``tutorials/nn_pes_behler_parrinello.phyk``.
 
 .. code-block:: text
 
@@ -576,7 +577,7 @@ The complete implementation follows. The same file is exercised by CI as
        total: ℝ = 0.0
        for j: ℕ(natoms):
            if j != a:
-               rij = dist(pos[a], pos[j])
+               rij: ℝ = dist(pos[a], pos[j])
                total += exp(-η * (rij - rs)**2) * fc(rij, rc)
        return total
 
@@ -588,13 +589,13 @@ The complete implementation follows. The same file is exercised by CI as
                for k: ℕ(natoms):
                    if k != a:
                        if k != j:
-                           vij = pos[a] - pos[j]
-                           vik = pos[a] - pos[k]
-                           rij = dist(pos[a], pos[j])
-                           rik = dist(pos[a], pos[k])
-                           rjk = dist(pos[j], pos[k])
-                           cosθijk = (vij @ vik) / (rij * rik)
-                           gauss = exp(-η * (rij**2 + rik**2 + rjk**2))
+                           vij: ℝ[3] = pos[a] - pos[j]
+                           vik: ℝ[3] = pos[a] - pos[k]
+                           rij: ℝ = dist(pos[a], pos[j])
+                           rik: ℝ = dist(pos[a], pos[k])
+                           rjk: ℝ = dist(pos[j], pos[k])
+                           cosθijk: ℝ = (vij @ vik) / (rij * rik)
+                           gauss: ℝ = exp(-η * (rij**2 + rik**2 + rjk**2))
                            total += (1.0 + lam * cosθijk)**ζ * gauss * fc(rij, rc) * fc(rik, rc) * fc(rjk, rc)
        return 2.0**(1.0 - ζ) * total
 
@@ -605,7 +606,7 @@ The complete implementation follows. The same file is exercised by CI as
    def S(g: ℝ[ng], nin: ℕ, nhid: ℕ, w1: ℝ[nh, ng], b1: ℝ[nh], w2: ℝ[nh], b2: ℝ): ℝ:
        total: ℝ = b2
        for j: ℕ(nhid):
-           z = b1[j]
+           z: ℝ = b1[j]
            for m: ℕ(nin):
                z += w1[j, m] * g[m]
            total += w2[j] * fa(z)
@@ -662,25 +663,25 @@ The complete implementation follows. The same file is exercised by CI as
        def train(X: ℝ[nf, na, 3], y: ℝ[nf], nframes: ℕ, natoms: ℕ, epochs: ℕ, lr: ℝ) → ℝ:
            last: ℝ = 0.0
            for ep: ℕ(epochs):
-               epoch_loss = 0.0
+               epoch_loss: ℝ = 0.0
                for s: ℕ(nframes):
-                   pred = this(X[s], natoms)
-                   current_loss = mse_loss(pred, y[s])
-                   epoch_loss = epoch_loss + current_loss
-                   learnable_grads = grad(current_loss, this.sub.learnable_params)
+                   pred: ℝ = this(X[s], natoms)
+                   current_loss: ℝ = mse_loss(pred, y[s])
+                   epoch_loss: ℝ = epoch_loss + current_loss
+                   learnable_grads: ℝ[4] = grad(current_loss, this.sub.learnable_params)
                    this.sub.update_params(lr, learnable_grads)
                last = epoch_loss / nframes
            return last
        def train_all(X: ℝ[nf, na, 3], y: ℝ[nf], nframes: ℕ, natoms: ℕ, epochs: ℕ, lr: ℝ, lrd: ℝ) → ℝ:
            last: ℝ = 0.0
            for ep: ℕ(epochs):
-               epoch_loss = 0.0
+               epoch_loss: ℝ = 0.0
                for s: ℕ(nframes):
-                   pred = this(X[s], natoms)
-                   current_loss = mse_loss(pred, y[s])
-                   epoch_loss = epoch_loss + current_loss
-                   sub_g = grad(current_loss, this.sub.learnable_params)
-                   desc_g = grad(current_loss, this.desc.learnable_params)
+                   pred: ℝ = this(X[s], natoms)
+                   current_loss: ℝ = mse_loss(pred, y[s])
+                   epoch_loss: ℝ = epoch_loss + current_loss
+                   sub_g: ℝ[4] = grad(current_loss, this.sub.learnable_params)
+                   desc_g: ℝ[1] = grad(current_loss, this.desc.learnable_params)
                    this.sub.update_params(lr, sub_g)
                    this.desc.update_params(lrd, desc_g)
                last = epoch_loss / nframes
