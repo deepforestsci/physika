@@ -1102,6 +1102,7 @@ def elab_expr_indexn(node: tuple, fvar_env: Dict[str, Expr], elab: ElabT,
 DEFAULT_OPEN_ALIASES = {
     "sum": "Vec.sum",
     "cons": "Vec.cons",
+    "inv": "Mat.inv",
 }
 
 

@@ -226,6 +226,31 @@ Output::
 ``∇`` calls ``compute_grad`` from the runtime, which differentiates ``f``
 with respect to its argument using ``torch.autograd.grad``.
 
+Matrix inverse operator
+-----------------------
+
+``A⁻¹`` is postfix notation for ``inv(A)``, and goes through the same square
+matrix check:
+
+.. code-block:: text
+
+   A : ℝ[2, 2] = [[4.0, 7.0], [2.0, 6.0]]
+   A⁻¹
+
+Output::
+
+   [[0.5999999642372131, -0.6999999284744263], [-0.19999998807907104, 0.3999999761581421]] ∈ ℝ[2,2]
+
+It is available at the top level and inside function bodies:
+
+.. code-block:: text
+
+   def solve(M: ℝ[n, n], b: ℝ[n, 1]): ℝ[n, 1]:
+       return M⁻¹ @ b
+
+The operator applies to a plain name only. Use the call form for a compound
+expression, for instance ``inv(A @ B)``.
+
 Differentiable For Loops
 ------------------------
 
