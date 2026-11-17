@@ -62,6 +62,7 @@ def advect_diffuse(f, u, v):
     return ((-((u * central_difference_x(f)) + (v * central_difference_y(f)))) + (ν * laplace(f)))
 
 def solve_pressure(p_init, rhs):
+    n_points = int(p_init.shape[0])
     p_prev = p_init
     for k in range(int(0), int(n_pressure_poisson_iterations)):
         p_next = zero_2d_array(n_points, n_points)

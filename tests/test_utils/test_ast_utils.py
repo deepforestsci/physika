@@ -27,6 +27,8 @@ from physika.utils.ast_utils import (
     _infer_range,
     _lhs_var_name,
     generate_statement,
+    dim_var_preamble,
+    introduced_dims,
 )
 
 VALID_TAGS = set(
@@ -386,6 +388,54 @@ class TestEmitBodyStmts:
             lines = _run_emit_body([stmt], indent_level=i)
             assert lines == [f"{' ' * (4 * i)}a, b = p"]
             assert lines[0].startswith(" " * (4 * i))
+
+    def test_dim_var_preamble_binds_dims_used_as_values(self):
+        """
+        Checks that dim vars a body reads as values (``for i : ℕ(m)``) are
+        bound from parameter or field shapes, except parameters and the
+        body's own locals.
+        """
+        W = ("tensor", [("m", "invariant"), ("n", "invariant")])
+        body = ("for_expr", "i", ("var", "m"), ("var", "n"))
+        assert dim_var_preamble([], body, [("self.W", W)], set(),
+                                "        ") == [
+                                    "        m = int(self.W.shape[0])",
+                                    "        n = int(self.W.shape[1])"
+                                ]
+        assert dim_var_preamble([], body, [("W", W)], {"m"},
+                                "    ") == ["    n = int(W.shape[1])"]
+        local_n = [("body_decl", "n", "ℝ", ("num", 2.0))]
+        assert dim_var_preamble(local_n, body, [("W", W)], set(),
+                                "    ") == ["    m = int(W.shape[0])"]
+
+    def test_declaration_binds_introduced_dims(self):
+        """
+        Checks a declaration introducing a dim (``states: ℝ[2, m]``) is
+        followed by its ``dim_lets`` line, and which dims are introduced.
+        """
+        decl_type = ("tensor", [(2, "invariant"), ("m", "invariant")])
+        decl = ("body_decl", "states", decl_type, ("call", "solver", [("var",
+                                                                       "θ")]))
+        lines = []
+        emit_body_stmts([decl],
+                        1,
+                        lines, [],
+                        set(),
+                        ast_to_torch_expr,
+                        dim_lets={"states": ["m = (k + 1)"]})
+        assert lines == ["    states = solver(θ)", "    m = (k + 1)"]
+        # a parameter's dim is not introduced
+        func_def = {
+            "params": [("x", ("tensor", [("m", "invariant")]))],
+            "statements": [decl]
+        }
+        assert introduced_dims(func_def) == {}
+        assert introduced_dims({
+            "params": [],
+            "statements": [decl]
+        }) == {
+            "states": ["m"]
+        }
 
 
 class TestEmitBodyIfElseStmts:

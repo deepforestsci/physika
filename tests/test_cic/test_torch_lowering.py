@@ -1,3 +1,4 @@
+import torch
 import pytest
 
 from physika.core.expr import (
@@ -268,6 +269,42 @@ class TestLowerVecLiteral:
         # An expression that is not a ``Vec.cons``/``Vec.nil`` chain should
         # return ``None``
         assert lower_vec_literal(Lit(3), {}, Environment(), ()) is None
+
+    def test_index_and_vector_matrix_products(self):
+        """
+        ``Fin.val`` is the index itself, ``Mat.vecmul``/``Mat.mulvec`` are
+        ``torch.matmul`` and a top level variable is its name.
+        """
+        names = {fv(n).id: n for n in ("i", "a", "b", "x")}
+        assert lower(app(c("Fin.val"), Lit(NatLit(3)), fv("i")), names,
+                     Environment(), ()) == "i"
+        for name in ("Mat.vecmul", "Mat.mulvec"):
+            expr = app(c(name), Lit(NatLit(2)), Lit(NatLit(3)), fv("a"),
+                       fv("b"))
+            assert lower(expr, names, Environment(),
+                         ()) == "torch.matmul(a, b)"
+        env = Environment()
+        env.add_constant(ConstantInfo("dt", (), REAL, None))
+        env.program_vars.add("dt")
+        assert lower(app(c("Real.mul"), c("dt"), fv("x")), names, env,
+                     ()) == "(dt * x)"
+
+    def test_vec_set_is_out_of_place_write(self):
+        """
+        ``Vec.set`` lowers to an out of bound index that leaves
+        the original vector unchanged.
+        """
+        names = {fv(n).id: n for n in ("x", "i", "v")}
+        src = lower(
+            app(c("Vec.set"), REAL, Lit(NatLit(3)), fv("x"), fv("i"), fv("v")),
+            names, Environment(), ())
+        x = torch.tensor([1.0, 2.0, 3.0])
+        v = torch.tensor(5.0, requires_grad=True)
+        out = eval(src, {"torch": torch, "x": x, "i": 1, "v": v})
+        assert out.tolist() == [1.0, 5.0, 3.0]
+        assert x.tolist() == [1.0, 2.0, 3.0]
+        out.sum().backward()
+        assert v.grad.item() == 1.0
 
 
 class TestLower:

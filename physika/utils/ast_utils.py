@@ -1067,6 +1067,195 @@ def emit_func_loop_body(
 
 
 # Code generators (function / class / statement)
+def var_names_used(node: Any) -> set[str]:
+    """Names read as variables (``("var", name)``) anywhere in ``node``.
+
+    Parameters
+    ----------
+    node : Any
+        AST node, or list of nodes, to search.
+
+    Examples
+    --------
+    >>> sorted(var_names_used([("body_assign", "y",
+    ...                          ("mul", ("var", "m"), ("var", "x")))]))
+    ['m', 'x']
+    """
+    names: set[str] = set()
+    if isinstance(node, list):
+        for n in node:
+            names |= var_names_used(n)
+    elif isinstance(node, tuple) and node:
+        if node[0] == "var" and len(node) == 2 and isinstance(node[1], str):
+            names.add(node[1])
+        else:
+            for n in node:
+                names |= var_names_used(n)
+    return names
+
+
+def local_assigned_names(node: Any) -> set[str]:
+    """Names a body declares or assigns including nested blocks.
+
+    Parameters
+    ----------
+    node : Any
+        Statement list, or a node, to search.
+
+    Examples
+    --------
+    >>> sorted(local_assigned_names([("body_decl", "y", "ℝ", ("num", 1.0)),
+    ...                              ("body_if", None,
+    ...                               [("body_assign", "z", ("num", 2.0))])]))  # noqa: E501
+    ['y', 'z']
+    """
+    names: set[str] = set()
+    if isinstance(node, list):
+        for n in node:
+            names |= local_assigned_names(n)
+    elif isinstance(node, tuple) and node:
+        if isinstance(node[0], str) and ("decl" in node[0]
+                                         or "assign" in node[0]) and \
+                len(node) > 1 and isinstance(node[1], str):
+            names.add(node[1])
+        for n in node[1:]:
+            if isinstance(n, (list, tuple)):
+                names |= local_assigned_names(n)
+    return names
+
+
+def dim_var_preamble(statements: list[ASTNode], body: ASTNode,
+                     sources: list[tuple[str, Any]], bound: set[str],
+                     indent: str) -> list[str]:
+    """Lines binding the dim vars a body uses, read from shapes.
+
+    A dim var is used as a value (``for i : ℕ(m)``, ``m * n``).
+    ``sources`` are function parameters (``("T", ℝ[m, n])``) or class
+    fields (``("self.W", ℝ[m, n])``). Names in ``bound`` already
+    have a value (parameters), and names the body
+    declares are its own locals.
+
+    Parameters
+    ----------
+    statements : list[ASTNode]
+        Body statements.
+    body : ASTNode
+        Return expression.
+    sources : list[tuple[str, Any]]
+        ``(python_expr, type_spec)`` pairs the dims are read from.
+    bound : set[str]
+        Names that already have a value.
+    indent : str
+        Indentation of the emitted lines.
+
+    Examples
+    --------
+    >>> body = ("for_expr", "i", ("var", "m"), ("var", "n"))
+    >>> dim_var_preamble([], body, [("T", ("tensor", [("m", "invariant"),
+    ...                  ("n", "invariant")]))], set(), "    ")
+    ['    m = int(T.shape[0])', '    n = int(T.shape[1])']
+    >>> dim_var_preamble([], ("mul", ("var", "n"), ("num", 2.0)),
+    ...                  [("self.W", ("tensor", [("m", "invariant"),
+    ...                   ("n", "invariant")]))], set(), "        ")
+    ['        n = int(self.W.shape[1])']
+    """
+    from physika.core.torch_lowering import dim_var_name, dim_extraction_stmt
+
+    wanted = (var_names_used([statements, body]) - bound -
+              local_assigned_names(statements))
+    lines = []
+    for src, type_spec in sources:
+        if isinstance(type_spec, tuple) and type_spec and \
+                type_spec[0] == "unit_typed":
+            type_spec = type_spec[1]
+        if not (isinstance(type_spec, tuple) and type_spec
+                and type_spec[0] == "tensor"):
+            continue
+        for axis, dim_entry in enumerate(type_spec[1]):
+            dim_value = dim_entry[0] if (isinstance(dim_entry, tuple) and
+                                         len(dim_entry) == 2) else dim_entry
+            dim = dim_var_name(dim_value)
+            if dim is None or dim not in wanted:
+                continue
+            extract_stmt = dim_extraction_stmt(dim_value, axis, src, indent)
+            if extract_stmt is not None:
+                lines.append(extract_stmt)
+                wanted.discard(dim)
+    return lines
+
+
+def typespec_dim_names(type_spec: Any) -> list[str]:
+    """Dim variable names in a declared type, in order.
+
+    Parameters
+    ----------
+    type_spec : Any
+        Declared Physika type.
+
+    Examples
+    --------
+    >>> typespec_dim_names(("tensor", [(2, "invariant"),
+    ...                                (("add_dim", "m", 1), "invariant")]))
+    ['m']
+    >>> typespec_dim_names("ℝ")
+    []
+    """
+    from physika.core.torch_lowering import dim_var_name
+
+    while isinstance(type_spec, tuple) and type_spec and \
+            type_spec[0] == "unit_typed":
+        type_spec = type_spec[1]
+    if not (isinstance(type_spec, tuple) and type_spec
+            and type_spec[0] == "tensor"):
+        return []
+    names = []
+    for entry in type_spec[1]:
+        dim = entry[0] if isinstance(entry, tuple) and len(entry) == 2 \
+            else entry
+        name = dim_var_name(dim)
+        if name is not None:
+            names.append(name)
+    return names
+
+
+def introduced_dims(func_def: dict[str, Any]) -> dict[str, list[str]]:
+    """Dims each body declaration introduces, by declared variable.
+    CIC solves it from the value's type.
+
+    Parameters
+    ----------
+    func_def : dict
+        Function definition of the unified AST.
+
+    Examples
+    --------
+    >>> introduced_dims({
+    ...     "params": [("θ", ("tensor", [(3, "invariant")]))],
+    ...     "statements": [("body_decl", "states",
+    ...                     ("tensor", [(2, "invariant"), ("m", "invariant")]),
+    ...                     ("call", "solver", [("var", "θ")])),
+    ...                    ("body_decl", "X", ("tensor", [("m", "invariant")]),
+    ...                     ("index", "states", ("num", 0)))]})
+    {'states': ['m']}
+    """
+    params = func_def.get("params", [])
+    bound = {p[0] for p in params}
+    for _, ptype in params:
+        bound |= set(typespec_dim_names(ptype))
+    introduced: dict[str, list[str]] = {}
+    for stmt in func_def.get("statements", []):
+        if not (isinstance(stmt, tuple) and stmt):
+            continue
+        if stmt[0] == "body_decl":
+            new = [d for d in typespec_dim_names(stmt[2]) if d not in bound]
+            if new:
+                introduced[stmt[1]] = list(dict.fromkeys(new))
+            bound |= set(new) | {stmt[1]}
+        elif stmt[0] == "body_assign":
+            bound.add(stmt[1])
+    return introduced
+
+
 def emit_body_stmts(
     stmts: list[ASTNode],
     indent_level: int,
@@ -1077,6 +1266,7 @@ def emit_body_stmts(
     scalar_only: bool = False,
     expr_fn=ast_to_torch_expr,
     _equation_vars: set[str] | None = None,
+    dim_lets: dict[str, list[str]] | None = None,
 ) -> None:
     """Recursively emit Python code lines for a function body.
 
@@ -1146,6 +1336,9 @@ def emit_body_stmts(
             expr_code = generate_solve_call(expr, type_info=var_type)
             lines.append(f"{prefix}{var_name} = {expr_code}")
             known_vars.append(var_name)
+            # dims the declaration introduces, with their CIC solved values
+            for dim_line in (dim_lets or {}).get(var_name, []):
+                lines.append(f"{prefix}{dim_line}")
         elif stmt_op == "body_call":
             _, func_name, args = stmt
             arg_strs = [ast_to_torch_expr(a) for a in args]
@@ -1302,10 +1495,11 @@ def emit_body_stmts(
 
 
 def generate_function(
-        name: str,
-        func_def: dict[str, Any],
-        resolved: Optional[tuple] = None,
-        resolved_names: Collection[str] = (),
+    name: str,
+    func_def: dict[str, Any],
+    resolved: Optional[tuple] = None,
+    resolved_names: Collection[str] = (),
+    dim_lets: Optional[dict[str, list[str]]] = None,
 ) -> str:
     """
     Generate a Python/PyTorch function definition from a function AST.
@@ -1336,6 +1530,8 @@ def generate_function(
         ``body``
     resolved_names: Collection[str]
         Function and method names that contains ``dim_var=None`` parameter.
+    dim_lets: dict[str, list[str]], optional
+        Lines binding the dims a declaration introduces by declared variable.
 
     Returns
     -------
@@ -1424,6 +1620,10 @@ def generate_function(
 
     lines = [f"def {name}({', '.join(param_strs)}):"]
 
+    # Dim vars the body uses as values
+    lines += dim_var_preamble(statements, body, list(params), set(param_names),
+                              "    ")
+
     # Track known variables (params + locals)
     known_vars = list(param_names)
 
@@ -1447,8 +1647,14 @@ def generate_function(
     scalar_only = all(pt == "\u211d" for _, pt in params)
 
     # Generate body statements
-    emit_body_stmts(statements, 1, lines, known_vars, equation_vars,
-                    generate_solve_call, scalar_only)
+    emit_body_stmts(statements,
+                    1,
+                    lines,
+                    known_vars,
+                    equation_vars,
+                    generate_solve_call,
+                    scalar_only,
+                    dim_lets=dim_lets)
 
     # Generate for-loop body
     if func_def.get("has_loop"):
@@ -1864,7 +2070,7 @@ def build_unified_ast(
         if entry["type"] == "function":
             unified["functions"][name] = entry["value"]
         elif entry["type"] == "class":
-            unified["classes"][name] = entry["value"]
+            unified["classes"][name] = with_implicit_this_calls(entry["value"])
 
     # Add program statements
     for stmt in program_ast:
@@ -1876,3 +2082,67 @@ def build_unified_ast(
         print(print_unified_ast(unified))
 
     return unified
+
+
+def implicit_this_calls(node: Any, methods: Collection[str]) -> Any:
+    """
+    Rewrite calls to a class methods by their name to
+    ``this.method_name`` calls (implicit ``this``).
+
+    Parameters
+    ----------
+    node : Any
+        AST node, statement or list of them inside a method.
+    methods : Collection[str]
+        Names of the class's methods.
+
+    Example
+    -------
+    >>> from physika.utils.ast_utils import implicit_this_calls
+    >>> implicit_this_calls(("add", ("call", "g", []), ("num", 1.0)), {"g"})
+    ('add', ('method_call', ('var', 'this'), 'g', []), ('num', 1.0))
+    >>> implicit_this_calls(("body_call", "g", []), {"g"})
+    ('body_expr', ('method_call', ('var', 'this'), 'g', []))
+    """
+    if isinstance(node, list):
+        return [implicit_this_calls(n, methods) for n in node]
+    if not isinstance(node, tuple):
+        return node
+    if (len(node) == 3 and node[0] in ("call", "body_call", "loop_call")
+            and node[1] in methods):
+        call = ("method_call", ("var", "this"), node[1],
+                implicit_this_calls(node[2], methods))
+        return call if node[0] == "call" else ("body_expr", call)
+    return tuple(implicit_this_calls(n, methods) for n in node)
+
+
+def with_implicit_this_calls(class_def: dict) -> dict:
+    """
+    Class definition dictionary with methods calls transofmred to
+    explicit `this.method` calls
+
+    Parameters
+    ----------
+    class_def : dict
+        Class definition of the unified AST.
+
+    Example
+    -------
+    >>> from physika.utils.ast_utils import with_implicit_this_calls
+    >>> g = {"name": "g", "params": [], "statements": [],
+    ...      "body": ("num", 1.0)}
+    >>> h = {"name": "h", "params": [], "statements": [],
+    ...      "body": ("call", "g", [])}
+    >>> with_implicit_this_calls({"methods": [g, h]})["methods"][1]["body"]
+    ('method_call', ('var', 'this'), 'g', [])
+    """
+    methods = class_def.get("methods", [])
+    names = {m["name"] for m in methods}
+    return {
+        **class_def, "methods": [{
+            **m, "statements":
+            implicit_this_calls(m.get("statements", []), names),
+            "body":
+            implicit_this_calls(m.get("body"), names)
+        } for m in methods]
+    }
