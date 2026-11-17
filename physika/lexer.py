@@ -6,7 +6,7 @@ tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
           "LARROW", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE",
           "INDENT", "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS",
           "LAMBDA", "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION",
-          "WALRUS", "FROM", "IMPORT", "NABLA")
+          "WALRUS", "FROM", "IMPORT", "NABLA", "INVERSE")
 
 reserved = {
     "def": "DEF",
@@ -45,6 +45,8 @@ t_WALRUS = r':='
 t_COLON = r":"
 t_COMMA = r","
 t_NABLA = r"∇"
+# Postfix matrix inverse operator: A⁻¹ parses to a call to inv(A)
+t_INVERSE = r"⁻¹"
 
 
 def t_LAMBDA(t):

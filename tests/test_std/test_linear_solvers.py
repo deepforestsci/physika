@@ -87,3 +87,29 @@ class TestGaussianElimination:
         res = ns["results"]
         expected = torch.tensor([26.6667])
         assert torch.allclose(res, expected, atol=r_tol)
+
+
+class TestInverseOperator:
+    """Test suite for the postfix matrix inverse operator ``A⁻¹``."""
+
+    def test_inverse_operator_matches_inv_call(self):
+        """``A⁻¹`` produces the same matrix as ``inv(A)``."""
+        src = ("A: ℝ[2, 2] = [[4.0, 7.0], [2.0, 6.0]]\n"
+               "called: ℝ[2, 2] = inv(A)\n"
+               "postfix: ℝ[2, 2] = A⁻¹\n")
+        ns = run_phyk(src)
+        assert torch.allclose(ns["postfix"], ns["called"], atol=r_tol)
+        expected = torch.tensor([[0.6, -0.7], [-0.2, 0.4]])
+        assert torch.allclose(ns["postfix"].cpu(), expected, atol=r_tol)
+
+    def test_inverse_operator_in_function_body(self):
+        """``M⁻¹`` is available inside a function body, not just at top level."""
+        src = ("def solve(M: ℝ[n, n], b: ℝ[n, 1]): ℝ[n, 1]:\n"
+               "    return M⁻¹ @ b\n"
+               "\n"
+               "A: ℝ[2, 2] = [[4.0, 7.0], [2.0, 6.0]]\n"
+               "b: ℝ[2, 1] = [[1.0], [2.0]]\n"
+               "results: ℝ[2, 1] = solve(A, b)\n")
+        ns = run_phyk(src)
+        expected = torch.tensor([[-0.8], [0.6]])
+        assert torch.allclose(ns["results"].cpu(), expected, atol=r_tol)

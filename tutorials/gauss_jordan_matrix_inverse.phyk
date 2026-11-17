@@ -101,12 +101,8 @@ def extract_inv(aug: ℝ[x, y], k: ℕ): ℝ[a, b]:
     return out
 
 # A k x k all-NaN matrix.
-def nan_matrix(k: ℕ): ℝ[a, b]:
-    out: ℝ[a, b] = zeros(k, k)
-    for i: ℕ(k):
-        for j: ℕ(k):
-            out[i, j] = sqrt(0.0 - 1.0)
-    return out
+def nan_matrix(k: ℕ): ℝ[k, k]:
+    return for i: ℕ(k) → for j: ℕ(k) → sqrt(0.0 - 1.0)
 
 def inverse_naive(M: ℝ[x, y], k: ℕ, tol: ℝ): ℝ[a, b]:
     red: ℝ[u, v] = gje_naive(M, k)
@@ -131,12 +127,14 @@ A: ℝ[n, n] = [[5.0, 7.0, 9.0], [4.0, 3.0, 8.0], [7.0, 5.0, 6.0]]
 A
 inverse_naive(A, n, tol)
 inverse_pp(A, n, tol, ptol)
+A⁻¹ # in-built mat inv for comparison
 
 # Singular
 B: ℝ[n, n] = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
 B
 inverse_naive(B, n, tol)
 inverse_pp(B, n, tol, ptol)
+# built-in inv() raises error on a singular matrix
 
 # Zero in the pivot position
 n2: ℕ = 2
@@ -144,6 +142,7 @@ P: ℝ[n2, n2] = [[0.0, 1.0], [1.0, 0.0]]
 P
 inverse_naive(P, n2, tol)
 inverse_pp(P, n2, tol, ptol)
+P⁻¹ # in-built mat inv for comparison
 
 # The pivot is nonzero but tiny, so naive
 # pivoting never swaps and loses the information to cancellation.
@@ -151,16 +150,17 @@ S: ℝ[n2, n2] = [[1.0e-20, 1.0], [1.0, 2.0]]
 S
 inverse_naive(S, n2, tol)
 inverse_pp(S, n2, tol, ptol)
+S⁻¹ # in-built mat inv for comparison
 
-# Both strategies are differentiable
+# Both strategies are differentiable (examples)
 def total_naive(M: ℝ[x, y], k: ℕ, tol: ℝ): ℝ:
     return sum(inverse_naive(M, k, tol))
 
 def total_pp(M: ℝ[x, y], k: ℕ, tol: ℝ, ptol: ℝ): ℝ:
     return sum(inverse_pp(M, k, tol, ptol))
 
-grad(total_naive(A, n, tol), A)
-grad(total_pp(A, n, tol, ptol), A)
+∇(total_naive(A, n, tol), A)
+∇(total_pp(A, n, tol, ptol), A)
 
-grad(total_naive(P, n2, tol), P)
-grad(total_pp(P, n2, tol, ptol), P)
+∇(total_naive(P, n2, tol), P)
+∇(total_pp(P, n2, tol, ptol), P)

@@ -1413,6 +1413,15 @@ def p_factor_nabla_call(p):
     p[0] = ("call", "grad", args)
 
 
+def p_factor_inverse(p):
+    """factor      : ID INVERSE
+       func_factor : ID INVERSE"""
+    # AST node for ``inv`` function call: A⁻¹ builds the same node as inv(A).
+    # Restricted to a bare name so the rule adds no shift/reduce conflicts;
+    # a compound expression still needs the call form, e.g. inv(A @ B).
+    p[0] = ("call", "inv", [("var", p[1])])
+
+
 def p_factor_call(p):
     """factor : ID LPAREN args RPAREN"""
     # Return AST node for function call

@@ -96,11 +96,7 @@ def extract_inv(aug, k):
     return out
 
 def nan_matrix(k):
-    out = torch.zeros(int(k), int(k), device=DEVICE)
-    for i in range(int(0), int(k)):
-        for j in range(int(0), int(k)):
-            out[int(i), int(j)] = torch.sqrt((0.0 - 1.0) if isinstance((0.0 - 1.0), torch.Tensor) else torch.tensor(float((0.0 - 1.0))))
-    return out
+    return torch.stack([torch.stack([torch.sqrt((0.0 - 1.0) if isinstance((0.0 - 1.0), torch.Tensor) else torch.tensor(float((0.0 - 1.0)))) for _fi_j in range(int(k)) for j in [torch.tensor(float(_fi_j), device=DEVICE)]]) for _fi_i in range(int(k)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
 
 def inverse_naive(M, k, tol):
     red = gje_naive(M, k)
@@ -124,6 +120,7 @@ A = torch.as_tensor(torch.tensor([[5.0, 7.0, 9.0], [4.0, 3.0, 8.0], [7.0, 5.0, 6
 print(A)
 print(inverse_naive(A, n, tol))
 print(inverse_pp(A, n, tol, ptol))
+print(torch.linalg.inv(A))
 B = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], device=DEVICE)
 print(B)
 print(inverse_naive(B, n, tol))
@@ -133,10 +130,12 @@ P = torch.as_tensor(torch.tensor([[0.0, 1.0], [1.0, 0.0]], device=DEVICE)).requi
 print(P)
 print(inverse_naive(P, n2, tol))
 print(inverse_pp(P, n2, tol, ptol))
+print(torch.linalg.inv(P))
 S = torch.tensor([[1e-20, 1.0], [1.0, 2.0]], device=DEVICE)
 print(S)
 print(inverse_naive(S, n2, tol))
 print(inverse_pp(S, n2, tol, ptol))
+print(torch.linalg.inv(S))
 print(compute_grad(lambda _dA: total_naive(_dA, n, tol), A))
 print(compute_grad(lambda _dA: total_pp(_dA, n, tol, ptol), A))
 print(compute_grad(lambda _dP: total_naive(_dP, n2, tol), P))
