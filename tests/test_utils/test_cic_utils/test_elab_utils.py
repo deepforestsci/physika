@@ -3,6 +3,7 @@ from physika.core.expr import (App, BVar, BinderInfo, Const, ForallE, FVar,
 from physika.core.elab.elab import Elab
 from physika.core.environment import Environment, ConstantInfo
 from physika.core.level import LSucc, LZero
+from physika.utils.ast_utils import with_implicit_this_calls
 from physika.utils.cic_utils.expr_utils import get_app_fn_args
 from physika.utils.cic_utils.elab_utils import (
     arg_decreases,
@@ -289,11 +290,13 @@ class TestBodyStmtsAssignedNames:
         assert methods[0]["statements"] == [
             ("body_field_assign", ("var", "this"), "x", ("num", 0.0))
         ]
+        assert methods[2]["statements"] == shadow["statements"]
+        assert methods[3]["statements"] == local["statements"]
+        # bare method calls become ``this.m(...)``
+        methods = explicit_this_methods(with_implicit_this_calls(class_def))
         assert methods[1]["statements"] == [
             ("body_expr", ("method_call", ("var", "this"), "clear", []))
         ]
-        assert methods[2]["statements"] == shadow["statements"]
-        assert methods[3]["statements"] == local["statements"]
         assert mutating_methods(methods) == {"clear", "reset"}
 
     def test_body_assign(self):

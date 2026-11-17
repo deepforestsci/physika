@@ -2070,7 +2070,7 @@ def build_unified_ast(
         if entry["type"] == "function":
             unified["functions"][name] = entry["value"]
         elif entry["type"] == "class":
-            unified["classes"][name] = entry["value"]
+            unified["classes"][name] = with_implicit_this_calls(entry["value"])
 
     # Add program statements
     for stmt in program_ast:
@@ -2082,3 +2082,67 @@ def build_unified_ast(
         print(print_unified_ast(unified))
 
     return unified
+
+
+def implicit_this_calls(node: Any, methods: Collection[str]) -> Any:
+    """
+    Rewrite calls to a class methods by their name to
+    ``this.method_name`` calls (implicit ``this``).
+
+    Parameters
+    ----------
+    node : Any
+        AST node, statement or list of them inside a method.
+    methods : Collection[str]
+        Names of the class's methods.
+
+    Example
+    -------
+    >>> from physika.utils.ast_utils import implicit_this_calls
+    >>> implicit_this_calls(("add", ("call", "g", []), ("num", 1.0)), {"g"})
+    ('add', ('method_call', ('var', 'this'), 'g', []), ('num', 1.0))
+    >>> implicit_this_calls(("body_call", "g", []), {"g"})
+    ('body_expr', ('method_call', ('var', 'this'), 'g', []))
+    """
+    if isinstance(node, list):
+        return [implicit_this_calls(n, methods) for n in node]
+    if not isinstance(node, tuple):
+        return node
+    if (len(node) == 3 and node[0] in ("call", "body_call", "loop_call")
+            and node[1] in methods):
+        call = ("method_call", ("var", "this"), node[1],
+                implicit_this_calls(node[2], methods))
+        return call if node[0] == "call" else ("body_expr", call)
+    return tuple(implicit_this_calls(n, methods) for n in node)
+
+
+def with_implicit_this_calls(class_def: dict) -> dict:
+    """
+    Class definition dictionary with methods calls transofmred to
+    explicit `this.method` calls
+
+    Parameters
+    ----------
+    class_def : dict
+        Class definition of the unified AST.
+
+    Example
+    -------
+    >>> from physika.utils.ast_utils import with_implicit_this_calls
+    >>> g = {"name": "g", "params": [], "statements": [],
+    ...      "body": ("num", 1.0)}
+    >>> h = {"name": "h", "params": [], "statements": [],
+    ...      "body": ("call", "g", [])}
+    >>> with_implicit_this_calls({"methods": [g, h]})["methods"][1]["body"]
+    ('method_call', ('var', 'this'), 'g', [])
+    """
+    methods = class_def.get("methods", [])
+    names = {m["name"] for m in methods}
+    return {
+        **class_def, "methods": [{
+            **m, "statements":
+            implicit_this_calls(m.get("statements", []), names),
+            "body":
+            implicit_this_calls(m.get("body"), names)
+        } for m in methods]
+    }

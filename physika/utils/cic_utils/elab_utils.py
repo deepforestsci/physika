@@ -2467,9 +2467,10 @@ def expected_elem_type_of(elab: ElabT,
 
 def explicit_this_methods(class_def: dict) -> list:
     """
-    A class's methods with implicit ``this`` made explicit. Assigning a
-    field by its name and calling a method by its name.
-    A parameter or a local declared earlier keeps the name.
+    A class's methods with implicit ``this`` made explicit for fields:
+    assigning a field by its name. A parameter or a local declared earlier
+    keeps the name. Bare method calls are made ``this.m(...)`` by
+    ``with_implicit_this_calls`` when the unified AST is built.
 
     Parameters
     ----------
@@ -2481,22 +2482,16 @@ def explicit_this_methods(class_def: dict) -> list:
     >>> from physika.utils.cic_utils.elab_utils import explicit_this_methods
     >>> clear = {"name": "clear", "params": [], "body": None,
     ...          "statements": [("body_assign", "x", ("num", 0.0))]}
-    >>> reset = {"name": "reset", "params": [], "body": None,
-    ...          "statements": [("body_call", "clear", [])]}
     >>> class_def = {"class_params": [], "fields": [("x", "ℝ")],
-    ...              "methods": [clear, reset]}
-    >>> clear_, reset_ = explicit_this_methods(class_def)
-    >>> clear_["statements"]
+    ...              "methods": [clear]}
+    >>> explicit_this_methods(class_def)[0]["statements"]
     [('body_field_assign', ('var', 'this'), 'x', ('num', 0.0))]
-    >>> reset_["statements"][0][1][:3]
-    ('method_call', ('var', 'this'), 'clear')
     """
     fields = {
         f[0]
         for f in class_def.get("class_params", []) +
         class_def.get("fields", [])
     }
-    names = {m["name"] for m in class_def.get("methods", [])}
     methods = []
     for method in class_def.get("methods", []):
         bound = {p[0] for p in method.get("params", [])}
@@ -2508,9 +2503,6 @@ def explicit_this_methods(class_def: dict) -> list:
             if (tag == "body_assign" and stmt[1] in fields
                     and stmt[1] not in bound):
                 stmt = ("body_field_assign", ("var", "this"), stmt[1], stmt[2])
-            elif tag == "body_call" and stmt[1] in names:
-                stmt = ("body_expr", ("method_call", ("var", "this"), stmt[1],
-                                      stmt[2]))
             stmts.append(stmt)
         methods.append({**method, "statements": stmts})
     return methods
