@@ -61,3 +61,22 @@ a: ℝ[2, 3] = [
 
 a_T: ℝ[3, 2] = aᵀ
 print(a_T)
+
+
+# -------------------
+# L2 norm ||..||
+# -------------------
+
+
+sample_vector: R[3] = [1.0, 2.0, 3.0]
+vector_norm: R = ||sample_vector||
+
+print(vector_norm)
+
+sample_matrix: R[2, 2] = [
+    [1.0, 2.0],
+    [4.2, 5.6]
+]
+matrix_norm: R = ||sample_matrix||
+
+print(matrix_norm)
