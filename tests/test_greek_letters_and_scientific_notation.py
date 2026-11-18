@@ -57,3 +57,12 @@ class ModifierLetters:
     def test_tranpose(self, numeric_ns):
         # Test matrix transpose correctness
         assert numeric_ns["x_T"].tolist() == [[1, 4], [2, 5], [3, 6]]
+
+
+class MathematicalOperators:
+    """Tests for mathematical operator symbols."""
+
+    def test_norm(self, numeric_ns):
+        # Test for norm function ||..|| symbol
+        assert numeric_ns["vector_norm"] == 3.7416574954986572
+        assert numeric_ns["matrix_norm"] == 7.348468780517578
