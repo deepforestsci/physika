@@ -1421,6 +1421,13 @@ def p_factor_call(p):
     p[0] = ("call", func_name, args)
 
 
+def p_factor_norm_call(p):
+    """factor      : PIPE PIPE expr PIPE PIPE
+       func_factor : PIPE PIPE func_expr PIPE PIPE"""
+    # AST node for ``norm`` function call
+    p[0] = ("call", "norm", [p[3]])
+
+
 def p_factor_complex(p):
     """factor : COMPLEX"""
     # Return AST node for complex literal
