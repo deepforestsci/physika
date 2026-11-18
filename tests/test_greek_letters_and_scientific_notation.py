@@ -58,6 +58,7 @@ class ModifierLetters:
         # Test matrix transpose correctness
         assert numeric_ns["x_T"].tolist() == [[1, 4], [2, 5], [3, 6]]
 
+
 class MathematicalOperators:
     """Tests for mathematical operator symbols."""
 
