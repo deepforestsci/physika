@@ -1208,17 +1208,6 @@ def p_func_term_times(p):
                  | func_term INTDIV func_power
                  | func_term MOD func_power
                  | func_term MATMUL func_power"""
-    # Binary operations inside function bodies using ``*``, ``/``, ``//``,
-    # ``%`` and ``@`` symbols, all left-associative at the same precedence
-    # level.
-    # Example:
-    #   x % 3 * 2   ->   (x % 3) * 2
-    # Parameters:
-    #   p[1] - left func_term
-    #   p[2] - operator token ("*", "/", "//", "%" or "@")
-    #   p[3] - right func_power
-    # Returns:
-    #   ("mul" | "div" | "intdiv" | "mod" | "matmul", left, right)
     if p[2] == "*":
         p[0] = ("mul", p[1], p[3])
     elif p[2] == "/":
