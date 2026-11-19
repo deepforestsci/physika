@@ -770,23 +770,23 @@ def expr_mod(node: Any,
 
     Examples
     --------
-    >>> from physika.utils.infer_expr import ExprContext, expr_div, TTensor
+    >>> from physika.utils.infer_expr import ExprContext, expr_mod, TTensor
     >>> from physika.utils.types import Substitution
     >>> ctx = ExprContext({"x": TTensor(((3, "invariant"),)), "y": TTensor(((3, "invariant"),))}, Substitution(), {}, {}, [].append)
-    >>> t, _= expr_div(("mod", ("var", "x"), ("num", 2.0)), ctx)  # ℝ[3] % ℝ → ℝ[3]
+    >>> t, _= expr_mod(("mod", ("var", "x"), ("num", 2.0)), ctx)  # ℝ[3] % ℝ → ℝ[3]
     >>> t
     ℝ[3]
-    >>> t, _= expr_div(("mod", ("num", 6.0), ("num", 2.0)), ctx)  # ℝ % ℝ → ℝ
+    >>> t, _= expr_mod(("mod", ("num", 6.0), ("num", 2.0)), ctx)  # ℝ % ℝ → ℝ
     >>> t
     ℝ
-    >>> t, _= expr_div(("mod", ("var", "x"), ("var", "y")), ctx)  # ℝ[3] % ℝ[3] → ℝ[3]
+    >>> t, _= expr_mod(("mod", ("var", "x"), ("var", "y")), ctx)  # ℝ[3] % ℝ[3] → ℝ[3]
     >>> t
     ℝ[3]
     >>> errors = []
     >>> ctx2 = ExprContext({"x": TTensor(((3, "invariant"),)), "z": TTensor(((2, "invariant"),))}, Substitution(), {}, {}, errors.append)  # noqa: E501
-    >>> t, _= expr_div(("mod", ("var", "x"), ("var", "z")), ctx2)  # ℝ[3] % ℝ[2] → error
+    >>> t, _= expr_mod(("mod", ("var", "x"), ("var", "z")), ctx2)  # ℝ[3] % ℝ[2] → error
     >>> errors
-    ['Shape mismatch in div: ℝ[3] vs ℝ[2]']
+    ['Shape mismatch in mod: ℝ[3] vs ℝ[2]']
     """
     from physika.utils.type_checker_utils import unify, type_to_str, broadcast_op  # noqa: E501
 
@@ -820,7 +820,7 @@ def expr_mod(node: Any,
             t1 = s.apply(t1)
         except TypeError:
             ctx.add_error(
-                f"Shape mismatch in div: {type_to_str(t1)} vs {type_to_str(t2)}"  # noqa: E501
+                f"Shape mismatch in mod: {type_to_str(t1)} vs {type_to_str(t2)}"  # noqa: E501
             )
 
     return broadcast_op(t1, t2), s

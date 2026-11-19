@@ -1,26 +1,103 @@
-# Physika Modulo `%` Operation
+# Modulo `%` in Physika
+#
+# This Physika file showcases the modulo operator `%`.
+# The result takes the sign of the divisor, and `%` has the same precedence
+# as `*` and `/`.
 
-# 1. As a standalone operation
+# Program level
 
-print(10 % 2)
-print(12 % 5)
+a: ℝ = 17
+b: ℝ = 5
 
-# 2. As a operation between variables
+mod_literals: ℝ = 17 % 5
+mod_variables: ℝ = a % b
+mod_float: ℝ = 7.5 % 2
 
-a: ℝ = 10
-b: ℝ = 4
+# result takes the sign of the divisor: (-7) % 3 = 2
+mod_negative: ℝ = -7 % 3
 
-print(a % b)
+# same precedence as `*`: 2 + ((7 % 4) * 3) = 11
+mod_precedence: ℝ = 2 + 7 % 4 * 3
 
-# 3. On a array of numbers
+mod_literals
+mod_variables
+mod_float
+mod_negative
+mod_precedence
 
-a: ℝ[4] = [10, 12, 15, 17]
-b: ℝ = 4
+# Function level
 
-print(a % b)
+def mod_scalar(x: ℝ, y: ℝ): ℝ:
+    return x % y
 
-# 4. Both side being array of numbers
+def mod_twice(x: ℝ, y: ℝ): ℝ:
+    r: ℝ = x % y
+    return r % 2
 
-a: ℝ[4] = [10, 12, 15, 17]
-b: ℝ[4] = [1, 3, 5, 7]
-print(a % b)
+def mod_tensor(v: ℝ[n], k: ℝ): ℝ[n]:
+    return v % k
+
+# wrap an angle (in radians) into [0, 2π)
+def wrap_angle(theta: ℝ): ℝ:
+    return theta % 6.283185307179586
+
+w: ℝ[4] = [10, 12, 15, 17]
+
+func_scalar: ℝ = mod_scalar(17, 5)
+func_twice: ℝ = mod_twice(17, 5)
+func_tensor: ℝ[4] = mod_tensor(w, 4)
+func_angle: ℝ = wrap_angle(7.0)
+
+func_scalar
+func_twice
+func_tensor
+func_angle
+
+# Inside loop
+
+v: ℝ[6] = [10, 11, 12, 13, 14, 15]
+
+# comprehension: elementwise v[i] % 4
+loop_comprehension: ℝ[6] = for i -> v[i] % 4
+
+# for-loop inside a function: count the odd entries
+def count_odd(x: ℝ[n]): ℝ:
+    total: ℝ = 0
+    for i:
+        total += x[i] % 2
+    return total
+
+loop_count_odd: ℝ = count_odd(v)
+
+loop_comprehension
+loop_count_odd
+
+# Scalar and tensor operations
+
+s: ℝ = 10
+t: ℝ[4] = [10, 12, 15, 17]
+u: ℝ[4] = [3, 5, 7, 4]
+A: ℝ[2, 3] = [[7, 8, 9], [10, 11, 12]]
+B: ℝ[2, 3] = [[2, 3, 4], [5, 6, 7]]
+
+scalar_mod_scalar: ℝ = s % 3
+tensor_mod_scalar: ℝ[4] = t % 4
+tensor_mod_tensor: ℝ[4] = t % u
+matrix_mod_scalar: ℝ[2, 3] = A % 5
+matrix_mod_matrix: ℝ[2, 3] = A % B
+
+scalar_mod_scalar
+tensor_mod_scalar
+tensor_mod_tensor
+matrix_mod_scalar
+matrix_mod_matrix
+
+# Differentiation
+
+# gradient w.r.t. the dividend: d/dx (x % y) = 1
+def mod_wrt_dividend(x: ℝ): ℝ:
+    return x % 2
+
+grad_dividend: ℝ = grad(mod_wrt_dividend, 5.5)
+
+grad_dividend
