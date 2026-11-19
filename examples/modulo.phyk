@@ -72,6 +72,22 @@ loop_count_odd: ℝ = count_odd(v)
 loop_comprehension
 loop_count_odd
 
+# Class level
+
+# wrap a time value into one period of the clock
+class Clock(period: ℝ):
+    def wrap(t: ℝ): ℝ:
+        return t % this.period
+    def wrap_all(ts: ℝ[n]): ℝ[n]:
+        return ts % this.period
+
+clock: Clock = Clock(36 % 24)
+class_wrap: ℝ = clock.wrap(27)
+class_wrap_all: ℝ[3] = clock.wrap_all([5, 13, 25])
+
+class_wrap
+class_wrap_all
+
 # Scalar and tensor operations
 
 s: ℝ = 10
@@ -99,5 +115,4 @@ def mod_wrt_dividend(x: ℝ): ℝ:
     return x % 2
 
 grad_dividend: ℝ = grad(mod_wrt_dividend, 5.5)
-
 grad_dividend
