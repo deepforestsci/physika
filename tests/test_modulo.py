@@ -12,8 +12,10 @@ def modulo_ns():
 
 
 class TestModulo:
+    """Tests for verification of results of modulo example."""
 
     def test_program_level(self, modulo_ns):
+        """Verification of Program level operations."""
         a: int = 17
         b: int = 5
         assert modulo_ns["mod_literals"] == 17 % 5
@@ -23,6 +25,7 @@ class TestModulo:
         assert modulo_ns["mod_precedence"] == 2 + 7 % 4 * 3
 
     def test_function_level(self, modulo_ns):
+        """Verification of Function level operations."""
         import torch
         DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         assert modulo_ns["func_scalar"] == 2
@@ -32,6 +35,7 @@ class TestModulo:
         assert modulo_ns["func_angle"] == 7.0 % 6.283185307179586
 
     def test_inside_loop(self, modulo_ns):
+        """Verification of Inside loop operations."""
         import torch
         DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         assert torch.equal(
@@ -40,6 +44,7 @@ class TestModulo:
         assert modulo_ns["loop_count_odd"] == 3
 
     def test_class_level(self, modulo_ns):
+        """Verification of Class level operations."""
         import torch
         DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         assert modulo_ns["class_wrap"] == 27 % 12
@@ -47,6 +52,7 @@ class TestModulo:
                            torch.tensor([5, 13, 25], device=DEVICE) % 12)
 
     def test_scaler_and_tensor(self, modulo_ns):
+        """Verification of Scaler or Tensor operations."""
         import torch
         DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         s: int = 10
@@ -62,6 +68,7 @@ class TestModulo:
         assert torch.equal(modulo_ns["matrix_mod_matrix"], A % B)
 
     def test_differentiation(self, modulo_ns):
+        """Verification of differentiation operations."""
         import torch
         DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         assert modulo_ns["grad_dividend"] == torch.tensor(1.0, device=DEVICE)
