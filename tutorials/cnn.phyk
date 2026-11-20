@@ -113,18 +113,18 @@ def linear(x: ℝ[I], weight: ℝ[O, I], bias: ℝ[O]): ℝ[O]:
 class ConvNets(kernel1: ℝ[K, K], b1: ℝ, kernel2: ℝ[K, K], b2: ℝ, w: ℝ[m, n], b3: ℝ[m]):
     def λ(input: ℝ[H, W]) -> ℝ[m]:
         # layer 1
-        conv1 = conv2d(input, kernel1, b1)
-        relu1 = relu2d(conv1)
-        pool1 = maxpool2d(relu1)
+        conv1: ℝ[H1, W1] = conv2d(input, kernel1, b1)
+        relu1: ℝ[H1, W1] = relu2d(conv1)
+        pool1: ℝ[H2, W2] = maxpool2d(relu1)
         # layer 2
-        conv2 = conv2d(pool1, kernel2, b2)
-        relu2 = relu2d(conv2)
-        pool2 = maxpool2d(relu2)
-        flat = flatten(pool2)
-        out = linear(flat, w, b3)
-        results = softmax(out)
+        conv2: ℝ[H3, W3] = conv2d(pool1, kernel2, b2)
+        relu2: ℝ[H3, W3] = relu2d(conv2)
+        pool2: ℝ[H4, W4] = maxpool2d(relu2)
+        flat: ℝ[I] = flatten(pool2)
+        out: ℝ[O] = linear(flat, w, b3)
+        results: ℝ[0] = softmax(out)
         return results
-    def train(train_X: R[D, 28, 28], train_y: R[D], epochs: N, lr: R, train_dataset_len: R): R:
+    def train(train_X: R[D, H, W], train_y: R[D], epochs: N, lr: R, train_dataset_len: R): R:
         loss: ℝ = 0
         for epoch:ℕ(epochs):
             print(epoch)
@@ -180,14 +180,14 @@ cnn_object: ConvNets = ConvNets(kernel1, b1, kernel2, b2, w, b3)
 # here we are using random arrays to run full code in CI
 # see the actual tutorial for full script
 # ----------------------------------------------------------
-#dataset = create_dataset(80, 20)
+#dataset = create_dataset(80, 10)
 #train_dataset = dataset[0]
 #test_dataset = dataset[1]
 
 #train_dataset_len: ℝ = get_1d_array_length(train_dataset[0])
 #test_dataset_len: ℝ = get_1d_array_length(test_dataset[0])
 
-#train_X: ℝ[train_dataset_len, 28, 28] = train_dataset[0]
+#train_X: ℝ[train_dataset_len, H, W] = train_dataset[0]
 #train_y: ℝ[train_dataset_len] = train_dataset[1]
 #test_X = test_dataset[0]
 #test_y = test_dataset[1]
@@ -235,7 +235,7 @@ len_test_X: ℝ = len(test_X[0])
 y_true: ℝ = 0
 
 for i:ℕ(test_dataset_len):
-    x: ℝ[28, 28] = test_X[i]
+    x: ℝ[H, W] = test_X[i]
     y_true = test_y[i]
     y_pred = cnn_object(x)
     pred_class = argmax(y_pred)
