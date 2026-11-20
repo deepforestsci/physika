@@ -405,7 +405,7 @@ Forward Pass
 The forward pass defines how data flows through the complete convolutional
 neural network.
 
-``onvolution -> ReLU -> MaxPool -> Convolution -> ReLU -> MaxPool -> Flatten -> Linear -> Softmax``
+``Convolution -> ReLU -> MaxPool -> Convolution -> ReLU -> MaxPool -> Flatten -> Linear -> Softmax``
 
 The Physika implementation is:
 
