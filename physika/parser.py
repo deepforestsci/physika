@@ -1537,10 +1537,71 @@ def p_args_multi(p):
 
 
 def p_error(p):
-    if p:
-        raise SyntaxError(f"Syntax error at '{p.value}'")
+    # EOF
+    if p is None:
+        source = lexer_mod.lexer.lexer.lexdata
+        code = source.rstrip()  # ignore trailing blank lines
+        line = code.count("\n") + 1
+        text = code[code.rfind("\n") + 1:]  # the last line of code
+
+        prefix = f"{line} │ "
+        indent = " " * (len(prefix) + len(text)
+                        )
+        raise SyntaxError(f"{prefix}{text}\n"
+                          f"{indent}━\n"
+                          f"{indent}╰─ unexpected end of statement\n"
+                          f"\n"
+                          f"✗ invalid syntax at line {line}")
+
+    ply_lexer = getattr(p.lexer, "lexer", p.lexer)
+    source = ply_lexer.lexdata
+
+    if p.type in ("INDENT", "DEDENT"):
+        pos = p.lexpos
+        while pos < len(source) and source[pos] in " \t\r\n":
+            pos += 1
+
+        if pos >= len(source):
+            pos = source.rstrip("\n").rfind("\n") + 1
+            line_end = source.find("\n", pos)
+            if line_end == -1:
+                line_end = len(source)
+            token = source[pos:line_end]  # the spaces themselves
+        else:
+            token = source[pos:pos + 1]
+
+        message = "unexpected indentation"
     else:
-        raise SyntaxError("Syntax error at EOF")
+        pos = p.lexpos
+        token = source[p.lexpos:ply_lexer.lexpos]
+        message = f"unexpected '{token}'"
+
+    line = source.count("\n", 0, pos) + 1
+    line_start = source.rfind("\n", 0, pos) + 1
+    line_end = source.find("\n", pos)
+    if line_end == -1:
+        line_end = len(source)
+
+    column = pos - line_start + 1
+    text = source[line_start:line_end]
+    indent = " " * (column - 1)
+
+    prefix = f"{line} │ "
+    indent = " " * (len(prefix) + column - 1)
+
+    # raise SyntaxError(
+    #     f"{prefix}{text}\n"
+    #     f"{indent}{'━' * max(len(token), 1)}\n"
+    #     f"{indent}╰─ {message}\n"
+    #     f"\n"
+    #     f"✗ invalid syntax at line {line}"
+    # )
+    gutter = " " * len(str(line))
+    raise SyntaxError(f" {line} │ {text}\n"
+                      f" {gutter} │ {indent}{'━' * max(len(token), 1)}\n"
+                      f" {gutter} │ {indent}╰─ {message}\n"
+                      f"\n"
+                      f"✗ invalid syntax at line {line}")
 
 
 # Symbolic types

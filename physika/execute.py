@@ -25,7 +25,11 @@ def main():
         source = f.read()
 
     # Parse tokens to AST
-    local_program_ast = parser.parse(source, lexer=lexer)
+    try:
+        local_program_ast = parser.parse(source, lexer=lexer)
+    except SyntaxError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
     local_program_ast = resolve_imports(local_program_ast, source_file_path)
 
     physika_nodes = [s for s in local_program_ast]
