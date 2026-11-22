@@ -9,6 +9,8 @@ from contextlib import redirect_stdout
 from typing import Optional
 from physika.runtime import compute_grad
 import physika
+from physika.core.elab.elab import Elab
+from physika.core.inductive import mk_builtin_env
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
 STDLIB_PATH = Path(physika.__file__).resolve().parent / "std"
@@ -19,6 +21,7 @@ def exec_phyk(stem: str) -> dict:
     Helper function to execute a .phyk file and return the resulting namespace
     ``ns`` dict.
     """
+
     phyk_file = (EXAMPLES_DIR / f"{stem}.phyk")
 
     if not phyk_file.exists():
@@ -35,7 +38,20 @@ def exec_phyk(stem: str) -> dict:
             for node in program_ast):
         program_ast = resolve_imports(program_ast, phyk_file.resolve())
     unified = build_unified_ast(program_ast, symbol_table)
-    code = from_ast_to_torch(unified, print_code=False)
+
+    cic_elab = Elab(mk_builtin_env())
+    cic_result = cic_elab.elaborate(unified)
+
+    code = from_ast_to_torch(
+        unified,
+        print_code=False,
+        resolved_bodies=cic_result.get("resolved_bodies"),
+        resolved_methods=cic_result.get("resolved_methods"),
+        resolved_program=cic_result.get("resolved_program"),
+        resolved_program_fvar_names=cic_result.get(
+            "resolved_program_fvar_names"),
+        cic_env=cic_elab.state.env,
+    )
     ns: dict = {}
     exec(code, ns)
     return ns

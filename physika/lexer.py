@@ -1,12 +1,12 @@
 import ply.lex as lex
 
-tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
+tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "DICT", "PLUS", "MINUS",
           "TIMES", "DIVIDE", "INTDIV", "MATMUL", "POWER", "EQUALS", "EQEQ",
           "NEQ", "LT", "GT", "LEQ", "GEQ", "PLUSEQ", "COLON", "COMMA", "ARROW",
           "LARROW", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE",
           "INDENT", "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS",
           "LAMBDA", "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION",
-          "WALRUS", "FROM", "IMPORT", "NABLA")
+          "WALRUS", "FROM", "IMPORT", "NABLA", "PIPE")
 
 reserved = {
     "def": "DEF",
@@ -56,9 +56,13 @@ t_LPAREN = r"\("
 t_RPAREN = r"\)"
 t_LBRACKET = r"\["
 t_RBRACKET = r"\]"
+t_LBRACE = r"\{"
+t_RBRACE = r"\}"
 t_TANGENT = r"T"
 
 t_ignore = ""  # handle whitespace manually
+
+t_PIPE = r"\|"
 
 
 def t_COMMENT(t):
@@ -107,6 +111,11 @@ def t_NUMBER(t):
         t.value = float(t.value)
     else:
         t.value = int(t.value)
+    return t
+
+
+def t_DICT(t):
+    r"Dict"
     return t
 
 
@@ -177,9 +186,9 @@ class IndentLexer:
             self.after_for = False
 
         # Track bracket/parenthesis nesting
-        if tok and tok.type in ("LPAREN", "LBRACKET"):
+        if tok and tok.type in ("LPAREN", "LBRACKET", "LBRACE"):
             self.bracket_depth += 1
-        elif tok and tok.type in ("RPAREN", "RBRACKET"):
+        elif tok and tok.type in ("RPAREN", "RBRACKET", "RBRACE"):
             self.bracket_depth -= 1
 
         if tok is None:
