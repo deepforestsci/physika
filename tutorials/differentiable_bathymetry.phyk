@@ -31,8 +31,10 @@ def rhs(n: ℕ, q: ℝ[2, n], b: ℝ[n]): ℝ[2, n]:
     s_right: ℝ[n] = for i:ℕ(n) -> abs(u_right[i]) + sqrt(g * h_right_face[i])
     a: ℝ[n] = for i:ℕ(n) -> 0.5 * (s_left[i] + s_right[i] + abs(s_left[i] - s_right[i]))
     Fh: ℝ[n] = 0.5 * (hu + hu_right) - 0.5 * a * (h_right_face - h_left_face)
-    Fhu: ℝ[n] = 0.5 * (hu * u + 0.5 * g * h_left_face**2
-                        + hu_right * u_right + 0.5 * g * h_right_face**2)
+    pressure_left_face: ℝ[n] = 0.5 * g * h_left_face**2
+    pressure_right_face: ℝ[n] = 0.5 * g * h_right_face**2
+    Fhu: ℝ[n] = 0.5 * (hu * u + pressure_left_face
+                        + hu_right * u_right + pressure_right_face)
     Fhu: ℝ[n] = Fhu - 0.5 * a * (hu_right - hu)
     Fhu_right: ℝ[n] = Fhu + 0.5 * g * (h**2 - h_left_face**2)
     Fhu_left: ℝ[n] = roll(Fhu, 1, 0) + 0.5 * g * (
@@ -76,7 +78,24 @@ def loss(θ: ℝ[3]): ℝ:
     predicted: ℝ[3] = gauges(solve(θ), b)
     return mean((predicted - gauge_obs)**2)
 
-# Reverse-mode AD differentiates through every RK3 stage and time-loop iteration.
+# Adam follows the solver-in-the-loop gradient toward a local loss minimum.
 θ: ℝ[3] = [0.09, 0.45, 0.14]
-loss_gradient: ℝ[3] = ∇(loss, θ)
-loss_gradient
+initial_loss: ℝ = loss(θ)
+learning_rate: ℝ = 0.01
+beta1: ℝ = 0.9
+beta2: ℝ = 0.999
+eps_adam: ℝ = 0.00000001
+m_adam: ℝ[3] = 0.0 * θ
+v_adam: ℝ[3] = 0.0 * θ
+t_adam: ℝ = 0.0
+optimization_steps: ℕ = 5
+for step:ℕ(optimization_steps):
+    loss_gradient: ℝ[3] = ∇(loss, θ)
+    t_adam = t_adam + 1.0
+    m_adam = beta1 * m_adam + (1.0 - beta1) * loss_gradient
+    v_adam = beta2 * v_adam + (1.0 - beta2) * (loss_gradient * loss_gradient)
+    mhat: ℝ[3] = m_adam / (1.0 - beta1**t_adam)
+    vhat: ℝ[3] = v_adam / (1.0 - beta2**t_adam)
+    θ = θ - learning_rate * mhat / (sqrt(vhat) + eps_adam)
+final_loss: ℝ = loss(θ)
+final_loss

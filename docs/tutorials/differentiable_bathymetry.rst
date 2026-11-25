@@ -71,7 +71,18 @@ cells (and, conservatively, should be checked over each RK stage).  For the
 configured small pulse and entirely wet Gaussian bed, :math:`\nu` is well below
 one.  If the grid, time step, bed, or initial pulse changes, verify both
 :math:`\nu\lesssim1` and :math:`h>0`; neither constraint is enforced by the
-example.
+example.  The implementation obtains the face speed used in this estimate
+from the same reconstructed state used by the flux:
+
+.. code-block:: text
+
+   s_left: ℝ[n] = for i:ℕ(n) -> abs(u[i]) + sqrt(g * h_left_face[i])
+   s_right: ℝ[n] = for i:ℕ(n) -> abs(u_right[i]) + sqrt(g * h_right_face[i])
+   a: ℝ[n] = for i:ℕ(n) -> 0.5 * (
+       s_left[i] + s_right[i] + abs(s_left[i] - s_right[i]))
+
+Here ``a`` is the facewise maximum of the left and right wave-speed bounds;
+:math:`\nu` uses its maximum over faces.
 
 Hydrostatic reconstruction
 ---------------------------
@@ -116,6 +127,17 @@ absolute-value forms implement ``max`` without an opaque array primitive:
    s_right: ℝ[n] = for i:ℕ(n) -> abs(u_right[i]) + sqrt(g * h_right_face[i])
    a: ℝ[n] = for i:ℕ(n) -> 0.5 * (
        s_left[i] + s_right[i] + abs(s_left[i] - s_right[i]))
+
+   Fh: ℝ[n] = 0.5 * (hu + hu_right)
+                - 0.5 * a * (h_right_face - h_left_face)
+   pressure_left_face: ℝ[n] = 0.5 * g * h_left_face**2
+   pressure_right_face: ℝ[n] = 0.5 * g * h_right_face**2
+   Fhu: ℝ[n] = 0.5 * (hu * u + pressure_left_face
+                       + hu_right * u_right + pressure_right_face)
+   Fhu: ℝ[n] = Fhu - 0.5 * a * (hu_right - hu)
+   Fhu_right: ℝ[n] = Fhu + 0.5 * g * (h**2 - h_left_face**2)
+   Fhu_left: ℝ[n] = roll(Fhu, 1, 0) + 0.5 * g * (
+       h**2 - roll(h_right_face**2, 1, 0))
 
 Advancing the finite-volume state
 ---------------------------------
@@ -178,9 +200,26 @@ components of :math:`\theta` through the reconstruction, fluxes, SSPRK stages,
 and fixed time loop.  The observations are formed outside ``loss`` and remain
 fixed while the candidate simulation is differentiated.
 
+The tutorial then takes five Adam steps.  Adam rescales each parameter's
+solver-in-the-loop gradient with running first and second moments; it lowers
+the loss from this stated initial guess, but does not prove a unique or global
+minimum.
+
 .. code-block:: text
 
-   loss_gradient: ℝ[3] = ∇(loss, θ)
+   initial_loss: ℝ = loss(θ)
+   m_adam: ℝ[3] = 0.0 * θ
+   v_adam: ℝ[3] = 0.0 * θ
+   t_adam: ℝ = 0.0
+   for step:ℕ(optimization_steps):
+       loss_gradient: ℝ[3] = ∇(loss, θ)
+       t_adam = t_adam + 1.0
+       m_adam = beta1 * m_adam + (1.0 - beta1) * loss_gradient
+       v_adam = beta2 * v_adam + (1.0 - beta2) * (loss_gradient * loss_gradient)
+       mhat: ℝ[3] = m_adam / (1.0 - beta1**t_adam)
+       vhat: ℝ[3] = v_adam / (1.0 - beta2**t_adam)
+       θ = θ - learning_rate * mhat / (sqrt(vhat) + eps_adam)
+   final_loss: ℝ = loss(θ)
 
 The inversion is deliberately local: three noiseless gauges from one short
 experiment do not establish parameter uniqueness.  It demonstrates a

@@ -27,7 +27,9 @@ def rhs(n, q, b):
     s_right = torch.stack([(torch.abs(u_right[int(i)] if isinstance(u_right[int(i)], torch.Tensor) else torch.tensor(float(u_right[int(i)]))) + torch.sqrt((g * h_right_face[int(i)]) if isinstance((g * h_right_face[int(i)]), torch.Tensor) else torch.tensor(float((g * h_right_face[int(i)]))))) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     a = torch.stack([(0.5 * ((s_left[int(i)] + s_right[int(i)]) + torch.abs((s_left[int(i)] - s_right[int(i)]) if isinstance((s_left[int(i)] - s_right[int(i)]), torch.Tensor) else torch.tensor(float((s_left[int(i)] - s_right[int(i)])))))) for _fi_i in range(int(n)) for i in [torch.tensor(float(_fi_i), device=DEVICE)]])
     Fh = ((0.5 * (hu + hu_right)) - ((0.5 * a) * (h_right_face - h_left_face)))
-    Fhu = (0.5 * ((((hu * u) + ((0.5 * g) * (h_left_face ** 2))) + (hu_right * u_right)) + ((0.5 * g) * (h_right_face ** 2))))
+    pressure_left_face = ((0.5 * g) * (h_left_face ** 2))
+    pressure_right_face = ((0.5 * g) * (h_right_face ** 2))
+    Fhu = (0.5 * ((((hu * u) + pressure_left_face) + (hu_right * u_right)) + pressure_right_face))
     Fhu = (Fhu - ((0.5 * a) * (hu_right - hu)))
     Fhu_right = (Fhu + ((0.5 * g) * ((h ** 2) - (h_left_face ** 2))))
     Fhu_left = (torch.roll(Fhu, 1, 0) + ((0.5 * g) * ((h ** 2) - torch.roll((h_right_face ** 2), 1, 0))))
@@ -74,5 +76,22 @@ x = torch.stack([((i + 0.5) / Nx) for _fi_i in range(int(Nx)) for i in [torch.te
 b_true = bathymetry(θ_true)
 gauge_obs = gauges(solve(θ_true), b_true)
 θ = torch.as_tensor(torch.tensor([0.09, 0.45, 0.14], device=DEVICE)).requires_grad_(True).to(DEVICE)
-loss_gradient = compute_grad(loss, θ)
-print(loss_gradient)
+initial_loss = loss(θ)
+learning_rate = 0.01
+beta1 = 0.9
+beta2 = 0.999
+eps_adam = 1e-08
+m_adam = (0.0 * θ)
+v_adam = (0.0 * θ)
+t_adam = 0.0
+optimization_steps = 5
+for step in range(int(0), int(optimization_steps)):
+    loss_gradient = compute_grad(loss, θ)
+    t_adam = (t_adam + 1.0)
+    m_adam = ((beta1 * m_adam) + ((1.0 - beta1) * loss_gradient))
+    v_adam = ((beta2 * v_adam) + ((1.0 - beta2) * (loss_gradient * loss_gradient)))
+    mhat = (m_adam / (1.0 - (beta1 ** t_adam)))
+    vhat = (v_adam / (1.0 - (beta2 ** t_adam)))
+    θ = (θ - ((learning_rate * mhat) / (torch.sqrt(vhat if isinstance(vhat, torch.Tensor) else torch.tensor(float(vhat))) + eps_adam)))
+final_loss = loss(θ)
+print(final_loss)
