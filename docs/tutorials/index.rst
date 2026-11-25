@@ -13,6 +13,7 @@ Tutorials
 
    simple_harmonic_oscillator
    learn_parameter_1d_wave_equation
+   inverse_kinematics_two_bone
 
 .. toctree::
    :maxdepth: 1
