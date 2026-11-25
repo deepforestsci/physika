@@ -1,0 +1,101 @@
+# Differentiable 1D shallow-water bathymetry inversion on a periodic unit interval.
+# h = η - b > 0, b is upward-positive, and q = [h, hu].
+# This entirely wet, hydrostatic teaching model omits friction, wind, rotation,
+# wetting/drying, adaptive steps, and any claim that the three parameters are unique.
+
+Nx: ℕ = 32
+steps: ℕ = 30
+g, Δt: ℝ = 1.0, 0.002
+Δx: ℝ = 1.0 / Nx
+x: ℝ[Nx] = for i:ℕ(Nx) -> (i + 0.5) / Nx
+
+# b_θ(x) = A exp(-(x - x0)^2 / (2 σ^2)), θ = [A, x0, σ].
+def bathymetry(θ: ℝ[3]): ℝ[Nx]:
+    A, x0, σ: ℝ = θ[0], θ[1], θ[2]
+    return for i:ℕ(Nx) -> A * exp(-(x[i] - x0)**2 / (2.0 * σ**2))
+
+# Hydrostatic reconstruction at each right face i + 1/2.
+# The corrected left/right momentum fluxes below both equal g h_i² / 2 at rest,
+# so their cell difference vanishes for a constant free surface η.
+def rhs(n: ℕ, q: ℝ[2, n], b: ℝ[n]): ℝ[2, n]:
+    h, hu: ℝ[n] = q[0], q[1]
+    η: ℝ[n] = h + b
+    h_right, hu_right: ℝ[n] = roll(h, -1, 0), roll(hu, -1, 0)
+    b_right, η_right: ℝ[n] = roll(b, -1, 0), roll(η, -1, 0)
+    z_face: ℝ[n] = for i:ℕ(n) -> 0.5 * (b[i] + b_right[i] + abs(b[i] - b_right[i]))
+    h_left_face: ℝ[n] = for i:ℕ(n) -> 0.5 * (η[i] - z_face[i] + abs(η[i] - z_face[i]))
+    h_right_face: ℝ[n] = for i:ℕ(n) -> 0.5 * (η_right[i] - z_face[i] + abs(η_right[i] - z_face[i]))
+    u: ℝ[n] = hu / h
+    u_right: ℝ[n] = hu_right / h_right
+    s_left: ℝ[n] = for i:ℕ(n) -> abs(u[i]) + sqrt(g * h_left_face[i])
+    s_right: ℝ[n] = for i:ℕ(n) -> abs(u_right[i]) + sqrt(g * h_right_face[i])
+    a: ℝ[n] = for i:ℕ(n) -> 0.5 * (s_left[i] + s_right[i] + abs(s_left[i] - s_right[i]))
+    Fh: ℝ[n] = 0.5 * (hu + hu_right) - 0.5 * a * (h_right_face - h_left_face)
+    pressure_left_face: ℝ[n] = 0.5 * g * h_left_face**2
+    pressure_right_face: ℝ[n] = 0.5 * g * h_right_face**2
+    Fhu: ℝ[n] = 0.5 * (hu * u + pressure_left_face
+                        + hu_right * u_right + pressure_right_face)
+    Fhu: ℝ[n] = Fhu - 0.5 * a * (hu_right - hu)
+    Fhu_right: ℝ[n] = Fhu + 0.5 * g * (h**2 - h_left_face**2)
+    Fhu_left: ℝ[n] = roll(Fhu, 1, 0) + 0.5 * g * (
+        h**2 - roll(h_right_face**2, 1, 0))
+    dh: ℝ[n] = -(Fh - roll(Fh, 1, 0)) / Δx
+    dhu: ℝ[n] = -(Fhu_right - Fhu_left) / Δx
+    return [dh, dhu]
+
+# SSPRK(3,3) advances the semidiscrete, hydrostatically balanced finite-volume ODE.
+def rk3_step(n: ℕ, q: ℝ[2, n], b: ℝ[n]): ℝ[2, n]:
+    q1: ℝ[2, n] = q + Δt * rhs(n, q, b)
+    q2: ℝ[2, n] = 0.75 * q + 0.25 * (q1 + Δt * rhs(n, q1, b))
+    return q / 3.0 + (2.0 / 3.0) * (q2 + Δt * rhs(n, q2, b))
+
+# A small surface pulse supplies the synthetic wave experiment.
+def initial_state(b: ℝ[Nx]): ℝ[2, Nx]:
+    η0: ℝ[Nx] = for i:ℕ(Nx) -> 1.0 + 0.025 * exp(-(x[i] - 0.25)**2 / 0.008)
+    h0: ℝ[Nx] = η0 - b
+    zero: ℝ[Nx] = 0.0 * h0
+    return [h0, zero]
+
+def solve(θ: ℝ[3]): ℝ[2, Nx]:
+    b: ℝ[Nx] = bathymetry(θ)
+    q: ℝ[2, Nx] = initial_state(b)
+    for step:ℕ(steps):
+        q = rk3_step(Nx, q, b)
+    return q
+
+# Three fixed gauge positions observe η = h + b after the wave crosses the bump.
+def gauges(q: ℝ[2, Nx], b: ℝ[Nx]): ℝ[3]:
+    η: ℝ[Nx] = q[0] + b
+    return [η[6], η[16], η[26]]
+
+# Synthetic observations are formed once from fixed true parameters, outside loss.
+θ_true: ℝ[3] = [0.14, 0.58, 0.11]
+b_true: ℝ[Nx] = bathymetry(θ_true)
+gauge_obs: ℝ[3] = gauges(solve(θ_true), b_true)
+
+def loss(θ: ℝ[3]): ℝ:
+    b: ℝ[Nx] = bathymetry(θ)
+    predicted: ℝ[3] = gauges(solve(θ), b)
+    return mean((predicted - gauge_obs)**2)
+
+# Adam follows the solver-in-the-loop gradient toward a local loss minimum.
+θ: ℝ[3] = [0.09, 0.45, 0.14]
+initial_loss: ℝ = loss(θ)
+learning_rate: ℝ = 0.01
+beta1: ℝ = 0.9
+beta2: ℝ = 0.999
+eps_adam: ℝ = 0.00000001
+m_adam: ℝ[3] = 0.0 * θ
+v_adam: ℝ[3] = 0.0 * θ
+t_adam: ℝ = 0.0
+optimization_steps: ℕ = 5
+for step:ℕ(optimization_steps):
+    loss_gradient: ℝ[3] = ∇(loss, θ)
+    t_adam = t_adam + 1.0
+    m_adam = beta1 * m_adam + (1.0 - beta1) * loss_gradient
+    v_adam = beta2 * v_adam + (1.0 - beta2) * (loss_gradient * loss_gradient)
+    mhat: ℝ[3] = m_adam / (1.0 - beta1**t_adam)
+    vhat: ℝ[3] = v_adam / (1.0 - beta2**t_adam)
+    θ = θ - learning_rate * mhat / (sqrt(vhat) + eps_adam)
+final_loss: ℝ = loss(θ)
+final_loss
