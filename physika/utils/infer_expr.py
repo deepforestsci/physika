@@ -261,6 +261,7 @@ def expr_array(node: Any,
 
     # Unify element types pairwise to find a common type for the whole array.
     base = elem_types[0]
+    from physika.utils import ast_to_torch_expr
     for i, et in enumerate(elem_types[1:], 1):
         if base is not None and et is not None:
             try:

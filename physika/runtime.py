@@ -1061,3 +1061,34 @@ def detach_grad(x):
     True
     """
     return x.detach().requires_grad_(True)
+
+
+
+def to_stack(x):
+    return torch.stack(x)
+
+
+def get_tensor_type(x):
+    return x.dtype
+
+
+
+def torch_real(x):
+    return torch.real(x)
+
+
+
+def unsqueeze(x, dim=None):
+    return torch.unsqueeze(x, dim)
+
+
+def einsum(equation, *operands):
+    return torch.einsum(equation, operands)
+
+def size(x):
+    return x.size()
+
+
+def view(x, shape):
+    return x.view(shape)
+

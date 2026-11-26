@@ -717,18 +717,21 @@ def check_function(
                                    _add)
             body_t = s.apply(body_t) if body_t is not None else None
             if return_type is not None and body_t is not None:
-                try:
-                    s = unify(return_type, body_t, s)
-                    # if its a list, add actual contents from body types into
-                    #  return type.
-                    if (isinstance(return_type, TList)
-                            and not return_type.elements
-                            and isinstance(body_t, TList)):
-                        return_type = body_t
-                except TypeError as e:
-                    _add(f"return type mismatch: "
-                         f"declared {type_to_str(return_type)}, "
-                         f"got {type_to_str(body_t)}: {e}")
+                if body_t == T_COMPLEX:
+                    pass
+                else:
+                    try:
+                        s = unify(return_type, body_t, s)
+                        # if its a list, add actual contents from body types into
+                        #  return type.
+                        if (isinstance(return_type, TList)
+                                and not return_type.elements
+                                and isinstance(body_t, TList)):
+                            return_type = body_t
+                    except TypeError as e:
+                        _add(f"return type mismatch: "
+                            f"declared {type_to_str(return_type)}, "
+                            f"got {type_to_str(body_t)}: {e}")
 
     # update func_env with return type
     func_env[name] = (

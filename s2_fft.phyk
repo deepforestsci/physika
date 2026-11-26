@@ -1,0 +1,64 @@
+
+def rand_5d_array(m: N, n: N, o: N, p: N, q: N, μ:ℝ): ℝ[m, n, o, p, q]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → for s:N(p) → for b:N(q) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_4d_array(m: N, n: N, o: N, p: N, μ:ℝ): ℝ[m, n, o, p]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → for s:N(p) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_3d_array(m: N, n: N, o: N, μ:ℝ): ℝ[m, n, o]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_2d_array(n:N, m:N, μ:ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_array(n: N, μ:ℝ): R[n]:
+    return for i:ℕ(n) → μ * eps ~ 𝒩(0.0, 1.0)
+
+
+
+from wigner_d import wigner_D
+from S3 import quadrature_weights
+
+
+
+def setup_wigner(b: N, nl: N, weighted: N): R[m, n]:
+    betas = (arange(0, 2*b) + 0.5) / (2*b) * 3.14
+    w = quadrature_weights(b) * (2*b)
+    dss: ℝ[2*b, nl*nl] = zeros(2*b, nl*nl)
+    for j:N(2*b):
+        beta = betas[j]
+        for l:N(nl):
+            D = wigner_D(l, 0.0, beta, 0.0)
+            if weighted == 1:
+                scale = w[j]
+            else:
+                scale = 2*l + 1
+            for i:N(2*l+1):
+                dss[j, l*l + i] = D[0, i, l] * scale
+    return dss
+
+
+b: N = 1
+nl: N = 1
+weighted: N = 1
+
+
+#setup_wigner(b, nl, weighted)
+
+
+
+def s2_fft(x: R[B, b, a, c], b_out: N): R:
+    B, b, a, c = size(x)
+    b_in = b / 2
+    x = view(x, -1, 2*b_in, 2*b_in, 2)
+    return 1
+
+
+x = rand_4d_array(1, 4, 2, 2, 0.1)
+b_out: N = 1
+
+s2_fft(x, b_out)
+
+
+
+
