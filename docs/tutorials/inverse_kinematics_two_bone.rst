@@ -77,7 +77,7 @@ number of bones.
             y = y + l[i] * sin(φ)
         return [x, y]
 
-Each pass of the loop adds one bone. ``φ`` is the running sum of the joint
+``φ`` is the running sum of the joint
 angles, so it is the direction :math:`\phi_i` of the current bone:
 :math:`\theta_0` after the first pass and :math:`\theta_0 + \theta_1` after the
 second. ``x``, ``y`` and ``φ`` all start at zero.
@@ -124,21 +124,20 @@ In the code, ``d`` is the miss vector, and ``sum(d * d)`` is
 
 For the starting angles :math:`\theta = [0.1, 0.5]`, the hand is at about
 (7.28, 2.66) and the target is at (5, 5), so the miss is
-(2.2814, −2.3421). The positive x means the hand is too far
-to the right, and the negative y means it is too low. Squaring and adding the
-two entries gives a loss of about 10.69.
+(2.2814, −2.3421). Squaring and adding the two entries gives a loss of about
+10.69.
 
 
 1.4 The Gradient
 ~~~~~~~~~~~~~~~~
 
-The Jacobian ``J`` tells us how the hand moves when a joint angle changes. It
-has one row for each hand coordinate (x, then y) and one column for each joint
-angle. So the entry in row x, column :math:`\theta_0` says how much the hand's
-x changes when we turn the first joint a little.
+The Jacobian ``J`` holds the derivatives of the hand position with respect to
+the joint angles. It has one row for each hand coordinate (x, then y) and one
+column for each joint angle, so the entry in row x, column :math:`\theta_0` is
+:math:`\partial x / \partial \theta_0`.
 
-Physika's ``∇`` computes this Jacobian directly from the ``hand`` function. We
-don't need to derive its entries by hand.
+Physika's ``∇`` computes this Jacobian directly from the ``hand`` function, so
+its entries need not be derived by hand.
 
 .. math::
 
@@ -401,9 +400,9 @@ After 500 steps, ``l_fit`` is about [4.0, 4.0], the same as the true lengths.
 What to Know
 ------------
 
-Gradient descent does the job here, but it can go wrong in a few ways. The numbers below come from running this tutorial with one thing changed each time.
+Gradient descent converges here, but it is sensitive to the learning rate and to the target. The numbers below come from running this tutorial with one thing changed each time.
 
-The learning rate has to be small. The loss starts at 10.69. With a learning rate of 0.005 it drops below 0.000001 in 243 steps, and with 0.01 in 120. With 0.02 the first step goes too far and the loss jumps to 26.3, and with 0.03 it jumps to 70.4. Neither one settles down. After 1000 steps the loss is still 11.9 and 28.0.
+The learning rate has to be small. The loss starts at 10.69. With a learning rate of 0.005 it drops below 0.000001 in 243 steps, and with 0.01 in 120. With 0.02 the first step goes too far and the loss jumps to 26.3, and with 0.03 it jumps to 70.4. Neither converges. After 1000 steps the loss is still 11.9 and above 10.
 
 .. list-table::
    :header-rows: 1
@@ -422,13 +421,11 @@ The learning rate has to be small. The loss starts at 10.69. With a learning rat
      - 11.9
    * - 0.03
      - not reached
-     - 28.0
+     - above 10
 
 We keep 0.005. If this simple update isn't enough, [Aristidou2018]_ describe other methods built on the Jacobian, like damped least squares (Section 5.1.3).
 
-Targets close to the edge of the reach are slow. For (7, −3) the loss needs 656 steps instead of 243, and for (0, 7.9), which is just 0.1 short of the maximum reach, it is still not below 0.000001 after 1000 steps. The arm is almost straight there, so bending the elbow barely moves the hand and the gradient is tiny. A target beyond the reach is not an error either. The arm just stretches toward it as far as it can. For (6, −6), which is 8.49 from the shoulder, it points straight at the target and stays a little short, and for (9, 0) the hand stops at (8, 0).
-
-Where you start matters too.
+Targets close to the edge of the reach are slow. For (7, −3) the loss needs 656 steps instead of 243, and for (0, 7.9), which is just 0.1 short of the maximum reach, it is still not below 0.000001 after 1000 steps. The arm is almost straight there, so bending the elbow barely moves the hand and the gradient is tiny. A target beyond the reach is not an error either. The arm extends toward it as far as it can. For (6, −6), which is 8.49 from the shoulder, it points straight at the target and stays a little short, and for (9, 0) the hand stops at (8, 0).
 
 
 Full Code
