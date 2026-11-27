@@ -180,6 +180,7 @@ ID_CONT = ID_START + r"0-9\u0307\u0308\u00B2\u2044\u1D62"
 def t_ID(t):
     t.type = reserved.get(t.value, "ID")
     if t.type == "ID":
+        t.raw = t.value  # as written, before mangling (`x²`)
         t.value = mangle_identifier(t.value)
     return t
 
@@ -203,6 +204,8 @@ class IndentLexer:
         self.bracket_depth = 0  # Track nesting of brackets/parens
         self.raw_pushback = []  # Raw tokens peeked ahead, not yet processed
         self.last_type = None  # Type of the last token returned
+        # indentation of the `solve` statement being lexed, None outside one
+        self.solve_indent = None
 
     def input(self, data):
         # Ensure file ends with newline for proper DEDENT handling
@@ -216,6 +219,7 @@ class IndentLexer:
         self.bracket_depth = 0
         self.raw_pushback = []
         self.last_type = None
+        self.solve_indent = None
 
     def token(self):
         tok = self._token()
@@ -242,6 +246,20 @@ class IndentLexer:
                                                "DEDENT")
             if not (at_line_start and nxt is not None and nxt.type == "ID"):
                 tok.type = "ID"
+            else:
+                self.solve_indent = self.indent_stack[-1]
+
+        if (tok and tok.type == "ID" and self.solve_indent is not None
+                and getattr(tok, "raw", "").endswith("²")
+                and len(tok.raw) > 1):
+            # inside a solve statement a trailing `²` is an exponent,
+            # `x²` = `x**2`; elsewhere `x²` is a name (`x_sq`)
+            tok.value = mangle_identifier(tok.raw[:-1])
+            for type_, value in (("POWER", "**"), ("NUMBER", 2)):
+                extra = lex.LexToken()
+                extra.type, extra.value = type_, value
+                extra.lineno, extra.lexpos = tok.lineno, tok.lexpos
+                self.token_queue.append(extra)
 
         if tok and tok.type == "SUPERSCRIPT":
             # expand `x²` / `x⁻¹` into  `x**2` / `x**-1`.
@@ -293,6 +311,10 @@ class IndentLexer:
                 return self._token()  # Skip this newline, get next token
 
             _, new_indent = tok.value
+            if self.solve_indent is not None and \
+                    new_indent <= self.solve_indent:
+                # the solve statement (its line and `where:` block) ended
+                self.solve_indent = None
             tok.value = 1  # Restore simple newline count
 
             current_indent = self.indent_stack[-1]
