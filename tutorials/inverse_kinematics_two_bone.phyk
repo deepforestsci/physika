@@ -1,0 +1,128 @@
+# ============================================================
+# Inverse Kinematics of a Two-Bone Arm
+# ============================================================
+# Given a target point, find the joint angles that put the hand of
+# a flat two-bone arm on it. Gradient descent on the squared miss does
+# it, with ∇ giving the gradient. A closed form for two bones checks
+# the result, and Part 2 learns the bone lengths from measured hand
+# positions. No dynamics: no forces, mass or time.
+# ============================================================
+
+# Forward kinematics. θ: joint angles, l: bone lengths, n: number of bones.
+# φ is the running angle along the arm.
+def hand(θ: ℝ[m], l: ℝ[m], n: ℕ): ℝ[2]:
+    x, y, φ: ℝ = 0.0, 0.0, 0.0
+    for i: ℕ(n):
+        φ = φ + θ[i]
+        x = x + l[i] * cos(φ)
+        y = y + l[i] * sin(φ)
+    return [x, y]
+
+# Loss L(θ): squared distance from the hand to the target. d is the miss.
+def L(θ: ℝ[m], l: ℝ[m], n: ℕ, target: ℝ[2]): ℝ:
+    d: ℝ[2] = hand(θ, l, n) - target
+    return sum(d * d)
+
+# ------------------------------------------------------------
+# Part 1: find the joint angles for a target
+# ------------------------------------------------------------
+l: ℝ[2] = [4.0, 4.0]                # bone lengths l1, l2
+n_bones: ℕ = len(l)
+reach: ℝ = sum(l)                   # farthest the hand can go
+
+target: ℝ[2] = [5.0, 5.0]           # (x, y), within reach
+
+θ: ℝ[2] = [0.1, 0.5]                # starting joint angles
+η: ℝ = 0.005                        # learning rate
+steps: ℕ = 1000                     # gradient descent steps
+
+# J is the 2 × 2 Jacobian of the hand. It has no type annotation on
+# purpose: the checker reports ∇ of a vector function with the shape
+# of θ, but at run time J is the matrix printed below.
+J = ∇(hand(θ, l, n_bones), θ)
+print(J)
+
+# The gradient of L is 2·Jᵀd, so the next two prints should agree.
+d: ℝ[2] = hand(θ, l, n_bones) - target
+print(∇(L(θ, l, n_bones, target), θ))
+print(2.0 * (d @ J))
+
+# Gradient descent. history and gradients are saved to draw the animation.
+history: ℝ[steps, n_bones] = zeros(steps, n_bones)
+gradients: ℝ[steps, n_bones] = zeros(steps, n_bones)
+
+for i: ℕ(steps):
+    history[i] = θ
+    g: ℝ[2] = ∇(L(θ, l, n_bones, target), θ)
+    gradients[i] = g
+    θ = θ - η * g
+
+print(θ)
+print(hand(θ, l, n_bones))
+print(target)
+print(L(θ, l, n_bones, target))
+
+# Closed form for two bones, used to check the result. The cosine rule on
+# the triangle (l1, l2, r) gives a at the shoulder and b at the elbow.
+# ψ = atan2(y, x) points at the target, so θ = [ψ - a, π - b]. Physika has
+# no acos, so acos(c) is written atan2(sqrt(1 - c²), c). Flipping the signs
+# of a and the bend gives the other pose. clip_reach pulls a target that
+# is out of reach back to the reach.
+π: ℝ = 3.141592653589793
+
+def clip_reach(t: ℝ[2], reach: ℝ): ℝ[2]:
+    dist: ℝ = sqrt(sum(t * t))
+    if dist > reach:
+        return t * (reach / dist)
+    else:
+        return t
+
+def closed_form(t: ℝ[2], l1: ℝ, l2: ℝ): ℝ[2]:
+    r2: ℝ = t[0] * t[0] + t[1] * t[1]  # r squared
+    ca: ℝ = (l1 * l1 + r2 - l2 * l2) / (2.0 * l1 * sqrt(r2))  # cos a
+    cb: ℝ = (l1 * l1 + l2 * l2 - r2) / (2.0 * l1 * l2)  # cos b
+    a: ℝ = atan2(sqrt(abs(1.0 - ca * ca)), ca)  # angle at the shoulder
+    b: ℝ = atan2(sqrt(abs(1.0 - cb * cb)), cb)  # angle inside the elbow
+    ψ: ℝ = atan2(t[1], t[0])        # direction to the target
+    return [ψ - a, π - b]
+
+goal: ℝ[2] = clip_reach(target, reach)
+exact: ℝ[2] = closed_form(goal, l[0], l[1])
+print(exact)
+print(hand(exact, l, n_bones))
+
+# ------------------------------------------------------------
+# Part 2: learn the bone lengths
+# ------------------------------------------------------------
+# The joint angles are known and four hand positions are measured.
+# ∇ now gives the gradient with respect to the lengths.
+
+# Hand positions for the joint settings, made from the true lengths.
+def make_obs(angs: ℝ[p, 2], l_true: ℝ[2], count: ℕ): ℝ[p, 2]:
+    obs: ℝ[count, 2] = zeros(count, 2)
+    for k: ℕ(count):
+        obs[k] = hand(angs[k], l_true, len(l_true))
+    return obs
+
+# Squared miss summed over all measurements.
+def fit_loss(guess: ℝ[m], angs: ℝ[p, 2], obs: ℝ[p, 2], count: ℕ): ℝ:
+    total: ℝ = 0.0
+    for k: ℕ(count):
+        d: ℝ[2] = hand(angs[k], guess, len(guess)) - obs[k]
+        total = total + sum(d * d)
+    return total
+
+angs: ℝ[4, 2] = [[0.2, 0.6], [0.9, -0.4], [1.4, 0.8], [2.0, -0.7]]
+n_obs: ℕ = len(angs)
+l_true: ℝ[2] = l                    # true lengths, hidden from the fit
+obs: ℝ[n_obs, 2] = make_obs(angs, l_true, n_obs)
+
+l_fit: ℝ[2] = [3.0, 5.0]            # wrong starting guess
+η_l: ℝ = 0.02                       # learning rate for the lengths
+length_steps: ℕ = 500
+
+for s: ℕ(length_steps):
+    g_fit: ℝ[2] = ∇(fit_loss(l_fit, angs, obs, n_obs), l_fit)
+    l_fit = l_fit - η_l * g_fit
+
+print(l_fit)
