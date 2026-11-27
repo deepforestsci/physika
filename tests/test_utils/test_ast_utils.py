@@ -946,3 +946,25 @@ class TestGenerateStatement:
                                                         ("complex", 2j),
                                                         ("complex", 3j)]), 1),
             set()) == 't = torch.tensor([1j, 2j, 3j], dtype=torch.complex64)'
+
+    def test_solve_decl_statement(self):
+        """
+        A ``solve_decl`` emits an assignment for each solved unknown in
+        ``solve_bindings`` and nothing otherwise.
+        """
+        node = ("solve_decl", ["x", "y"], "ℝ", None, [], 1)
+        assert generate_statement(node, set()) is None
+        assert generate_statement(node,
+                                  set(),
+                                  solve_bindings={
+                                      "x": ("div", ("var", "F"), ("var", "k"))
+                                  }) == "x = (F / k)"
+        assert generate_statement(node,
+                                  set(),
+                                  solve_bindings={
+                                      "x": ("num", 7),
+                                      "y": ("num", 3)
+                                  }) == "x = 7\ny = 3"
+        assert generate_statement(node,
+                                  set(),
+                                  solve_bindings={"z": ("num", 1)}) is None

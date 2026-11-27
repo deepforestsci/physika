@@ -17,8 +17,12 @@ from physika.utils.cic_utils.inductive_utils import (
     read_dim_vec_literal,
 )
 from physika.units import (
+    UnitError,
     check_unit_decl_cic,
     dim_analysis,
+    dim_sqrt_cic,
+    expr_unit_to_dimvec_cic,
+    infer_unit,
     local_annotation,
     param_dim_spec,
     parse_unit_ast,
@@ -399,6 +403,41 @@ class TestDimArithmetic:
         from physika.utils.cic_utils.inductive_utils import SI_BASE_UNITS
         kernel_unit = {b: e for b, e in zip(SI_BASE_UNITS, exps) if e != 0}
         assert kernel_unit == py
+
+    def test_dim_sqrt_cic(self, env):
+        """
+        ``dim_sqrt_cic`` halves even exponents and gives ``None`` for an
+        odd case.
+        """
+        lctx, mctx = LocalContext(), MetaVarContext()
+        gh = unit_to_dimvec_cic({"m": 2, "s": -2}, env)
+        assert read_dim_vec_literal(dim_sqrt_cic(gh, env), env, lctx,
+                                    mctx) == [0, 1, -1, 0, 0, 0, 0]
+        assert dim_sqrt_cic(unit_to_dimvec_cic({"m": 1}, env), env) is None
+
+    def test_expr_dims_sqrt_and_complex(self, env):
+        """
+        ``sqrt`` takes the square root of the dimension, ``i`` and complex
+        literals are dimensionless and ``real``/``imag`` keep the
+        argument's dimension.
+        """
+        lctx, mctx = LocalContext(), MetaVarContext()
+        units = {"z": {"m": 1}, "h": {"m": 2, "s": -2}}
+        dims = {k: unit_to_dimvec_cic(u, env) for k, u in units.items()}
+        for expr, expected in ((("call", "sqrt", [
+            ("var", "h")
+        ]), [0, 1, -1, 0, 0, 0,
+             0]), (("complex", 2j), [0] * 7), (("call", "imag", [
+                 ("var", "z")
+             ]), [0, 1, 0, 0, 0, 0, 0])):
+            d = expr_unit_to_dimvec_cic(expr, dims, env)
+            assert read_dim_vec_literal(d, env, lctx, mctx) == expected
+        assert expr_unit_to_dimvec_cic(("call", "sqrt", [("var", "z")]), dims,
+                                       env) is None
+        with pytest.raises(UnitError):
+            expr_unit_to_dimvec_cic(("call", "exp", [("var", "z")]), dims, env)
+        assert infer_unit(("imaginary", ), units) == {}
+        assert infer_unit(("call", "real", [("var", "z")]), units) == {"m": 1}
 
 
 class TestUnitDeclCheck:

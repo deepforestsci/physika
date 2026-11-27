@@ -53,6 +53,21 @@ def test_header_has_required_imports():
     assert "\n# === Program ===" in code
 
 
+def test_solve_bindings_codegen():
+    """A solved unknown in ``solve_bindings`` becomes a program assignment."""
+    node = ("solve_decl", ["x"], "ℝ", None, [], 3)
+    ast = {
+        "functions": {},
+        "classes": {},
+        "program": [("decl", "F", "ℝ", ("num", 6.0), 1),
+                    ("decl", "k", "ℝ", ("num", 2.0), 2), node]
+    }
+    bindings = {"x": ("div", ("var", "F"), ("var", "k"))}
+    code = from_ast_to_torch(ast, print_code=False, solve_bindings=bindings)
+    assert code.endswith("F = 6.0\nk = 2.0\nx = (F / k)")
+    assert "x =" not in from_ast_to_torch(ast, print_code=False)
+
+
 @pytest.mark.parametrize("phyk_file", PHYK_FILES, ids=PHYK_IDS)
 def test_from_ast_to_torch(phyk_file):
     """

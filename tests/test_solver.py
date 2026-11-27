@@ -108,6 +108,61 @@ class TestSolver:
             "Line 2: solve x : ℤ = -3  ✓ verified"
         ]
 
+    def test_superscript_two_is_a_power_only_in_solve(self):
+        """
+        Inside a ``solve`` statement (its line and ``where:`` block) a
+        trailing ``²`` is an exponent, ``x²`` = ``x ** 2``; elsewhere
+        ``x²`` is a name (``x_sq``), and so is a ``²`` inside a name.
+        """
+        from physika.lexer import lexer
+        src = ("σ²: ℝ = 2.0\n"
+               "solve x : ℤ where x² == 4\n"
+               "solve y : ℝ where:\n"
+               "    s == q² - 1\n"
+               "z : ℝ = q² + d²x\n")
+        lexer.input(src)
+        values = []
+        while (tok := lexer.token()) is not None:
+            if tok.type not in ("NEWLINE", "INDENT", "DEDENT"):
+                values.append(tok.value)
+        assert values == [
+            "σ_sq",
+            ":",
+            "ℝ",
+            "=",
+            2.0,
+            "solve",
+            "x",
+            ":",
+            "ℤ",
+            "where",
+            "x",
+            "**",
+            2,
+            "==",
+            4,
+            "solve",
+            "y",
+            ":",
+            "ℝ",
+            "where",
+            ":",
+            "s",
+            "==",
+            "q",
+            "**",
+            2,
+            "-",
+            1,
+            "z",
+            ":",
+            "ℝ",
+            "=",
+            "q_sq",
+            "+",
+            "d_sqx",
+        ]
+
     def test_solve_block_rejects(self):
         """
         Unsupported types and non-equation constraints should exit early

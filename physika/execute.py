@@ -13,6 +13,7 @@ from physika.utils.import_manager import resolve_imports
 from physika.core.elab.elab import Elab
 from physika.core.inductive import mk_builtin_env
 from physika.units import dim_analysis
+from physika.solver.solver import solve_equations, solve_bindings
 
 
 def main():
@@ -35,6 +36,7 @@ def main():
 
     unified_ast = None
     func_sigs: dict = {}  # name keys, (param units, return units) values
+    solved_bindings: dict = {}  # Solve-derived closed forms, name -> AST
     if physika_nodes:
         unified_ast = build_unified_ast(physika_nodes,
                                         symbol_table,
@@ -54,6 +56,16 @@ def main():
             print(f"{len(unit_errors)} dimensional analysis error(s) found.")
             for e in unit_errors:
                 print(f"  ✗ {e}")
+
+        # Kernel-verified equation solving
+        solve_report = solve_equations(unified_ast, cic_elab.state.env)
+        if solve_report:
+            print("\nEquation solver:")
+            for line in solve_report:
+                print(f"  {line}")
+
+        # solve closed forms as runtime bindings
+        solved_bindings = solve_bindings(unified_ast, cic_elab.state.env)
 
         if cic_errors:
             print(f"(CIC: {len(cic_errors)} construct(s) not fully verified "
@@ -83,6 +95,7 @@ def main():
             "resolved_program_fvar_names"),
         cic_env=cic_elab.state.env,
         func_sigs=func_sigs,
+        solve_bindings=solved_bindings,
     )
     exec(generated_code, vars(physika.runtime))
 
