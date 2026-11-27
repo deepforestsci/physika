@@ -1,0 +1,53 @@
+
+def arange(start: N, end: ℕ): ℝ[n]:
+    arr: ℝ[n] = for i: ℕ(start, end) → i
+    return arr
+
+def su2_generator(k: N): list:
+    m = arange(-k, k)
+    raising = diag((-sqrt(k * (k+1) - m * (m + 1))), -1)
+    m = arange(-k+1, k+1)
+    lowering = diag((sqrt(k * (k+1) - m * (m - 1))), 1)
+    m = arange(-k, k+1)
+    z_generator = diag(1j*m)
+    x_generator = 0.5 * (raising + lowering)
+    y_generator = -0.5j * (raising - lowering)
+    generators: list = [x_generator, z_generator, y_generator]
+    return generators
+
+
+def change_basis_real_to_complex(k: N): ℂ[k, k]:
+    q = complex_zeros([2*k+1, 2*k+1])
+    for i:N(k+1):
+        j = k - i
+        q[i, k+j] = 1 / 2**0.5
+        q[i, k-j] = complex(-1j / 2**0.5)
+    q[k, k] = 1
+    for i:N(1, k+1):
+        q[k+i, k+abs(i)] = (-1)**i / 2**0.5
+        q[k+i, k-abs(i)] = complex(1j * (-1)**i / 2**0.5)
+    q = (-1j)**k * q
+    return q
+
+
+def so3_generators(k: N): R[m, k, k]:
+    X = su2_generator(k)
+    Q = change_basis_real_to_complex(k)
+    X = (conj(Qᵀ)) @ to_stack(X) @ Q
+    return torch_real(X)
+
+
+def wigner_D(k: N, alpha: R[n], beta: R[n], gamma: R[n]): R[n, m, m]:
+    zero: N = 0
+    if k == zero:
+        return ones(1, 1, 1)
+    X = so3_generators(k)
+    alpha = unsqueeze(unsqueeze(alpha, 1), 2)
+    beta = unsqueeze(unsqueeze(beta, 1), 2)
+    gamma = unsqueeze(unsqueeze(gamma, 1), 2)
+    D_matrix = (matrix_exp(gamma * unsqueeze(X[1], 0)) @ 
+                        matrix_exp(beta * unsqueeze(X[0], 0)) @ matrix_exp(alpha * unsqueeze(X[1], 0)))
+    return D_matrix
+
+
+

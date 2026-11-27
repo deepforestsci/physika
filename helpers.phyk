@@ -1,0 +1,22 @@
+
+def rand_array(n:ℕ, μ:ℝ): ℝ[n]:
+    return for i:ℕ(n) → μ * ε ~ 𝒩(0.0, 1.0)
+
+x: R[10] = rand_array(10, 0.1)
+
+
+def as_complex(x: R[m]): R[2, m]:
+    img = zeros(10)
+    z = [x, img]
+    return zᵀ
+
+
+as_complex(x)
+
+
+
+
+def wigner_D(k: N, alpha: R, beta: R, gamma: R): R:
+    return 1
+
+

@@ -1,0 +1,21 @@
+
+def arange(start: N, end: ℕ): ℝ[n]:
+    arr: ℝ[n] = for i: ℕ(start, end) → i
+    return arr
+
+
+
+def quadrature_weights(b: N): R[2*b]:
+    π: R = 3.141592653589793
+    k = arange(0, b)
+    w: R[2*b] = zeros(2*b)
+    for j:N(2*b):
+        total: R = 0.0
+        for r:N(b):
+            total = total + (1.0 / (2*r+1)) * sin(
+                (2*j+1) * (2*r+1) * π / (4*b)
+            )
+        w[j] = (2.0 / b) * sin(
+            π * (2*j + 1) / (4*b)
+        ) * total / (2.0 * (2*b)**2)
+    return w

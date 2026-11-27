@@ -735,6 +735,7 @@ def ast_to_torch_expr(node: ASTNode,
             "sum": "torch.sum",
             "mean": "torch.mean",
             "real": "torch.real",
+            "matrix_exp": "torch.matrix_exp",
         }
         multi_arg_funcs = {
             "atan2": "torch.atan2",
@@ -747,11 +748,14 @@ def ast_to_torch_expr(node: ASTNode,
             "ifftn": "torch.fft.ifftn",
             "zeros": "torch.zeros",
             "rfft": "torch.fft.rfft",
-            "irfft": "torch.fft.irfft",
-            "gelu": "torch.nn.functional.gelu"
+            #"irfft": "torch.fft.irfft",
+            "gelu": "torch.nn.functional.gelu",
+            "diag": "torch.diag",
+            "conj": "torch.conj",
+
         }
         list_arg_funcs = {
-            "concat": "torch.cat",
+            #"concat": "torch.cat",
         }
         if func_name in torch_funcs:
             return f"{torch_funcs[func_name]}({arg} if isinstance({arg}, torch.Tensor) else torch.tensor(float({arg})))"  # noqa: E501
@@ -761,6 +765,12 @@ def ast_to_torch_expr(node: ASTNode,
             return (f"torch.zeros("
                     f"{', '.join(f'int({a})' for a in arg_strs)}, "
                     f"device=DEVICE)")
+        elif func_name == "ifftn":
+            if len(arg_strs) > 1:
+                dims = ", ".join(arg_strs[1:])
+                return f"torch.fft.ifftn({arg_strs[0]}, dim=[{dims}])"
+
+            return f"torch.fft.ifftn({arg_strs[0]})"
 
         elif func_name == "reshape":
             # tensor node
@@ -775,6 +785,23 @@ def ast_to_torch_expr(node: ASTNode,
 
         elif func_name in list_arg_funcs:
             return f"{list_arg_funcs[func_name]}([{', '.join(arg_strs)}])"
+
+        elif func_name == "concat":
+            last_arg = arg_strs[-1]
+
+            if last_arg.isdigit():
+                tensors = ", ".join(arg_strs[:-1])
+                return f"torch.cat([{tensors}], dim={last_arg})"
+
+            tensors = ", ".join(arg_strs)
+            return f"torch.cat([{tensors}])"
+        
+        elif func_name == "complex_zeros":
+            shape = args[0]
+            shape_code = ast_to_torch_expr(shape, indent, current_loop_var)
+            return f"torch.zeros(tuple({shape_code}), dtype=torch.complex64)"
+        
+        
 
         elif func_name == "grad":
             # grad(output, input) -> compute_grad(output, input)
@@ -910,7 +937,7 @@ def ast_to_torch_expr(node: ASTNode,
             f"torch.stack(["
             f"{body_code} "
             f"for {tmp} in range(int({start_code}), int({end_code})) "
-            f"for {loop_var} in [torch.tensor(float({tmp}), device=DEVICE))]])"  # noqa
+            f"for {loop_var} in [torch.tensor(float({tmp}), device=DEVICE)]])"  # noqa
         )
 
     elif op == "equation_string":
