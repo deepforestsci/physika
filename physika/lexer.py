@@ -8,7 +8,8 @@ tokens = ("ID", "NUMBER", "COMPLEX", "TYPE", "STRING", "PLUS", "MINUS",
           "LARROW", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "NEWLINE",
           "INDENT", "DEDENT", "DEF", "RETURN", "FOR", "IF", "ELSE", "CLASS",
           "LAMBDA", "TANGENT", "IMAGINARY", "SYMBOL", "FUNCTION", "EQUATION",
-          "WALRUS", "FROM", "IMPORT", "NABLA", "SOLVE", "WHERE", "SUPERSCRIPT", "MOD")
+          "WALRUS", "FROM", "IMPORT", "NABLA", "SOLVE", "WHERE", "SUPERSCRIPT",
+          "MOD")
 
 reserved = {
     "def": "DEF",
