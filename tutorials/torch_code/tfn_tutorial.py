@@ -19,6 +19,7 @@ def zero_3d(a, b, c):
     return results
 
 def difference_matrix(r):
+    num_points = int(r.shape[0])
     results = zero_3d(num_points, num_points, 3)
     for i in range(int(0), int(num_points)):
         for j in range(int(0), int(num_points)):
@@ -27,6 +28,7 @@ def difference_matrix(r):
     return results
 
 def distance_matrix(rij):
+    num_points = int(rij.shape[0])
     results = zero_2d(num_points, num_points)
     for i in range(int(0), int(num_points)):
         for j in range(int(0), int(num_points)):
@@ -40,6 +42,7 @@ def ssp(x):
     return torch.log(((0.5 * torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))) + 0.5) if isinstance(((0.5 * torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))) + 0.5), torch.Tensor) else torch.tensor(float(((0.5 * torch.exp(x if isinstance(x, torch.Tensor) else torch.tensor(float(x)))) + 0.5))))
 
 def Y0(rij):
+    num_points = int(rij.shape[0])
     results = zero_3d(num_points, num_points, 1)
     for i in range(int(0), int(num_points)):
         for j in range(int(0), int(num_points)):
@@ -47,6 +50,7 @@ def Y0(rij):
     return results
 
 def Y1(rij):
+    num_points = int(rij.shape[0])
     results = zero_3d(num_points, num_points, 3)
     for i in range(int(0), int(num_points)):
         for j in range(int(0), int(num_points)):
@@ -58,6 +62,7 @@ def Y1(rij):
     return results
 
 def Y2(rij):
+    num_points = int(rij.shape[0])
     results = zero_3d(num_points, num_points, 5)
     sqrt3 = torch.sqrt(3.0 if isinstance(3.0, torch.Tensor) else torch.tensor(float(3.0)))
     for i in range(int(0), int(num_points)):
@@ -72,6 +77,8 @@ def Y2(rij):
     return results
 
 def gaussian_rbf(dij, centers, gamma):
+    num_points = int(dij.shape[0])
+    rbf_count = int(centers.shape[0])
     results = zero_3d(num_points, num_points, rbf_count)
     for i in range(int(0), int(num_points)):
         for j in range(int(0), int(num_points)):
@@ -102,6 +109,7 @@ def radial_net(rbf_features, w1, b1, w2, b2, rbf_count=None, hidden=None):
     return out[int(0)][int(0)]
 
 def radial_field(rbf, w1, b1, w2, b2):
+    num_points = int(rbf.shape[0])
     results = zero_2d(num_points, num_points)
     for i in range(int(0), int(num_points)):
         for j in range(int(0), int(num_points)):
@@ -120,6 +128,7 @@ def tensor_product_reduce(cg, a, b, dim1, dim2, dim3):
     return results
 
 def filter_00(masses, phi0):
+    num_points = int(masses.shape[0])
     results = zero_1d(num_points)
     for a in range(int(0), int(num_points)):
         acc = torch.tensor([0.0], device=DEVICE)
@@ -132,6 +141,7 @@ def filter_00(masses, phi0):
     return results
 
 def filter_22(masses, phi2, y2):
+    num_points = int(masses.shape[0])
     results = zero_2d(num_points, 5)
     for a in range(int(0), int(num_points)):
         acc = zero_1d(5)
@@ -146,6 +156,7 @@ def filter_22(masses, phi2, y2):
     return results
 
 def matrix_from_0_2(out0, out2):
+    num_points = int(out0.shape[0])
     results = zero_3d(num_points, 3, 3)
     sqrt3 = torch.sqrt(3.0 if isinstance(3.0, torch.Tensor) else torch.tensor(float(3.0)))
     for a in range(int(0), int(num_points)):

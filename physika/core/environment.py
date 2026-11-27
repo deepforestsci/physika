@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Set, Tuple
 
 from physika.core.expr import Expr
 from physika.core.inductive import InductiveDecl, Recursor
@@ -138,6 +138,12 @@ class Environment:
         """
         self.constants: Dict[str, ConstantInfo] = {}
         self.inductives: Dict[str, InductiveInfo] = {}
+        # Top level program variables  registered as constants.
+        self.program_vars: Set[str] = set()
+        # declared class size fields
+        self.struct_size_fields: Dict[str, Dict[str, Tuple[str, int]]] = {}
+        # methjods that mutate paraemeters
+        self.mutating_methods: Set[str] = set()
 
     def add_constant(self, c: ConstantInfo) -> None:
         """

@@ -11,8 +11,8 @@ from physika.core.expr import (
     Expr,
     ForallE,
     Lit,
-    MVar,
     NatLit,
+    Proj,
     Sort,
     BinderInfo,
 )
@@ -425,8 +425,8 @@ def typespec_to_cic_resolved(ts: Union[str, tuple],
 def bvar_resolver(
     binder_names: List[str],
     depth: int,
-    return_only_mvars: Optional[Dict[str, "MVar"]] = None
-) -> Callable[[str], Expr]:
+    return_only_mvars: Optional[Dict[str,
+                                     Expr]] = None) -> Callable[[str], Expr]:
     """
     Returns a function from binder name to ``Expr``. A dim var resolves
     to its ``BVar`` at the current depth, or to a ``return_only_mvars`` entry
@@ -469,7 +469,7 @@ def typespec_to_cic(
         ts: Union[str, tuple],
         binder_names: List[str],
         depth: int,
-        return_only_mvars: Optional[Dict[str, "MVar"]] = None) -> Expr:
+        return_only_mvars: Optional[Dict[str, Expr]] = None) -> Expr:
     """
     Convert a Physika type spec to CIC ``Expr``.
 
@@ -492,6 +492,33 @@ def typespec_to_cic(
     """
     return typespec_to_cic_resolved(
         ts, bvar_resolver(binder_names, depth, return_only_mvars))
+
+
+def is_program_nat(name: str, elab) -> bool:
+    """
+    Whether ``name`` is a top level ``ℕ`` variable registered in
+    ``elab``'s environment.
+
+    Parameters
+    ----------
+    name : str
+        Dim name.
+    elab : Elab
+        Elaborator whose environment holds the program variables.
+
+    Example
+    -------
+    >>> from physika.core.elab.dim_typespec import is_program_nat
+    >>> from physika.core.elab.elab import Elab
+    >>> from physika.core.environment import Environment
+    >>> is_program_nat("n", Elab(Environment()))
+    False
+    """
+    state = getattr(elab, "state", None)
+    if state is None:
+        return False
+    env = state.env
+    return name in env.program_vars and env.constants[name].type == _NAT_CONST
 
 
 def elaborate_func_type(func_def: dict, elab: object) -> Expr:
@@ -523,10 +550,12 @@ def elaborate_func_type(func_def: dict, elab: object) -> Expr:
 
     param_dim_names = set(collect_dim_vars_ordered(params, None))
     binder_dim_vars = [d for d in dim_vars if d in param_dim_names]
-    return_only_mvars: Dict[str, "MVar"] = {
-        d:
-        elab.new_mvar(  # type: ignore[attr-defined]
-            f"_ret_dim_{d}", _NAT_CONST)
+    # A return-only dim is solved from the body or top level var
+    return_only_mvars: Dict[str, Expr] = {
+        d: (
+            Const(d, ()) if is_program_nat(d, elab) else
+            elab.new_mvar(  # type: ignore[attr-defined]
+                f"_ret_dim_{d}", _NAT_CONST))
         for d in dim_vars if d not in param_dim_names
     }
 
@@ -552,11 +581,56 @@ def elaborate_func_type(func_def: dict, elab: object) -> Expr:
     return result
 
 
+def struct_size_fields(
+    fields: List[Tuple[str, Union[str, tuple]]],
+    body_fields: List[Tuple[str, Union[str, tuple]]]
+) -> Dict[str, Tuple[str, int]]:
+    """
+    Dims of fields declared in a class body that are not class params.
+    A body field can be replaced by one of another shape, so
+    its dims are stored fields, not type params.
+
+    Parameters
+    ----------
+    fields : List[Tuple[str, Union[str, tuple]]]
+        Class constructor params.
+    body_fields : List[Tuple[str, Union[str, tuple]]]
+        Fields declared in the class body.
+
+    Example
+    -------
+    >>> from physika.core.elab.dim_typespec import struct_size_fields
+    >>> adj = ("tensor", [("n", "invariant"), ("n", "invariant")])
+    >>> struct_size_fields([], [("adjacency", adj)])
+    {'n': ('adjacency', 0)}
+    """
+    # dims already bound
+    param_dims = (set(collect_dim_vars_ordered(fields, None))
+                  | {f[0]
+                     for f in list(fields) + list(body_fields)})
+    sizes: Dict[str, Tuple[str, int]] = {}
+    for fname, ftype in body_fields:
+        if isinstance(ftype, tuple) and ftype and ftype[0] == "unit_typed":
+            ftype = ftype[1]
+        if not (isinstance(ftype, tuple) and ftype and ftype[0] == "tensor"):
+            continue
+        for axis, dim_entry in enumerate(ftype[1]):
+            dim = dim_entry[0] if isinstance(dim_entry, tuple) else dim_entry
+            if isinstance(dim, str) and dim not in param_dims:
+                sizes.setdefault(dim, (fname, axis))
+    return sizes
+
+
 def elaborate_struct_kind_and_ctor(
-    class_name: str, fields: List[Tuple[str, Union[str, tuple]]]
+    class_name: str,
+    fields: List[Tuple[str, Union[str, tuple]]],
+    body_fields: Optional[List[Tuple[str, Union[str, tuple]]]] = None
 ) -> Tuple[Expr, Expr, int, List[str]]:
     """
     Returns kind, ctor_type, num_params, dim_vars for a Physika class.
+
+    Fields declared in the class body follow the constructor params, after
+    the ``ℕ`` fields of their own dims.
 
     Parameters
     ----------
@@ -564,6 +638,8 @@ def elaborate_struct_kind_and_ctor(
         Class's registered name (e.g. ``"Box"``).
     fields : List[Tuple[str, Union[str, tuple]]]
         field name and type for a class defined in Physika
+    body_fields : Optional[List[Tuple[str, Union[str, tuple]]]]
+        fields declared in the class body.
 
     Example
     -------
@@ -576,9 +652,18 @@ def elaborate_struct_kind_and_ctor(
     ForallE(binder_name='x', binder_type=Const(name='Real', levels=()), body=Const(name='Box', levels=()), binder_info=<BinderInfo.DEFAULT: 1>)
     >>> num_params, dim_vars
     (0, [])
+    >>> adj = ("tensor", [("n", "invariant"), ("n", "invariant")])
+    >>> _, ctor_type, _, _ = elaborate_struct_kind_and_ctor(
+    ...     "G", [], [("adjacency", adj)])
+    >>> ctor_type.binder_name, ctor_type.body.binder_name
+    ('n', 'adjacency')
     """
     dim_vars = collect_dim_vars_ordered(fields, None)
     num_params = len(dim_vars)
+    body_fields = body_fields or []
+    fields = (list(fields) +
+              [(d, "ℕ") for d in struct_size_fields(fields, body_fields)] +
+              list(body_fields))
     binder_names: List[str] = dim_vars + [f[0] for f in fields]
     total = len(binder_names)
 
@@ -653,8 +738,46 @@ def struct_field_names(type_name: str,
     return names
 
 
-def elaborate_method_type(class_name: str, num_class_params: int,
-                          class_dim_vars: List[str], method_def: dict) -> Expr:
+def method_dim_resolver(name: str, binder_names: List[str], depth: int,
+                        class_name: str, size_field_idx: Dict[str, int],
+                        this_pos: int) -> Expr:
+    """
+    A dim in a method's signature. ``this.n`` for a size field ``n`` of
+    the class, else its binder.
+
+    Parameters
+    ----------
+    name : str
+        Dim name in the method's signature.
+    binder_names : List[str]
+        Binder display names of the method type.
+    depth : int
+        Opened binders where the dim is used.
+    class_name : str
+        Class registered name.
+    size_field_idx : Dict[str, int]
+        Field index of each class size field.
+    this_pos : int
+        Position of the ``this`` binder.
+
+    Example
+    -------
+    >>> from physika.core.elab.dim_typespec import method_dim_resolver
+    >>> method_dim_resolver("n", ["this"], 1, "G", {"n": 0}, 0)
+    Proj(type_name='G', idx=0, expr=BVar(idx=0))
+    """
+    if name in size_field_idx:
+        return Proj(class_name, size_field_idx[name],
+                    BVar(depth - 1 - this_pos))
+    return dim_bvar(name, binder_names, depth)
+
+
+def elaborate_method_type(class_name: str,
+                          num_class_params: int,
+                          class_dim_vars: List[str],
+                          method_def: dict,
+                          size_field_idx: Optional[Dict[str, int]] = None,
+                          mutates: bool = False) -> Expr:
     """
     Returns CIC ``ForallE`` chain for a class method.
 
@@ -671,6 +794,11 @@ def elaborate_method_type(class_name: str, num_class_params: int,
         Dim var names for impicit binders
     method_def : dict
         Parsed method definition.
+    size_field_idx : Optional[Dict[str, int]]
+        Field index of each class size field, ``n`` is ``this.n``.
+    mutates : bool
+        Whether the method changes ``this``, it then returns the updated
+        ``this``.
 
     Example
     -------
@@ -681,7 +809,12 @@ def elaborate_method_type(class_name: str, num_class_params: int,
     """
     params = method_def.get("params", [])
     return_type = method_def.get("return_type", "ℝ")
-    method_dim_vars = collect_dim_vars_ordered(params, return_type)
+    # not a new implicit binder
+    size_field_idx = size_field_idx or {}
+    method_dim_vars = [
+        d for d in collect_dim_vars_ordered(params, return_type)
+        if d not in class_dim_vars and d not in size_field_idx
+    ]
 
     binder_names: List[str] = (list(class_dim_vars) + ["this"] +
                                method_dim_vars + [p[0] for p in params])
@@ -689,7 +822,14 @@ def elaborate_method_type(class_name: str, num_class_params: int,
     this_pos = num_class_params
     params_start = this_pos + 1 + len(method_dim_vars)
 
-    result: Expr = typespec_to_cic(return_type, binder_names, total)
+    if mutates:
+        result: Expr = Const(class_name, ())
+        for j in range(num_class_params):
+            result = App(result, BVar(total - 1 - j))
+    else:
+        result = typespec_to_cic_resolved(
+            return_type, lambda d: method_dim_resolver(
+                d, binder_names, total, class_name, size_field_idx, this_pos))
 
     for i in range(total - 1, -1, -1):
         if i < num_class_params:
@@ -706,7 +846,9 @@ def elaborate_method_type(class_name: str, num_class_params: int,
             binfo = BinderInfo.IMPLICIT
         else:
             pidx = i - params_start
-            btype = typespec_to_cic(params[pidx][1], binder_names, i)
+            btype = typespec_to_cic_resolved(
+                params[pidx][1], lambda d: method_dim_resolver(
+                    d, binder_names, i, class_name, size_field_idx, this_pos))
             binfo = BinderInfo.DEFAULT
         result = ForallE(binder_names[i], btype, result, binfo)
 

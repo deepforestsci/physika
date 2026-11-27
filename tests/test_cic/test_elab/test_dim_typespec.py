@@ -16,12 +16,13 @@ from physika.core.elab.dim_typespec import (
     elaborate_struct_kind_and_ctor,
     nat_lit_int,
     struct_field_names,
+    struct_size_fields,
     typespec_to_cic,
     typespec_to_cic_resolved,
 )
 from physika.core.environment import ConstantInfo, Environment, InductiveInfo
 from physika.core.expr import (App, BVar, BinderInfo, Const, ForallE, Lit,
-                               MVar, MVarId, NatLit, Sort)
+                               MVar, MVarId, NatLit, Proj, Sort)
 from physika.core.inductive import Constructor, InductiveDecl
 from physika.core.level import LSucc, LZero
 
@@ -476,11 +477,52 @@ class TestElaborateStructKindField:
 
         assert struct_field_names("NoSuchType", Environment()) is None
 
+    def test_body_field_dims_are_stored_fields(self):
+        """
+        A body field ``some: ℝ[n, n]`` with ``n`` no class param is
+        preceded by a stored ``n : ℕ`` field, ``Vec (Vec ℝ n) n`` over it.
+        """
+        adj = ("tensor", [("n", "invariant"), ("n", "invariant")])
+        assert struct_size_fields([], [("adjacency", adj)]) == {
+            "n": ("adjacency", 0)
+        }
+        # a class param dim is not stored
+        w = ("W", ("tensor", [("n", "invariant")]))
+        assert struct_size_fields([w], [("adjacency", adj)]) == {}
+        # nor a field of that name (``lat`` in ``class VAE(lat: ℝ)``)
+        mu = ("μ", ("tensor", [(1, "invariant"), ("lat", "invariant")]))
+        assert struct_size_fields([("lat", "ℝ")], [mu]) == {}
+
+        kind, ctor_type, num_params, _ = elaborate_struct_kind_and_ctor(
+            "G", [], [("adjacency", adj)])
+        assert kind == Sort(LSucc(LZero())) and num_params == 0
+        assert ctor_type.binder_name == "n"
+        assert ctor_type.binder_type == _NAT_CONST
+        row = App(App(_VEC_CONST, _REAL_CONST), BVar(0))
+        assert ctor_type.body.binder_type == App(App(_VEC_CONST, row), BVar(0))
+
 
 class TestElaborateMethodType:
     """
     Tests for ``elaborate_method_type``.
     """
+
+    def test_size_field_and_mutating_method_types(self):
+        """
+        A size field in a signature is ``this.n``, a mutating method
+        returns the class.
+        """
+        method = {
+            "params": [],
+            "return_type": ("tensor", [("n", "invariant")])
+        }
+        m_type = elaborate_method_type("G", 0, [], method, {"n": 0})
+        assert m_type.binder_name == "this"
+        assert m_type.body == App(App(_VEC_CONST, _REAL_CONST),
+                                  Proj("G", 0, BVar(0)))
+        method = {"params": [("w", "ℝ")], "return_type": None}
+        m_type = elaborate_method_type("G", 0, [], method, {}, mutates=True)
+        assert m_type.body.body == Const("G", ())
 
     def test_class_method_type_elab(self):
         """
@@ -508,17 +550,26 @@ class TestElaborateMethodType:
         assert this_binder.binder_type == App(Const("Vec", ()), BVar(0))
         assert this_binder.body == _REAL_CONST
 
-        # test method's dim var reuse class dim var name does not shadows
+        # a method dim var named like a class dim var is the class's own:
         method_def = {
-            "params": [],
+            "params": [("x", ("tensor", [("n", "invariant")]))],
             "return_type": ("tensor", [("n", "invariant")])
         }
         result = elaborate_method_type("Vec", 1, ["n"], method_def)
         this_binder = result.body
-        method_n_binder = this_binder.body
-        assert method_n_binder.binder_name == "n"
-        assert method_n_binder.binder_info == BinderInfo.IMPLICIT
-        # References the outer class level "n" (BVar(2)), not the
-        # method level one (which would be BVar(0)).
-        assert method_n_binder.body == App(App(_VEC_CONST, _REAL_CONST),
-                                           BVar(2))
+        x_binder = this_binder.body
+        assert x_binder.binder_name == "x"
+        assert x_binder.binder_info == BinderInfo.DEFAULT
+        assert x_binder.binder_type == App(App(_VEC_CONST, _REAL_CONST),
+                                           BVar(1))
+        assert x_binder.body == App(App(_VEC_CONST, _REAL_CONST), BVar(2))
+
+        # a method's own dim var is still an implicit binder after ``this``
+        method_def = {
+            "params": [("y", ("tensor", [("k", "invariant")]))],
+            "return_type": "ℝ"
+        }
+        k_binder = elaborate_method_type("Vec", 1, ["n"],
+                                         method_def).body.body  # noqa: E501
+        assert k_binder.binder_name == "k"
+        assert k_binder.binder_info == BinderInfo.IMPLICIT

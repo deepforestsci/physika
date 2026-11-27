@@ -1,14 +1,20 @@
 from physika.core.elab.elab import Elab
-from physika.core.environment import Environment
+from physika.core.environment import ConstantInfo, Environment, InductiveInfo
+from physika.core.inductive import Constructor, InductiveDecl, mk_builtin_env
+from physika.core.elab.dim_typespec import elaborate_struct_kind_and_ctor
 from physika.core.expr import App, Const, FVar, Lit, MVar, Proj
-from physika.core.elab.dim_typespec import _REAL_CONST
+from physika.core.elab.dim_typespec import _NAT_CONST, _REAL_CONST
 from physika.utils.cic_utils.expr_utils import get_app_fn_args
 from physika.core.elab.body_elab import (
     error_type_str,
+    dim_str,
+    index_base,
     elaborate_expr,
     elaborate_stmts_with_return,
     elab_body_decl,
     elab_body_assign,
+    elab_body_field_assign,
+    elab_body_index_assign,
     elab_body_for,
     elab_body_if,
     elab_body_if_return,
@@ -20,6 +26,7 @@ from physika.core.elab.body_elab import (
     elab_expr_array,
     elab_expr_index,
     elab_expr_indexn,
+    elab_expr_index_update,
     elab_expr_call,
     elab_expr_field_access,
     elab_expr_method_call,
@@ -28,6 +35,9 @@ from physika.core.elab.body_elab import (
     elab_expr_pow,
     elab_expr_neg,
     elab_expr_if_else_return,
+    resolve_dim_or_fresh,
+    assign_fresh_dims,
+    bind_solved_dims,
 )
 
 
@@ -43,6 +53,19 @@ class TestErrorTypeStr:
         elab = Elab(Environment())
         assert error_type_str(_REAL_CONST, elab) == "ℝ"
         vec_ty = App(App(Const("Vec", ()), _REAL_CONST), Lit(3))
+        assert error_type_str(vec_ty, elab) == "ℝ[3]"
+
+    def test_succ_chain_dims_print_as_numbers(self):
+        """
+        A ``Nat.succ`` chain over a literal prints as its number, over a
+        dim var as ``n+k``.
+        """
+        elab = Elab(Environment())
+        succ = Const("Nat.succ", ())
+        assert dim_str(App(succ, App(succ, Lit(0))), elab) == "2"
+        elab, n_fv = elab.with_local("n", Const("Nat", ()))
+        assert dim_str(App(succ, n_fv), elab) == "n+1"
+        vec_ty = App(App(Const("Vec", ()), _REAL_CONST), App(succ, Lit(2)))
         assert error_type_str(vec_ty, elab) == "ℝ[3]"
 
 
@@ -200,6 +223,38 @@ class TestElabBodyDecl:
         assert ctrl is None
         assert list(env) == ["x"]
 
+    def test_new_dim_solved_from_value_type(self):
+        """
+        ``x: ℝ[m] = v`` with ``m`` not in scope introduces a fresh ``ℕ``
+        MVar, assigned ``v``'s length as written, then bound to it.
+        """
+        elab = Elab(Environment())
+        vec = lambda n: App(  # noqa: E731,E501
+            App(Const("Vec", ()), _REAL_CONST), n)
+        fresh = {}
+        m = resolve_dim_or_fresh("m", {}, elab, fresh)
+        assert resolve_dim_or_fresh("m", {}, elab, fresh) is m
+        assert list(fresh) == ["m"]
+        length = App(App(Const("Nat.add", ()), Lit(2)), Lit(1))
+        assign_fresh_dims(vec(m), vec(length), fresh, elab)
+        decls, errors = [], []
+        env = bind_solved_dims(fresh, "x", {}, elab, decls, errors, "f")
+        assert env == {"m": length} and decls == [("m", length)]
+        assert errors == []
+
+        # an unsolved dim is an error
+        fresh = {"k": elab.new_mvar("_dim_k", _NAT_CONST)}
+        bind_solved_dims(fresh, "y", {}, elab, [], errors, "f")
+        assert errors == [
+            "f: cannot determine dimension 'k' of 'y' from "
+            "its value"
+        ]
+
+        # R name is not a dimension
+        errors = []
+        resolve_dim_or_fresh("len", {"len": Lit(3.0)}, elab, {}, errors, "f")
+        assert errors == ["f: dimension 'len' must be ℕ"]
+
 
 class TestElabBodyAssign:
     """
@@ -218,6 +273,46 @@ class TestElabBodyAssign:
                                                  "f")
         assert env["x"] is not x_fv
         assert ctrl is None
+
+    def test_field_and_index_assign_build_new_values(self):
+        """
+        ``x[0] = v`` rebinds ``x`` to a ``Vec.set``. ``p.x = v`` rebinds
+        ``p`` to the constructor with ``x`` replaced, and names bound to
+        ``p``'s fields read the new ``p``.
+        """
+        elab = Elab(mk_builtin_env())
+        vec_ty = App(App(Const("Vec", ()), _REAL_CONST), Lit(3))
+        elab, x_fv = elab.with_local("x", vec_ty)
+        stmt = ("body_index_assign", "x", ("num", 0), ("num", 1.0))
+        env, elab, decls, _, _ = elab_body_index_assign(
+            stmt, 0, [stmt], None, None, {"x": x_fv}, elab, [], {}, [], "f")
+        assert get_app_fn_args(dict(decls)["x"])[0] == Const("Vec.set", ())
+
+        env_ = mk_builtin_env()
+        kind, ctor_type, num_params, _ = elaborate_struct_kind_and_ctor(
+            "P", [("x", "ℝ"), ("y", "ℝ")])
+        env_.add_inductive(
+            InductiveInfo(
+                decl=InductiveDecl(name="P",
+                                   level_params=(),
+                                   num_params=num_params,
+                                   type=kind,
+                                   constructors=(Constructor(
+                                       "P.mk", ctor_type), ),
+                                   is_recursive=False),
+                ctors={"P.mk": ConstantInfo("P.mk", (), ctor_type, None)},
+                recursor=ConstantInfo("P.rec", (), kind, None)))
+        elab = Elab(env_)
+        elab, p_fv = elab.with_local("p", Const("P", ()))
+        env = {"p": p_fv, "y": Proj("P", 1, p_fv)}
+        stmt = ("body_field_assign", ("var", "p"), "x", ("num", 2.0))
+        errors = []
+        env, elab, decls, _, _ = elab_body_field_assign(
+            stmt, 0, [stmt], None, None, env, elab, [], {}, errors, "f")
+        assert errors == []
+        assert dict(decls)["p"] == App(App(Const("P.mk", ()), Lit(2.0)),
+                                       Proj("P", 1, p_fv))
+        assert env["y"] == Proj("P", 1, env["p"])
 
 
 class TestElabBodyFor:
@@ -427,6 +522,41 @@ class TestElabExprIndex:
         head, _ = get_app_fn_args(elab_expr_index(node, env, elab, [], None))
         assert head == Const("Vec.get", ())
 
+    def test_index_base_is_name_or_expression(self):
+        """
+        An indexed array is a name (``u[i]``) or an expression node such as
+        a field (``this.W[i]``).
+        """
+        elab = Elab(Environment())
+        assert index_base("u", {"u": Lit(1.0)}, elab, []) == Lit(1.0)
+        node = ("var", "u")
+        assert index_base(node, {"u": Lit(2.0)}, elab, []) == Lit(2.0)
+
+    def test_index_update_builds_vec_set(self):
+        """
+        The value of ``x`` after ``x[i] = v`` is ``Vec.set x i v``, and
+        after ``A[i, j] = v`` it is ``Vec.set A i (Vec.set A[i] j v)``.
+        """
+        elab = Elab(mk_builtin_env())
+        row_ty = App(App(Const("Vec", ()), _REAL_CONST), Lit(3))
+        mat_ty = App(App(Const("Vec", ()), row_ty), Lit(2))
+        elab, x_fv = elab.with_local("x", row_ty)
+        elab, a_fv = elab.with_local("A", mat_ty)
+        env = {"x": x_fv, "A": a_fv}
+        node = ("index_update", "x", [("num", 1)], ("num", 2.0))
+        result = elab_expr_index_update(node, env, elab, [], None)
+        head, args = get_app_fn_args(result)
+        assert head == Const("Vec.set", ())
+        assert args[2] is x_fv and args[4] == Lit(2.0)
+        assert elab.unify(elab.infer_type(result), row_ty)
+
+        node = ("index_update", "A", [("num", 0), ("num", 2)], ("num", 2.0))
+        result = elab_expr_index_update(node, env, elab, [], None)
+        head, args = get_app_fn_args(result)
+        assert head == Const("Vec.set", ())
+        assert get_app_fn_args(args[4])[0] == Const("Vec.set", ())
+        assert elab.unify(elab.infer_type(result), mat_ty)
+
 
 class TestElabExprIndexn:
     """
@@ -531,6 +661,27 @@ class TestElabExprMatmul:
         node = ("matmul", ("var", "m"), ("var", "m"))
         result = elab_expr_matmul(node, env, elab, [], None)
         assert isinstance(result, MVar) is False
+
+    def test_vector_matrix_products(self):
+        """
+        ``ℝ[2] @ ℝ[2, 3]`` is ``Mat.vecmul``, ``ℝ[2, 3] @ ℝ[3]``
+        ``Mat.mulvec`` and ``ℝ[3] @ ℝ[3]`` ``Vec.dot``.
+        """
+        from physika.core.inductive import mk_builtin_env
+        elab = Elab(mk_builtin_env())
+        vec = lambda n: App(  # noqa: E731,E501
+            App(Const("Vec", ()), _REAL_CONST), Lit(n))
+        mat_ty = App(App(Const("Vec", ()), vec(3)), Lit(2))
+        elab, m_fv = elab.with_local("M", mat_ty)
+        elab, u_fv = elab.with_local("u", vec(2))
+        elab, w_fv = elab.with_local("w", vec(3))
+        env = {"M": m_fv, "u": u_fv, "w": w_fv}
+        for a, b, head in (("u", "M", "Mat.vecmul"), ("M", "w", "Mat.mulvec"),
+                           ("w", "w", "Vec.dot")):
+            node = ("matmul", ("var", a), ("var", b))
+            result = elab_expr_matmul(node, env, elab, [], None)
+            assert get_app_fn_args(result)[0] == Const(head, ())
+            elab.infer_type(result)
 
 
 class TestElabExprPow:
