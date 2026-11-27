@@ -17,7 +17,7 @@ print_separator: bool = False
 # PARSER
 precedence = (
     ("left", "PLUS", "MINUS"),
-    ("left", "TIMES", "DIVIDE"),
+    ("left", "TIMES", "DIVIDE", "MOD"),
     ("left", "MATMUL"),
     ("right", "POWER"),
     (
@@ -1206,6 +1206,7 @@ def p_func_term_times(p):
     """func_term : func_term TIMES func_power
                  | func_term DIVIDE func_power
                  | func_term INTDIV func_power
+                 | func_term MOD func_power
                  | func_term MATMUL func_power"""
     if p[2] == "*":
         p[0] = ("mul", p[1], p[3])
@@ -1213,6 +1214,8 @@ def p_func_term_times(p):
         p[0] = ("div", p[1], p[3])
     elif p[2] == "//":
         p[0] = ("intdiv", p[1], p[3])
+    elif p[2] == "%":
+        p[0] = ("mod", p[1], p[3])
     else:  # @
         p[0] = ("matmul", p[1], p[3])
 
@@ -1376,22 +1379,26 @@ def p_expr_term(p):
 def p_term_binop(p):
     """term : term TIMES factor
             | term DIVIDE factor
+            | term MOD factor
             | term MATMUL factor
             | term POWER factor"""
-    # Binary operations using ``*``, ``/``, ``@`` and ``**`` symbols, all
-    # left-associative at the same precedence level.
+    # Binary operations using ``*``, ``/``, ``%``, ``@`` and ``**`` symbols,
+    # all left-associative at the same precedence level.
     # Example:
     #   a * b / c   ->   (a * b) / c
+    #   a % b * c   ->   (a % b) * c
     # Parameters:
     #   p[1] - left term
-    #   p[2] - operator token ("*", "/", "@" or "**")
+    #   p[2] - operator token ("*", "/", "%", "@" or "**")
     #   p[3] - right factor
     # Returns:
-    #   ("mul" | "div" | "matmul" | "pow", left, right)
+    #   ("mul" | "div" | "mod" | "matmul" | "pow", left, right)
     if p[2] == "*":
         p[0] = ("mul", p[1], p[3])
     elif p[2] == "/":
         p[0] = ("div", p[1], p[3])
+    elif p[2] == "%":
+        p[0] = ("mod", p[1], p[3])
     elif p[2] == "**":
         p[0] = ("pow", p[1], p[3])
     else:  # @
