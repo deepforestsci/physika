@@ -1,0 +1,72 @@
+from wigner_d import wigner_D
+from s2_ft import s2_rft, setup_s2_ft
+from s2_mm import s2_mm
+
+from s2_fft import s2_fft
+from so3_fft import so3_rifft
+
+from rand import uniform_4d_array, rand_3d_array
+from S3 import quadrature_weights
+
+
+class S2Convolution:
+    nfeature_in: N
+    nfeature_out: N
+    b_in: N
+    b_out: N
+    grid: R[m, n]
+    kernel: R[nfeature_in, nfeature_out, m]
+    scaling: R
+    bias: R[1, nfeature_out, 1, 1, 1]
+    def λ(x: ℝ[B, nfeature_in, 2*b_in, 2*b_in]) -> ℝ[B, nfeature_out, 2*b_out, 2*b_out, 2*b_out]:
+        beta = grid[:, 0]
+        alpha = grid[:, 1]
+        F = setup_s2_ft(b_out, beta, alpha)
+        x: ℝ[b_out*b_out, B, nfeature_in, 2] = s2_fft(x, b_out)
+        print(size(x))
+        y: ℝ[b_out*b_out, nfeature_in, nfeature_out, 2] = s2_rft(
+            kernel * scaling, F
+        )
+        print(size(y))
+        z = s2_mm(x, y)
+        print(size(z))
+        z = so3_rifft(z, 0, b_out)
+        print(size(z))
+        return z + bias
+
+
+
+B = 1
+I = 2
+O = 3
+b_in = 2
+b_out = 2
+
+
+
+grid: ℝ[5, 2] = [
+    [0.1, 0.2],
+    [0.3, 0.4],
+    [0.5, 0.6],
+    [0.7, 0.8],
+    [0.9, 1.0]
+]
+
+
+m, n = size(grid)
+kernel = rand_3d_array(I, O, m, 0.1)
+
+
+scaling: R = 1.0 / sqrt(m * I * b_out**4 / b_in**2)
+bias: ℝ[1, O, 1, 1, 1] = zeros(1, O, 1, 1, 1)
+
+x: ℝ[B, I, 2*b_in, 2*b_in] = uniform_4d_array(B, I, 2*b_in, 2*b_in, -1, 1)
+
+
+obj: S2Convolution = S2Convolution(I, O, b_in, b_out, grid, kernel, scaling, bias)
+obj(x)
+
+
+
+
+

@@ -1089,6 +1089,31 @@ def size(x):
     return x.size()
 
 
-def view(x, shape):
+def view(x, *shape):
+    shape = tuple([int(i) for i in shape])
     return x.view(shape)
 
+def view_as_complex(x):
+    return torch.view_as_complex(x)
+
+def view_as_real(x):
+    return torch.view_as_real(x)
+
+def ones(*shape):
+    return torch.ones(shape)
+
+def get_shape(x):
+    return x.shape
+
+
+def to_complex(x):
+    return x.to(torch.complex64)
+
+def resolve_conj(x):
+    return x.resolve_conj()
+
+def permute(x, *shape):
+    return x.permute(shape)
+
+def transpose(x, dim0, dim1):
+    return torch.transpose(x, dim0, dim1).contiguous()

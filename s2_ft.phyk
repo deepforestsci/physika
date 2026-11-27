@@ -1,0 +1,31 @@
+from wigner_d import wigner_D
+
+
+def setup_s2_ft(b: N, beta: R[n], alpha: R[n]): ℝ[n, b*b, 2]:
+    n = len(beta)
+    F: ℝ[n, b*b, 2] = zeros(n, b*b, 2)
+    for i:N(n):
+        for l:N(b):
+            D = wigner_D(
+                l,
+                [0.0],
+                beta[i:i+1],
+                alpha[i:i+1]
+            )
+            Q = change_basis_real_to_complex(l)
+            D_complex = Q @ to_complex(D[0]) @ conj(Qᵀ)
+            start = l*l
+            end = start + 2*l + 1
+            F[i, start:end] = view_as_real(
+                resolve_conj(conj(D_complex[:, l])
+            )) * (2*b)
+    return F
+
+
+def s2_rft(x: ℝ[B, C, n], F: ℝ[n, b*b, 2]): ℝ[b*b, B, C, 2]:
+    B, C, n = size(x)
+    _, n_spec, _ = size(F)
+    x = view(x, B*C, n)
+    x = einsum("ia,afc->fic", x, F)
+    return view(x, n_spec, B, C, 2)
+

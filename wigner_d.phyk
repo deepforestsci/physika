@@ -18,7 +18,7 @@ def su2_generator(k: N): list:
 
 def change_basis_real_to_complex(k: N): ℂ[k, k]:
     q = complex_zeros([2*k+1, 2*k+1])
-    for i:N(k):
+    for i:N(k+1):
         j = k - i
         q[i, k+j] = 1 / 2**0.5
         q[i, k-j] = complex(-1j / 2**0.5)
@@ -40,7 +40,7 @@ def so3_generators(k: N): R[m, k, k]:
 def wigner_D(k: N, alpha: R[n], beta: R[n], gamma: R[n]): R[n, m, m]:
     zero: N = 0
     if k == zero:
-        return [[[1.0]]]
+        return ones(1, 1, 1)
     X = so3_generators(k)
     alpha = unsqueeze(unsqueeze(alpha, 1), 2)
     beta = unsqueeze(unsqueeze(beta, 1), 2)

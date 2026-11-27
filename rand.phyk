@@ -1,0 +1,22 @@
+
+def rand_5d_array(m: N, n: N, o: N, p: N, q: N, μ:ℝ): ℝ[m, n, o, p, q]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → for s:N(p) → for b:N(q) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_4d_array(m: N, n: N, o: N, p: N, μ:ℝ): ℝ[m, n, o, p]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → for s:N(p) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_3d_array(m: N, n: N, o: N, μ:ℝ): ℝ[m, n, o]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_2d_array(n:N, m:N, μ:ℝ): ℝ[n, m]:
+    return for i:ℕ(n) → for j:ℕ(m) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def rand_array(n: N, μ:ℝ): R[n]:
+    return for i:ℕ(n) → μ * eps ~ 𝒩(0.0, 1.0)
+
+def uniform_3d_array(m: N, n: N, o: N, a: R, b: R): ℝ[m, n, o]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:ℕ(o) → eps ~ 𝒰(a, b)
+
+
+def uniform_4d_array(m: N, n: N, o: N, p: N, a:ℝ, b: R): ℝ[m, n, o, p]:
+    return for i:ℕ(m) → for j:ℕ(n) → for k:N(o) → for s:N(p) → eps ~ 𝒰(a, b)

@@ -1,0 +1,30 @@
+
+def s2_mm(x: ℝ[b*b, B, I, 2], y: ℝ[b*b, I, O, 2]): ℝ[n_out, B, O, 2]:
+    nspec, B, I, _ = size(x)
+    _, _, O, _ = size(y)
+    b = sqrt(nspec)
+    n_out = 0
+    for l:N(b):
+        L = 2*l + 1
+        n_out += L*L
+    output: ℝ[n_out, B, O, 2] = zeros(n_out, B, O, 2)
+    start = 0
+    out_start = 0
+    for l:N(b):
+        L = 2*l + 1
+        stop = start + L
+        out_stop = out_start + L*L
+        Fx = view(x[start:stop], L*B, I, 2)
+        Fy = y[start:stop]
+        xr = view(Fx[:, :, 0], L, B, I)
+        xi = view(Fx[:, :, 1], L, B, I)
+        yr = Fy[:, :, :, 0]
+        yi = Fy[:, :, :, 1]
+        zr = einsum("mbi,nio->mnbo", xr, yr) + einsum("mbi,nio->mnbo", xi, yi)
+        zi = einsum("mbi,nio->mnbo", xi, yr) - einsum("mbi,nio->mnbo", xr, yi)
+        output[out_start:out_stop, :, :, 0] = view(zr, L*L, B, O)
+        output[out_start:out_stop, :, :, 1] = view(zi, L*L, B, O)
+        start += L
+        out_start += L*L
+    return output
+
